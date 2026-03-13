@@ -26,6 +26,12 @@ These files contain the **complete project definition**.
 
 ---
 
+# 📁 Initial Folder Structure
+
+![folder_structure](assets/images/folder_structure.png)
+
+---
+
 # 🚀 Starting a New Claude Session
 
 Whenever starting a new session or after clearing context, run the bootstrap instruction:
