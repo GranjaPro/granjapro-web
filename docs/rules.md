@@ -174,3 +174,13 @@ Claude should:
 - focus on execution
 
 Always prefer minimal token usage while maintaining code quality.
+
+## Data Security
+
+All database access must be protected using Supabase Row Level Security (RLS).
+
+Each farm must only access its own data.
+
+Example rule:
+
+- users can only read/write data belonging to their farm_id

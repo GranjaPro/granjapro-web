@@ -1,58 +1,90 @@
-# Token Efficient Workflow for Claude Code
+# ⚡ Token-Efficient Workflow for Claude Code
 
-This project is developed using Claude Code.
+This project is built using Claude Code.  
+The purpose of this README is to ensure **minimal token usage, fast development cycles, and consistent AI behavior**.
 
-To minimize token usage and keep conversations efficient, we follow a documentation-driven workflow and strict prompting rules.
-
-The goal is to reduce unnecessary context, avoid repeated prompts, and ensure Claude generates only the required output.
-
----
-
-# Core Principle: Context Anchoring
-
-Instead of sending large prompts repeatedly, project context is stored in the `/docs` directory.
-
-Claude should load context from these files rather than receiving long instructions in every prompt.
-
-Project documentation includes:
-
-- product.md
-- mvp.md
-- modules.md
-- database.md
-- flows.md
-- stack.md
-- rules.md
-
-These files contain the complete project definition.
+The workflow below allows developers to build large SaaS systems while keeping prompts small and efficient.
 
 ---
 
-# Starting a New Claude Session
+# 🧠 Core Principle — Context Anchoring
 
-When starting a new session or after clearing context, use the following bootstrap instruction:
+Instead of sending large prompts repeatedly, the project stores context in the `/docs` directory.
 
-Load project context from /docs and follow rules.md strictly.
+Claude should load information from these files instead of receiving long instructions in every prompt.
 
-This allows Claude to rebuild context without sending large prompts.
+docs/
+  product.md
+  mvp.md
+  modules.md
+  database.md
+  flows.md
+  stack.md
+  rules.md
+
+These files contain the **complete project definition**.
 
 ---
 
-# Clear Context Frequently
+# 🚀 Starting a New Claude Session
 
-To prevent token accumulation:
+Whenever starting a new session or after clearing context, run the bootstrap instruction:
+
+"Load project context from /docs and follow rules.md strictly".
+
+This restores full context **without sending large prompts**.
+
+---
+
+# 📷 First Prompt
+
+Read the project documentation inside the /docs folder to understand the product.
+
+Based on that context, generate the first visual MVP page.
+
+Tech stack:
+- Next.js
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+
+Goals:
+- create the first visual page of the product
+- use mock data only
+- focus on high-quality UI/UX
+- mobile-first design
+
+Constraints:
+- do not build backend logic yet
+- do not build authentication yet
+- do not implement database integration yet
+
+The page should represent the main operational dashboard for the farm.
+
+Output:
+- create the page component
+- organize reusable UI components
+- keep the structure modular for future expansion
+
+---
+
+# 🧹 Clear Context Frequently
+
+Claude sessions accumulate tokens.
+
+To prevent this:
 
 /clear
 
-After clearing:
+Then reload context:
 
 Load project context from /docs and follow rules.md.
 
 ---
 
-# Always Request Focused Tasks
+# 🎯 Request Small, Focused Tasks
 
-Prefer small and precise instructions.
+Always ask Claude to perform **small, precise actions**.
 
 Good example:
 
@@ -60,13 +92,13 @@ Create the feed consumption API.
 
 Bad example:
 
-Build the entire farm management system.
+Build the entire farm management backend.
 
-Large instructions dramatically increase token usage.
+Large tasks dramatically increase token consumption.
 
 ---
 
-# Modify Only What Is Necessary
+# 🧩 Modify Only What Is Necessary
 
 When updating code, reference specific files or functions.
 
@@ -82,31 +114,35 @@ This prevents Claude from analyzing unnecessary parts of the project.
 
 ---
 
-# Return Only Code
+# 📦 Return Only Code
 
-Always instruct Claude to avoid explanations when they are not needed.
+Avoid explanations when they are not needed.
 
-Use:
+Always include:
 
 Return only code.
 
-This reduces output tokens significantly.
+This significantly reduces output tokens.
 
 ---
 
-# Avoid Repeating Project Context
+# 🔁 Avoid Repeating Project Context
 
-Do not resend the product description, architecture, or feature list.
+Do not resend product descriptions, architecture explanations, or feature lists.
 
-Instead reference the documentation.
+Instead reference documentation.
 
-Example:
+Bad example:
+
+Build a SaaS for egg farmers that manages production, feed, mortality, finance, customers, sales, and tasks.
+
+Good example:
 
 Read project context from /docs and implement the production module.
 
 ---
 
-# Break Work Into Small Steps
+# 🪜 Break Work Into Small Steps
 
 Large tasks generate large responses.
 
@@ -116,7 +152,7 @@ Create the entire dashboard.
 
 Use:
 
-Create the KPI cards for the dashboard.
+Create KPI cards for the dashboard.
 
 Then:
 
@@ -124,35 +160,35 @@ Create the dashboard layout.
 
 Then:
 
-Create the charts.
+Create dashboard charts.
 
 This dramatically reduces token usage.
 
 ---
 
-# Reuse Existing Components
+# ♻️ Reuse Existing Components
 
-Ask Claude to reuse existing UI components rather than generating new ones.
+Encourage reuse of UI and logic components.
 
 Example:
 
 Use existing KPI card components for the dashboard.
 
-This avoids unnecessary code generation.
+Avoid generating duplicate UI structures.
 
 ---
 
-# Avoid Over-Engineering
+# ⚙️ Avoid Overengineering
 
-Always prefer simple implementations.
+Prefer simple implementations.
 
 Complex architectures increase token usage and development time.
 
 ---
 
-# Efficient Prompt Pattern
+# 📌 Efficient Prompt Pattern
 
-Use the following structure for most requests:
+Use this structure for most requests:
 
 Load project context from /docs.
 
@@ -172,6 +208,6 @@ Return only code.
 
 ---
 
-# Development Goal
+# 🎯 Development Goal
 
 Maintain efficient Claude sessions with minimal token usage while producing clean, modular, production-ready code.

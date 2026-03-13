@@ -149,3 +149,16 @@ Export:
 - mortality report
 - feed report
 - financial report
+
+## Backend Strategy
+
+The MVP will not include a custom backend server.
+
+Instead, Supabase will be used to provide:
+
+- database
+- authentication
+- APIs
+- storage
+
+This significantly reduces development complexity and allows faster product iteration.

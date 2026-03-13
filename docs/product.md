@@ -23,7 +23,6 @@ Primary users:
 - small egg producers
 - medium egg producers
 - family farms
-- cage systems
 - cage-free farms
 - free-range farms
 
@@ -47,3 +46,19 @@ Granja Pro helps farmers:
 - increase productivity
 - improve financial control
 - simplify daily farm management
+
+## Infrastructure
+
+The platform uses Supabase as the backend infrastructure layer.
+
+Supabase provides:
+
+- managed PostgreSQL database
+- authentication system
+- automatic REST APIs
+- realtime data updates
+- file storage
+
+This architecture allows the product to launch faster while maintaining scalability.
+
+Frontend applications interact directly with Supabase APIs.
