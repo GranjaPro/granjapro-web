@@ -1,0 +1,74 @@
+# dependencies
+node_modules/
+
+# next.js build output
+.next/
+out/
+
+# production builds
+dist/
+build/
+
+# environment variables
+.env
+.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# coverage
+coverage/
+
+# misc
+.DS_Store
+Thumbs.db
+
+# vercel
+.vercel/
+
+# typescript
+*.tsbuildinfo
+
+# editor directories
+.vscode/
+.idea/
+
+# local database / temp files
+*.sqlite
+*.sqlite3
+*.db
+
+# uploads / large files
+uploads/
+tmp/
+temp/
+
+# next cache
+.next/cache/
+
+# supabase local
+.supabase/
+
+# docker
+docker-compose.override.yml
+
+# optional large assets
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z

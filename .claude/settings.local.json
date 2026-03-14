@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd \"C:\\\\Users\\\\Bernardo Timo\\\\OneDrive\\\\Programming\\\\teste_agro1\" && npm install 2>&1 | tail -5)",
+      "Bash(cd \"C:\\\\Users\\\\Bernardo Timo\\\\OneDrive\\\\Programming\\\\teste_agro1\" && npm install --legacy-peer-deps 2>&1 | tail -8)",
+      "Bash(cd \"C:\\\\Users\\\\Bernardo Timo\\\\OneDrive\\\\Programming\\\\teste_agro1\" && npx next build 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\Bernardo Timo\\\\OneDrive\\\\Programming\\\\teste_agro1\" && npm install autoprefixer --save-dev --legacy-peer-deps 2>&1 | tail -4)",
+      "Bash(cd \"/c/Users/Bernardo Timo/OneDrive/Programming/teste_agro1\" && npx playwright screenshot --browser chromium http://localhost:3001 /tmp/landing_preview.png --full-page 2>&1 | tail -5)",
+      "Bash(npx playwright:*)"
+    ]
+  }
+}
