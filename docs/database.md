@@ -1,5 +1,7 @@
 # Granja Pro – Database Schema
 
+ALL CHARTS MUST BE FROM RECHARTS
+
 ## Core Tables
 
 users
