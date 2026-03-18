@@ -88,7 +88,10 @@
       "Bash(rm write_saude.py)",
       "Bash(python \"src/ui-ux-pro-max/scripts/search.py\" \"dashboard kpi cards metrics data visualization modern\" --design-system -p \"Granja Pro\")",
       "Bash(python write_detalhes_all.py)",
-      "Bash(rm write_detalhes_all.py)"
+      "Bash(rm write_detalhes_all.py)",
+      "Bash(python scripts/search.py \"poultry agriculture farm warm yellow golden\" --design-system -p \"Granja Pro\")",
+      "Bash(python write_theme.py)",
+      "Bash(rm write_theme.py)"
     ]
   }
 }
