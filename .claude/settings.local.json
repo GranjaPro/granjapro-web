@@ -91,7 +91,13 @@
       "Bash(rm write_detalhes_all.py)",
       "Bash(python scripts/search.py \"poultry agriculture farm warm yellow golden\" --design-system -p \"Granja Pro\")",
       "Bash(python write_theme.py)",
-      "Bash(rm write_theme.py)"
+      "Bash(rm write_theme.py)",
+      "Bash(python3 \".claude/plugins/cache/ui-ux-pro-max-skill/ui-ux-pro-max/2.0.1/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"agriculture agritech SaaS landing page modern elegant professional\" --design-system -p \"Granja Pro\")",
+      "Bash(python \".claude/plugins/cache/ui-ux-pro-max-skill/ui-ux-pro-max/2.0.1/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"agriculture agritech SaaS landing page modern elegant professional\" --design-system -p \"Granja Pro\")",
+      "Bash(python scripts/search.py \"agriculture agritech SaaS landing page modern elegant professional\" --design-system -p \"Granja Pro\")",
+      "Bash(python scripts/search.py \"hero social-proof testimonial CTA agriculture\" --domain landing)",
+      "Bash(python scripts/search.py \"animation smooth modern\" --domain ux)",
+      "Bash(python scripts/search.py \"layout responsive form\" --stack nextjs)"
     ]
   }
 }
