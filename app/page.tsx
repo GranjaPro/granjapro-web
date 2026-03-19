@@ -28,6 +28,9 @@ import {
   Headphones,
   RefreshCw,
   Clock,
+  Calculator,
+  AlertTriangle,
+  Eye,
 } from "lucide-react";
 
 /* ─── data ─── */
@@ -41,10 +44,27 @@ const navLinks = [
   { label: "Contato", href: "#contato" },
 ];
 
-const stats = [
-  { text: "Veja sua produção diária em segundos", icon: Egg },
-  { text: "Descubra onde você está perdendo dinheiro", icon: TrendingUp },
-  { text: "Receba alertas automáticos da granja", icon: Shield },
+const painPoints = [
+  {
+    icon: Clock,
+    title: "Horas anotando tudo no caderno",
+    description: "Horas calculando na mão o que já deveria ser automático.",
+  },
+  {
+    icon: Calculator,
+    title: "Dados espalhados e difíceis de entender",
+    description: "Dados espalhados e difíceis de analisar.",
+  },
+  {
+    icon: Eye,
+    title: "Não sabe quantos ovos produz por dia",
+    description: "Não sabe quanto produz, alimenta ou gasta.",
+  },
+  {
+    icon: AlertTriangle,
+    title: "Só percebe o prejuízo quando já é tarde",
+    description: "Problemas viram prejuízo antes de você descobrir.",
+  },
 ];
 
 const featureTabs = [
@@ -84,22 +104,41 @@ const featureTabs = [
 
 const services = [
   {
-    title: "Gestão de Lotes",
-    description: "Controle inteligente para aviários de postura com rastreamento completo do ciclo de vida.",
+    title: "Produção em Tempo Real",
+    description: "Acompanhe quantos ovos sua granja produz todos os dias e identifique quedas rapidamente.",
     icon: Bird,
-    gradient: "from-brand-500 to-brand-700",
+    image: "/assets/images/producao_tempo_real.png",
   },
   {
-    title: "Controle de Produção",
-    description: "Monitoramento de ovos em tempo real com dashboards interativos e alertas automáticos.",
+    title: "Gestão de Lotes e Galpões",
+    description: "Controle cada lote do início ao fim e entenda exatamente o desempenho da sua produção.",
     icon: Egg,
-    gradient: "from-brand-400 to-brand-600",
+    image: "/assets/images/gestao_lotes.png",
   },
   {
     title: "Controle de Ração",
-    description: "Otimização de custos por conversão alimentar e recomendações inteligentes de dieta.",
+    description: "Saiba quanto sua granja consome e evite desperdícios com controle inteligente de ração.",
     icon: Wheat,
-    gradient: "from-brand-300 to-brand-500",
+    image: "/assets/images/controle_racao.png",
+  },
+  {
+    title: "Lucro e Finanças",
+    description: "Veja quanto você ganha por dia e tenha controle completo das receitas e despesas da granja.",
+    icon: BarChart3,
+    image: "/assets/images/lucro_financas.png",
+  },
+  {
+    title: "Alertas Inteligentes",
+    description: "Receba alertas automáticos sobre mortalidade, queda de produção e falta de ração.",
+    icon: Shield,
+    image: "/assets/images/alertas_inteligentes.png",
+    fit: "contain" as const,
+  },
+  {
+    title: "Controle de Perdas",
+    description: "Identifique onde você está perdendo ovos e dinheiro e corrija problemas antes que prejudiquem sua produção.",
+    icon: TrendingUp,
+    image: "/assets/images/controle_perdas.png",
   },
 ];
 
@@ -625,209 +664,128 @@ export default function LandingPage() {
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-white to-transparent" />
       </section>
 
-      {/* ── Stats ── */}
-      <section className="relative -mt-16 z-20 px-4 sm:px-6 lg:px-8 pb-16 sm:pb-24">
-        <div className="max-w-4xl mx-auto">
-          <AnimatedSection>
-            <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 px-6 sm:px-10 py-7">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6">
-                {stats.map((stat, i) => (
-                  <div key={stat.text} className="flex items-center gap-4">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
-                      <stat.icon className="w-5 h-5 text-brand-500" strokeWidth={1.5} />
-                    </div>
-                    <p className="text-sm font-medium text-gray-700 leading-snug">{stat.text}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </AnimatedSection>
+      {/* ── Problems ── */}
+      <section className="relative z-20 px-4 sm:px-6 lg:px-8 py-20 sm:py-28 overflow-hidden bg-gradient-to-b from-white via-gray-50/80 to-white">
+        {/* Subtle background decoration */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-20 -left-32 w-72 h-72 bg-red-100/40 rounded-full blur-3xl" />
+          <div className="absolute bottom-20 -right-32 w-72 h-72 bg-amber-100/40 rounded-full blur-3xl" />
         </div>
-      </section>
 
-      {/* ── Features ── */}
-      <section id="recursos" className="py-20 sm:py-28 px-4 sm:px-6 lg:px-8 bg-gray-50/70">
-        <div className="max-w-6xl mx-auto">
-          <AnimatedSection className="text-center mb-16">
-            <span className="inline-flex items-center text-xs font-semibold text-brand-600 border border-brand-200 rounded-full px-4 py-1.5 mb-5 bg-brand-50 uppercase tracking-wider">
-              Recursos
-            </span>
+        <div className="relative max-w-5xl mx-auto">
+          <AnimatedSection className="text-center mb-14">
             <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 tracking-tight mb-4">
-              Tudo que sua granja precisa
+              Você ainda controla sua granja no caderno ou de cabeça?
             </h2>
-            <p className="text-gray-500 max-w-lg mx-auto text-lg">
-              Recursos projetados especificamente para avicultura de postura.
+            <p className="text-gray-500 max-w-2xl mx-auto text-lg leading-relaxed">
+              Sem controle, você não sabe quanto está produzindo, gastando ou perdendo dinheiro na granja.
             </p>
           </AnimatedSection>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {featureTabs.map((feature, i) => (
-              <AnimatedSection key={feature.id} delay={i * 100}>
-                <div className="group bg-white rounded-2xl p-7 border border-gray-100 hover:border-brand-200 hover:shadow-xl hover:shadow-brand-100/50 transition-all duration-300 cursor-pointer h-full hover:-translate-y-1">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 flex items-center justify-center mb-5 group-hover:from-brand-100 group-hover:to-brand-200 transition-all duration-300">
-                    <feature.icon className="w-7 h-7 text-brand-600" />
-                  </div>
-                  <h3 className="font-heading font-bold text-gray-900 mb-2.5 text-lg">
-                    {feature.label}
-                  </h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    {feature.description}
-                  </p>
-                </div>
-              </AnimatedSection>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Sobre o Granja Pro ── */}
-      <section id="sobre" className="py-20 sm:py-28 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
-            {/* Left Column */}
-            <AnimatedSection className="lg:col-span-5">
-              <span className="inline-flex items-center text-xs font-semibold text-brand-600 border border-brand-200 rounded-full px-4 py-1.5 mb-6 bg-brand-50 uppercase tracking-wider">
-                Quem somos
-              </span>
-
-              <h2 className="font-heading text-3xl sm:text-4xl lg:text-[2.75rem] font-bold text-gray-900 leading-[1.15] tracking-tight mb-6">
-                Transformando a Avicultura com{" "}
-                <span className="text-gradient">
-                  Tecnologia e Inovação
-                </span>
-              </h2>
-
-              <p className="text-gray-500 leading-relaxed mb-8 text-lg max-w-md">
-                Combinamos sensores avançados, inteligência artificial e monitoramento
-                em tempo real para empoderar avicultores em todo o Brasil.
-              </p>
-
-              <div className="space-y-3 mb-8">
-                {["Monitoramento 24/7 em tempo real", "Alertas inteligentes automáticos", "Relatórios detalhados por lote"].map((item) => (
-                  <div key={item} className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0">
-                      <Check className="w-3.5 h-3.5 text-brand-600" />
-                    </div>
-                    <span className="text-sm text-gray-600 font-medium">{item}</span>
-                  </div>
-                ))}
-              </div>
-
-              <Link
-                href="#contato"
-                className="group inline-flex items-center gap-3 cursor-pointer"
-              >
-                <span className="bg-brand-500 text-white text-sm font-semibold px-6 py-3 rounded-full group-hover:bg-brand-600 transition-all duration-200 shadow-md shadow-brand-500/25 group-hover:shadow-brand-500/40">
-                  Saiba Mais
-                </span>
-                <span className="w-11 h-11 rounded-full bg-brand-100 flex items-center justify-center group-hover:bg-brand-200 transition-colors">
-                  <ArrowUpRight className="w-5 h-5 text-brand-700" />
-                </span>
-              </Link>
-            </AnimatedSection>
-
-            {/* Middle Column - Cards */}
-            <AnimatedSection className="lg:col-span-3 flex flex-col gap-5" delay={150}>
-              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center gap-2 mb-3">
-                  <BarChart3 className="w-5 h-5 text-brand-500" />
-                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Dashboard</span>
-                </div>
-                <div className="flex items-end gap-1.5 mb-4 h-14">
-                  {[40, 65, 50, 80, 55, 75, 90, 60, 85].map((h, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 rounded-full bg-gradient-to-t from-brand-500 to-brand-300"
-                      style={{ height: `${h}%` }}
-                    />
-                  ))}
-                </div>
-                <p className="text-sm text-gray-500 leading-relaxed">
-                  Monitoramento em tempo real via dashboard mobile
-                </p>
-              </div>
-
-              <div className="bg-gradient-to-br from-brand-50 to-brand-100/60 rounded-2xl p-6 border border-brand-100/50">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-heading text-4xl font-extrabold text-gray-900">2.4k</span>
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 bg-brand-100 rounded-full px-2.5 py-1">
-                    <TrendingUp className="w-3 h-3" />
-                    +12%
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 leading-relaxed mt-2">
-                  Granjas ativas na plataforma em todo o Brasil
-                </p>
-              </div>
-            </AnimatedSection>
-
-            {/* Right Column - Image */}
-            <AnimatedSection className="lg:col-span-4 relative" delay={300}>
-              <div className="rounded-3xl overflow-hidden shadow-2xl shadow-brand-900/10 h-[380px] sm:h-[460px] ring-1 ring-black/5">
-                <img
-                  src="https://images.unsplash.com/photo-1574943320219-553eb213f72d?w=600&q=80"
-                  alt="Produtor usando app de monitoramento da granja no celular"
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-              </div>
-              {/* Floating badge */}
-              <div className="absolute -bottom-4 -left-4 bg-white rounded-2xl shadow-lg shadow-gray-200/50 border border-gray-100 px-5 py-3 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center">
-                  <Shield className="w-5 h-5 text-brand-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-gray-900">98%</p>
-                  <p className="text-xs text-gray-500">Precisão</p>
-                </div>
-              </div>
-            </AnimatedSection>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Services ── */}
-      <section id="servicos" className="py-20 sm:py-28 px-4 sm:px-6 lg:px-8 bg-gray-50/70">
-        <div className="max-w-6xl mx-auto">
           <AnimatedSection>
-            <div className="flex items-end justify-between mb-14">
-              <div>
-                <span className="inline-flex items-center text-xs font-semibold text-brand-600 border border-brand-200 rounded-full px-4 py-1.5 mb-5 bg-brand-50 uppercase tracking-wider">
-                  Serviços
-                </span>
-                <h2 className="font-heading text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">
-                  Nossos Serviços
-                </h2>
-              </div>
-              <Link
-                href="#servicos"
-                className="hidden sm:inline-flex items-center gap-2 text-sm text-brand-600 font-semibold hover:text-brand-700 transition-colors cursor-pointer group"
-              >
-                Ver Todos
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-              </Link>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 lg:gap-6">
+              {painPoints.map((pain, i) => (
+                <div
+                  key={pain.title}
+                  className="group relative cursor-pointer rounded-3xl p-[1px] bg-gradient-to-br from-gray-200/80 via-white to-gray-100/60 hover:from-red-200/60 hover:via-white hover:to-red-100/40 transition-all duration-500"
+                >
+                  <div className="relative h-full rounded-[23px] bg-white/90 backdrop-blur-sm p-7 sm:p-8 transition-all duration-300 group-hover:shadow-2xl group-hover:shadow-red-100/30 group-hover:-translate-y-1">
+                    {/* Number indicator */}
+                    <span className="absolute top-6 right-7 text-5xl font-bold text-gray-100 group-hover:text-red-50 transition-colors duration-300 select-none">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+
+                    <div className="relative flex flex-col gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-50 to-red-100/80 group-hover:from-red-100 group-hover:to-red-200/80 flex items-center justify-center transition-all duration-300 group-hover:scale-110">
+                        <pain.icon className="w-5.5 h-5.5 text-red-500 group-hover:text-red-600 transition-colors duration-300" strokeWidth={1.8} />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-gray-950 transition-colors duration-300">
+                          {pain.title}
+                        </h3>
+                        <p className="text-sm text-gray-500 leading-relaxed group-hover:text-gray-600 transition-colors duration-300">
+                          {pain.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </AnimatedSection>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <AnimatedSection className="text-center mt-14">
+            <p className="text-lg sm:text-xl font-medium text-gray-800">
+              No fim do mês, você não sabe se está{" "}
+              <span className="text-red-500 font-semibold">lucrando</span> ou{" "}
+              <span className="text-red-500 font-semibold">perdendo dinheiro</span>.
+            </p>
+          </AnimatedSection>
+        </div>
+      </section>
+
+      {/* ── Transition ── */}
+      <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 bg-gray-50/50">
+        <AnimatedSection className="text-center max-w-3xl mx-auto">
+          <div className="w-12 h-[2px] bg-brand-300/60 mx-auto mb-8 rounded-full" />
+          <h2 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 tracking-tight">
+            Agora imagine ter{" "}
+            <span className="text-gradient">tudo isso sob controle</span>.
+          </h2>
+          <div className="w-12 h-[2px] bg-brand-300/60 mx-auto mt-8 rounded-full" />
+        </AnimatedSection>
+      </section>
+
+      {/* ── Services ── */}
+      <section id="servicos" className="relative py-24 sm:py-32 px-4 sm:px-6 lg:px-8 overflow-hidden bg-[#F8F9FA]">
+        {/* Subtle background texture */}
+        <div className="absolute inset-0">
+          <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-brand-100/30 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-brand-100/20 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
+        </div>
+
+        <div className="relative max-w-6xl mx-auto">
+          {/* Header */}
+          <AnimatedSection className="text-center mb-16 sm:mb-20">
+            <span className="inline-flex items-center text-xs font-semibold text-brand-600 border border-brand-200 rounded-full px-4 py-1.5 mb-6 bg-white uppercase tracking-wider shadow-sm">
+              Serviços
+            </span>
+            <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 tracking-tight max-w-3xl mx-auto leading-tight">
+              Tudo que você precisa para{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-brand-600">
+                controlar e lucrar
+              </span>{" "}
+              com sua granja
+            </h2>
+            <p className="mt-5 text-gray-500 text-lg max-w-xl mx-auto">
+              Ferramentas inteligentes feitas para o dia a dia do avicultor
+            </p>
+          </AnimatedSection>
+
+          {/* 3-column grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {services.map((service, i) => (
-              <AnimatedSection key={service.title} delay={i * 120}>
-                <div className="group relative rounded-3xl overflow-hidden bg-white border border-gray-100 hover:shadow-2xl hover:shadow-gray-200/60 transition-all duration-300 cursor-pointer hover:-translate-y-1 h-full">
-                  <div className={`h-52 bg-gradient-to-br ${service.gradient} flex items-center justify-center relative overflow-hidden`}>
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.15),transparent_70%)]" />
-                    <service.icon className="w-20 h-20 text-white/30 group-hover:text-white/40 group-hover:scale-110 transition-all duration-500" />
+              <AnimatedSection key={service.title} delay={i * 100}>
+                <div className="group relative h-full rounded-3xl overflow-hidden bg-white border border-gray-200/80 shadow-sm hover:shadow-xl hover:shadow-brand-500/5 hover:border-brand-200/50 transition-all duration-500 cursor-pointer hover:-translate-y-1">
+                  <div className={`relative overflow-hidden ${service.fit === "contain" ? "h-52" : "h-48"}`}>
+                    <img
+                      src={service.image}
+                      alt={service.title}
+                      className={`absolute inset-0 w-full h-full group-hover:scale-105 transition-transform duration-700 ${service.fit === "contain" ? "object-contain p-2 bg-white" : "object-cover"}`}
+                    />
                   </div>
                   <div className="p-6">
-                    <h3 className="font-heading font-bold text-gray-900 text-xl mb-2 group-hover:text-brand-600 transition-colors">
-                      {service.title}
-                    </h3>
-                    <p className="text-sm text-gray-500 leading-relaxed">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center flex-shrink-0">
+                        <service.icon className="w-5 h-5 text-brand-600" />
+                      </div>
+                      <h3 className="font-heading font-bold text-gray-900 text-lg group-hover:text-brand-600 transition-colors">
+                        {service.title}
+                      </h3>
+                    </div>
+                    <p className="text-gray-500 text-sm leading-relaxed pl-[52px]">
                       {service.description}
                     </p>
-                    <div className="mt-5 flex items-center gap-2 text-brand-600 text-sm font-semibold opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
-                      Saiba mais
-                      <ArrowRight className="w-4 h-4" />
-                    </div>
                   </div>
                 </div>
               </AnimatedSection>
