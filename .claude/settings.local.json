@@ -119,7 +119,10 @@
       "Bash(python \"src/ui-ux-pro-max/scripts/search.py\" \"trend comparison bar pie area\" --domain chart -n 8)",
       "Bash(python scripts/search.py \"dashboard analytics decision-making KPI agricultural\" --domain chart -n 10)",
       "Bash(python scripts/search.py \"dashboard analytics KPI agricultural report\" --domain chart -n 8)",
-      "Bash(python scripts/search.py \"trend comparison bar area\" --domain chart -n 8)"
+      "Bash(python scripts/search.py \"trend comparison bar area\" --domain chart -n 8)",
+      "Bash(find /c/Users/samue/Documents/GranjaPro -maxdepth 3 -name supabase.ts -o -name *auth* -o -name *api*)",
+      "Bash(grep -r \"supabase\\\\|fetch\\\\|async\\\\|server\" /c/Users/samue/Documents/GranjaPro/app /c/Users/samue/Documents/GranjaPro/components --include=*.tsx --include=*.ts)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

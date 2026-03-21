@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   Egg,
   Bird,
@@ -26,14 +26,16 @@ import {
   Square,
   CheckSquare,
   Minus,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth/auth-provider";
+import { createClient } from "@/lib/supabase/client";
 import {
   mockFarm,
   mockTodayProduction,
   mockTodayFeed,
   mockMonthFinancial,
-  mockTodayMortality,
   mockBarns,
 } from "@/lib/mock-data";
 import { formatNumber, formatCurrency } from "@/lib/utils";
@@ -157,11 +159,161 @@ const tasks = [
 ];
 
 export default function DashboardPage() {
-  const profitMargin = ((mockMonthFinancial.profit / mockMonthFinancial.revenue) * 100).toFixed(1);
-  const [taskStatuses, setTaskStatuses] = useState<Record<number, "done" | "progress" | "pending">>(
-    Object.fromEntries(tasks.map((t) => [t.id, t.status]))
+  const { profile, farm } = useAuth();
+  const supabase = createClient();
+
+  // Real data state
+  const [farmData, setFarmData] = useState(mockFarm);
+  const [productionData, setProductionData] = useState(mockTodayProduction);
+  const [feedData, setFeedData] = useState(mockTodayFeed);
+  const [financialData, setFinancialData] = useState(mockMonthFinancial);
+  const [barnsData, setBarnsData] = useState(mockBarns);
+  const [dbTasks, setDbTasks] = useState(tasks);
+  const [dbAlerts, setDbAlerts] = useState(alerts);
+  const [dataLoaded, setDataLoaded] = useState(false);
+
+  // Fetch real data from Supabase when farm is available
+  useEffect(() => {
+    if (!farm) return;
+    const currentFarm = farm;
+    const farmId = currentFarm.id;
+
+    async function fetchDashboardData() {
+      try {
+        const today = new Date().toISOString().split("T")[0];
+        const now = new Date();
+        const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
+
+        const [prodRes, feedRes, barnsRes, tasksRes, alertsRes, finRes] = await Promise.all([
+          supabase.from("egg_production").select("*").eq("farm_id", farmId).eq("date", today),
+          supabase.from("feed_consumption").select("*").eq("farm_id", farmId).eq("date", today),
+          supabase.from("barns").select("*").eq("farm_id", farmId).order("created_at"),
+          supabase.from("tasks").select("*").eq("farm_id", farmId).eq("date", today).order("scheduled_time"),
+          supabase.from("alerts").select("*").eq("farm_id", farmId).eq("read", false).order("created_at", { ascending: false }).limit(5),
+          supabase.from("financial_transactions").select("*").eq("farm_id", farmId).gte("date", monthStart).lte("date", monthEnd),
+        ]);
+
+        // Update farm info
+        setFarmData({
+          name: currentFarm.name,
+          producer: currentFarm.producer_name,
+          totalBirds: currentFarm.total_birds,
+          activeBirds: currentFarm.total_birds,
+          barns: barnsRes.data?.length ?? 0,
+          breed: currentFarm.main_breed,
+          productionSystem: currentFarm.production_system,
+        });
+
+        // Aggregate today's production
+        if (prodRes.data && prodRes.data.length > 0) {
+          const totalEggs = prodRes.data.reduce((s, r) => s + r.eggs_produced, 0);
+          const totalBroken = prodRes.data.reduce((s, r) => s + (r.broken_eggs ?? 0), 0);
+          const totalDirty = prodRes.data.reduce((s, r) => s + (r.dirty_eggs ?? 0), 0);
+          const totalDiscarded = prodRes.data.reduce((s, r) => s + (r.discarded_eggs ?? 0), 0);
+          const totalSold = prodRes.data.reduce((s, r) => s + (r.eggs_sold ?? 0), 0);
+          const avgPrice = prodRes.data.reduce((s, r) => s + Number(r.egg_price ?? 0), 0) / prodRes.data.length;
+          const avgRate = prodRes.data.reduce((s, r) => s + Number(r.laying_rate ?? 0), 0) / prodRes.data.length;
+          const avgPerBird = prodRes.data.reduce((s, r) => s + Number(r.eggs_per_bird ?? 0), 0) / prodRes.data.length;
+          setProductionData({
+            date: today,
+            eggsProduced: totalEggs,
+            brokenEggs: totalBroken,
+            dirtyEggs: totalDirty,
+            discardedEggs: totalDiscarded,
+            eggsSold: totalSold,
+            eggPrice: avgPrice,
+            layingRate: avgRate,
+            eggsPerBird: avgPerBird,
+          });
+        }
+
+        // Aggregate today's feed
+        if (feedRes.data && feedRes.data.length > 0) {
+          const totalQty = feedRes.data.reduce((s, r) => s + Number(r.quantity_kg), 0);
+          const totalCost = feedRes.data.reduce((s, r) => s + Number(r.cost ?? 0), 0);
+          const avgCostPerEgg = feedRes.data.reduce((s, r) => s + Number(r.cost_per_egg ?? 0), 0) / feedRes.data.length;
+          setFeedData({
+            quantity: totalQty,
+            cost: totalCost,
+            type: feedRes.data[0].feed_type ?? "Ração Postura",
+            costPerEgg: avgCostPerEgg,
+          });
+        }
+
+        // Barns
+        if (barnsRes.data && barnsRes.data.length > 0) {
+          setBarnsData(barnsRes.data.map((b) => ({
+            id: b.id as any,
+            name: b.name,
+            birds: b.current_birds,
+            layingRate: 0,
+            status: (b.status === "active" ? "ok" : "warning") as "ok" | "warning",
+          })));
+        }
+
+        // Tasks
+        if (tasksRes.data && tasksRes.data.length > 0) {
+          setDbTasks(tasksRes.data.map((t) => ({
+            id: t.id as any,
+            title: t.title,
+            status: (t.done ? "done" : "pending") as "done" | "progress" | "pending",
+            time: t.scheduled_time ?? "",
+          })));
+        }
+
+        // Alerts
+        if (alertsRes.data && alertsRes.data.length > 0) {
+          setDbAlerts(alertsRes.data.map((a) => ({
+            id: a.id as any,
+            type: (a.type === "error" ? "danger" : a.type) as "danger" | "warning" | "info",
+            msg: a.message,
+            time: new Date(a.created_at).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+            action: "Ver",
+            risk: "",
+          })));
+        }
+
+        // Financial summary
+        if (finRes.data && finRes.data.length > 0) {
+          const revenue = finRes.data.filter((t) => t.type === "revenue").reduce((s, t) => s + Number(t.amount), 0);
+          const expenses = finRes.data.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
+          const feedCost = finRes.data.filter((t) => t.type === "expense" && t.category === "feed").reduce((s, t) => s + Number(t.amount), 0);
+          const laborCost = finRes.data.filter((t) => t.type === "expense" && t.category === "labor").reduce((s, t) => s + Number(t.amount), 0);
+          setFinancialData({
+            revenue,
+            expenses,
+            profit: revenue - expenses,
+            feedCost,
+            laborCost,
+            otherExpenses: expenses - feedCost - laborCost,
+            revenueGoal: mockMonthFinancial.revenueGoal,
+          });
+        }
+
+        setDataLoaded(true);
+      } catch (err) {
+        console.error("Error fetching dashboard data:", err);
+        setDataLoaded(true);
+      }
+    }
+
+    fetchDashboardData();
+  }, [farm]);
+
+  const profitMargin = financialData.revenue > 0
+    ? ((financialData.profit / financialData.revenue) * 100).toFixed(1)
+    : "0.0";
+  const [taskStatuses, setTaskStatuses] = useState<Record<number | string, "done" | "progress" | "pending">>(
+    Object.fromEntries(dbTasks.map((t) => [t.id, t.status]))
   );
-  const [openDropdown, setOpenDropdown] = useState<number | null>(null);
+
+  // Sync task statuses when dbTasks changes from fetch
+  useEffect(() => {
+    setTaskStatuses(Object.fromEntries(dbTasks.map((t) => [t.id, t.status])));
+  }, [dbTasks]);
+
+  const [openDropdown, setOpenDropdown] = useState<number | string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -176,6 +328,76 @@ export default function DashboardPage() {
 
   const completedTasks = Object.values(taskStatuses).filter((s) => s === "done").length;
 
+  const displayName = profile?.full_name?.split(" ")[0] || farmData.producer.split(" ")[0];
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return "Bom dia";
+    if (h < 18) return "Boa tarde";
+    return "Boa noite";
+  })();
+
+  // Recompute KPI data from real state
+  const currentKpis = useMemo(() => [
+    {
+      title: "Ovos Hoje",
+      value: formatNumber(productionData.eggsProduced),
+      badge: "+3.2%",
+      badgeDir: "up" as const,
+      subtitle: `Meta: 15.000 · ${((productionData.eggsProduced / 15000) * 100).toFixed(0)}% atingido`,
+      icon: Egg,
+      color: "brand",
+      gradient: "from-brand-500 to-brand-600",
+      lightBg: "bg-brand-50",
+      lightIcon: "text-brand-600",
+      progress: (productionData.eggsProduced / 15000) * 100,
+    },
+    {
+      title: "Taxa de Postura",
+      value: `${productionData.layingRate.toFixed(1)}%`,
+      badge: "+1.2%",
+      badgeDir: "up" as const,
+      subtitle: "Meta: 90% · Padrão: 85-92%",
+      icon: Target,
+      color: "violet",
+      gradient: "from-violet-500 to-violet-600",
+      lightBg: "bg-violet-50",
+      lightIcon: "text-violet-600",
+      progress: (productionData.layingRate / 92) * 100,
+    },
+    {
+      title: "Custo por Ovo",
+      value: `R$ ${feedData.costPerEgg.toFixed(3)}`,
+      badge: "-2.1%",
+      badgeDir: "up" as const,
+      subtitle: `Ração: R$ ${formatNumber(feedData.cost)} · ${formatNumber(feedData.quantity)}kg`,
+      icon: Wheat,
+      color: "amber",
+      gradient: "from-amber-500 to-amber-600",
+      lightBg: "bg-amber-50",
+      lightIcon: "text-amber-600",
+      progress: 72,
+    },
+    {
+      title: "Lucro Mensal",
+      value: formatCurrency(financialData.profit),
+      badge: "+8.5%",
+      badgeDir: "up" as const,
+      subtitle: `Receita: ${formatCurrency(financialData.revenue)}`,
+      icon: DollarSign,
+      color: "emerald",
+      gradient: "from-emerald-500 to-emerald-600",
+      lightBg: "bg-emerald-50",
+      lightIcon: "text-emerald-600",
+      progress: financialData.revenue > 0 ? (financialData.profit / financialData.revenue) * 100 : 0,
+    },
+  ], [productionData, feedData, financialData]);
+
+  const currentExpenseBreakdown = useMemo(() => [
+    { name: "Ração", value: financialData.feedCost, color: "#f59e0b" },
+    { name: "Mão de obra", value: financialData.laborCost, color: "#8b5cf6" },
+    { name: "Outros", value: financialData.otherExpenses, color: "#94a3b8" },
+  ], [financialData]);
+
   return (
     <div className="space-y-6">
       {/* ── Header + Quick Actions ── */}
@@ -183,10 +405,10 @@ export default function DashboardPage() {
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-              Bom dia, {mockFarm.producer.split(" ")[0]}!
+              {greeting}, {displayName}!
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {mockFarm.name} · {formatNumber(mockFarm.activeBirds)} aves ativas · {mockFarm.barns} galpões
+              {farmData.name} · {formatNumber(farmData.activeBirds)} aves ativas · {farmData.barns} galpões
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -216,7 +438,7 @@ export default function DashboardPage() {
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {kpis.map((kpi) => (
+        {currentKpis.map((kpi) => (
           <div
             key={kpi.title}
             className="group relative bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200/80 transition-all duration-300 cursor-pointer overflow-hidden"
@@ -263,17 +485,17 @@ export default function DashboardPage() {
               <div>
                 <h3 className="text-base font-bold text-gray-900">Alertas ativos</h3>
                 <p className="text-[11px] text-gray-400 font-medium">
-                  {alerts.filter(a => a.type === "danger").length > 0 && (
-                    <span className="text-red-600 font-semibold">{alerts.filter(a => a.type === "danger").length} urgente · </span>
+                  {dbAlerts.filter(a => a.type === "danger").length > 0 && (
+                    <span className="text-red-600 font-semibold">{dbAlerts.filter(a => a.type === "danger").length} urgente · </span>
                   )}
-                  {alerts.length} alertas no total
+                  {dbAlerts.length} alertas no total
                 </p>
               </div>
             </div>
-            <span className="text-[11px] font-bold text-white bg-red-500 px-2.5 py-1 rounded-lg">{alerts.length}</span>
+            <span className="text-[11px] font-bold text-white bg-red-500 px-2.5 py-1 rounded-lg">{dbAlerts.length}</span>
           </div>
           <div className="space-y-3">
-            {alerts.map((a) => (
+            {dbAlerts.map((a) => (
               <div
                 key={a.id}
                 className={cn(
@@ -337,7 +559,7 @@ export default function DashboardPage() {
               <div>
                 <h3 className="text-base font-bold text-gray-900">Tarefas do dia</h3>
                 <p className="text-[11px] text-gray-400 font-medium">
-                  {completedTasks} de {tasks.length} concluídas
+                  {completedTasks} de {dbTasks.length} concluídas
                 </p>
               </div>
             </div>
@@ -348,11 +570,11 @@ export default function DashboardPage() {
                   <circle
                     cx="18" cy="18" r="15" fill="none" stroke="#2d7a4f" strokeWidth="3"
                     strokeLinecap="round"
-                    strokeDasharray={`${(completedTasks / tasks.length) * 94.2} 94.2`}
+                    strokeDasharray={`${(completedTasks / (dbTasks.length || 1)) * 94.2} 94.2`}
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-700">
-                  {((completedTasks / tasks.length) * 100).toFixed(0)}%
+                  {((completedTasks / (dbTasks.length || 1)) * 100).toFixed(0)}%
                 </span>
               </div>
               <button className="inline-flex items-center gap-1.5 text-xs text-brand-600 font-semibold hover:text-brand-700 cursor-pointer transition-colors">
@@ -361,7 +583,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="space-y-2">
-            {tasks.map((t) => {
+            {dbTasks.map((t) => {
               const status = taskStatuses[t.id];
               return (
                 <div
@@ -446,7 +668,7 @@ export default function DashboardPage() {
           </button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {mockBarns.map((barn) => (
+          {barnsData.map((barn) => (
             <div
               key={barn.id}
               className={cn(
@@ -638,7 +860,7 @@ export default function DashboardPage() {
         {/* Expense Breakdown Donut */}
         <div className="xl:col-span-3 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
           <h3 className="text-sm font-bold text-gray-900 mb-1">Despesas do Mês</h3>
-          <p className="text-[11px] text-gray-400 mb-3">Total: {formatCurrency(mockMonthFinancial.expenses)}</p>
+          <p className="text-[11px] text-gray-400 mb-3">Total: {formatCurrency(financialData.expenses)}</p>
           <div className="flex-1 flex items-center justify-center">
             <ResponsiveContainer width="100%" height={160}>
               <PieChart>
@@ -652,7 +874,7 @@ export default function DashboardPage() {
                   dataKey="value"
                   strokeWidth={0}
                 >
-                  {expenseBreakdown.map((entry, i) => (
+                  {currentExpenseBreakdown.map((entry, i) => (
                     <Cell key={i} fill={entry.color} />
                   ))}
                 </Pie>
@@ -664,7 +886,7 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </div>
           <div className="space-y-2 mt-2">
-            {expenseBreakdown.map((e) => (
+            {currentExpenseBreakdown.map((e) => (
               <div key={e.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.color }} />
@@ -687,7 +909,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-[11px] text-gray-400 font-medium">Receita</p>
-                  <p className="text-sm font-bold text-gray-900">{formatCurrency(mockMonthFinancial.revenue)}</p>
+                  <p className="text-sm font-bold text-gray-900">{formatCurrency(financialData.revenue)}</p>
                 </div>
               </div>
               <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">+8.5%</span>
@@ -699,7 +921,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-[11px] text-gray-400 font-medium">Despesas</p>
-                  <p className="text-sm font-bold text-gray-900">{formatCurrency(mockMonthFinancial.expenses)}</p>
+                  <p className="text-sm font-bold text-gray-900">{formatCurrency(financialData.expenses)}</p>
                 </div>
               </div>
               <span className="text-[11px] font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-md">-3.2%</span>
@@ -711,7 +933,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-[11px] text-gray-400 font-medium">Lucro Líquido</p>
-                  <p className="text-sm font-bold text-emerald-600">{formatCurrency(mockMonthFinancial.profit)}</p>
+                  <p className="text-sm font-bold text-emerald-600">{formatCurrency(financialData.profit)}</p>
                 </div>
               </div>
               <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">{profitMargin}%</span>
@@ -721,17 +943,17 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[11px] text-gray-500 font-medium">Meta de receita mensal</span>
                 <span className="text-[11px] font-bold text-gray-700">
-                  {((mockMonthFinancial.revenue / mockMonthFinancial.revenueGoal) * 100).toFixed(0)}%
+                  {financialData.revenueGoal > 0 ? ((financialData.revenue / financialData.revenueGoal) * 100).toFixed(0) : 0}%
                 </span>
               </div>
               <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-brand-400 to-brand-600 rounded-full transition-all duration-700"
-                  style={{ width: `${(mockMonthFinancial.revenue / mockMonthFinancial.revenueGoal) * 100}%` }}
+                  style={{ width: `${financialData.revenueGoal > 0 ? (financialData.revenue / financialData.revenueGoal) * 100 : 0}%` }}
                 />
               </div>
               <p className="text-[11px] text-gray-400 mt-1.5">
-                {formatCurrency(mockMonthFinancial.revenue)} de {formatCurrency(mockMonthFinancial.revenueGoal)}
+                {formatCurrency(financialData.revenue)} de {formatCurrency(financialData.revenueGoal)}
               </p>
             </div>
           </div>
