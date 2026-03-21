@@ -119,7 +119,9 @@
       "Bash(python \"src/ui-ux-pro-max/scripts/search.py\" \"trend comparison bar pie area\" --domain chart -n 8)",
       "Bash(python scripts/search.py \"dashboard analytics decision-making KPI agricultural\" --domain chart -n 10)",
       "Bash(python scripts/search.py \"dashboard analytics KPI agricultural report\" --domain chart -n 8)",
-      "Bash(python scripts/search.py \"trend comparison bar area\" --domain chart -n 8)"
+      "Bash(python scripts/search.py \"trend comparison bar area\" --domain chart -n 8)",
+      "Bash(grep -rn \"z-\\\\[60\\\\]\" app/dashboard/*/page.tsx)",
+      "Bash(grep -rn \"fixed inset-0 z-\\\\[60\\\\]\" app/dashboard/*/page.tsx)"
     ]
   }
 }
