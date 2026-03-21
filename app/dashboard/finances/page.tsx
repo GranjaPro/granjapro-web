@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import ModalPortal from "@/components/ui/modal-portal";
 import {
   DollarSign,
   TrendingUp,
@@ -900,7 +901,8 @@ export default function FinancasPage() {
 
       {/* ── Modal ── */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModal(null)} />
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between mb-6">
@@ -970,6 +972,7 @@ export default function FinancasPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

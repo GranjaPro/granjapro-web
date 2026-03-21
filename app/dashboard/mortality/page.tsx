@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import ModalPortal from "@/components/ui/modal-portal";
 import {
   Skull,
   ArrowUpRight,
@@ -98,8 +100,13 @@ const loteOptions = ["L-2024-01", "L-2024-02", "L-2024-03", "L-2024-04"];
 const causaOptions = ["Natural", "Doença", "Respiratório", "Predadores", "Estresse", "Desconhecido"];
 
 export default function MortalidadePage() {
+  const searchParams = useSearchParams();
   const [registros, setRegistros] = useState(initialRegistros);
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get("register") === "true") setModal("add");
+  }, [searchParams]);
   const [editing, setEditing] = useState<RegistroMortalidade | null>(null);
   const [form, setForm] = useState({ data: "", quantidade: "1", causa: "", lote: "", galpao: "", observacao: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
@@ -652,7 +659,8 @@ export default function MortalidadePage() {
 
       {/* Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModal(null)} />
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between mb-6">
@@ -758,6 +766,7 @@ export default function MortalidadePage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

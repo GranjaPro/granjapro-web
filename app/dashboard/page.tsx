@@ -113,7 +113,7 @@ const kpis = [
 const quickActions = [
   { label: "Registrar Produção", icon: Egg, href: "/dashboard/production?register=true", color: "bg-brand-500 hover:bg-brand-600" },
   { label: "Registrar Ração", icon: Wheat, href: "/dashboard/racao?register=true", color: "bg-amber-500 hover:bg-amber-600" },
-  { label: "Registrar Mortalidade", icon: Skull, href: "/dashboard/health?register=true", color: "bg-red-500 hover:bg-red-600" },
+  { label: "Registrar Mortalidade", icon: Skull, href: "/dashboard/mortality?register=true", color: "bg-red-500 hover:bg-red-600" },
   { label: "Registrar Venda", icon: DollarSign, href: "/dashboard/sales?register=true", color: "bg-emerald-500 hover:bg-emerald-600" },
 ];
 

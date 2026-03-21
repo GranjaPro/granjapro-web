@@ -59,7 +59,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-brand-950/40 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-30 bg-brand-950/40 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -69,7 +69,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         onMouseEnter={() => { if (collapsed) setSidebarHovered(true); }}
         onMouseLeave={() => setSidebarHovered(false)}
         className={cn(
-          "fixed top-0 left-0 z-50 h-full bg-brand-900 flex flex-col transition-all duration-300 ease-in-out",
+          "fixed top-0 left-0 z-40 h-full bg-brand-900 flex flex-col transition-all duration-300 ease-in-out",
           collapsed ? "lg:w-[68px]" : "lg:w-[244px]",
           sidebarOpen ? "w-[244px] translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
@@ -168,7 +168,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         collapsed ? "lg:pl-[68px]" : "lg:pl-[244px]"
       )}>
         {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-gray-200/60">
+        <header className="sticky top-0 z-20 bg-white/70 backdrop-blur-xl border-b border-gray-200/60">
           <div className="flex items-center justify-between px-4 sm:px-6 h-16">
             <div className="flex items-center gap-3">
               <button
