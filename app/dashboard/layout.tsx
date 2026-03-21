@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
+import ProfileSettings from "@/components/dashboard/profile-settings";
 import {
   LayoutDashboard,
   Building2,
@@ -55,6 +56,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const pathname = usePathname();
   const { user, profile, farm, loading, signOut } = useAuth();
 
@@ -229,10 +231,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-red-500 ring-[1.5px] ring-white" />
               </button>
               <div className="hidden sm:block w-px h-7 bg-gray-200/80 mx-1" />
-              <button className="hidden sm:flex items-center gap-2.5 rounded-xl px-2 py-1.5 hover:bg-gray-100/80 transition-colors cursor-pointer">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-sm">
-                  <span className="text-[11px] font-bold text-white">{initials}</span>
-                </div>
+              <button
+                onClick={() => setProfileOpen(true)}
+                className="hidden sm:flex items-center gap-2.5 rounded-xl px-2 py-1.5 hover:bg-gray-100/80 transition-colors cursor-pointer"
+              >
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt={displayName} className="w-8 h-8 rounded-full object-cover shadow-sm" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-sm">
+                    <span className="text-[11px] font-bold text-white">{initials}</span>
+                  </div>
+                )}
                 <div className="text-left">
                   <p className="text-sm font-semibold text-gray-800 leading-tight">{displayName}</p>
                   <p className="text-[11px] text-gray-400 leading-tight">{roleName}</p>
@@ -247,6 +256,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
+
+      {/* Profile Settings Modal */}
+      <ProfileSettings open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }

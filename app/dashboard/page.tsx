@@ -53,6 +53,8 @@ import {
   PieChart,
   Pie,
 } from "recharts";
+import next from "next";
+import Link from "next/link";
 
 /* ── KPI Data ── */
 const kpis = [
@@ -852,7 +854,7 @@ export default function DashboardPage() {
                 <span className="text-[11px] text-gray-400 font-medium">Receita</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-sm bg-amber-400" />
+                <div className="w-2.5 h-2.5 rounded-sm bg-red-400" />
                 <span className="text-[11px] text-gray-400 font-medium">Despesas</span>
               </div>
             </div>
@@ -868,7 +870,7 @@ export default function DashboardPage() {
                 formatter={(value: number) => [`R$ ${value.toLocaleString("pt-BR")}`, undefined]}
               />
               <Bar dataKey="receita" fill="#2d7a4f" radius={[5, 5, 0, 0]} name="Receita" />
-              <Bar dataKey="despesas" fill="#fbbf24" radius={[5, 5, 0, 0]} name="Despesas" />
+              <Bar dataKey="despesas" fill="#e24a4a" radius={[5, 5, 0, 0]} name="Despesas" />
             </BarChart>
           </ResponsiveContainer>
         </div>
