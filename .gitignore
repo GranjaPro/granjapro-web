@@ -72,3 +72,5 @@ docker-compose.override.yml
 *.tar.gz
 *.rar
 *.7z
+
+.env.local

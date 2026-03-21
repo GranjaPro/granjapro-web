@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth/auth-provider";
 import {
   LayoutDashboard,
   Building2,
@@ -26,6 +27,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Layers,
+  LogOut,
+  Loader2,
 } from "lucide-react";
 
 const sidebarNav = [
@@ -53,6 +56,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [collapsed, setCollapsed] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const pathname = usePathname();
+  const { user, profile, farm, loading, signOut } = useAuth();
+
+  const displayName = profile?.full_name || user?.email?.split("@")[0] || "Usuário";
+  const initials = displayName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const roleName = profile?.role === "owner" ? "Proprietário" : profile?.role === "manager" ? "Gerente" : "Funcionário";
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8faf9]">
+        <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f8faf9]">
@@ -159,7 +180,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-
+        {/* Sign out button */}
+        <div className={cn(
+          "border-t border-white/[0.08] p-3 flex-shrink-0",
+          collapsed && "px-2"
+        )}>
+          <button
+            onClick={signOut}
+            className={cn(
+              "group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-brand-300/80 hover:bg-white/[0.07] hover:text-white transition-all duration-200 w-full cursor-pointer",
+              collapsed && "justify-center px-0"
+            )}
+          >
+            <LogOut className="w-[18px] h-[18px] text-brand-400/70 group-hover:text-brand-300 flex-shrink-0" strokeWidth={1.8} />
+            {!collapsed && <span className="truncate">Sair</span>}
+          </button>
+        </div>
       </aside>
 
       {/* Main content area */}
@@ -195,11 +231,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="hidden sm:block w-px h-7 bg-gray-200/80 mx-1" />
               <button className="hidden sm:flex items-center gap-2.5 rounded-xl px-2 py-1.5 hover:bg-gray-100/80 transition-colors cursor-pointer">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-sm">
-                  <span className="text-[11px] font-bold text-white">JS</span>
+                  <span className="text-[11px] font-bold text-white">{initials}</span>
                 </div>
                 <div className="text-left">
-                  <p className="text-sm font-semibold text-gray-800 leading-tight">João Silva</p>
-                  <p className="text-[11px] text-gray-400 leading-tight">Administrador</p>
+                  <p className="text-sm font-semibold text-gray-800 leading-tight">{displayName}</p>
+                  <p className="text-[11px] text-gray-400 leading-tight">{roleName}</p>
                 </div>
               </button>
             </div>
