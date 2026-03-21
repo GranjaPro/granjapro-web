@@ -51,6 +51,7 @@ const sidebarNav = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const pathname = usePathname();
 
   return (
@@ -65,6 +66,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Sidebar */}
       <aside
+        onMouseEnter={() => { if (collapsed) setSidebarHovered(true); }}
+        onMouseLeave={() => setSidebarHovered(false)}
         className={cn(
           "fixed top-0 left-0 z-50 h-full bg-brand-900 flex flex-col transition-all duration-300 ease-in-out",
           collapsed ? "lg:w-[68px]" : "lg:w-[244px]",
@@ -76,33 +79,50 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           "flex items-center h-16 border-b border-white/[0.08] flex-shrink-0",
           collapsed ? "justify-center px-2" : "justify-between px-5"
         )}>
-          <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden cursor-pointer">
-            <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Bird className="w-[18px] h-[18px] text-white" />
+          {collapsed ? (
+            /* Collapsed: show logo by default, on sidebar hover swap to expand button */
+            <div className="flex items-center justify-center w-8 h-8">
+              {sidebarHovered ? (
+                <button
+                  onClick={() => { setCollapsed(false); setSidebarHovered(false); }}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-400/60 hover:bg-white/[0.08] hover:text-brand-300 transition-all cursor-pointer"
+                >
+                  <PanelLeftOpen className="w-[18px] h-[18px]" />
+                </button>
+              ) : (
+                <Link href="/dashboard" className="flex items-center justify-center cursor-pointer">
+                  <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Bird className="w-[18px] h-[18px] text-white" />
+                  </div>
+                </Link>
+              )}
             </div>
-            {!collapsed && (
-              <div className="min-w-0">
-                <span className="font-bold text-[13px] text-white block leading-tight tracking-tight">Granja Pro</span>
-                <span className="text-[10px] text-brand-400 block leading-tight">Gestão Avícola</span>
-              </div>
-            )}
-          </Link>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-white/50 hover:text-white transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="hidden lg:flex items-center justify-center w-7 h-7 rounded-md text-brand-400/60 hover:bg-white/[0.08] hover:text-brand-300 transition-all cursor-pointer flex-shrink-0"
-          >
-            {collapsed ? (
-              <PanelLeftOpen className="w-[18px] h-[18px]" />
-            ) : (
-              <PanelLeftClose className="w-[18px] h-[18px]" />
-            )}
-          </button>
+          ) : (
+            /* Expanded: show logo + text + collapse button */
+            <>
+              <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden cursor-pointer">
+                <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Bird className="w-[18px] h-[18px] text-white" />
+                </div>
+                <div className="min-w-0">
+                  <span className="font-bold text-[13px] text-white block leading-tight tracking-tight">Granja Pro</span>
+                  <span className="text-[10px] text-brand-400 block leading-tight">Gestão Avícola</span>
+                </div>
+              </Link>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="lg:hidden text-white/50 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setCollapsed(true)}
+                className="hidden lg:flex items-center justify-center w-7 h-7 rounded-md text-brand-400/60 hover:bg-white/[0.08] hover:text-brand-300 transition-all cursor-pointer flex-shrink-0"
+              >
+                <PanelLeftClose className="w-[18px] h-[18px]" />
+              </button>
+            </>
+          )}
         </div>
 
         {/* Navigation */}
@@ -138,6 +158,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             );
           })}
         </nav>
+
 
       </aside>
 

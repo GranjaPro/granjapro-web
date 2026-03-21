@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Egg,
   TrendingUp,
@@ -76,9 +77,14 @@ const initialRegistros: Registro[] = [
 type ModalMode = "add" | "edit" | null;
 
 export default function ProducaoPage() {
+  const searchParams = useSearchParams();
   const [lotes, setLotes] = useState(initialLotes);
   const [registros, setRegistros] = useState(initialRegistros);
   const [modal, setModal] = useState<ModalMode>(null);
+
+  useEffect(() => {
+    if (searchParams.get("register") === "true") setModal("add");
+  }, [searchParams]);
   const [editing, setEditing] = useState<Registro | null>(null);
   const [form, setForm] = useState({ loteId: "", data: "", total: "", quebrados: "", sujos: "", descartados: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);

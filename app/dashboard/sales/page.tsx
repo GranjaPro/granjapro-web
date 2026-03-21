@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   ShoppingCart,
   TrendingUp,
@@ -117,8 +118,13 @@ const loteOptions = ["L-2024-01", "L-2024-02", "L-2024-03", "L-2024-04"];
    ══════════════════════════════════════════════ */
 
 export default function VendasPage() {
+  const searchParams = useSearchParams();
   const [vendas, setVendas] = useState(initialVendas);
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get("register") === "true") setModal("add");
+  }, [searchParams]);
   const [editing, setEditing] = useState<Venda | null>(null);
   const [form, setForm] = useState({ data: "", cliente: "", lote: "", galpao: "", quantidade: "", precoUn: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);

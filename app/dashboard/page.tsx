@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import {
   Egg,
   Bird,
@@ -110,10 +111,10 @@ const kpis = [
 
 /* ── Quick Actions ── */
 const quickActions = [
-  { label: "Registrar Produção", icon: Egg, href: "/dashboard/production", color: "bg-brand-500 hover:bg-brand-600" },
-  { label: "Registrar Ração", icon: Wheat, href: "/dashboard/racao", color: "bg-amber-500 hover:bg-amber-600" },
-  { label: "Registrar Mortalidade", icon: Skull, href: "/dashboard/health", color: "bg-red-500 hover:bg-red-600" },
-  { label: "Registrar Venda", icon: DollarSign, href: "/dashboard/vendas", color: "bg-emerald-500 hover:bg-emerald-600" },
+  { label: "Registrar Produção", icon: Egg, href: "/dashboard/production?register=true", color: "bg-brand-500 hover:bg-brand-600" },
+  { label: "Registrar Ração", icon: Wheat, href: "/dashboard/racao?register=true", color: "bg-amber-500 hover:bg-amber-600" },
+  { label: "Registrar Mortalidade", icon: Skull, href: "/dashboard/health?register=true", color: "bg-red-500 hover:bg-red-600" },
+  { label: "Registrar Venda", icon: DollarSign, href: "/dashboard/sales?register=true", color: "bg-emerald-500 hover:bg-emerald-600" },
 ];
 
 /* ── Chart Data ── */
@@ -200,8 +201,9 @@ export default function DashboardPage() {
         {/* Quick Actions */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {quickActions.map((a) => (
-            <button
+            <Link
               key={a.label}
+              href={a.href}
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-xl text-white text-sm font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md hover:-translate-y-0.5",
                 a.color
@@ -209,7 +211,7 @@ export default function DashboardPage() {
             >
               <a.icon className="w-4 h-4 flex-shrink-0" />
               <span className="truncate">{a.label}</span>
-            </button>
+            </Link>
           ))}
         </div>
       </div>
@@ -451,14 +453,14 @@ export default function DashboardPage() {
               key={barn.id}
               className={cn(
                 "relative rounded-xl p-4 border transition-all duration-200 cursor-pointer hover:shadow-md hover:-translate-y-0.5",
-                barn.status === "ok" ? "border-gray-100 bg-gray-50/50 hover:border-brand-200" : "border-amber-200 bg-amber-50/50 hover:border-amber-300"
+                barn.layingRate >= 90 ? "border-emerald-200 bg-emerald-50/30 hover:border-emerald-300" : barn.layingRate >= 88 ? "border-brand-200 bg-brand-50/30 hover:border-brand-300" : barn.layingRate >= 85 ? "border-amber-200 bg-amber-50/50 hover:border-amber-300" : "border-red-200 bg-red-50/50 hover:border-red-300"
               )}
             >
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-bold text-gray-900">{barn.name}</span>
                 <span className={cn(
                   "w-2 h-2 rounded-full",
-                  barn.status === "ok" ? "bg-emerald-500" : "bg-amber-500"
+                  barn.layingRate >= 90 ? "bg-emerald-500" : barn.layingRate >= 88 ? "bg-brand-500" : barn.layingRate >= 85 ? "bg-amber-500" : "bg-red-500"
                 )} />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -476,10 +478,25 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-              {barn.status === "warning" && (
+              {barn.layingRate >= 90 ? (
+                <div className="mt-2 flex items-center gap-1.5 text-emerald-700 bg-emerald-100/80 rounded-lg px-2.5 py-1.5">
+                  <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
+                  <span className="text-[11px] font-medium">Desempenho excelente</span>
+                </div>
+              ) : barn.layingRate >= 88 ? (
+                <div className="mt-2 flex items-center gap-1.5 text-brand-700 bg-brand-100/80 rounded-lg px-2.5 py-1.5">
+                  <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
+                  <span className="text-[11px] font-medium">Postura dentro da meta</span>
+                </div>
+              ) : barn.layingRate >= 85 ? (
                 <div className="mt-2 flex items-center gap-1.5 text-amber-700 bg-amber-100/80 rounded-lg px-2.5 py-1.5">
                   <AlertTriangle className="w-3 h-3 flex-shrink-0" />
                   <span className="text-[11px] font-medium">Postura abaixo da meta</span>
+                </div>
+              ) : (
+                <div className="mt-2 flex items-center gap-1.5 text-red-700 bg-red-100/80 rounded-lg px-2.5 py-1.5">
+                  <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                  <span className="text-[11px] font-medium">Postura crítica</span>
                 </div>
               )}
             </div>

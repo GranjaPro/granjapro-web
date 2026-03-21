@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   HeartPulse,
@@ -76,9 +77,14 @@ const tipoColor: Record<RegistroTipo, { bg: string; text: string }> = {
 };
 
 export default function SaudePage() {
+  const searchParams = useSearchParams();
   const [registros, setRegistros] = useState(initialRegistros);
   const [agenda] = useState(initialAgenda);
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("register") === "true") setShowModal(true);
+  }, [searchParams]);
   const [form, setForm] = useState({
     titulo: "",
     data: "",

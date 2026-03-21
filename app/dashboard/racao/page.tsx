@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Wheat,
   Plus,
@@ -118,9 +119,14 @@ const consumoDiario = [
 type ModalMode = "add" | "edit" | null;
 
 export default function RacaoPage() {
+  const searchParams = useSearchParams();
   const [registros, setRegistros] = useState(initialRegistros);
   const [estoque] = useState(initialEstoque);
   const [modal, setModal] = useState<ModalMode>(null);
+
+  useEffect(() => {
+    if (searchParams.get("register") === "true") setModal("add");
+  }, [searchParams]);
   const [editing, setEditing] = useState<RegistroRacao | null>(null);
   const [form, setForm] = useState({ data: "", tipo: "comercial" as TipoRacao, aviario: "", consumoKg: "", custoRS: "", qtdGalinhas: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
