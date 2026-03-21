@@ -10,12 +10,12 @@ import {
   Search,
   X,
   Check,
-  Fence,
-  Package,
+  CheckCircle2,
+  AlertTriangle,
+  Warehouse,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Finalidade = "avicultura" | "armazenamento";
 type SistemaAvicola = "gaiola" | "caipira" | "organico";
 type StatusGalpao = "ativo" | "vazio" | "manutencao";
 
@@ -23,84 +23,18 @@ interface Galpao {
   id: number;
   nome: string;
   localizacao: string;
-  finalidade: Finalidade;
   area: string;
   status: StatusGalpao;
-  /* Campos de avicultura */
   capacidade: number;
   aves: number;
   sistema: SistemaAvicola;
-  /* Campos de armazenamento */
-  tipoArmazenamento: string;
-  capacidadeArmazenamento: string;
+  observacoes: string;
 }
 
 const initialGalpoes: Galpao[] = [
-  {
-    id: 1,
-    nome: "Galpão Vale Verde",
-    localizacao: "Setor A, Lote 1",
-    finalidade: "avicultura",
-    area: "1.200 m²",
-    status: "ativo",
-    capacidade: 5000,
-    aves: 4850,
-    sistema: "gaiola",
-    tipoArmazenamento: "",
-    capacidadeArmazenamento: "",
-  },
-  {
-    id: 2,
-    nome: "Galpão Nascente",
-    localizacao: "Setor B, Lote 3",
-    finalidade: "avicultura",
-    area: "2.500 m²",
-    status: "vazio",
-    capacidade: 3000,
-    aves: 0,
-    sistema: "organico",
-    tipoArmazenamento: "",
-    capacidadeArmazenamento: "",
-  },
-  {
-    id: 3,
-    nome: "Galpão Central",
-    localizacao: "Setor A, Lote 2",
-    finalidade: "avicultura",
-    area: "3.000 m²",
-    status: "ativo",
-    capacidade: 6000,
-    aves: 5800,
-    sistema: "caipira",
-    tipoArmazenamento: "",
-    capacidadeArmazenamento: "",
-  },
-  {
-    id: 4,
-    nome: "Galpão de Ração",
-    localizacao: "Setor C, Lote 1",
-    finalidade: "armazenamento",
-    area: "800 m²",
-    status: "ativo",
-    capacidade: 0,
-    aves: 0,
-    sistema: "gaiola",
-    tipoArmazenamento: "Ração e Insumos",
-    capacidadeArmazenamento: "50 toneladas",
-  },
-  {
-    id: 5,
-    nome: "Galpão de Equipamentos",
-    localizacao: "Setor C, Lote 2",
-    finalidade: "armazenamento",
-    area: "600 m²",
-    status: "manutencao",
-    capacidade: 0,
-    aves: 0,
-    sistema: "gaiola",
-    tipoArmazenamento: "Equipamentos",
-    capacidadeArmazenamento: "200 m³",
-  },
+  { id: 1, nome: "Galpão Vale Verde", localizacao: "Setor A, Lote 1", area: "1.200 m²", status: "ativo", capacidade: 5000, aves: 4850, sistema: "gaiola", observacoes: "Galpão principal. Ventilação automática." },
+  { id: 2, nome: "Galpão Nascente", localizacao: "Setor B, Lote 3", area: "2.500 m²", status: "vazio", capacidade: 3000, aves: 0, sistema: "organico", observacoes: "Aguardando novo lote de aves." },
+  { id: 3, nome: "Galpão Central", localizacao: "Setor A, Lote 2", area: "3.000 m²", status: "ativo", capacidade: 6000, aves: 5800, sistema: "caipira", observacoes: "Produção estável. Último vistoria em março." },
 ];
 
 const sistemaLabel: Record<SistemaAvicola, string> = {
@@ -132,27 +66,25 @@ type ModalMode = "add" | "edit" | null;
 const emptyForm = {
   nome: "",
   localizacao: "",
-  finalidade: "avicultura" as Finalidade,
   area: "",
   status: "ativo" as StatusGalpao,
   capacidade: "",
   aves: "",
   sistema: "gaiola" as SistemaAvicola,
-  tipoArmazenamento: "Ração e Insumos",
-  capacidadeArmazenamento: "",
+  observacoes: "",
 };
 
 export default function GalpoesPage() {
-  const [tab, setTab] = useState<Finalidade>("avicultura");
   const [search, setSearch] = useState("");
   const [galpoes, setGalpoes] = useState(initialGalpoes);
   const [modal, setModal] = useState<ModalMode>(null);
   const [editing, setEditing] = useState<Galpao | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [filterSistema, setFilterSistema] = useState<SistemaAvicola | "todos">("todos");
 
   function openAdd() {
-    setForm({ ...emptyForm, finalidade: tab });
+    setForm({ ...emptyForm });
     setEditing(null);
     setModal("add");
   }
@@ -161,14 +93,12 @@ export default function GalpoesPage() {
     setForm({
       nome: g.nome,
       localizacao: g.localizacao,
-      finalidade: g.finalidade,
       area: g.area,
       status: g.status,
-      capacidade: g.finalidade === "avicultura" ? String(g.capacidade) : "",
-      aves: g.finalidade === "avicultura" ? String(g.aves) : "",
+      capacidade: String(g.capacidade),
+      aves: String(g.aves),
       sistema: g.sistema,
-      tipoArmazenamento: g.tipoArmazenamento,
-      capacidadeArmazenamento: g.capacidadeArmazenamento,
+      observacoes: g.observacoes,
     });
     setEditing(g);
     setModal("edit");
@@ -180,20 +110,15 @@ export default function GalpoesPage() {
       id: editing?.id || Date.now(),
       nome: form.nome,
       localizacao: form.localizacao,
-      finalidade: form.finalidade,
       area: form.area,
       status: form.status,
-      capacidade: form.finalidade === "avicultura" ? Number(form.capacidade) || 0 : 0,
-      aves: form.finalidade === "avicultura" ? Number(form.aves) || 0 : 0,
+      capacidade: Number(form.capacidade) || 0,
+      aves: Number(form.aves) || 0,
       sistema: form.sistema,
-      tipoArmazenamento: form.finalidade === "armazenamento" ? form.tipoArmazenamento : "",
-      capacidadeArmazenamento: form.finalidade === "armazenamento" ? form.capacidadeArmazenamento : "",
+      observacoes: form.observacoes,
     };
-    if (modal === "add") {
-      setGalpoes((prev) => [...prev, galpao]);
-    } else if (editing) {
-      setGalpoes((prev) => prev.map((g) => (g.id === editing.id ? galpao : g)));
-    }
+    if (modal === "add") setGalpoes((prev) => [...prev, galpao]);
+    else if (editing) setGalpoes((prev) => prev.map((g) => (g.id === editing.id ? galpao : g)));
     setModal(null);
   }
 
@@ -202,57 +127,103 @@ export default function GalpoesPage() {
     setDeleteConfirm(null);
   }
 
-  const filtered = galpoes.filter(
-    (g) =>
-      g.finalidade === tab &&
-      (g.nome.toLowerCase().includes(search.toLowerCase()) ||
-      g.localizacao.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = galpoes.filter((g) => {
+    const matchSearch = g.nome.toLowerCase().includes(search.toLowerCase()) || g.localizacao.toLowerCase().includes(search.toLowerCase());
+    const matchSistema = filterSistema === "todos" || g.sistema === filterSistema;
+    return matchSearch && matchSistema;
+  });
+
+  const totalAtivos = galpoes.filter((g) => g.status === "ativo").length;
+  const totalManutencao = galpoes.filter((g) => g.status === "manutencao").length;
+  const totalAves = galpoes.reduce((s, g) => s + g.aves, 0);
+  const totalCapacidade = galpoes.reduce((s, g) => s + g.capacidade, 0);
+  const mediaOcupacao = totalCapacidade > 0 ? Math.round((totalAves / totalCapacidade) * 100) : 0;
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center">
-            <Building2 className="w-6 h-6 text-brand-600" />
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
+            <Building2 className="w-6 h-6 text-white" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Galpões</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Gerencie seus galpões de avicultura e armazenamento</p>
+            <p className="text-sm text-gray-500 mt-0.5">Gerencie seus galpões de avicultura</p>
           </div>
         </div>
-        <button onClick={openAdd} className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm">
+        <button onClick={openAdd} className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20">
           <Plus className="w-4 h-4" />
-          Adicionar Galpão
+          Novo Galpão
         </button>
       </div>
 
-      {/* Tabs + Search */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex bg-gray-100 rounded-lg p-1 w-fit">
-          <button
-            onClick={() => setTab("avicultura")}
-            className={cn(
-              "flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-all cursor-pointer",
-              tab === "avicultura" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-            )}
-          >
-            <Fence className="w-4 h-4" />
-            Avicultura
-          </button>
-          <button
-            onClick={() => setTab("armazenamento")}
-            className={cn(
-              "flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-all cursor-pointer",
-              tab === "armazenamento" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-            )}
-          >
-            <Package className="w-4 h-4" />
-            Armazenamento
-          </button>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
+              <Warehouse className="w-5 h-5 text-brand-600" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-gray-900 tracking-tight">{galpoes.length}</p>
+          <p className="text-xs text-gray-400 mt-1 font-medium">Total de Galpões</p>
         </div>
-        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3.5 py-2 w-full sm:w-72 focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-300 transition-all">
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-gray-900 tracking-tight">{totalAtivos}</p>
+          <p className="text-xs text-gray-400 mt-1 font-medium">Ativos</p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-gray-900 tracking-tight">{totalManutencao}</p>
+          <p className="text-xs text-gray-400 mt-1 font-medium">Em Manutenção</p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-blue-600" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-gray-900 tracking-tight">{mediaOcupacao}%</p>
+          <p className="text-xs text-gray-400 mt-1 font-medium">Ocupação Média</p>
+        </div>
+      </div>
+
+      {/* Filters + Search */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+          {([
+            { key: "todos" as const, label: "Todos" },
+            { key: "gaiola" as const, label: "Gaiola" },
+            { key: "caipira" as const, label: "Caipira" },
+            { key: "organico" as const, label: "Orgânico" },
+          ]).map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setFilterSistema(t.key)}
+              className={cn(
+                "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
+                filterSistema === t.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3.5 py-2 w-full sm:w-72 sm:ml-auto focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-300 transition-all">
           <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
           <input type="text" placeholder="Buscar galpão..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none w-full" />
         </div>
@@ -261,18 +232,13 @@ export default function GalpoesPage() {
       {/* Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map((g) => {
-          const isAvi = g.finalidade === "avicultura";
-          const ocupacao = isAvi && g.capacidade > 0 ? Math.round((g.aves / g.capacidade) * 100) : 0;
+          const ocupacao = g.capacidade > 0 ? Math.round((g.aves / g.capacidade) * 100) : 0;
           return (
             <div key={g.id} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", g.status === "ativo" && "bg-brand-50", g.status === "vazio" && "bg-gray-100", g.status === "manutencao" && "bg-amber-50")}>
-                    {isAvi ? (
-                      <Fence className={cn("w-5 h-5", g.status === "ativo" && "text-brand-600", g.status === "vazio" && "text-gray-400", g.status === "manutencao" && "text-amber-600")} />
-                    ) : (
-                      <Package className={cn("w-5 h-5", g.status === "ativo" && "text-brand-600", g.status === "vazio" && "text-gray-400", g.status === "manutencao" && "text-amber-600")} />
-                    )}
+                    <Building2 className={cn("w-5 h-5", g.status === "ativo" && "text-brand-600", g.status === "vazio" && "text-gray-400", g.status === "manutencao" && "text-amber-600")} />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-gray-900">{g.nome}</h3>
@@ -292,31 +258,29 @@ export default function GalpoesPage() {
                 </div>
               </div>
 
-              {/* Avicultura: occupation bar */}
-              {isAvi && (
-                <div className="mt-4 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500">Ocupação</span>
-                    <span className="font-semibold text-gray-700">{g.aves.toLocaleString("pt-BR")} / {g.capacidade.toLocaleString("pt-BR")}</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-gray-100">
-                    <div className={cn("h-1.5 rounded-full transition-all", g.status === "ativo" && "bg-brand-500", g.status === "vazio" && "bg-gray-300", g.status === "manutencao" && "bg-amber-400")} style={{ width: ocupacao + "%" }} />
-                  </div>
+              {/* Info */}
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Capacidade</span>
+                  <span className="font-semibold text-gray-700">{g.capacidade.toLocaleString("pt-BR")} aves</span>
                 </div>
-              )}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Ocupação</span>
+                  <span className="font-semibold text-gray-700">{g.aves.toLocaleString("pt-BR")} / {g.capacidade.toLocaleString("pt-BR")} ({ocupacao}%)</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-gray-100">
+                  <div
+                    className={cn(
+                      "h-1.5 rounded-full transition-all",
+                      ocupacao > 80 ? "bg-red-400" : ocupacao > 50 ? "bg-amber-400" : "bg-brand-500"
+                    )}
+                    style={{ width: ocupacao + "%" }}
+                  />
+                </div>
+              </div>
 
-              {/* Armazenamento: info */}
-              {!isAvi && (
-                <div className="mt-4 space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500">Tipo</span>
-                    <span className="font-semibold text-gray-700">{g.tipoArmazenamento}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500">Capacidade</span>
-                    <span className="font-semibold text-gray-700">{g.capacidadeArmazenamento}</span>
-                  </div>
-                </div>
+              {g.observacoes && (
+                <p className="text-xs text-gray-400 mt-3 line-clamp-2">{g.observacoes}</p>
               )}
 
               {/* Badges */}
@@ -324,14 +288,9 @@ export default function GalpoesPage() {
                 <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", statusColor[g.status])}>
                   {statusLabel[g.status]}
                 </span>
-                <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", isAvi ? "text-brand-700 bg-brand-50" : "text-purple-700 bg-purple-50")}>
-                  {isAvi ? "Avicultura" : "Armazenamento"}
+                <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", sistemaColor[g.sistema])}>
+                  {sistemaLabel[g.sistema]}
                 </span>
-                {isAvi && (
-                  <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", sistemaColor[g.sistema])}>
-                    {sistemaLabel[g.sistema]}
-                  </span>
-                )}
                 <span className="text-[11px] font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-lg">
                   {g.area}
                 </span>
@@ -368,7 +327,7 @@ export default function GalpoesPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Área total</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Área</label>
                   <input type="text" value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} placeholder="Ex: 1.200 m²" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
                 <div>
@@ -381,81 +340,30 @@ export default function GalpoesPage() {
                 </div>
               </div>
 
-              {/* Finalidade toggle */}
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-2">Finalidade</label>
-                <div className="flex bg-gray-100 rounded-xl p-1 w-full">
-                  <button
-                    type="button"
-                    onClick={() => setForm({ ...form, finalidade: "avicultura" })}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all cursor-pointer",
-                      form.finalidade === "avicultura"
-                        ? "bg-white text-gray-900 shadow-sm"
-                        : "text-gray-500 hover:text-gray-700"
-                    )}
-                  >
-                    <Fence className="w-4 h-4" />
-                    Avicultura
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setForm({ ...form, finalidade: "armazenamento" })}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all cursor-pointer",
-                      form.finalidade === "armazenamento"
-                        ? "bg-white text-gray-900 shadow-sm"
-                        : "text-gray-500 hover:text-gray-700"
-                    )}
-                  >
-                    <Package className="w-4 h-4" />
-                    Armazenamento
-                  </button>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Sistema</label>
+                <select value={form.sistema} onChange={(e) => setForm({ ...form, sistema: e.target.value as SistemaAvicola })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
+                  <option value="gaiola">Gaiola</option>
+                  <option value="caipira">Caipira</option>
+                  <option value="organico">Orgânico</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Capacidade</label>
+                  <input type="number" value={form.capacidade} onChange={(e) => setForm({ ...form, capacidade: e.target.value })} placeholder="5000" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Aves Atuais</label>
+                  <input type="number" value={form.aves} onChange={(e) => setForm({ ...form, aves: e.target.value })} placeholder="4850" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
               </div>
 
-              {/* Avicultura fields */}
-              {form.finalidade === "avicultura" && (
-                <div className="space-y-4 border-t border-gray-100 pt-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Capacidade</label>
-                      <input type="number" value={form.capacidade} onChange={(e) => setForm({ ...form, capacidade: e.target.value })} placeholder="5000" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Aves atuais</label>
-                      <input type="number" value={form.aves} onChange={(e) => setForm({ ...form, aves: e.target.value })} placeholder="4850" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Sistema</label>
-                    <select value={form.sistema} onChange={(e) => setForm({ ...form, sistema: e.target.value as SistemaAvicola })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
-                      <option value="gaiola">Gaiola</option>
-                      <option value="caipira">Caipira</option>
-                      <option value="organico">Orgânico</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {/* Armazenamento fields */}
-              {form.finalidade === "armazenamento" && (
-                <div className="space-y-4 border-t border-gray-100 pt-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tipo de Armazenamento</label>
-                    <select value={form.tipoArmazenamento} onChange={(e) => setForm({ ...form, tipoArmazenamento: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
-                      <option>Ração e Insumos</option>
-                      <option>Medicamentos</option>
-                      <option>Equipamentos</option>
-                      <option>Embalagens e Comercialização</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Capacidade de Armazenamento</label>
-                    <input type="text" value={form.capacidadeArmazenamento} onChange={(e) => setForm({ ...form, capacidadeArmazenamento: e.target.value })} placeholder="Ex: 50 toneladas" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
-                  </div>
-                </div>
-              )}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Observações</label>
+                <textarea value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} placeholder="Notas sobre o galpão..." rows={2} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all resize-none" />
+              </div>
             </div>
             <div className="flex items-center justify-end gap-2 pt-2">
               <button onClick={() => setModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>

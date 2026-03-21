@@ -15,18 +15,16 @@ import {
   DollarSign,
   Users,
   ShoppingCart,
-  ClipboardList,
   Package,
   Wrench,
-  BarChart3,
   Bot,
   FileText,
-  ShieldCheck,
   Bell,
   Search,
   Menu,
   X,
-  ChevronLeft,
+  PanelLeftClose,
+  PanelLeftOpen,
   Layers,
 } from "lucide-react";
 
@@ -42,15 +40,12 @@ const sidebarNav = [
   { label: "Finanças", href: "/dashboard/finances", icon: DollarSign },
   { label: "Clientes", href: "/dashboard/customers", icon: Users },
   { label: "Vendas", href: "/dashboard/sales", icon: ShoppingCart },
-  { label: "Inventário", href: "/dashboard/inventory", icon: Package },
+  { label: "Estoque", href: "/dashboard/inventory", icon: Package },
   { label: "Equipamentos", href: "/dashboard/equipment", icon: Wrench },
   { type: "divider" as const },
-  { label: "Tarefas", href: "/dashboard/tasks", icon: ClipboardList },
   { label: "Funcionários", href: "/dashboard/workers", icon: Users },
-  { label: "Analíticos", href: "/dashboard/analytics", icon: BarChart3 },
   { label: "Assistente IA", href: "/dashboard/ai", icon: Bot },
   { label: "Relatórios", href: "/dashboard/reports", icon: FileText },
-  { label: "Rastreabilidade", href: "/dashboard/traceability", icon: ShieldCheck },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -98,6 +93,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           >
             <X className="w-5 h-5" />
           </button>
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="hidden lg:flex items-center justify-center w-7 h-7 rounded-md text-brand-400/60 hover:bg-white/[0.08] hover:text-brand-300 transition-all cursor-pointer flex-shrink-0"
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="w-[18px] h-[18px]" />
+            ) : (
+              <PanelLeftClose className="w-[18px] h-[18px]" />
+            )}
+          </button>
         </div>
 
         {/* Navigation */}
@@ -134,15 +139,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        {/* Collapse toggle */}
-        <div className="hidden lg:flex items-center border-t border-white/[0.06] p-3 flex-shrink-0">
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="flex items-center justify-center w-full rounded-lg py-2 text-brand-400/60 hover:bg-white/[0.06] hover:text-brand-300 transition-all cursor-pointer"
-          >
-            <ChevronLeft className={cn("w-4 h-4 transition-transform duration-300", collapsed && "rotate-180")} />
-          </button>
-        </div>
       </aside>
 
       {/* Main content area */}
