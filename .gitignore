@@ -63,6 +63,9 @@ temp/
 # supabase local
 .supabase/
 
+# claude code
+.claude/
+
 # docker
 docker-compose.override.yml
 
@@ -73,4 +76,18 @@ docker-compose.override.yml
 *.rar
 *.7z
 
-.env.local
+# OS files
+Desktop.ini
+ehthumbs.db
+ehthumbs_vista.db
+
+# package manager locks (keep only one)
+yarn.lock
+pnpm-lock.yaml
+
+# debug
+.eslintcache
+
+# PWA
+sw.js
+workbox-*.js
