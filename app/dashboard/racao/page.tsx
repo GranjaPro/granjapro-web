@@ -272,7 +272,7 @@ export default function RacaoPage() {
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
                 labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                formatter={(value: number) => ["R$ " + value.toLocaleString("pt-BR"), "Custo"]}
+                formatter={(value: unknown) => ["R$ " + Number(value).toLocaleString("pt-BR"), "Custo"]}
               />
               <Bar dataKey="valor" fill="#2d7a4f" radius={[6, 6, 0, 0]} barSize={36} />
             </BarChart>
@@ -298,7 +298,7 @@ export default function RacaoPage() {
             <Tooltip
               contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
               labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-              formatter={(value: number) => [value + " kg", "Consumo"]}
+              formatter={(value: unknown) => [Number(value) + " kg", "Consumo"]}
             />
             <Area type="monotone" dataKey="kg" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#colorConsumo)" dot={{ r: 5, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 }} activeDot={{ r: 7, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} />
           </AreaChart>
