@@ -31,6 +31,8 @@ interface Lote {
 interface Barn {
   id: string;
   name: string;
+  capacity: number;
+  current_birds: number;
 }
 
 const sistemaLabel: Record<string, string> = {
@@ -117,7 +119,7 @@ export default function LotesPage() {
           .order("created_at", { ascending: false }),
         supabase
           .from("barns")
-          .select("id, name")
+          .select("id, name, capacity, current_birds")
           .eq("farm_id", farm.id)
           .order("name"),
       ]);
@@ -190,6 +192,20 @@ export default function LotesPage() {
     if (!form.code.trim() || !form.breed.trim() || !form.arrival_date) {
       setError("Preencha código, raça e data de chegada.");
       return;
+    }
+
+    const newBirdCount = Number(form.bird_count) || 0;
+    if (form.barn_id && newBirdCount > 0) {
+      const barn = barns.find((b) => b.id === form.barn_id);
+      if (barn && barn.capacity > 0) {
+        const editingInSameBarn = editing && editing.barn_id === form.barn_id;
+        const available = barn.capacity - barn.current_birds + (editingInSameBarn ? editing.bird_count : 0);
+        if (newBirdCount > available) {
+          const ocupado = barn.current_birds - (editingInSameBarn ? editing.bird_count : 0);
+          setError(`Capacidade insuficiente no ${barn.name}. Você tentou adicionar ${newBirdCount.toLocaleString("pt-BR")} aves. Disponível: ${available.toLocaleString("pt-BR")} (capacidade: ${barn.capacity.toLocaleString("pt-BR")}, ocupado: ${ocupado.toLocaleString("pt-BR")}).`);
+          return;
+        }
+      }
     }
 
     setSaving(true);

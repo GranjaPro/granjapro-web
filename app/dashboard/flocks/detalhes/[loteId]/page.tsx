@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -19,106 +20,118 @@ import {
   Wheat,
   HeartPulse,
   Skull,
-  ArrowUpRight,
-  ArrowDownRight,
   ChevronRight,
   Droplets,
   ShieldCheck,
-  Wrench,
-  Syringe,
-  Bug,
-  Thermometer,
-  AlertTriangle,
-  CheckCircle2,
   Settings,
-  Users,
-  Zap,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth/auth-provider";
+import { createClient } from "@/lib/supabase/client";
 
-interface LoteData {
-  codigo: string;
-  raca: string;
-  aves: number;
-  idade: string;
-  postura: string;
-  sistema: string;
+interface Lote {
+  id: string;
+  code: string;
+  breed: string;
+  bird_count: number;
+  age_weeks: number;
+  production_system: string;
   status: string;
-  fornecedor: string;
-  fornecedorContato: string;
-  dataChegada: string;
-  origem: string;
-  linhagem: string;
-  pesoMedio: string;
-  galpao: string;
+  supplier: string | null;
+  supplier_contact: string | null;
+  arrival_date: string;
+  origin: string | null;
+  lineage: string | null;
+  avg_weight_kg: number | null;
+  barn_name: string | null;
 }
 
-interface LoteKPIs {
-  producao: { taxaPostura: number; mediaOvosDia: number; tendencia: "up" | "down" | "stable" };
-  racao: { consumoDiario: number; consumoAve: number; tendencia: "up" | "down" | "stable" };
-  saude: { score: number; tratamentosAtivos: number; tendencia: "up" | "down" | "stable" };
-  mortalidade: { taxaMensal: number; mortesSemana: number; tendencia: "up" | "down" | "stable" };
+const statusLabel: Record<string, string> = {
+  active: "Ativo",
+  growing: "Crescimento",
+  declining: "Declínio",
+  disposed: "Descartado",
+};
+
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 2) return digits.length ? `(${digits}` : "";
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 
-const lotesData: Record<string, LoteData> = {
-  "1": {
-    codigo: "L-2024-01", raca: "Hy-Line Brown", aves: 800, idade: "42 semanas", postura: "92%",
-    sistema: "Cage-Free", status: "Ativo", fornecedor: "Avícola São Paulo Ltda.",
-    fornecedorContato: "(11) 99876-5432", dataChegada: "2023-06-15", origem: "Campinas, SP",
-    linhagem: "Hy-Line International", pesoMedio: "1,85 kg", galpao: "Galpão Vale Verde",
-  },
-  "2": {
-    codigo: "L-2024-02", raca: "Lohmann LSL", aves: 600, idade: "28 semanas", postura: "88%",
-    sistema: "Free Range", status: "Ativo", fornecedor: "Granja Lohmann Brasil",
-    fornecedorContato: "(41) 98765-4321", dataChegada: "2023-09-20", origem: "Curitiba, PR",
-    linhagem: "Lohmann Tierzucht", pesoMedio: "1,72 kg", galpao: "Galpão Nascente",
-  },
-  "3": {
-    codigo: "L-2024-03", raca: "ISA Brown", aves: 1000, idade: "18 semanas", postura: "—",
-    sistema: "Gaiola", status: "Crescimento", fornecedor: "ISA Poultry Brasil",
-    fornecedorContato: "(19) 97654-3210", dataChegada: "2023-11-10", origem: "Jundiaí, SP",
-    linhagem: "Hendrix Genetics", pesoMedio: "1,45 kg", galpao: "Galpão Central",
-  },
-  "4": {
-    codigo: "L-2024-04", raca: "Novogen Brown", aves: 500, idade: "60 semanas", postura: "78%",
-    sistema: "Orgânico", status: "Declínio", fornecedor: "Novogen do Brasil",
-    fornecedorContato: "(31) 96543-2109", dataChegada: "2023-03-05", origem: "Belo Horizonte, MG",
-    linhagem: "Novogen SAS", pesoMedio: "2,10 kg", galpao: "Galpão Central",
-  },
-};
+function formatDate(dateStr: string) {
+  try {
+    const d = new Date(dateStr + "T00:00:00");
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  } catch { return dateStr; }
+}
 
-const lotesKPIs: Record<string, LoteKPIs> = {
-  "1": {
-    producao: { taxaPostura: 92, mediaOvosDia: 736, tendencia: "up" },
-    racao: { consumoDiario: 96, consumoAve: 120, tendencia: "stable" },
-    saude: { score: 96, tratamentosAtivos: 0, tendencia: "up" },
-    mortalidade: { taxaMensal: 0.3, mortesSemana: 1, tendencia: "stable" },
-  },
-  "2": {
-    producao: { taxaPostura: 88, mediaOvosDia: 528, tendencia: "up" },
-    racao: { consumoDiario: 69, consumoAve: 115, tendencia: "up" },
-    saude: { score: 82, tratamentosAtivos: 1, tendencia: "down" },
-    mortalidade: { taxaMensal: 0.5, mortesSemana: 1, tendencia: "up" },
-  },
-  "3": {
-    producao: { taxaPostura: 0, mediaOvosDia: 0, tendencia: "stable" },
-    racao: { consumoDiario: 85, consumoAve: 85, tendencia: "up" },
-    saude: { score: 91, tratamentosAtivos: 0, tendencia: "up" },
-    mortalidade: { taxaMensal: 0.2, mortesSemana: 0, tendencia: "down" },
-  },
-  "4": {
-    producao: { taxaPostura: 78, mediaOvosDia: 390, tendencia: "down" },
-    racao: { consumoDiario: 62.5, consumoAve: 125, tendencia: "stable" },
-    saude: { score: 88, tratamentosAtivos: 0, tendencia: "up" },
-    mortalidade: { taxaMensal: 0.8, mortesSemana: 2, tendencia: "up" },
-  },
-};
+function daysSinceArrival(dateStr: string) {
+  try {
+    const d = new Date(dateStr + "T00:00:00");
+    return Math.floor((new Date().getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+  } catch { return 0; }
+}
 
 export default function DetalhesLotePage() {
   const params = useParams();
   const loteId = params.loteId as string;
-  const lote = lotesData[loteId];
-  const kpis = lotesKPIs[loteId];
+  const { farm, loading: authLoading } = useAuth();
+
+  const [lote, setLote] = useState<Lote | null>(null);
+  const [fetching, setFetching] = useState(true);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!farm) { setFetching(false); return; }
+    let cancelled = false;
+    const supabase = createClient();
+
+    async function fetchLote() {
+      setFetching(true);
+      const { data } = await supabase
+        .from("flocks")
+        .select("*, barns(name)")
+        .eq("id", loteId)
+        .eq("farm_id", farm!.id)
+        .single();
+
+      if (cancelled) return;
+
+      if (data) {
+        setLote({
+          id: data.id,
+          code: data.code,
+          breed: data.breed,
+          bird_count: data.bird_count,
+          age_weeks: data.age_weeks ?? 0,
+          production_system: data.production_system ?? "",
+          status: data.status,
+          supplier: data.supplier,
+          supplier_contact: data.supplier_contact,
+          arrival_date: data.arrival_date,
+          origin: data.origin,
+          lineage: data.lineage,
+          avg_weight_kg: data.avg_weight_kg,
+          barn_name: (data as any).barns?.name ?? null,
+        });
+      }
+      setFetching(false);
+    }
+
+    fetchLote();
+    return () => { cancelled = true; };
+  }, [authLoading, farm, loteId]);
+
+  if (authLoading || fetching) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
 
   if (!lote) {
     return (
@@ -134,35 +147,16 @@ export default function DetalhesLotePage() {
     );
   }
 
-  function formatDate(dateStr: string) {
-    try {
-      const d = new Date(dateStr + "T00:00:00");
-      return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-    } catch { return dateStr; }
-  }
+  const dias = daysSinceArrival(lote.arrival_date);
 
-  function daysSinceArrival(dateStr: string) {
-    try {
-      const d = new Date(dateStr + "T00:00:00");
-      return Math.floor((new Date().getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-    } catch { return 0; }
-  }
-
-  const dias = daysSinceArrival(lote.dataChegada);
-
-  const allKpiCards = [
+  const kpiCards = [
     {
       label: "Produção",
       href: `/dashboard/flocks/detalhes/${loteId}/producao`,
       icon: Egg,
       iconBg: "bg-amber-50",
       iconColor: "text-amber-600",
-      value: `${kpis.producao.taxaPostura}%`,
-      sub: `${kpis.producao.mediaOvosDia.toLocaleString("pt-BR")} ovos/dia`,
-      trend: kpis.producao.tendencia,
-      trendGood: "up" as const,
-      bar: kpis.producao.taxaPostura,
-      barColor: kpis.producao.taxaPostura >= 85 ? "bg-emerald-500" : kpis.producao.taxaPostura >= 70 ? "bg-amber-500" : "bg-red-500",
+      sub: "Registre a produção diária de ovos",
     },
     {
       label: "Ração",
@@ -170,12 +164,7 @@ export default function DetalhesLotePage() {
       icon: Wheat,
       iconBg: "bg-orange-50",
       iconColor: "text-orange-600",
-      value: `${kpis.racao.consumoDiario} kg`,
-      sub: `${kpis.racao.consumoAve} g/ave/dia`,
-      trend: kpis.racao.tendencia,
-      trendGood: "down" as const,
-      bar: Math.min((kpis.racao.consumoAve / 140) * 100, 100),
-      barColor: "bg-orange-400",
+      sub: "Registre o consumo de ração",
     },
     {
       label: "Saúde",
@@ -183,12 +172,7 @@ export default function DetalhesLotePage() {
       icon: HeartPulse,
       iconBg: "bg-emerald-50",
       iconColor: "text-emerald-600",
-      value: `${kpis.saude.score}%`,
-      sub: kpis.saude.tratamentosAtivos > 0 ? `${kpis.saude.tratamentosAtivos} tratamento(s)` : "Saudável",
-      trend: kpis.saude.tendencia,
-      trendGood: "up" as const,
-      bar: kpis.saude.score,
-      barColor: kpis.saude.score >= 90 ? "bg-emerald-500" : kpis.saude.score >= 75 ? "bg-amber-500" : "bg-red-500",
+      sub: "Registre procedimentos sanitários",
     },
     {
       label: "Mortalidade",
@@ -196,12 +180,7 @@ export default function DetalhesLotePage() {
       icon: Skull,
       iconBg: "bg-red-50",
       iconColor: "text-red-500",
-      value: `${kpis.mortalidade.taxaMensal.toFixed(1).replace(".", ",")}%`,
-      sub: `${kpis.mortalidade.mortesSemana} esta semana`,
-      trend: kpis.mortalidade.tendencia,
-      trendGood: "down" as const,
-      bar: Math.min(kpis.mortalidade.taxaMensal * 20, 100),
-      barColor: kpis.mortalidade.taxaMensal <= 0.5 ? "bg-emerald-500" : kpis.mortalidade.taxaMensal <= 1.0 ? "bg-amber-500" : "bg-red-500",
+      sub: "Registre ocorrências de mortalidade",
     },
     {
       label: "Consumo de Água",
@@ -209,12 +188,7 @@ export default function DetalhesLotePage() {
       icon: Droplets,
       iconBg: "bg-blue-50",
       iconColor: "text-blue-600",
-      value: `${Math.round(lote.aves * 0.25)} L`,
-      sub: "250 ml/ave/dia",
-      trend: "stable" as const,
-      trendGood: "down" as const,
-      bar: 65,
-      barColor: "bg-blue-400",
+      sub: "Registre o consumo de água",
     },
     {
       label: "Histórico Sanitário",
@@ -222,12 +196,7 @@ export default function DetalhesLotePage() {
       icon: ShieldCheck,
       iconBg: "bg-teal-50",
       iconColor: "text-teal-600",
-      value: "4",
-      sub: "Procedimentos este mês",
-      trend: "up" as const,
-      trendGood: "up" as const,
-      bar: 100,
-      barColor: "bg-teal-500",
+      sub: "Vacinas e procedimentos",
     },
     {
       label: "Operacional",
@@ -235,12 +204,7 @@ export default function DetalhesLotePage() {
       icon: Users,
       iconBg: "bg-violet-50",
       iconColor: "text-violet-600",
-      value: "0",
-      sub: "Alertas ativos · 3 funcionários",
-      trend: "stable" as const,
-      trendGood: "down" as const,
-      bar: 95,
-      barColor: "bg-violet-400",
+      sub: "Alertas e equipe do lote",
     },
   ];
 
@@ -257,8 +221,8 @@ export default function DetalhesLotePage() {
             <Layers className="w-6 h-6 text-brand-600" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Detalhes do Lote — {lote.codigo}</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{lote.raca} · {lote.sistema} · {lote.status}</p>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Detalhes do Lote — {lote.code}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{lote.breed} · {lote.production_system || "—"} · {statusLabel[lote.status] ?? lote.status}</p>
           </div>
         </div>
       </div>
@@ -275,14 +239,13 @@ export default function DetalhesLotePage() {
           </div>
           <div className="p-6 space-y-0">
             {[
-              { icon: Tag, label: "Código", value: lote.codigo },
-              { icon: Bird, label: "Raça", value: lote.raca },
-              { icon: Dna, label: "Linhagem", value: lote.linhagem },
-              { icon: Bird, label: "Quantidade de Aves", value: lote.aves.toLocaleString("pt-BR") },
-              { icon: Clock, label: "Idade", value: lote.idade },
-              { icon: Weight, label: "Peso Médio", value: lote.pesoMedio },
-              { icon: Egg, label: "Taxa de Postura", value: lote.postura, highlight: true },
-              { icon: Building2, label: "Galpão", value: lote.galpao },
+              { icon: Tag, label: "Código", value: lote.code },
+              { icon: Bird, label: "Raça", value: lote.breed },
+              { icon: Dna, label: "Linhagem", value: lote.lineage ?? "—" },
+              { icon: Bird, label: "Quantidade de Aves", value: lote.bird_count.toLocaleString("pt-BR") },
+              { icon: Clock, label: "Idade", value: `${lote.age_weeks} semanas` },
+              { icon: Weight, label: "Peso Médio", value: lote.avg_weight_kg ? `${lote.avg_weight_kg.toLocaleString("pt-BR")} kg` : "—" },
+              { icon: Building2, label: "Galpão", value: lote.barn_name ?? "—" },
             ].map((item, i, arr) => (
               <div key={item.label}>
                 <div className="flex items-center justify-between py-3.5 group">
@@ -290,7 +253,7 @@ export default function DetalhesLotePage() {
                     <item.icon className="w-4 h-4 text-gray-300 group-hover:text-brand-400 transition-colors" />
                     <span className="text-sm text-gray-500">{item.label}</span>
                   </div>
-                  <span className={cn("text-sm font-semibold", item.highlight ? "text-brand-600" : "text-gray-900")}>
+                  <span className="text-sm font-semibold text-gray-900">
                     {item.value}
                   </span>
                 </div>
@@ -309,24 +272,32 @@ export default function DetalhesLotePage() {
             <h3 className="text-sm font-bold text-gray-900">Fornecedor e Origem</h3>
           </div>
           <div className="p-6">
-            <div className="rounded-xl bg-gradient-to-br from-gray-50 to-gray-50/50 border border-gray-100 p-5 mb-6">
-              <div className="flex items-start gap-4">
-                <div className="w-11 h-11 rounded-xl bg-white border border-gray-100 flex items-center justify-center flex-shrink-0 shadow-sm">
-                  <Truck className="w-5 h-5 text-gray-400" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-gray-900 truncate">{lote.fornecedor}</p>
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <Phone className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="text-xs text-gray-500">{lote.fornecedorContato}</span>
+            {lote.supplier ? (
+              <div className="rounded-xl bg-gradient-to-br from-gray-50 to-gray-50/50 border border-gray-100 p-5 mb-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-white border border-gray-100 flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <Truck className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-gray-900 truncate">{lote.supplier}</p>
+                    {lote.supplier_contact && (
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <Phone className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="text-xs text-gray-500">{formatPhone(lote.supplier_contact)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="rounded-xl bg-gray-50 border border-gray-100 p-5 mb-6 text-center">
+                <p className="text-sm text-gray-400">Nenhum fornecedor informado</p>
+              </div>
+            )}
             <div className="space-y-0">
               {[
-                { icon: MapPin, label: "Origem", value: lote.origem },
-                { icon: Calendar, label: "Data de Chegada", value: formatDate(lote.dataChegada) },
+                { icon: MapPin, label: "Origem", value: lote.origin ?? "—" },
+                { icon: Calendar, label: "Data de Chegada", value: formatDate(lote.arrival_date) },
                 { icon: Clock, label: "Dias na Granja", value: `${dias} dias` },
               ].map((item, i, arr) => (
                 <div key={item.label}>
@@ -345,8 +316,31 @@ export default function DetalhesLotePage() {
         </div>
       </div>
 
+      {/* KPI Cards — Day 0 */}
       {/* KPI Cards — Top row: 4 cols, Bottom row: 3 cols */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {kpiCards.map((card) => (
+          <Link
+            key={card.label}
+            href={card.href}
+            className="group bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-100/60 hover:border-gray-200 transition-all duration-300 cursor-pointer"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", card.iconBg)}>
+                  <card.icon className={cn("w-[18px] h-[18px]", card.iconColor)} />
+                </div>
+                <span className="text-[13px] font-bold text-gray-900">{card.label}</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
+            </div>
+            <p className="text-2xl font-bold text-gray-300 tracking-tight mb-1">—</p>
+            <p className="text-xs text-gray-400">{card.sub}</p>
+            <div className="w-full h-1.5 bg-gray-100 rounded-full mt-4 overflow-hidden">
+              <div className="h-full rounded-full bg-gray-200 w-0" />
+            </div>
+          </Link>
+        ))}
         {allKpiCards.slice(0, 4).map((card) => {
           const TrendEl = () => {
             if (card.trend === "stable") return <span className="text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">Estável</span>;
