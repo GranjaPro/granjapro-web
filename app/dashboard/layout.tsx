@@ -30,6 +30,7 @@ import {
   Layers,
   LogOut,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 
 const sidebarNav = [
@@ -47,9 +48,9 @@ const sidebarNav = [
   { label: "Estoque", href: "/dashboard/inventory", icon: Package },
   { label: "Equipamentos", href: "/dashboard/equipment", icon: Wrench },
   { type: "divider" as const },
-  { label: "Funcionários", href: "/dashboard/workers", icon: Users },
-  { label: "Assistente IA", href: "/dashboard/ai", icon: Bot },
-  { label: "Relatórios", href: "/dashboard/reports", icon: FileText },
+  { label: "Funcionários", href: "/dashboard/workers", icon: Users, pro: true },
+  { label: "Assistente IA", href: "/dashboard/ai", icon: Bot, pro: true },
+  { label: "Relatórios", href: "/dashboard/reports", icon: FileText, pro: true },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -154,7 +155,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             if ("type" in item && item.type === "divider") {
               return <div key={`div-${i}`} className="my-2.5 mx-2 border-t border-white/[0.06]" />;
             }
-            const navItem = item as { label: string; href: string; icon: any };
+            const navItem = item as { label: string; href: string; icon: any; pro?: boolean };
             const isActive = pathname === navItem.href;
             return (
               <Link
@@ -176,7 +177,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   )}
                   strokeWidth={isActive ? 2.2 : 1.8}
                 />
-                {!collapsed && <span className="truncate">{navItem.label}</span>}
+                {!collapsed && (
+                  <span className="truncate flex-1">{navItem.label}</span>
+                )}
+                {!collapsed && navItem.pro && (
+                  <span className="flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 flex-shrink-0">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    Pro
+                  </span>
+                )}
               </Link>
             );
           })}
