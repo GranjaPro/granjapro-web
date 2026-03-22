@@ -22,6 +22,17 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   ChevronRight,
+  Droplets,
+  ShieldCheck,
+  Wrench,
+  Syringe,
+  Bug,
+  Thermometer,
+  AlertTriangle,
+  CheckCircle2,
+  Settings,
+  Users,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -139,7 +150,7 @@ export default function DetalhesLotePage() {
 
   const dias = daysSinceArrival(lote.dataChegada);
 
-  const kpiCards = [
+  const allKpiCards = [
     {
       label: "Produção",
       href: `/dashboard/flocks/detalhes/${loteId}/producao`,
@@ -191,6 +202,45 @@ export default function DetalhesLotePage() {
       trendGood: "down" as const,
       bar: Math.min(kpis.mortalidade.taxaMensal * 20, 100),
       barColor: kpis.mortalidade.taxaMensal <= 0.5 ? "bg-emerald-500" : kpis.mortalidade.taxaMensal <= 1.0 ? "bg-amber-500" : "bg-red-500",
+    },
+    {
+      label: "Consumo de Água",
+      href: `/dashboard/flocks/detalhes/${loteId}/producao`,
+      icon: Droplets,
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue-600",
+      value: `${Math.round(lote.aves * 0.25)} L`,
+      sub: "250 ml/ave/dia",
+      trend: "stable" as const,
+      trendGood: "down" as const,
+      bar: 65,
+      barColor: "bg-blue-400",
+    },
+    {
+      label: "Histórico Sanitário",
+      href: `/dashboard/flocks/detalhes/${loteId}/saude`,
+      icon: ShieldCheck,
+      iconBg: "bg-teal-50",
+      iconColor: "text-teal-600",
+      value: "4",
+      sub: "Procedimentos este mês",
+      trend: "up" as const,
+      trendGood: "up" as const,
+      bar: 100,
+      barColor: "bg-teal-500",
+    },
+    {
+      label: "Operacional",
+      href: `/dashboard/flocks/detalhes/${loteId}/producao`,
+      icon: Settings,
+      iconBg: "bg-violet-50",
+      iconColor: "text-violet-600",
+      value: "0",
+      sub: "Alertas ativos · 3 funcionários",
+      trend: "stable" as const,
+      trendGood: "down" as const,
+      bar: 95,
+      barColor: "bg-violet-400",
     },
   ];
 
@@ -295,14 +345,19 @@ export default function DetalhesLotePage() {
         </div>
       </div>
 
-      {/* KPI Cards — 4 columns */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpiCards.map((card) => {
+        {allKpiCards.map((card) => {
           const TrendEl = () => {
-            if (card.trend === "stable") return <span className="text-[10px] font-medium text-gray-400">Estável</span>;
+            if (card.trend === "stable") return <span className="text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">Estável</span>;
             const isGood = card.trend === card.trendGood;
             const Icon = card.trend === "up" ? ArrowUpRight : ArrowDownRight;
-            return <Icon className={cn("w-3.5 h-3.5", isGood ? "text-emerald-500" : "text-red-500")} />;
+            return (
+              <span className={cn("inline-flex items-center gap-0.5 text-[10px] font-medium px-2 py-0.5 rounded-full", isGood ? "text-emerald-600 bg-emerald-50" : "text-red-600 bg-red-50")}>
+                <Icon className="w-3 h-3" />
+                {isGood ? "Bom" : "Atenção"}
+              </span>
+            );
           };
           return (
             <Link
@@ -310,21 +365,22 @@ export default function DetalhesLotePage() {
               href={card.href}
               className="group bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-100/60 hover:border-gray-200 transition-all duration-300 cursor-pointer"
             >
-              <div className="flex items-center justify-between mb-4">
-                <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", card.iconBg)}>
-                  <card.icon className={cn("w-[18px] h-[18px]", card.iconColor)} />
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2.5">
+                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", card.iconBg)}>
+                    <card.icon className={cn("w-[18px] h-[18px]", card.iconColor)} />
+                  </div>
+                  <span className="text-[13px] font-bold text-gray-900">{card.label}</span>
                 </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
+              </div>
+              <div className="flex items-end justify-between mb-1">
+                <p className="text-2xl font-bold text-gray-900 tracking-tight">{card.value}</p>
                 <TrendEl />
               </div>
-              <p className="text-2xl font-bold text-gray-900 tracking-tight">{card.value}</p>
               <p className="text-xs text-gray-400 mt-1">{card.sub}</p>
-              {/* Mini progress bar */}
               <div className="w-full h-1.5 bg-gray-100 rounded-full mt-4 overflow-hidden">
                 <div className={cn("h-full rounded-full transition-all duration-500", card.barColor)} style={{ width: `${card.bar}%` }} />
-              </div>
-              <div className="flex items-center justify-between mt-3">
-                <span className="text-xs font-semibold text-gray-400">{card.label}</span>
-                <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
               </div>
             </Link>
           );

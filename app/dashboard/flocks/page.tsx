@@ -9,7 +9,6 @@ import { createClient } from "@/lib/supabase/client";
 import ModalPortal from "@/components/ui/modal-portal";
 
 type Status = "active" | "growing" | "declining" | "disposed";
-type Sistema = "Convencional" | "Cage-Free" | "Free Range" | "Caipira" | "Orgânico";
 
 interface Lote {
   id: string;
@@ -35,17 +34,15 @@ interface Barn {
 }
 
 const sistemaLabel: Record<string, string> = {
-  "Convencional": "Convencional",
   "Cage-Free": "Cage-Free",
-  "Free Range": "Free Range",
+  "Gaiola": "Gaiola",
   "Caipira": "Caipira",
   "Orgânico": "Orgânico",
 };
 
 const sistemaColor: Record<string, string> = {
-  "Convencional": "text-amber-800 bg-amber-100",
   "Cage-Free": "text-teal-800 bg-teal-100",
-  "Free Range": "text-emerald-800 bg-emerald-100",
+  "Gaiola": "text-emerald-800 bg-emerald-100",
   "Caipira": "text-orange-800 bg-orange-100",
   "Orgânico": "text-green-800 bg-green-100",
 };
@@ -82,7 +79,7 @@ const emptyForm = {
   breed: "",
   bird_count: "",
   age_weeks: "",
-  production_system: "Convencional" as string,
+  production_system: "",
   status: "active" as Status,
   supplier: "",
   supplier_contact: "",
@@ -133,7 +130,7 @@ export default function LotesPage() {
             breed: f.breed,
             bird_count: f.bird_count,
             age_weeks: f.age_weeks ?? 0,
-            production_system: f.production_system ?? "Convencional",
+            production_system: f.production_system,
             status: f.status as Status,
             supplier: f.supplier,
             supplier_contact: f.supplier_contact,
@@ -437,10 +434,9 @@ export default function LotesPage() {
                     <div>
                       <label className="block text-xs font-semibold text-gray-600 mb-1.5">Sistema</label>
                       <select value={form.production_system} onChange={(e) => setForm({ ...form, production_system: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
-                        <option value="Convencional">Convencional</option>
                         <option value="Caipira">Caipira</option>
                         <option value="Orgânico">Orgânico</option>
-                        <option value="Free Range">Free Range</option>
+                        <option value="Gaiola">Gaiola</option>
                         <option value="Cage-Free">Cage-Free</option>
                       </select>
                     </div>

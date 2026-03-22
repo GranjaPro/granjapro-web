@@ -386,9 +386,9 @@ export default function MortalidadePage() {
             </button>
           ))}
         </div>
-        <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg bg-amber-50 text-amber-500 border border-amber-200">
-          <Sparkles className="w-2.5 h-2.5" />
-          Pro
+        <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
+          <Sparkles className="w-3 h-3" />
+          Premium
         </span>
       </div>
 
