@@ -8,16 +8,32 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import ModalPortal from "@/components/ui/modal-portal";
 
-type Status = "active" | "growing" | "declining" | "disposed";
+type ProductionStage = "crescimento" | "pico" | "estavel" | "declinio" | "descarte";
+
+function getProductionStage(ageWeeks: number): ProductionStage {
+  if (ageWeeks < 28) return "crescimento";
+  if (ageWeeks <= 35) return "pico";
+  if (ageWeeks <= 60) return "estavel";
+  if (ageWeeks <= 80) return "declinio";
+  return "descarte";
+}
+
+function calculateCurrentAge(arrivalDate: string, arrivalAgeWeeks: number): number {
+  const arrival = new Date(arrivalDate);
+  const now = new Date();
+  const diffMs = now.getTime() - arrival.getTime();
+  const weeksSinceArrival = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+  return arrivalAgeWeeks + weeksSinceArrival;
+}
 
 interface Lote {
   id: string;
   code: string;
   breed: string;
   bird_count: number;
-  age_weeks: number;
+  arrival_age_weeks: number;
   production_system: string;
-  status: Status;
+  status: ProductionStage;
   supplier: string | null;
   supplier_contact: string | null;
   arrival_date: string;
@@ -49,18 +65,20 @@ const sistemaColor: Record<string, string> = {
   "Orgânico": "text-green-800 bg-green-100",
 };
 
-const statusLabel: Record<Status, string> = {
-  active: "Ativo",
-  growing: "Crescimento",
-  declining: "Declínio",
-  disposed: "Descartado",
+const stageLabel: Record<ProductionStage, string> = {
+  crescimento: "Crescimento",
+  pico: "Pico",
+  estavel: "Estável",
+  declinio: "Declínio",
+  descarte: "Descarte",
 };
 
-const statusColor: Record<Status, string> = {
-  active: "text-white bg-brand-600",
-  growing: "text-amber-800 bg-amber-300",
-  declining: "text-gray-700 bg-gray-200 border border-gray-300",
-  disposed: "text-red-700 bg-red-100",
+const stageColor: Record<ProductionStage, string> = {
+  crescimento: "text-blue-700 bg-blue-100",
+  pico: "text-emerald-700 bg-emerald-100",
+  estavel: "text-brand-700 bg-brand-100",
+  declinio: "text-amber-700 bg-amber-100",
+  descarte: "text-red-700 bg-red-100",
 };
 
 type ModalMode = "add" | "edit" | null;
@@ -80,9 +98,8 @@ const emptyForm = {
   code: "",
   breed: "",
   bird_count: "",
-  age_weeks: "",
+  arrival_age_weeks: "",
   production_system: "",
-  status: "active" as Status,
   supplier: "",
   supplier_contact: "",
   arrival_date: "",
@@ -135,7 +152,7 @@ export default function LotesPage() {
             code: f.code,
             breed: f.breed,
             bird_count: f.bird_count,
-            age_weeks: f.age_weeks ?? 0,
+            arrival_age_weeks: f.arrival_age_weeks ?? 0,
             production_system: f.production_system,
             status: f.status as Status,
             supplier: f.supplier,
@@ -176,9 +193,8 @@ export default function LotesPage() {
       code: l.code,
       breed: l.breed,
       bird_count: String(l.bird_count),
-      age_weeks: String(l.age_weeks),
+      arrival_age_weeks: String(l.arrival_age_weeks),
       production_system: l.production_system,
-      status: l.status,
       supplier: l.supplier ?? "",
       supplier_contact: l.supplier_contact ? formatPhone(l.supplier_contact) : "",
       arrival_date: l.arrival_date,
@@ -216,14 +232,16 @@ export default function LotesPage() {
     setSaving(true);
     setError("");
 
+    const arrivalAgeWeeks = Number(form.arrival_age_weeks) || 0;
+    const currentAge = calculateCurrentAge(form.arrival_date, arrivalAgeWeeks);
     const record: Record<string, any> = {
       farm_id: farm.id,
       code: form.code,
       breed: form.breed,
       bird_count: Number(form.bird_count) || 0,
-      age_weeks: Number(form.age_weeks) || 0,
+      arrival_age_weeks: arrivalAgeWeeks,
       production_system: form.production_system,
-      status: form.status,
+      status: getProductionStage(currentAge),
       supplier: form.supplier || null,
       supplier_contact: unformatPhone(form.supplier_contact) || null,
       arrival_date: form.arrival_date,
@@ -340,7 +358,7 @@ export default function LotesPage() {
                   <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Idade</th>
                   <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Galpão</th>
                   <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Sistema</th>
-                  <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Status</th>
+                  <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Estágio</th>
                   <th className="text-center text-xs font-bold text-gray-900 px-6 py-4">Detalhes</th>
                   <th className="text-right text-xs font-bold text-gray-900 px-6 py-4">Ações</th>
                 </tr>
@@ -351,7 +369,7 @@ export default function LotesPage() {
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">{l.code}</td>
                     <td className="px-6 py-4 text-sm text-gray-700">{l.breed}</td>
                     <td className="px-6 py-4 text-sm text-gray-700">{l.bird_count.toLocaleString("pt-BR")}</td>
-                    <td className="px-6 py-4 text-sm text-gray-700">{l.age_weeks} sem.</td>
+                    <td className="px-6 py-4 text-sm text-gray-700">{calculateCurrentAge(l.arrival_date, l.arrival_age_weeks)} sem.</td>
                     <td className="px-6 py-4 text-sm text-gray-700">{l.barn_name ?? "—"}</td>
                     <td className="px-6 py-4">
                       <span className={cn("text-[11px] font-semibold px-3 py-1 rounded-full", sistemaColor[l.production_system] ?? "text-gray-700 bg-gray-100")}>
@@ -359,9 +377,14 @@ export default function LotesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={cn("text-[11px] font-semibold px-3 py-1 rounded-full", statusColor[l.status])}>
-                        {statusLabel[l.status]}
-                      </span>
+                      {(() => {
+                        const stage = getProductionStage(calculateCurrentAge(l.arrival_date, l.arrival_age_weeks));
+                        return (
+                          <span className={cn("text-[11px] font-semibold px-3 py-1 rounded-full", stageColor[stage])}>
+                            {stageLabel[stage]}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <Link href={"/dashboard/flocks/detalhes/" + l.id} className="inline-flex items-center justify-center p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
@@ -445,33 +468,22 @@ export default function LotesPage() {
                       <input type="number" value={form.bird_count} onChange={(e) => setForm({ ...form, bird_count: e.target.value })} placeholder="800" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Idade (semanas)</label>
-                      <input type="number" value={form.age_weeks} onChange={(e) => setForm({ ...form, age_weeks: e.target.value })} placeholder="42" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Idade na Chegada (semanas)</label>
+                      <input type="number" value={form.arrival_age_weeks} onChange={(e) => setForm({ ...form, arrival_age_weeks: e.target.value })} placeholder="18" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-600 mb-1.5">Peso Médio (kg)</label>
                       <input type="number" step="0.01" value={form.avg_weight_kg} onChange={(e) => setForm({ ...form, avg_weight_kg: e.target.value })} placeholder="1.85" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Sistema</label>
-                      <select value={form.production_system} onChange={(e) => setForm({ ...form, production_system: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
-                        <option value="Caipira">Caipira</option>
-                        <option value="Orgânico">Orgânico</option>
-                        <option value="Gaiola">Gaiola</option>
-                        <option value="Cage-Free">Cage-Free</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Status</label>
-                      <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as Status })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
-                        <option value="active">Ativo</option>
-                        <option value="growing">Crescimento</option>
-                        <option value="declining">Declínio</option>
-                        <option value="disposed">Descartado</option>
-                      </select>
-                    </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Sistema</label>
+                    <select value={form.production_system} onChange={(e) => setForm({ ...form, production_system: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
+                      <option value="Caipira">Caipira</option>
+                      <option value="Orgânico">Orgânico</option>
+                      <option value="Gaiola">Gaiola</option>
+                      <option value="Cage-Free">Cage-Free</option>
+                    </select>
                   </div>
                 </div>
               </div>

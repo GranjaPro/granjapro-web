@@ -145,6 +145,16 @@ export default function BarnsPage() {
     setModal(null);
   }
 
+  async function changeStatus(id: string, newStatus: DbStatus) {
+    const { data, error } = await supabase
+      .from("barns")
+      .update({ status: newStatus })
+      .eq("id", id)
+      .select()
+      .single();
+    if (!error && data) setBarns((prev) => prev.map((g) => (g.id === id ? data : g)));
+  }
+
   async function deleteBarn(id: string) {
     const { error } = await supabase.from("barns").delete().eq("id", id);
     if (!error) setBarns((prev) => prev.filter((g) => g.id !== id));
@@ -310,9 +320,15 @@ export default function BarnsPage() {
 
               {/* Badges */}
               <div className="flex flex-wrap items-center gap-2 mt-3">
-                <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", statusColor[g.status])}>
-                  {statusLabel[g.status]}
-                </span>
+                <select
+                  value={g.status}
+                  onChange={(e) => changeStatus(g.id, e.target.value as DbStatus)}
+                  className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg border-none outline-none cursor-pointer appearance-none pr-5 bg-[length:12px] bg-[right_4px_center] bg-no-repeat bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23666%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')]", statusColor[g.status])}
+                >
+                  <option value="active">Ativo</option>
+                  <option value="maintenance">Manutenção</option>
+                  <option value="inactive">Vazio</option>
+                </select>
                 {sistemaLabel[sistema] && (
                   <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", sistemaColor[sistema])}>
                     {sistemaLabel[sistema]}

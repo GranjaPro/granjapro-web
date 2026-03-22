@@ -96,15 +96,14 @@ export interface Database {
           breed: string;
           lineage: string | null;
           bird_count: number;
-          age_weeks: number;
+          arrival_age_weeks: number;
           arrival_date: string;
-          production_start_date: string | null;
           avg_weight_kg: number | null;
           supplier: string | null;
           supplier_contact: string | null;
           origin: string | null;
           production_system: string;
-          status: "active" | "growing" | "declining" | "disposed";
+          status: string;
         };
         Insert: {
           id?: string;
@@ -116,15 +115,14 @@ export interface Database {
           breed: string;
           lineage?: string | null;
           bird_count: number;
-          age_weeks?: number;
+          arrival_age_weeks?: number;
           arrival_date: string;
-          production_start_date?: string | null;
           avg_weight_kg?: number | null;
           supplier?: string | null;
           supplier_contact?: string | null;
           origin?: string | null;
           production_system?: string;
-          status?: "active" | "growing" | "declining" | "disposed";
+          status?: string;
         };
         Update: {
           id?: string;
@@ -136,15 +134,14 @@ export interface Database {
           breed?: string;
           lineage?: string | null;
           bird_count?: number;
-          age_weeks?: number;
+          arrival_age_weeks?: number;
           arrival_date?: string;
-          production_start_date?: string | null;
           avg_weight_kg?: number | null;
           supplier?: string | null;
           supplier_contact?: string | null;
           origin?: string | null;
           production_system?: string;
-          status?: "active" | "growing" | "declining" | "disposed";
+          status?: string;
         };
       };
       egg_production: {

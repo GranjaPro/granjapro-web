@@ -31,12 +31,20 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 
+function calculateCurrentAge(arrivalDate: string, arrivalAgeWeeks: number): number {
+  const arrival = new Date(arrivalDate);
+  const now = new Date();
+  const diffMs = now.getTime() - arrival.getTime();
+  const weeksSinceArrival = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+  return arrivalAgeWeeks + weeksSinceArrival;
+}
+
 interface Lote {
   id: string;
   code: string;
   breed: string;
   bird_count: number;
-  age_weeks: number;
+  arrival_age_weeks: number;
   production_system: string;
   status: string;
   supplier: string | null;
@@ -48,12 +56,21 @@ interface Lote {
   barn_name: string | null;
 }
 
-const statusLabel: Record<string, string> = {
-  active: "Ativo",
-  growing: "Crescimento",
-  declining: "Declínio",
-  disposed: "Descartado",
+const stageLabel: Record<string, string> = {
+  crescimento: "Crescimento",
+  pico: "Pico",
+  estavel: "Estável",
+  declinio: "Declínio",
+  descarte: "Descarte",
 };
+
+function getProductionStage(ageWeeks: number): string {
+  if (ageWeeks < 28) return "crescimento";
+  if (ageWeeks <= 35) return "pico";
+  if (ageWeeks <= 60) return "estavel";
+  if (ageWeeks <= 80) return "declinio";
+  return "descarte";
+}
 
 function formatPhone(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -107,7 +124,7 @@ export default function DetalhesLotePage() {
           code: data.code,
           breed: data.breed,
           bird_count: data.bird_count,
-          age_weeks: data.age_weeks ?? 0,
+          arrival_age_weeks: data.arrival_age_weeks ?? 0,
           production_system: data.production_system ?? "",
           status: data.status,
           supplier: data.supplier,
@@ -223,7 +240,7 @@ export default function DetalhesLotePage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Detalhes do Lote — {lote.code}</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{lote.breed} · {lote.production_system || "—"} · {statusLabel[lote.status] ?? lote.status}</p>
+            <p className="text-sm text-gray-500 mt-0.5">{lote.breed} · {lote.production_system || "—"} · {stageLabel[getProductionStage(calculateCurrentAge(lote.arrival_date, lote.arrival_age_weeks))] ?? lote.status}</p>
           </div>
         </div>
       </div>
@@ -244,7 +261,7 @@ export default function DetalhesLotePage() {
               { icon: Bird, label: "Raça", value: lote.breed },
               { icon: Dna, label: "Linhagem", value: lote.lineage ?? "—" },
               { icon: Bird, label: "Quantidade de Aves", value: lote.bird_count.toLocaleString("pt-BR") },
-              { icon: Clock, label: "Idade", value: `${lote.age_weeks} semanas` },
+              { icon: Clock, label: "Idade", value: `${calculateCurrentAge(lote.arrival_date, lote.arrival_age_weeks)} semanas` },
               { icon: Weight, label: "Peso Médio", value: lote.avg_weight_kg ? `${lote.avg_weight_kg.toLocaleString("pt-BR")} kg` : "—" },
               { icon: Building2, label: "Galpão", value: lote.barn_name ?? "—" },
             ].map((item, i, arr) => (
