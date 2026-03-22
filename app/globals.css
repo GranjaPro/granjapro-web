@@ -89,6 +89,26 @@
     background: rgba(255, 255, 255, 0.15);
     border-radius: 999px;
   }
+
+  .scrollbar-visible {
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0,0,0,0.12) transparent;
+  }
+  .scrollbar-visible::-webkit-scrollbar {
+    width: 4px;
+  }
+  .scrollbar-visible::-webkit-scrollbar-track {
+    background: transparent;
+    margin: 4px 0;
+  }
+  .scrollbar-visible::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.1);
+    border-radius: 999px;
+  }
+  .scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,0,0,0.2);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

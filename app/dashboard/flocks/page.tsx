@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import ModalPortal from "@/components/ui/modal-portal";
 
 type Status = "ativo" | "crescimento" | "declinio" | "descartado";
-type Sistema = "gaiola" | "caipira" | "organico" | "free-range" | "cage-free";
+type Sistema = "gaiola" | "cage-free" | "caipira" | "organico";
 
 interface Lote {
   id: number;
@@ -29,25 +29,23 @@ interface Lote {
 
 const initialLotes: Lote[] = [
   { id: 1, codigo: "L-2024-01", raca: "Hy-Line Brown", aves: 800, idade: "42 semanas", postura: "92%", sistema: "cage-free", status: "ativo", fornecedor: "Avícola São Paulo Ltda.", fornecedorContato: "(11) 99876-5432", dataChegada: "2023-06-15", origem: "Campinas, SP", linhagem: "Hy-Line International", pesoMedio: "1,85 kg", galpao: "Galpão Vale Verde" },
-  { id: 2, codigo: "L-2024-02", raca: "Lohmann LSL", aves: 600, idade: "28 semanas", postura: "88%", sistema: "free-range", status: "ativo", fornecedor: "Granja Lohmann Brasil", fornecedorContato: "(41) 98765-4321", dataChegada: "2023-09-20", origem: "Curitiba, PR", linhagem: "Lohmann Tierzucht", pesoMedio: "1,72 kg", galpao: "Galpão Nascente" },
+  { id: 2, codigo: "L-2024-02", raca: "Lohmann LSL", aves: 600, idade: "28 semanas", postura: "88%", sistema: "caipira", status: "ativo", fornecedor: "Granja Lohmann Brasil", fornecedorContato: "(41) 98765-4321", dataChegada: "2023-09-20", origem: "Curitiba, PR", linhagem: "Lohmann Tierzucht", pesoMedio: "1,72 kg", galpao: "Galpão Nascente" },
   { id: 3, codigo: "L-2024-03", raca: "ISA Brown", aves: 1000, idade: "18 semanas", postura: "—", sistema: "gaiola", status: "crescimento", fornecedor: "ISA Poultry Brasil", fornecedorContato: "(19) 97654-3210", dataChegada: "2023-11-10", origem: "Jundiaí, SP", linhagem: "Hendrix Genetics", pesoMedio: "1,45 kg", galpao: "Galpão Central" },
   { id: 4, codigo: "L-2024-04", raca: "Novogen Brown", aves: 500, idade: "60 semanas", postura: "78%", sistema: "organico", status: "declinio", fornecedor: "Novogen do Brasil", fornecedorContato: "(31) 96543-2109", dataChegada: "2023-03-05", origem: "Belo Horizonte, MG", linhagem: "Novogen SAS", pesoMedio: "2,10 kg", galpao: "Galpão Central" },
 ];
 
 const sistemaLabel: Record<Sistema, string> = {
   gaiola: "Gaiola",
+  "cage-free": "Cage-Free",
   caipira: "Caipira",
   organico: "Orgânico",
-  "free-range": "Free Range",
-  "cage-free": "Cage-Free",
 };
 
 const sistemaColor: Record<Sistema, string> = {
   gaiola: "text-amber-800 bg-amber-100",
+  "cage-free": "text-teal-800 bg-teal-100",
   caipira: "text-orange-800 bg-orange-100",
   organico: "text-green-800 bg-green-100",
-  "free-range": "text-emerald-800 bg-emerald-100",
-  "cage-free": "text-teal-800 bg-teal-100",
 };
 
 const statusLabel: Record<Status, string> = {
@@ -308,10 +306,9 @@ export default function LotesPage() {
                       <label className="block text-xs font-semibold text-gray-600 mb-1.5">Sistema</label>
                       <select value={form.sistema} onChange={(e) => setForm({ ...form, sistema: e.target.value as Sistema })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
                         <option value="gaiola">Gaiola</option>
+                        <option value="cage-free">Cage-Free</option>
                         <option value="caipira">Caipira</option>
                         <option value="organico">Orgânico</option>
-                        <option value="free-range">Free Range</option>
-                        <option value="cage-free">Cage-Free</option>
                       </select>
                     </div>
                     <div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   Egg,
   Bird,
@@ -19,6 +19,7 @@ import {
   Circle,
   Clock,
   ChevronRight,
+  ChevronLeft,
   Zap,
   Plus,
   BarChart3,
@@ -27,6 +28,7 @@ import {
   CheckSquare,
   Minus,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -55,11 +57,13 @@ import {
 } from "recharts";
 import next from "next";
 import Link from "next/link";
+import ModalPortal from "@/components/ui/modal-portal";
+import { X, Pencil, Trash2 } from "lucide-react";
 
 /* ── KPI Data ── */
 const kpis = [
   {
-    title: "Ovos Hoje",
+    title: "Ovos",
     value: formatNumber(mockTodayProduction.eggsProduced),
     badge: "+3.2%",
     badgeDir: "up" as const,
@@ -98,7 +102,7 @@ const kpis = [
     progress: 72,
   },
   {
-    title: "Lucro Mensal",
+    title: "Lucro Últimos 30 Dias",
     value: formatCurrency(mockMonthFinancial.profit),
     badge: "+8.5%",
     badgeDir: "up" as const,
@@ -152,12 +156,16 @@ const alerts = [
   { id: 3, type: "info" as const, msg: "Lote #F-2024-03 atingindo pico de produção", time: "1d atrás", action: "Ver lote", risk: "Sem acompanhamento, você perde a chance de maximizar o lucro nesse período." },
 ];
 
+const todayStr = new Date().toISOString().split("T")[0];
+const yesterdayStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0]; })();
+
 const tasks = [
-  { id: 1, title: "Coletar ovos — Galpão A1", status: "done" as const, time: "06:00" },
-  { id: 2, title: "Alimentar aves — Todos", status: "done" as const, time: "06:30" },
-  { id: 3, title: "Vacinar Lote #F-2024-05", status: "progress" as const, time: "08:00" },
-  { id: 4, title: "Inspeção de entrega de ração", status: "pending" as const, time: "10:00" },
-  { id: 5, title: "Limpeza Galpão B3", status: "pending" as const, time: "14:00" },
+  { id: 1, title: "Coletar ovos — Galpão A1", status: "done" as const, time: "06:00", date: todayStr },
+  { id: 2, title: "Alimentar aves — Todos", status: "done" as const, time: "06:30", date: todayStr },
+  { id: 3, title: "Vacinar Lote #F-2024-05", status: "progress" as const, time: "08:00", date: todayStr },
+  { id: 4, title: "Inspeção de entrega de ração", status: "pending" as const, time: "10:00", date: todayStr },
+  { id: 5, title: "Limpeza Galpão B3", status: "pending" as const, time: "14:00", date: todayStr },
+  { id: 6, title: "Verificar bebedouros — Galpão A2", status: "pending" as const, time: "09:00", date: yesterdayStr },
 ];
 
 export default function DashboardPage() {
@@ -173,6 +181,100 @@ export default function DashboardPage() {
   const [dbTasks, setDbTasks] = useState(tasks);
   const [dbAlerts, setDbAlerts] = useState(alerts);
   const [dataLoaded, setDataLoaded] = useState(false);
+
+  // Calendar filter state
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [filterMode, setFilterMode] = useState<"intervalo" | "mes">("intervalo");
+  const [rangeStart, setRangeStart] = useState<Date | null>(new Date());
+  const [rangeEnd, setRangeEnd] = useState<Date | null>(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutsideCal(e: MouseEvent) {
+      if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) {
+        setCalendarOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutsideCal);
+    return () => document.removeEventListener("mousedown", handleClickOutsideCal);
+  }, []);
+
+  const sameDay = (a: Date, b: Date) =>
+    a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+
+  const calendarLabel = useMemo(() => {
+    const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    if (filterMode === "intervalo") {
+      if (rangeStart && rangeEnd) {
+        if (sameDay(rangeStart, rangeEnd)) {
+          const today = new Date();
+          if (sameDay(rangeStart, today)) return `Hoje, ${rangeStart.getDate()} ${months[rangeStart.getMonth()]}`;
+          return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]}, ${rangeStart.getFullYear()}`;
+        }
+        return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]} — ${rangeEnd.getDate()} ${months[rangeEnd.getMonth()]}`;
+      }
+      if (rangeStart) return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]} — ...`;
+      return "Selecionar período";
+    }
+    const d = selectedDate;
+    return `${months[d.getMonth()]} ${d.getFullYear()}`;
+  }, [selectedDate, filterMode, rangeStart, rangeEnd]);
+
+  const calendarDays = useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+    const days: (Date | null)[] = [];
+    for (let i = 0; i < startDay; i++) days.push(null);
+    for (let i = 1; i <= lastDay.getDate(); i++) days.push(new Date(year, month, i));
+    return days;
+  }, [calendarMonth]);
+
+  const isInRange = useCallback((day: Date) => {
+    if (filterMode !== "intervalo" || !rangeStart) return false;
+    if (!rangeEnd) return sameDay(day, rangeStart);
+    const t = day.getTime();
+    const s = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime();
+    const e = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime();
+    return t >= s && t <= e;
+  }, [filterMode, rangeStart, rangeEnd]);
+
+  const isRangeStart = useCallback((day: Date) => {
+    return filterMode === "intervalo" && rangeStart && sameDay(day, rangeStart);
+  }, [filterMode, rangeStart]);
+
+  const isRangeEnd = useCallback((day: Date) => {
+    return filterMode === "intervalo" && rangeEnd && sameDay(day, rangeEnd);
+  }, [filterMode, rangeEnd]);
+
+  const handleDayClick = useCallback((day: Date) => {
+    if (filterMode === "intervalo") {
+      if (!rangeStart || (rangeStart && rangeEnd)) {
+        setRangeStart(day);
+        setRangeEnd(null);
+      } else {
+        if (day.getTime() < rangeStart.getTime()) {
+          setRangeEnd(rangeStart);
+          setRangeStart(day);
+        } else {
+          setRangeEnd(day);
+        }
+        setCalendarOpen(false);
+      }
+    } else {
+      setSelectedDate(new Date(day.getFullYear(), day.getMonth(), 1));
+      setCalendarOpen(false);
+    }
+  }, [filterMode, rangeStart, rangeEnd]);
+
+  const handleMonthClick = useCallback((monthIndex: number) => {
+    setSelectedDate(new Date(calendarMonth.getFullYear(), monthIndex, 1));
+    setCalendarOpen(false);
+  }, [calendarMonth]);
 
   // Fetch real data from Supabase when farm is available
   useEffect(() => {
@@ -261,6 +363,7 @@ export default function DashboardPage() {
             title: t.title,
             status: (t.done ? "done" : "pending") as "done" | "progress" | "pending",
             time: t.scheduled_time ?? "",
+            date: t.scheduled_date ?? todayStr,
           })));
         }
 
@@ -330,6 +433,28 @@ export default function DashboardPage() {
 
   const completedTasks = Object.values(taskStatuses).filter((s) => s === "done").length;
 
+  // New task modal state
+  const [showNewTask, setShowNewTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskTime, setNewTaskTime] = useState("");
+  const [newTaskDate, setNewTaskDate] = useState("");
+  const [viewTask, setViewTask] = useState<(typeof dbTasks)[number] | null>(null);
+  const [editingTask, setEditingTask] = useState(false);
+  const [editTaskTitle, setEditTaskTitle] = useState("");
+  const [editTaskTime, setEditTaskTime] = useState("");
+  const [editTaskDate, setEditTaskDate] = useState("");
+
+  const handleAddTask = useCallback(() => {
+    if (!newTaskTitle.trim()) return;
+    const newId = Date.now();
+    setDbTasks((prev) => [...prev, { id: newId, title: newTaskTitle.trim(), status: "pending" as const, time: newTaskTime || "--:--", date: newTaskDate || todayStr }]);
+    setTaskStatuses((prev) => ({ ...prev, [newId]: "pending" }));
+    setNewTaskTitle("");
+    setNewTaskTime("");
+    setNewTaskDate("");
+    setShowNewTask(false);
+  }, [newTaskTitle, newTaskTime, newTaskDate]);
+
   const displayName = profile?.full_name?.split(" ")[0] || farmData.producer.split(" ")[0];
   const greeting = (() => {
     const h = new Date().getHours();
@@ -341,7 +466,7 @@ export default function DashboardPage() {
   // Recompute KPI data from real state
   const currentKpis = useMemo(() => [
     {
-      title: "Ovos Hoje",
+      title: "Ovos",
       value: formatNumber(productionData.eggsProduced),
       badge: "+3.2%",
       badgeDir: "up" as const,
@@ -380,7 +505,7 @@ export default function DashboardPage() {
       progress: 72,
     },
     {
-      title: "Lucro Mensal",
+      title: "Lucro Últimos 30 Dias",
       value: formatCurrency(financialData.profit),
       badge: "+8.5%",
       badgeDir: "up" as const,
@@ -413,11 +538,145 @@ export default function DashboardPage() {
               {farmData.name} · {formatNumber(farmData.activeBirds)} aves ativas · {farmData.barns} galpões
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 bg-white border border-gray-200 rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer shadow-sm">
+          <div className="relative" ref={calendarRef}>
+            <button
+              onClick={() => setCalendarOpen(!calendarOpen)}
+              className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 bg-white border border-gray-200 rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+            >
               <CalendarDays className="w-4 h-4" />
-              Hoje, 18 Mar
+              {calendarLabel}
             </button>
+
+            {calendarOpen && (
+              <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-gray-200 shadow-2xl p-4 z-50 w-[320px] animate-in fade-in zoom-in-95 duration-150">
+                {/* Mode selector */}
+                <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 mb-4">
+                  {([
+                    { key: "intervalo" as const, label: "Intervalo" },
+                    { key: "mes" as const, label: "Mês" },
+                  ]).map((p) => (
+                    <button
+                      key={p.key}
+                      onClick={() => setFilterMode(p.key)}
+                      className={cn(
+                        "flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
+                        filterMode === p.key
+                          ? "bg-white text-gray-900 shadow-sm"
+                          : "text-gray-500 hover:text-gray-700"
+                      )}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Range hint */}
+                {filterMode === "intervalo" && (
+                  <p className="text-[10px] text-gray-400 font-medium mb-2 text-center">
+                    {!rangeStart || (rangeStart && rangeEnd) ? "Clique no dia inicial" : "Clique no dia final"}
+                  </p>
+                )}
+
+                {/* Month navigation */}
+                <div className="flex items-center justify-between mb-3">
+                  <button
+                    onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4 text-gray-500" />
+                  </button>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
+                  </span>
+                  <button
+                    onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
+                  >
+                    <ChevronRight className="w-4 h-4 text-gray-500" />
+                  </button>
+                </div>
+
+                {filterMode === "mes" ? (
+                  /* Month grid */
+                  <div className="grid grid-cols-3 gap-2">
+                    {["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"].map((m, i) => {
+                      const isSelected = selectedDate.getMonth() === i && selectedDate.getFullYear() === calendarMonth.getFullYear();
+                      return (
+                        <button
+                          key={m}
+                          onClick={() => handleMonthClick(i)}
+                          className={cn(
+                            "py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer",
+                            isSelected
+                              ? "bg-brand-600 text-white shadow-sm"
+                              : "text-gray-700 hover:bg-gray-100"
+                          )}
+                        >
+                          {m}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Interval day grid */
+                  <>
+                    <div className="grid grid-cols-7 gap-0 mb-1">
+                      {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((d) => (
+                        <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-7 gap-0">
+                      {calendarDays.map((day, i) => {
+                        if (!day) return <div key={`empty-${i}`} className="h-9" />;
+                        const today = new Date();
+                        const isToday = sameDay(day, today);
+                        const inRange = isInRange(day);
+                        const isStart = isRangeStart(day);
+                        const isEnd = isRangeEnd(day);
+                        const isSingle = isStart && isEnd;
+
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => handleDayClick(day)}
+                            className={cn(
+                              "h-9 text-sm font-medium transition-all duration-150 cursor-pointer relative flex items-center justify-center",
+                              inRange && !isStart && !isEnd && "bg-brand-50 text-brand-700",
+                              isStart && !isSingle && "bg-brand-600 text-white rounded-l-xl",
+                              isEnd && !isSingle && "bg-brand-600 text-white rounded-r-xl",
+                              isSingle && "bg-brand-600 text-white rounded-xl shadow-sm",
+                              !inRange && "hover:bg-gray-100 rounded-xl",
+                            )}
+                          >
+                            <span className={cn(
+                              isToday && !inRange && "w-7 h-7 rounded-full border-2 border-brand-500 flex items-center justify-center",
+                            )}>
+                              {day.getDate()}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {/* Today button */}
+                <button
+                  onClick={() => {
+                    const today = new Date();
+                    setRangeStart(today);
+                    setRangeEnd(today);
+                    setSelectedDate(today);
+                    setCalendarMonth(today);
+                    setFilterMode("intervalo");
+                    setCalendarOpen(false);
+                  }}
+                  className="w-full mt-3 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-50 rounded-xl transition-colors cursor-pointer"
+                >
+                  Hoje
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -495,7 +754,10 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
-            <span className="text-[11px] font-bold text-white bg-red-500 px-2.5 py-1 rounded-lg">{dbAlerts.length}</span>
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Pro</span>
+              <span className="text-[11px] font-bold text-white bg-red-500 px-2.5 py-1 rounded-lg">{dbAlerts.length}</span>
+            </div>
           </div>
           <div className="space-y-3">
             {dbAlerts.map((a) => (
@@ -560,13 +822,17 @@ export default function DashboardPage() {
                 <CheckCircle2 className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-gray-900">Tarefas do dia</h3>
+                <h3 className="text-base font-bold text-gray-900">Tarefas</h3>
                 <p className="text-[11px] text-gray-400 font-medium">
                   {completedTasks} de {dbTasks.length} concluídas
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
+                <Sparkles className="w-3 h-3" />
+                Premium
+              </span>
               <div className="relative w-10 h-10">
                 <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
                   <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" strokeWidth="3" />
@@ -580,22 +846,33 @@ export default function DashboardPage() {
                   {((completedTasks / (dbTasks.length || 1)) * 100).toFixed(0)}%
                 </span>
               </div>
-              <button className="inline-flex items-center gap-1.5 text-xs text-brand-600 font-semibold hover:text-brand-700 cursor-pointer transition-colors">
+              <button
+                onClick={() => setShowNewTask(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-brand-600 font-semibold hover:text-brand-700 cursor-pointer transition-colors"
+              >
                 <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 scrollbar-visible">
             {dbTasks.map((t) => {
               const status = taskStatuses[t.id];
+              const isDelayed = status !== "done" && t.date < todayStr;
+              const formatTaskDate = (d: string) => {
+                if (d === todayStr) return "Hoje";
+                if (d === yesterdayStr) return "Ontem";
+                const [y, m, day] = d.split("-");
+                return `${day}/${m}`;
+              };
               return (
                 <div
                   key={t.id}
                   className={cn(
                     "flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-200",
-                    status === "done" && "bg-emerald-50/50 border-emerald-100",
-                    status === "progress" && "bg-amber-50/50 border-amber-100",
-                    status === "pending" && "bg-gray-50/50 border-gray-100"
+                    isDelayed && "bg-red-50/50 border-red-200",
+                    !isDelayed && status === "done" && "bg-emerald-50/50 border-emerald-100",
+                    !isDelayed && status === "progress" && "bg-amber-50/50 border-amber-100",
+                    !isDelayed && status === "pending" && "bg-gray-50/50 border-gray-100"
                   )}
                 >
                   {/* Clickable square checkbox with dropdown */}
@@ -604,12 +881,13 @@ export default function DashboardPage() {
                       onClick={() => setOpenDropdown(openDropdown === t.id ? null : t.id)}
                       className="w-[18px] h-[18px] rounded flex items-center justify-center cursor-pointer transition-colors border flex-shrink-0"
                       style={{
-                        borderColor: status === "done" ? "#10b981" : status === "progress" ? "#f59e0b" : "#d1d5db",
-                        backgroundColor: status === "done" ? "#10b981" : status === "progress" ? "#f59e0b" : "transparent",
+                        borderColor: isDelayed ? "#ef4444" : status === "done" ? "#10b981" : status === "progress" ? "#f59e0b" : "#d1d5db",
+                        backgroundColor: isDelayed ? "#ef4444" : status === "done" ? "#10b981" : status === "progress" ? "#f59e0b" : "transparent",
                       }}
                     >
                       {status === "done" && <CheckSquare className="w-3.5 h-3.5 text-white" />}
-                      {status === "progress" && <Minus className="w-3.5 h-3.5 text-white" />}
+                      {status === "progress" && !isDelayed && <Minus className="w-3.5 h-3.5 text-white" />}
+                      {isDelayed && status !== "done" && <AlertTriangle className="w-3 h-3 text-white" />}
                     </button>
 
                     {/* Status dropdown */}
@@ -643,21 +921,280 @@ export default function DashboardPage() {
                     )}
                   </div>
 
-                  <div className="flex-1 min-w-0">
+                  <div
+                    className="flex-1 min-w-0 cursor-pointer"
+                    onClick={() => { setViewTask(t); setEditingTask(false); setEditTaskTitle(t.title); setEditTaskTime(t.time); setEditTaskDate(t.date); }}
+                  >
                     <span className={cn(
                       "text-[13px] truncate block",
-                      status === "done" ? "text-gray-400 line-through" : "text-gray-700 font-medium"
+                      isDelayed && "text-red-600 font-medium",
+                      !isDelayed && status === "done" && "text-gray-400 line-through",
+                      !isDelayed && status !== "done" && "text-gray-700 font-medium"
                     )}>
                       {t.title}
                     </span>
                   </div>
-                  <span className="text-[11px] text-gray-400 flex-shrink-0">{t.time}</span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {isDelayed && (
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-100 text-red-600">
+                        Atrasada
+                      </span>
+                    )}
+                    <span
+                      className={cn("text-[11px] flex-shrink-0 cursor-pointer", isDelayed ? "text-red-400" : "text-gray-400")}
+                      onClick={() => { setViewTask(t); setEditingTask(false); setEditTaskTitle(t.title); setEditTaskTime(t.time); setEditTaskDate(t.date); }}
+                    >
+                      {formatTaskDate(t.date)} · {t.time}
+                    </span>
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
       </div>
+
+      {/* New Task Modal */}
+      {showNewTask && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowNewTask(false)} />
+            <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-gray-900">Nova Tarefa</h3>
+                <button onClick={() => setShowNewTask(false)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer">
+                  <X className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Título</label>
+                  <input
+                    type="text"
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    placeholder="Ex: Coletar ovos — Galpão A1"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 placeholder-gray-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                    autoFocus
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Data</label>
+                    <input
+                      type="date"
+                      value={newTaskDate}
+                      onChange={(e) => setNewTaskDate(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Horário</label>
+                    <input
+                      type="time"
+                      value={newTaskTime}
+                      onChange={(e) => setNewTaskTime(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 mt-6">
+                <button
+                  onClick={() => setShowNewTask(false)}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleAddTask}
+                  disabled={!newTaskTitle.trim()}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                >
+                  Adicionar
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+      {/* Task Detail Modal */}
+      {viewTask && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setViewTask(null)} />
+            <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-gray-900">Detalhes da Tarefa</h3>
+                <button onClick={() => setViewTask(null)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer">
+                  <X className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
+
+              {editingTask ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Título</label>
+                    <input
+                      type="text"
+                      value={editTaskTitle}
+                      onChange={(e) => setEditTaskTitle(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Data</label>
+                      <input
+                        type="date"
+                        value={editTaskDate}
+                        onChange={(e) => setEditTaskDate(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Horário</label>
+                      <input
+                        type="time"
+                        value={editTaskTime}
+                        onChange={(e) => setEditTaskTime(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
+                    <div className="flex gap-2">
+                      {[
+                        { value: "done" as const, label: "Concluído", color: "bg-emerald-500" },
+                        { value: "progress" as const, label: "Em Andamento", color: "bg-amber-500" },
+                        { value: "pending" as const, label: "Pendente", color: "bg-gray-400" },
+                      ].map((s) => (
+                        <button
+                          key={s.value}
+                          onClick={() => setTaskStatuses((prev) => ({ ...prev, [viewTask.id]: s.value }))}
+                          className={cn(
+                            "flex-1 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border",
+                            taskStatuses[viewTask.id] === s.value
+                              ? `${s.color} text-white border-transparent`
+                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                          )}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 mt-2">
+                    <button
+                      onClick={() => setEditingTask(false)}
+                      className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDbTasks((prev) => prev.map((task) => task.id === viewTask.id ? { ...task, title: editTaskTitle.trim() || task.title, time: editTaskTime || task.time, date: editTaskDate || task.date } : task));
+                        setViewTask({ ...viewTask, title: editTaskTitle.trim() || viewTask.title, time: editTaskTime || viewTask.time, date: editTaskDate || viewTask.date });
+                        setEditingTask(false);
+                      }}
+                      className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors cursor-pointer shadow-sm"
+                    >
+                      Salvar
+                    </button>
+                  </div>
+                </div>
+              ) : (() => {
+                const viewDelayed = taskStatuses[viewTask.id] !== "done" && viewTask.date < todayStr;
+                const formatDetailDate = (d: string) => {
+                  if (d === todayStr) return "Hoje";
+                  if (d === yesterdayStr) return "Ontem";
+                  const [y, m, day] = d.split("-");
+                  return `${day}/${m}/${y}`;
+                };
+                return (
+                <div className="space-y-4">
+                  {viewDelayed && (
+                    <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200">
+                      <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                      <span className="text-xs font-semibold text-red-600">Tarefa atrasada — deveria ter sido concluída em {formatDetailDate(viewTask.date)}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3 p-4 rounded-xl bg-gray-50 border border-gray-100">
+                    <div
+                      className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                      style={{
+                        borderWidth: 2,
+                        borderColor: viewDelayed ? "#ef4444" : taskStatuses[viewTask.id] === "done" ? "#10b981" : taskStatuses[viewTask.id] === "progress" ? "#f59e0b" : "#d1d5db",
+                        backgroundColor: viewDelayed ? "#ef4444" : taskStatuses[viewTask.id] === "done" ? "#10b981" : taskStatuses[viewTask.id] === "progress" ? "#f59e0b" : "transparent",
+                      }}
+                    >
+                      {taskStatuses[viewTask.id] === "done" && <CheckSquare className="w-3.5 h-3.5 text-white" />}
+                      {taskStatuses[viewTask.id] === "progress" && !viewDelayed && <Minus className="w-3.5 h-3.5 text-white" />}
+                      {viewDelayed && <AlertTriangle className="w-3 h-3 text-white" />}
+                    </div>
+                    <span className={cn(
+                      "text-sm font-medium",
+                      viewDelayed && "text-red-600",
+                      !viewDelayed && taskStatuses[viewTask.id] === "done" && "text-gray-400 line-through",
+                      !viewDelayed && taskStatuses[viewTask.id] !== "done" && "text-gray-800"
+                    )}>
+                      {viewTask.title}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Data</p>
+                      <p className={cn("text-sm font-bold", viewDelayed ? "text-red-600" : "text-gray-800")}>{formatDetailDate(viewTask.date)}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Horário</p>
+                      <p className="text-sm font-bold text-gray-800">{viewTask.time}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Status</p>
+                      <span className={cn(
+                        "inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-lg",
+                        viewDelayed && "bg-red-50 text-red-600",
+                        !viewDelayed && taskStatuses[viewTask.id] === "done" && "bg-emerald-50 text-emerald-600",
+                        !viewDelayed && taskStatuses[viewTask.id] === "progress" && "bg-amber-50 text-amber-600",
+                        !viewDelayed && taskStatuses[viewTask.id] === "pending" && "bg-gray-100 text-gray-500",
+                      )}>
+                        {viewDelayed ? "Atrasada" : taskStatuses[viewTask.id] === "done" ? "Concluído" : taskStatuses[viewTask.id] === "progress" ? "Em Andamento" : "Pendente"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-2">
+                    <button
+                      onClick={() => setEditingTask(true)}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDbTasks((prev) => prev.filter((task) => task.id !== viewTask.id));
+                        setViewTask(null);
+                      }}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Excluir
+                    </button>
+                  </div>
+                </div>
+                );
+              })()}
+            </div>
+          </div>
+        </ModalPortal>
+      )}
 
       {/* ── Barn Status Strip ── */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5">
@@ -769,14 +1306,20 @@ export default function DashboardPage() {
 
         {/* AI Performance Insights */}
         <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm">
-              <Zap className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Assistente de Granja</h3>
+                <p className="text-[11px] text-gray-400 font-medium">Baseado nos últimos 7 dias</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">Assistente de Granja</h3>
-              <p className="text-[11px] text-gray-400 font-medium">Baseado nos últimos 7 dias</p>
-            </div>
+            <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
+              <Sparkles className="w-3 h-3" />
+              Premium
+            </span>
           </div>
 
           <div className="space-y-3 flex-1">
@@ -877,7 +1420,7 @@ export default function DashboardPage() {
 
         {/* Expense Breakdown Donut */}
         <div className="xl:col-span-3 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
-          <h3 className="text-sm font-bold text-gray-900 mb-1">Despesas do Mês</h3>
+          <h3 className="text-sm font-bold text-gray-900 mb-1">Despesas Últimos 30 Dias</h3>
           <p className="text-[11px] text-gray-400 mb-3">Total: {formatCurrency(financialData.expenses)}</p>
           <div className="flex-1 flex items-center justify-center">
             <ResponsiveContainer width="100%" height={160}>
@@ -918,7 +1461,7 @@ export default function DashboardPage() {
 
         {/* Profit Summary Card */}
         <div className="xl:col-span-4 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
-          <h3 className="text-sm font-bold text-gray-900 mb-5">Resumo Financeiro</h3>
+          <h3 className="text-sm font-bold text-gray-900 mb-5">Resumo Financeiro Últimos 30 Dias</h3>
           <div className="space-y-4 flex-1">
             <div className="flex items-center justify-between py-3 border-b border-gray-50">
               <div className="flex items-center gap-3">
