@@ -12,6 +12,7 @@ interface AuthContextType {
   farm: Tables<"farms"> | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthContextType>({
   farm: null,
   loading: true,
   signOut: async () => {},
+  refreshProfile: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -105,6 +107,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const refreshProfile = async () => {
+    const currentUser = user;
+    if (!currentUser) return;
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", currentUser.id)
+      .single();
+    if (profileData) setProfile(profileData);
+
+    if (profileData?.farm_id) {
+      const { data: farmData } = await supabase
+        .from("farms")
+        .select("*")
+        .eq("id", profileData.farm_id)
+        .single();
+      if (farmData) setFarm(farmData);
+    }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -114,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, farm, loading, signOut }}>
+    <AuthContext.Provider value={{ user, profile, farm, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

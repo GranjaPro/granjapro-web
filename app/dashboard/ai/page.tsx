@@ -307,19 +307,19 @@ export default function AssistenteIAPage() {
         )}
 
         {/* Input Area */}
-        <div className="border-t border-gray-100 p-3 sm:p-4 flex-shrink-0 bg-white">
-          <form onSubmit={handleSubmit} className="flex items-center justify-center gap-2 max-w-3xl mx-auto">
+        <div className="border-t border-gray-100 p-4 sm:p-5 flex-shrink-0 bg-white">
+          <form onSubmit={handleSubmit} className="flex items-center justify-center gap-3 max-w-3xl mx-auto">
             <button
               type="button"
               onClick={clearChat}
-              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap"
+              className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap"
               aria-label="Nova conversa"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <RotateCcw className="w-4 h-4" />
               Nova conversa
             </button>
-            <div className="flex-1 flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:ring-2 focus-within:ring-violet-500/20 focus-within:border-violet-300 focus-within:bg-white transition-all duration-200">
-              <Sparkles className="w-4 h-4 text-violet-400 flex-shrink-0" />
+            <div className="flex-1 flex items-center gap-2.5 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-3.5 focus-within:ring-2 focus-within:ring-violet-500/20 focus-within:border-violet-300 focus-within:bg-white transition-all duration-200">
+              <Sparkles className="w-5 h-5 text-violet-400 flex-shrink-0" />
               <textarea
                 ref={inputRef}
                 value={input}
@@ -327,7 +327,7 @@ export default function AssistenteIAPage() {
                 onKeyDown={handleKeyDown}
                 placeholder="Pergunte sobre sua granja..."
                 rows={1}
-                className="bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none w-full resize-none leading-relaxed max-h-[120px]"
+                className="bg-transparent text-base text-gray-700 placeholder-gray-400 outline-none w-full resize-none leading-relaxed max-h-[120px]"
                 disabled={isBusy}
               />
             </div>
@@ -335,14 +335,14 @@ export default function AssistenteIAPage() {
               type="submit"
               disabled={!input.trim() || isBusy}
               className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0",
+                "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0",
                 input.trim() && !isBusy
                   ? "bg-gradient-to-br from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white shadow-md shadow-violet-500/25 cursor-pointer"
                   : "bg-gray-100 text-gray-300 cursor-not-allowed"
               )}
               aria-label="Enviar mensagem"
             >
-              <Send className="w-4 h-4" />
+              <Send className="w-5 h-5" />
             </button>
           </form>
         </div>

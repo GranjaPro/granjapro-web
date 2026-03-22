@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Layers, Plus, Pencil, Trash2, X, Check, Search, FileText } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import ModalPortal from "@/components/ui/modal-portal";
 
 type Status = "ativo" | "crescimento" | "declinio" | "descartado";
 type Sistema = "gaiola" | "caipira" | "organico" | "free-range" | "cage-free";
@@ -247,6 +248,7 @@ export default function LotesPage() {
 
       {/* Modal */}
       {modal && (
+        <ModalPortal>
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setModal(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
@@ -365,10 +367,12 @@ export default function LotesPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Delete Confirmation */}
       {deleteConfirm !== null && (
+        <ModalPortal>
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setDeleteConfirm(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto">
@@ -382,6 +386,7 @@ export default function LotesPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

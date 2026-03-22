@@ -36,12 +36,10 @@ import {
 /* ─── data ─── */
 
 const navLinks = [
-  { label: "Sobre", href: "#sobre" },
-  { label: "Recursos", href: "#recursos" },
   { label: "Serviços", href: "#servicos" },
-  { label: "Preços", href: "#precos" },
+  { label: "Planos", href: "#precos" },
+  { label: "Garantia", href: "#garantia" },
   { label: "FAQ", href: "#faq" },
-  { label: "Contato", href: "#contato" },
 ];
 
 const painPoints = [
@@ -559,6 +557,12 @@ export default function LandingPage() {
 
           <div className="flex items-center gap-3">
             <Link
+              href="/cadastro"
+              className={`hidden sm:inline-flex items-center text-sm px-5 py-2.5 rounded-full font-semibold transition-all duration-200 cursor-pointer ${scrolled ? "text-gray-700 hover:text-brand-600 hover:bg-gray-100" : "text-white/90 hover:text-white hover:bg-white/10"}`}
+            >
+              Cadastre-se
+            </Link>
+            <Link
               href="/dashboard"
               className="hidden sm:inline-flex items-center gap-2 text-sm bg-brand-500 hover:bg-brand-600 text-white px-6 py-2.5 rounded-full font-semibold transition-all duration-200 shadow-md shadow-brand-500/25 hover:shadow-brand-500/40 hover:-translate-y-px cursor-pointer"
             >
@@ -588,8 +592,14 @@ export default function LandingPage() {
               </a>
             ))}
             <Link
+              href="/cadastro"
+              className="block text-sm text-gray-700 text-center px-5 py-3 rounded-xl font-semibold mt-3 border border-gray-200 hover:bg-gray-50 cursor-pointer"
+            >
+              Cadastre-se
+            </Link>
+            <Link
               href="/dashboard"
-              className="block text-sm bg-brand-500 text-white text-center px-5 py-3 rounded-xl font-semibold mt-3 cursor-pointer"
+              className="block text-sm bg-brand-500 text-white text-center px-5 py-3 rounded-xl font-semibold mt-2 cursor-pointer"
             >
               Entrar
             </Link>
@@ -726,13 +736,20 @@ export default function LandingPage() {
 
       {/* ── Transition ── */}
       <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 bg-gray-50/50">
-        <AnimatedSection className="text-center max-w-3xl mx-auto">
+        <AnimatedSection className="text-center max-w-7xl mx-auto">
           <div className="w-12 h-[2px] bg-brand-300/60 mx-auto mb-8 rounded-full" />
           <h2 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 tracking-tight">
             Agora imagine ter{" "}
             <span className="text-gradient">tudo isso sob controle</span>.
           </h2>
           <div className="w-12 h-[2px] bg-brand-300/60 mx-auto mt-8 rounded-full" />
+          <div className="mt-12 sm:mt-16">
+            <img
+              src="/assets/images/dashboard.png"
+              alt="Dashboard preview"
+              className="w-full mx-auto rounded-xl shadow-2xl"
+            />
+          </div>
         </AnimatedSection>
       </section>
 
@@ -798,7 +815,7 @@ export default function LandingPage() {
       <PricingSection />
 
       {/* ── Garantia ── */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6 lg:px-8 bg-white">
+      <section id="garantia" className="py-20 sm:py-28 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-5xl mx-auto">
           {/* Header */}
           <AnimatedSection className="text-center mb-12">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import ModalPortal from "@/components/ui/modal-portal";
 import {
   DollarSign,
   TrendingUp,
@@ -307,23 +308,29 @@ export default function FinancasPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-            {([
-              { key: "dia" as const, label: "Dia" },
-              { key: "semana" as const, label: "Semana" },
-              { key: "mes" as const, label: "Mês" },
-            ]).map((p) => (
-              <button
-                key={p.key}
-                onClick={() => setPeriodo(p.key)}
-                className={cn(
-                  "px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
-                  periodo === p.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+              {([
+                { key: "dia" as const, label: "Dia" },
+                { key: "semana" as const, label: "Semana" },
+                { key: "mes" as const, label: "Mês" },
+              ]).map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => setPeriodo(p.key)}
+                  className={cn(
+                    "px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
+                    periodo === p.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg bg-amber-50 text-amber-500 border border-amber-200">
+              <Sparkles className="w-2.5 h-2.5" />
+              Pro
+            </span>
           </div>
           <button
             onClick={openAdd}
@@ -900,7 +907,8 @@ export default function FinancasPage() {
 
       {/* ── Modal ── */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModal(null)} />
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between mb-6">
@@ -970,6 +978,7 @@ export default function FinancasPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

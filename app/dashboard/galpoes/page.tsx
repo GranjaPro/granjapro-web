@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ModalPortal from "@/components/ui/modal-portal";
 import {
   Building2,
   Plus,
@@ -305,6 +306,7 @@ export default function GalpoesPage() {
 
       {/* Modal */}
       {modal && (
+        <ModalPortal>
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setModal(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
@@ -374,10 +376,12 @@ export default function GalpoesPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Delete Confirmation */}
       {deleteConfirm !== null && (
+        <ModalPortal>
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setDeleteConfirm(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto">
@@ -391,6 +395,7 @@ export default function GalpoesPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

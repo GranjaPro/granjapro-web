@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import ModalPortal from "@/components/ui/modal-portal";
 import {
   Skull,
   ArrowUpRight,
@@ -19,6 +21,7 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -98,8 +101,13 @@ const loteOptions = ["L-2024-01", "L-2024-02", "L-2024-03", "L-2024-04"];
 const causaOptions = ["Natural", "Doença", "Respiratório", "Predadores", "Estresse", "Desconhecido"];
 
 export default function MortalidadePage() {
+  const searchParams = useSearchParams();
   const [registros, setRegistros] = useState(initialRegistros);
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get("register") === "true") setModal("add");
+  }, [searchParams]);
   const [editing, setEditing] = useState<RegistroMortalidade | null>(null);
   const [form, setForm] = useState({ data: "", quantidade: "1", causa: "", lote: "", galpao: "", observacao: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
@@ -357,25 +365,31 @@ export default function MortalidadePage() {
       </div>
 
       {/* Period Filter + KPI Cards */}
-      <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-        {([
-          { key: "dia" as const, label: "Dia" },
-          { key: "semana" as const, label: "Semana" },
-          { key: "mes" as const, label: "Mês" },
-        ]).map((p) => (
-          <button
-            key={p.key}
-            onClick={() => setPeriodo(p.key)}
-            className={cn(
-              "px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
-              periodo === p.key
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
-            )}
-          >
-            {p.label}
-          </button>
-        ))}
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+          {([
+            { key: "dia" as const, label: "Dia" },
+            { key: "semana" as const, label: "Semana" },
+            { key: "mes" as const, label: "Mês" },
+          ]).map((p) => (
+            <button
+              key={p.key}
+              onClick={() => setPeriodo(p.key)}
+              className={cn(
+                "px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
+                periodo === p.key
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg bg-amber-50 text-amber-500 border border-amber-200">
+          <Sparkles className="w-2.5 h-2.5" />
+          Pro
+        </span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -652,7 +666,8 @@ export default function MortalidadePage() {
 
       {/* Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModal(null)} />
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between mb-6">
@@ -758,6 +773,7 @@ export default function MortalidadePage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

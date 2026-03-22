@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
+import ModalPortal from "@/components/ui/modal-portal";
 import {
   HeartPulse,
   Plus,
@@ -76,9 +78,14 @@ const tipoColor: Record<RegistroTipo, { bg: string; text: string }> = {
 };
 
 export default function SaudePage() {
+  const searchParams = useSearchParams();
   const [registros, setRegistros] = useState(initialRegistros);
   const [agenda] = useState(initialAgenda);
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("register") === "true") setShowModal(true);
+  }, [searchParams]);
   const [form, setForm] = useState({
     titulo: "",
     data: "",
@@ -274,7 +281,8 @@ export default function SaudePage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-brand-950/40 backdrop-blur-sm" onClick={() => setShowModal(false)} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -362,6 +370,7 @@ export default function SaudePage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );
