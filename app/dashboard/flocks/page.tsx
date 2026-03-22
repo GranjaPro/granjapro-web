@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Layers, Plus, Pencil, Trash2, X, Check, Search, FileText, Loader2, Bird } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -93,8 +93,7 @@ const emptyForm = {
 };
 
 export default function LotesPage() {
-  const { farm } = useAuth();
-  const supabase = createClient();
+  const { farm, loading: authLoading } = useAuth();
 
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [barns, setBarns] = useState<Barn[]>([]);
@@ -107,20 +106,25 @@ export default function LotesPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [error, setError] = useState("");
 
+  const farmRef = useRef(farm);
+  farmRef.current = farm;
+
   const fetchData = useCallback(async () => {
-    if (!farm) return;
+    const currentFarm = farmRef.current;
+    if (!currentFarm) { setLoading(false); return; }
     setLoading(true);
+    const supabase = createClient();
     try {
       const [flocksRes, barnsRes] = await Promise.all([
         supabase
           .from("flocks")
           .select("*, barns(name)")
-          .eq("farm_id", farm.id)
+          .eq("farm_id", currentFarm.id)
           .order("created_at", { ascending: false }),
         supabase
           .from("barns")
           .select("id, name, capacity, current_birds")
-          .eq("farm_id", farm.id)
+          .eq("farm_id", currentFarm.id)
           .order("name"),
       ]);
 
@@ -153,11 +157,12 @@ export default function LotesPage() {
       console.error("Error fetching flocks:", err);
     }
     setLoading(false);
-  }, [farm]);
+  }, []);
 
   useEffect(() => {
+    if (authLoading || !farm) return;
     fetchData();
-  }, [fetchData]);
+  }, [authLoading, farm, fetchData]);
 
   function openAdd() {
     setForm({ ...emptyForm });
@@ -228,6 +233,7 @@ export default function LotesPage() {
       barn_id: form.barn_id || null,
     };
 
+    const supabase = createClient();
     try {
       if (modal === "add") {
         const { error: insertErr } = await supabase
@@ -250,6 +256,7 @@ export default function LotesPage() {
   }
 
   async function deleteLote(id: string) {
+    const supabase = createClient();
     try {
       const { error: delErr } = await supabase
         .from("flocks")

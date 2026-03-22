@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
@@ -24,116 +24,155 @@ const AuthContext = createContext<AuthContextType>({
   refreshProfile: async () => {},
 });
 
+const supabase = createClient();
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Tables<"profiles"> | null>(null);
   const [farm, setFarm] = useState<Tables<"farms"> | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
   const pathname = usePathname();
   const router = useRouter();
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+  const userRef = useRef<User | null>(null);
+
+  const loadUserData = useCallback(async (currentUser: User) => {
+    let foundFarm = false;
+    try {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", currentUser.id)
+        .single();
+
+      setProfile(profileData);
+
+      if (profileData?.farm_id) {
+        const { data: farmData } = await supabase
+          .from("farms")
+          .select("*")
+          .eq("id", profileData.farm_id)
+          .single();
+        if (farmData) {
+          setFarm(farmData);
+          foundFarm = true;
+        }
+      }
+
+      if (!foundFarm) {
+        const { data: farmData } = await supabase
+          .from("farms")
+          .select("*")
+          .eq("owner_id", currentUser.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (farmData) {
+          setFarm(farmData);
+          foundFarm = true;
+          await supabase
+            .from("profiles")
+            .update({ farm_id: farmData.id })
+            .eq("id", currentUser.id);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading user data:", err);
+    }
+    return foundFarm;
+  }, []);
+
+  const checkOnboarding = useCallback((foundFarm: boolean) => {
+    const p = pathnameRef.current;
+    if (!foundFarm && p?.startsWith("/dashboard") && p !== "/dashboard/onboarding") {
+      router.push("/dashboard/onboarding");
+    }
+  }, [router]);
 
   useEffect(() => {
-    const getSession = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
+    let active = true;
 
-      let foundFarm = false;
+    supabase.auth.getUser().then(async ({ data: { user: currentUser } }) => {
+      if (!active) return;
 
-      if (user) {
-        // Fetch profile
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single();
-
-        setProfile(profileData);
-
-        // Fetch farm (owned or associated)
-        if (profileData?.farm_id) {
-          const { data: farmData } = await supabase
-            .from("farms")
-            .select("*")
-            .eq("id", profileData.farm_id)
-            .single();
-          if (farmData) {
-            setFarm(farmData);
-            foundFarm = true;
-          }
-        }
-
-        if (!foundFarm) {
-          // Check if user owns a farm
-          const { data: farmData } = await supabase
-            .from("farms")
-            .select("*")
-            .eq("owner_id", user.id)
-            .limit(1)
-            .maybeSingle();
-
-          if (farmData) {
-            setFarm(farmData);
-            foundFarm = true;
-            // Update profile with farm_id
-            await supabase
-              .from("profiles")
-              .update({ farm_id: farmData.id })
-              .eq("id", user.id);
-          }
-        }
+      if (currentUser) {
+        userRef.current = currentUser;
+        setUser(currentUser);
+        const foundFarm = await loadUserData(currentUser);
+        if (!active) return;
+        setLoading(false);
+        checkOnboarding(foundFarm);
+      } else {
+        setUser(null);
+        setLoading(false);
       }
-
-      setLoading(false);
-
-      // Redirect to onboarding if authenticated but no farm
-      if (user && !foundFarm && pathname?.startsWith("/dashboard") && pathname !== "/dashboard/onboarding") {
-        router.push("/dashboard/onboarding");
-      }
-    };
-
-    getSession();
+    }).catch(() => {
+      if (active) setLoading(false);
+    });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setUser(session?.user ?? null);
-        if (!session?.user) {
+      async (event, session) => {
+        if (event === "SIGNED_OUT") {
+          userRef.current = null;
+          setUser(null);
           setProfile(null);
           setFarm(null);
+          setLoading(false);
+          return;
+        }
+
+        if (event === "SIGNED_IN") {
+          const currentUser = session?.user ?? null;
+          if (!currentUser) return;
+          // Skip reload if the same user is already loaded (e.g. tab refocus re-fires SIGNED_IN)
+          if (userRef.current?.id === currentUser.id) return;
+          userRef.current = currentUser;
+          setUser(currentUser);
+          setLoading(true);
+          const foundFarm = await loadUserData(currentUser);
+          setLoading(false);
+          checkOnboarding(foundFarm);
         }
       }
     );
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [loadUserData, checkOnboarding]);
 
-  const refreshProfile = async () => {
-    const currentUser = user;
-    if (!currentUser) return;
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", currentUser.id)
-      .single();
-    if (profileData) setProfile(profileData);
-
-    if (profileData?.farm_id) {
-      const { data: farmData } = await supabase
-        .from("farms")
+  const refreshProfile = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data: profileData } = await supabase
+        .from("profiles")
         .select("*")
-        .eq("id", profileData.farm_id)
+        .eq("id", user.id)
         .single();
-      if (farmData) setFarm(farmData);
-    }
-  };
+      if (profileData) setProfile(profileData);
 
-  const signOut = async () => {
+      if (profileData?.farm_id) {
+        const { data: farmData } = await supabase
+          .from("farms")
+          .select("*")
+          .eq("id", profileData.farm_id)
+          .single();
+        if (farmData) setFarm(farmData);
+      }
+    } catch (err) {
+      console.error("Error refreshing profile:", err);
+    }
+  }, [user]);
+
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
     setFarm(null);
     window.location.href = "/login";
-  };
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, profile, farm, loading, signOut, refreshProfile }}>

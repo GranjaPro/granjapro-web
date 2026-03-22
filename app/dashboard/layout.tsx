@@ -36,7 +36,7 @@ import {
 const sidebarNav = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { type: "divider" as const },
-  { label: "Galpões", href: "/dashboard/galpoes", icon: Building2 },
+  { label: "Galpões", href: "/dashboard/barns", icon: Building2 },
   { label: "Lotes", href: "/dashboard/flocks", icon: Layers },
   { label: "Produção", href: "/dashboard/production", icon: Egg },
   { label: "Ração", href: "/dashboard/racao", icon: Wheat },
