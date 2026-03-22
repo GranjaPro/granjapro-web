@@ -428,7 +428,7 @@ export default function VendasPage() {
               <YAxis axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`} />
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                formatter={(value: number) => [`R$ ${value.toLocaleString("pt-BR")}`, "Receita"]}
+                formatter={(value: unknown) => [`R$ ${Number(value).toLocaleString("pt-BR")}`, "Receita"]}
               />
               <Area type="monotone" dataKey="receita" stroke="#8b5cf6" strokeWidth={2.5} fill="url(#colorReceita)" dot={{ fill: "#8b5cf6", r: 3, strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#fff", strokeWidth: 2, fill: "#8b5cf6" }} />
             </AreaChart>
@@ -446,7 +446,7 @@ export default function VendasPage() {
               <YAxis domain={[10, 15]} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} tickFormatter={(v) => `R$ ${v}`} />
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                formatter={(value: number) => [`R$ ${value.toFixed(2)}`, "Preço/dz"]}
+                formatter={(value: unknown) => [`R$ ${Number(value).toFixed(2)}`, "Preço/dz"]}
               />
               <Line type="monotone" dataKey="preco" stroke="#f59e0b" strokeWidth={2.5} dot={{ fill: "#f59e0b", r: 4, strokeWidth: 0 }} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2, fill: "#f59e0b" }} />
             </LineChart>

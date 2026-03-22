@@ -1263,7 +1263,7 @@ export default function RelatoriosPage() {
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
             <XAxis dataKey="periodo" fontSize={11} tickLine={false} axisLine={false} tick={{ fill: "#94a3b8" }} />
             <YAxis fontSize={11} tickLine={false} axisLine={false} tick={{ fill: "#94a3b8" }} />
-            <Tooltip contentStyle={customTooltipStyle} formatter={(value: number) => `R$ ${value.toLocaleString("pt-BR")}`} />
+            <Tooltip contentStyle={customTooltipStyle} formatter={(value: unknown) => `R$ ${Number(value).toLocaleString("pt-BR")}`} />
             <Area type="monotone" dataKey="receita" stroke="#22c55e" strokeWidth={2} fill="url(#colorReceita)" />
             <Area type="monotone" dataKey="despesa" stroke="#ef4444" strokeWidth={2} fill="url(#colorDespesa)" />
             <Line type="monotone" dataKey="lucro" stroke="#6366f1" strokeWidth={2.5} dot={{ fill: "#6366f1", r: 4 }} />

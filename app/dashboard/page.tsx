@@ -66,7 +66,7 @@ const kpis = [
     title: "Ovos",
     value: formatNumber(mockTodayProduction.eggsProduced),
     badge: "+3.2%",
-    badgeDir: "up" as const,
+    badgeDir: "up" as "up" | "down" | "neutral",
     subtitle: `Meta: 15.000 · ${((mockTodayProduction.eggsProduced / 15000) * 100).toFixed(0)}% atingido`,
     icon: Egg,
     color: "brand",
@@ -79,7 +79,7 @@ const kpis = [
     title: "Taxa de Postura",
     value: `${mockTodayProduction.layingRate}%`,
     badge: "+1.2%",
-    badgeDir: "up" as const,
+    badgeDir: "up" as "up" | "down" | "neutral",
     subtitle: "Meta: 90% · Padrão: 85-92%",
     icon: Target,
     color: "violet",
@@ -92,7 +92,7 @@ const kpis = [
     title: "Custo por Ovo",
     value: `R$ ${mockTodayFeed.costPerEgg.toFixed(3)}`,
     badge: "-2.1%",
-    badgeDir: "up" as const,
+    badgeDir: "up" as "up" | "down" | "neutral",
     subtitle: `Ração: R$ ${formatNumber(mockTodayFeed.cost)} · ${formatNumber(mockTodayFeed.quantity)}kg`,
     icon: Wheat,
     color: "amber",
@@ -105,7 +105,7 @@ const kpis = [
     title: "Lucro Últimos 30 Dias",
     value: formatCurrency(mockMonthFinancial.profit),
     badge: "+8.5%",
-    badgeDir: "up" as const,
+    badgeDir: "up" as "up" | "down" | "neutral",
     subtitle: `Receita: ${formatCurrency(mockMonthFinancial.revenue)}`,
     icon: DollarSign,
     color: "emerald",
@@ -470,7 +470,7 @@ export default function DashboardPage() {
       title: "Ovos",
       value: formatNumber(productionData.eggsProduced),
       badge: "+3.2%",
-      badgeDir: "up" as const,
+      badgeDir: "up" as "up" | "down" | "neutral",
       subtitle: `Meta: 15.000 · ${((productionData.eggsProduced / 15000) * 100).toFixed(0)}% atingido`,
       icon: Egg,
       color: "brand",
@@ -483,7 +483,7 @@ export default function DashboardPage() {
       title: "Taxa de Postura",
       value: `${productionData.layingRate.toFixed(1)}%`,
       badge: "+1.2%",
-      badgeDir: "up" as const,
+      badgeDir: "up" as "up" | "down" | "neutral",
       subtitle: "Meta: 90% · Padrão: 85-92%",
       icon: Target,
       color: "violet",
@@ -496,7 +496,7 @@ export default function DashboardPage() {
       title: "Custo por Ovo",
       value: `R$ ${feedData.costPerEgg.toFixed(3)}`,
       badge: "-2.1%",
-      badgeDir: "up" as const,
+      badgeDir: "up" as "up" | "down" | "neutral",
       subtitle: `Ração: R$ ${formatNumber(feedData.cost)} · ${formatNumber(feedData.quantity)}kg`,
       icon: Wheat,
       color: "amber",
@@ -509,7 +509,7 @@ export default function DashboardPage() {
       title: "Lucro Últimos 30 Dias",
       value: formatCurrency(financialData.profit),
       badge: "+8.5%",
-      badgeDir: "up" as const,
+      badgeDir: "up" as "up" | "down" | "neutral",
       subtitle: `Receita: ${formatCurrency(financialData.revenue)}`,
       icon: DollarSign,
       color: "emerald",
@@ -857,7 +857,7 @@ export default function DashboardPage() {
           </div>
           <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 scrollbar-visible">
             {dbTasks.map((t) => {
-              const status = taskStatuses[t.id];
+              const status = taskStatuses[t.id] ?? "pending";
               const isDelayed = status !== "done" && t.date < todayStr;
               const formatTaskDate = (d: string) => {
                 if (d === todayStr) return "Hoje";
@@ -888,7 +888,7 @@ export default function DashboardPage() {
                     >
                       {status === "done" && <CheckSquare className="w-3.5 h-3.5 text-white" />}
                       {status === "progress" && !isDelayed && <Minus className="w-3.5 h-3.5 text-white" />}
-                      {isDelayed && status !== "done" && <AlertTriangle className="w-3 h-3 text-white" />}
+                      {isDelayed && <AlertTriangle className="w-3 h-3 text-white" />}
                     </button>
 
                     {/* Status dropdown */}
@@ -1297,7 +1297,7 @@ export default function DashboardPage() {
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
                 labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                formatter={(value: number, name: string) => [formatNumber(value), name]}
+                formatter={(value: unknown, name: unknown) => [formatNumber(Number(value)), String(name)]}
               />
               <Area type="monotone" dataKey="meta" stroke="#d1d5db" strokeWidth={1.5} strokeDasharray="6 4" fill="none" dot={false} name="Meta" />
               <Area type="monotone" dataKey="ovos" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#colorOvos)" dot={{ r: 4, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 }} activeDot={{ r: 6, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} name="Ovos" />
@@ -1411,7 +1411,7 @@ export default function DashboardPage() {
               <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px" }}
-                formatter={(value: number) => [`R$ ${value.toLocaleString("pt-BR")}`, undefined]}
+                formatter={(value: unknown) => [`R$ ${Number(value).toLocaleString("pt-BR")}`, undefined]}
               />
               <Bar dataKey="receita" fill="#2d7a4f" radius={[5, 5, 0, 0]} name="Receita" />
               <Bar dataKey="despesas" fill="#e24a4a" radius={[5, 5, 0, 0]} name="Despesas" />
@@ -1442,7 +1442,7 @@ export default function DashboardPage() {
                 </Pie>
                 <Tooltip
                   contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "12px" }}
-                  formatter={(value: number) => [formatCurrency(value), undefined]}
+                  formatter={(value: unknown) => [formatCurrency(Number(value)), undefined]}
                 />
               </PieChart>
             </ResponsiveContainer>

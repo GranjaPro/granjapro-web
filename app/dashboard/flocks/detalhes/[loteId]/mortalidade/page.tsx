@@ -452,7 +452,7 @@ export default function MortalidadeLotePage() {
                   padding: "10px 14px",
                 }}
                 labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                formatter={(value: number) => [value, "Mortes"]}
+                formatter={(value: unknown) => [Number(value), "Mortes"]}
               />
               <Area
                 type="monotone"
@@ -497,7 +497,7 @@ export default function MortalidadeLotePage() {
                     fontSize: "13px",
                     padding: "10px 14px",
                   }}
-                  formatter={(value: number, name: string) => [`${value} mortes`, name]}
+                  formatter={(value: unknown, name: unknown) => [`${Number(value)} mortes`, String(name)]}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -537,9 +537,9 @@ export default function MortalidadeLotePage() {
                 padding: "10px 14px",
               }}
               labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-              formatter={(value: number, name: string) => {
-                if (name === "mortes") return [value, "Mortes"];
-                return [`${value}%`, "Taxa"];
+              formatter={(value: unknown, name: unknown) => {
+                if (String(name) === "mortes") return [Number(value), "Mortes"];
+                return [`${Number(value)}%`, "Taxa"];
               }}
             />
             <Bar dataKey="mortes" fill="#fca5a5" radius={[6, 6, 0, 0]} name="mortes" />

@@ -26,6 +26,10 @@ import {
   Zap,
   CalendarDays,
   ChevronLeft,
+  HelpCircle,
+  Wheat,
+  CircleDollarSign,
+  AlertOctagon,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -295,7 +299,7 @@ export default function ProducaoPage() {
         subtitle: `${todayQuebrados} quebrados · ${todaySujos} sujos`,
       },
       {
-        title: "Média Semanal",
+        title: "Média Semanal de Postura",
         value: weeklyAvg.toLocaleString("pt-BR"),
         icon: Activity,
         iconBg: "bg-emerald-50",
@@ -768,11 +772,25 @@ export default function ProducaoPage() {
           <div className="grid grid-cols-3 gap-3">
             {/* Custo por Ovo */}
             <div className="bg-gray-50 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
-                  <Egg className="w-4 h-4 text-red-500" />
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                    <Egg className="w-4 h-4 text-red-500" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Custo/Ovo</span>
                 </div>
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Custo/Ovo</span>
+                <div className="relative group">
+                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer">
+                    <HelpCircle className="w-3 h-3 text-gray-500" />
+                  </button>
+                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
+                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Custo/Ovo?</p>
+                    <p className="text-[10px] text-gray-500 leading-relaxed">Valor gasto para produzir cada ovo, incluindo ração, mão de obra, energia e insumos.</p>
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <p className="text-[10px] text-gray-400">Fórmula: Custo Total / Total de Ovos</p>
+                    </div>
+                  </div>
+                </div>
               </div>
               <p className="text-xl font-bold text-gray-900">R$ 0,42</p>
               <div className="flex items-center justify-between mt-2">
@@ -785,11 +803,25 @@ export default function ProducaoPage() {
             </div>
             {/* Margem */}
             <div className="bg-gray-50 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-                  <BarChart3 className="w-4 h-4 text-amber-600" />
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+                    <BarChart3 className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Margem</span>
                 </div>
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Margem</span>
+                <div className="relative group">
+                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer">
+                    <HelpCircle className="w-3 h-3 text-gray-500" />
+                  </button>
+                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
+                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Margem?</p>
+                    <p className="text-[10px] text-gray-500 leading-relaxed">Diferença percentual entre a receita e o custo total de produção. Margem alta indica maior lucro por ovo produzido.</p>
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <p className="text-[10px] text-gray-400">Fórmula: (Receita - Custo) / Receita × 100</p>
+                    </div>
+                  </div>
+                </div>
               </div>
               <p className="text-xl font-bold text-gray-900">32.4%</p>
               <div className="flex items-center justify-between mt-2">
@@ -814,6 +846,99 @@ export default function ProducaoPage() {
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
                   <ArrowDownRight className="w-3 h-3" />
                   -5.0%
+                </span>
+              </div>
+            </div>
+            {/* Eficiência Alimentar */}
+            <div className="bg-gray-50 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+                    <Wheat className="w-4 h-4 text-violet-600" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Efic. Alimentar</span>
+                </div>
+                <div className="relative group">
+                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer">
+                    <HelpCircle className="w-3 h-3 text-gray-500" />
+                  </button>
+                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
+                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Eficiência Alimentar?</p>
+                    <p className="text-[10px] text-gray-500 leading-relaxed">Quantidade de ração consumida para produzir cada ovo. Quanto menor, mais eficiente.</p>
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <p className="text-[10px] text-gray-400">Fórmula: Ração Total (kg) / Total de Ovos</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xl font-bold text-gray-900">0,128 kg</p>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-[10px] text-gray-400">Esperado: 0,120 kg</span>
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
+                  <ArrowUpRight className="w-3 h-3" />
+                  +6.7%
+                </span>
+              </div>
+            </div>
+            {/* Receita por Ave */}
+            <div className="bg-gray-50 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                    <CircleDollarSign className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Receita/Ave</span>
+                </div>
+                <div className="relative group">
+                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer">
+                    <HelpCircle className="w-3 h-3 text-gray-500" />
+                  </button>
+                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
+                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Receita/Ave?</p>
+                    <p className="text-[10px] text-gray-500 leading-relaxed">Receita média gerada por cada ave no período. Indica a produtividade econômica do plantel.</p>
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <p className="text-[10px] text-gray-400">Fórmula: Receita Total / Nº de Aves</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xl font-bold text-gray-900">R$ 0,52</p>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-[10px] text-gray-400">Esperado: R$ 0,55</span>
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
+                  <ArrowDownRight className="w-3 h-3" />
+                  -5.5%
+                </span>
+              </div>
+            </div>
+            {/* Perda Diária (R$) */}
+            <div className="bg-gray-50 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                    <AlertOctagon className="w-4 h-4 text-red-500" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Perda/Dia</span>
+                </div>
+                <div className="relative group">
+                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer">
+                    <HelpCircle className="w-3 h-3 text-gray-500" />
+                  </button>
+                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
+                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Perda Diária?</p>
+                    <p className="text-[10px] text-gray-500 leading-relaxed">Valor em reais perdido diariamente com ovos quebrados, sujos e descartados.</p>
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <p className="text-[10px] text-gray-400">Fórmula: (Quebrados + Sujos + Descartados) × Preço/Ovo</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xl font-bold text-gray-900">R$ 18,50</p>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-[10px] text-gray-400">Tolerado: R$ 12,00</span>
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
+                  <ArrowUpRight className="w-3 h-3" />
+                  +54.2%
                 </span>
               </div>
             </div>
@@ -856,7 +981,7 @@ export default function ProducaoPage() {
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
                 labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                formatter={(value: number, name: string) => [value.toLocaleString("pt-BR"), name === "ovos" ? "Produção" : "Meta"]}
+                formatter={(value: unknown, name: unknown) => [Number(value).toLocaleString("pt-BR"), String(name) === "ovos" ? "Produção" : "Meta"]}
               />
               <ReferenceLine y={2600} stroke="#d1d5db" strokeDasharray="6 4" strokeWidth={1.5} />
               <Area type="monotone" dataKey="ovos" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#colorProd)" dot={{ r: 5, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 }} activeDot={{ r: 7, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} name="ovos" />

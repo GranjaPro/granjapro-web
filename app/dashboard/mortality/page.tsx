@@ -307,7 +307,7 @@ export default function MortalidadePage() {
       iconBg: "bg-emerald-50",
       iconColor: "text-emerald-600",
       badge: "-0.1%",
-      badgeDir: "down" as const,
+      badgeDir: "down" as "up" | "down" | "neutral",
       insight: "Mortalidade controlada no último mês",
       insightColor: "text-emerald-600",
     },
@@ -446,7 +446,7 @@ export default function MortalidadePage() {
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
                 labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                formatter={(value: number) => [value, "Mortes"]}
+                formatter={(value: unknown) => [Number(value), "Mortes"]}
               />
               <Area type="monotone" dataKey="mortes" stroke="#ef4444" strokeWidth={2.5} fill="url(#colorMortesGlobal)" dot={{ r: 5, fill: "#fff", stroke: "#ef4444", strokeWidth: 2.5 }} activeDot={{ r: 7, fill: "#ef4444", stroke: "#fff", strokeWidth: 3 }} />
             </AreaChart>
@@ -466,7 +466,7 @@ export default function MortalidadePage() {
                 </Pie>
                 <Tooltip
                   contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                  formatter={(value: number, name: string) => [`${value} mortes`, name]}
+                  formatter={(value: unknown, name: unknown) => [`${Number(value)} mortes`, String(name)]}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -543,9 +543,9 @@ export default function MortalidadePage() {
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
                 labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                formatter={(value: number, name: string) => {
-                  if (name === "mortes") return [value, "Mortes"];
-                  return [`${value}%`, "Taxa"];
+                formatter={(value: unknown, name: unknown) => {
+                  if (String(name) === "mortes") return [Number(value), "Mortes"];
+                  return [`${Number(value)}%`, "Taxa"];
                 }}
               />
               <Bar dataKey="mortes" fill="#fca5a5" radius={[6, 6, 0, 0]} name="mortes" />
