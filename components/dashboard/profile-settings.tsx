@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import ModalPortal from "@/components/ui/modal-portal";
@@ -55,6 +55,18 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
   const [productionSystem, setProductionSystem] = useState(farm?.production_system || "cage-free");
   const [mainBreed, setMainBreed] = useState(farm?.main_breed || "");
   const [farmLocation, setFarmLocation] = useState("");
+  const [totalBirdsFromBarns, setTotalBirdsFromBarns] = useState(0);
+
+  useEffect(() => {
+    if (!farm?.id) return;
+    supabase
+      .from("barns")
+      .select("current_birds")
+      .eq("farm_id", farm.id)
+      .then(({ data }) => {
+        if (data) setTotalBirdsFromBarns(data.reduce((s, b) => s + (b.current_birds ?? 0), 0));
+      });
+  }, [farm?.id, supabase]);
 
   // Preferences
   const [theme, setTheme] = useState<"light" | "dark" | "system">("light");
@@ -446,7 +458,7 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
                         Total de aves
                       </label>
                       <div className="px-3 py-2.5 rounded-xl border border-gray-100 bg-gray-50 text-sm text-gray-500">
-                        {farm?.total_birds?.toLocaleString("pt-BR") || "—"}
+                        {totalBirdsFromBarns.toLocaleString("pt-BR")}
                       </div>
                     </div>
                     <div>

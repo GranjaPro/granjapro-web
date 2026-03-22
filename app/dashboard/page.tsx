@@ -298,12 +298,13 @@ export default function DashboardPage() {
           supabase.from("financial_transactions").select("*").eq("farm_id", farmId).gte("date", monthStart).lte("date", monthEnd),
         ]);
 
-        // Update farm info
+        // Update farm info — total birds from barns capacity
+        const totalBirdsFromBarns = barnsRes.data?.reduce((s: number, b: any) => s + (b.current_birds ?? 0), 0) ?? 0;
         setFarmData({
           name: currentFarm.name,
           producer: currentFarm.producer_name,
-          totalBirds: currentFarm.total_birds,
-          activeBirds: currentFarm.total_birds,
+          totalBirds: totalBirdsFromBarns,
+          activeBirds: totalBirdsFromBarns,
           barns: barnsRes.data?.length ?? 0,
           breed: currentFarm.main_breed,
           productionSystem: currentFarm.production_system,

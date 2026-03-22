@@ -24,7 +24,7 @@ interface Lote {
   origin: string | null;
   lineage: string | null;
   avg_weight_kg: number | null;
-  barn_id: string | null;
+  barn_id: string;
   barn_name: string | null;
 }
 
@@ -185,7 +185,7 @@ export default function LotesPage() {
       origin: l.origin ?? "",
       lineage: l.lineage ?? "",
       avg_weight_kg: l.avg_weight_kg ? String(l.avg_weight_kg) : "",
-      barn_id: l.barn_id ?? "",
+      barn_id: l.barn_id,
     });
     setEditing(l);
     setError("");
@@ -194,8 +194,8 @@ export default function LotesPage() {
 
   async function save() {
     if (!farm) return;
-    if (!form.code.trim() || !form.breed.trim() || !form.arrival_date) {
-      setError("Preencha código, raça e data de chegada.");
+    if (!form.code.trim() || !form.breed.trim() || !form.arrival_date || !form.barn_id) {
+      setError("Preencha código, raça, data de chegada e selecione um galpão.");
       return;
     }
 
@@ -230,7 +230,7 @@ export default function LotesPage() {
       origin: form.origin || null,
       lineage: form.lineage || null,
       avg_weight_kg: form.avg_weight_kg ? Number(form.avg_weight_kg) : null,
-      barn_id: form.barn_id || null,
+      barn_id: form.barn_id,
     };
 
     const supabase = createClient();
@@ -430,9 +430,9 @@ export default function LotesPage() {
                       <input type="text" value={form.lineage} onChange={(e) => setForm({ ...form, lineage: e.target.value })} placeholder="Ex: Hy-Line International" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Galpão</label>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Galpão *</label>
                       <select value={form.barn_id} onChange={(e) => setForm({ ...form, barn_id: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
-                        <option value="">Sem galpão</option>
+                        <option value="">Selecione um galpão</option>
                         {barns.map((b) => (
                           <option key={b.id} value={b.id}>{b.name}</option>
                         ))}

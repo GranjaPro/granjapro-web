@@ -91,7 +91,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
           farm_id: string;
-          barn_id: string | null;
+          barn_id: string;
           code: string;
           breed: string;
           lineage: string | null;
@@ -111,7 +111,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           farm_id: string;
-          barn_id?: string | null;
+          barn_id: string;
           code: string;
           breed: string;
           lineage?: string | null;
@@ -131,7 +131,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           farm_id?: string;
-          barn_id?: string | null;
+          barn_id?: string;
           code?: string;
           breed?: string;
           lineage?: string | null;

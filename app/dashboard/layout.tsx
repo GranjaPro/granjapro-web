@@ -22,7 +22,6 @@ import {
   Bot,
   FileText,
   Bell,
-  Search,
   Menu,
   X,
   PanelLeftClose,
@@ -224,14 +223,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <Menu className="w-5 h-5" />
               </button>
-              <div className="hidden sm:flex items-center gap-2 bg-gray-100/80 rounded-xl px-3.5 py-2 w-72 transition-colors focus-within:bg-gray-100 focus-within:ring-2 focus-within:ring-brand-500/20">
-                <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Buscar..."
-                  className="bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none w-full"
-                />
-              </div>
             </div>
 
             <div className="flex items-center gap-2">
