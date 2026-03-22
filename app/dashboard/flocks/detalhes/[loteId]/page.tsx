@@ -232,7 +232,7 @@ export default function DetalhesLotePage() {
     {
       label: "Operacional",
       href: `/dashboard/flocks/detalhes/${loteId}/producao`,
-      icon: Settings,
+      icon: Users,
       iconBg: "bg-violet-50",
       iconColor: "text-violet-600",
       value: "0",
@@ -345,9 +345,49 @@ export default function DetalhesLotePage() {
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards — Top row: 4 cols, Bottom row: 3 cols */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {allKpiCards.map((card) => {
+        {allKpiCards.slice(0, 4).map((card) => {
+          const TrendEl = () => {
+            if (card.trend === "stable") return <span className="text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">Estável</span>;
+            const isGood = card.trend === card.trendGood;
+            const Icon = card.trend === "up" ? ArrowUpRight : ArrowDownRight;
+            return (
+              <span className={cn("inline-flex items-center gap-0.5 text-[10px] font-medium px-2 py-0.5 rounded-full", isGood ? "text-emerald-600 bg-emerald-50" : "text-red-600 bg-red-50")}>
+                <Icon className="w-3 h-3" />
+                {isGood ? "Bom" : "Atenção"}
+              </span>
+            );
+          };
+          return (
+            <Link
+              key={card.label}
+              href={card.href}
+              className="group bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-100/60 hover:border-gray-200 transition-all duration-300 cursor-pointer"
+            >
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2.5">
+                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", card.iconBg)}>
+                    <card.icon className={cn("w-[18px] h-[18px]", card.iconColor)} />
+                  </div>
+                  <span className="text-[13px] font-bold text-gray-900">{card.label}</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
+              </div>
+              <div className="flex items-end justify-between mb-1">
+                <p className="text-2xl font-bold text-gray-900 tracking-tight">{card.value}</p>
+                <TrendEl />
+              </div>
+              <p className="text-xs text-gray-400 mt-1">{card.sub}</p>
+              <div className="w-full h-1.5 bg-gray-100 rounded-full mt-4 overflow-hidden">
+                <div className={cn("h-full rounded-full transition-all duration-500", card.barColor)} style={{ width: `${card.bar}%` }} />
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        {allKpiCards.slice(4).map((card) => {
           const TrendEl = () => {
             if (card.trend === "stable") return <span className="text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">Estável</span>;
             const isGood = card.trend === card.trendGood;

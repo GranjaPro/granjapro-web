@@ -125,7 +125,10 @@
       "Bash(npx tsc:*)",
       "Bash(python scripts/search.py \"trend comparison bar area\" --domain chart -n 8)",
       "Bash(grep -rn \"z-\\\\[60\\\\]\" app/dashboard/*/page.tsx)",
-      "Bash(grep -rn \"fixed inset-0 z-\\\\[60\\\\]\" app/dashboard/*/page.tsx)"
+      "Bash(grep -rn \"fixed inset-0 z-\\\\[60\\\\]\" app/dashboard/*/page.tsx)",
+      "Bash(python scripts/search.py \"dashboard KPI card comparison actual expected metric\" --domain ux -n 5)",
+      "Bash(python scripts/search.py \"dashboard KPI card comparison\" --domain ux -n 5)",
+      "Bash(python scripts/search.py \"chart comparison bar\" --domain chart -n 5)"
     ]
   }
 }
