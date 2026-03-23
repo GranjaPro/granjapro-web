@@ -154,7 +154,7 @@ export default function LotesPage() {
             bird_count: f.bird_count,
             arrival_age_weeks: f.arrival_age_weeks ?? 0,
             production_system: f.production_system,
-            status: f.status as Status,
+            status: f.status as ProductionStage,
             supplier: f.supplier,
             supplier_contact: f.supplier_contact,
             arrival_date: f.arrival_date,
