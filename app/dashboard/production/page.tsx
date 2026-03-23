@@ -769,18 +769,18 @@ export default function ProducaoPage() {
               Pro
             </span>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {/* Custo por Ovo */}
             <div className="bg-gray-50 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
                     <Egg className="w-4 h-4 text-red-500" />
                   </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Custo/Ovo</span>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Custo/Ovo</span>
                 </div>
                 <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer">
+                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
                     <HelpCircle className="w-3 h-3 text-gray-500" />
                   </button>
                   <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
@@ -793,9 +793,9 @@ export default function ProducaoPage() {
                 </div>
               </div>
               <p className="text-xl font-bold text-gray-900">R$ 0,42</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] text-gray-400">Esperado: R$ 0,38</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
+              <div className="flex items-center justify-between mt-2 gap-1">
+                <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 0,38</span>
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
                   <ArrowUpRight className="w-3 h-3" />
                   +10.5%
                 </span>
@@ -805,13 +805,13 @@ export default function ProducaoPage() {
             <div className="bg-gray-50 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
                     <BarChart3 className="w-4 h-4 text-amber-600" />
                   </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Margem</span>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Margem</span>
                 </div>
                 <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer">
+                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
                     <HelpCircle className="w-3 h-3 text-gray-500" />
                   </button>
                   <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
@@ -824,9 +824,9 @@ export default function ProducaoPage() {
                 </div>
               </div>
               <p className="text-xl font-bold text-gray-900">32.4%</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] text-gray-400">Esperado: 38%</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
+              <div className="flex items-center justify-between mt-2 gap-1">
+                <span className="text-[10px] text-gray-400 truncate">Esperado: 38%</span>
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
                   <ArrowDownRight className="w-3 h-3" />
                   -5.6%
                 </span>
@@ -835,15 +835,15 @@ export default function ProducaoPage() {
             {/* Receita do Dia */}
             <div className="bg-gray-50 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
                   <TrendingUp className="w-4 h-4 text-emerald-600" />
                 </div>
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Receita/Dia</span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Receita/Dia</span>
               </div>
               <p className="text-xl font-bold text-gray-900">R$ 1.520</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] text-gray-400">Esperado: R$ 1.600</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
+              <div className="flex items-center justify-between mt-2 gap-1">
+                <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 1.600</span>
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
                   <ArrowDownRight className="w-3 h-3" />
                   -5.0%
                 </span>
@@ -852,14 +852,14 @@ export default function ProducaoPage() {
             {/* Eficiência Alimentar */}
             <div className="bg-gray-50 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
                     <Wheat className="w-4 h-4 text-violet-600" />
                   </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Efic. Alimentar</span>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Efic. Alimentar</span>
                 </div>
                 <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer">
+                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
                     <HelpCircle className="w-3 h-3 text-gray-500" />
                   </button>
                   <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
@@ -872,9 +872,9 @@ export default function ProducaoPage() {
                 </div>
               </div>
               <p className="text-xl font-bold text-gray-900">0,128 kg</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] text-gray-400">Esperado: 0,120 kg</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
+              <div className="flex items-center justify-between mt-2 gap-1">
+                <span className="text-[10px] text-gray-400 truncate">Esperado: 0,120 kg</span>
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
                   <ArrowUpRight className="w-3 h-3" />
                   +6.7%
                 </span>
@@ -883,14 +883,14 @@ export default function ProducaoPage() {
             {/* Receita por Ave */}
             <div className="bg-gray-50 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                     <CircleDollarSign className="w-4 h-4 text-blue-600" />
                   </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Receita/Ave</span>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Receita/Ave</span>
                 </div>
                 <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer">
+                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
                     <HelpCircle className="w-3 h-3 text-gray-500" />
                   </button>
                   <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
@@ -903,9 +903,9 @@ export default function ProducaoPage() {
                 </div>
               </div>
               <p className="text-xl font-bold text-gray-900">R$ 0,52</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] text-gray-400">Esperado: R$ 0,55</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
+              <div className="flex items-center justify-between mt-2 gap-1">
+                <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 0,55</span>
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
                   <ArrowDownRight className="w-3 h-3" />
                   -5.5%
                 </span>
@@ -914,14 +914,14 @@ export default function ProducaoPage() {
             {/* Perda Diária (R$) */}
             <div className="bg-gray-50 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
                     <AlertOctagon className="w-4 h-4 text-red-500" />
                   </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Perda/Dia</span>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Perda/Dia</span>
                 </div>
                 <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer">
+                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
                     <HelpCircle className="w-3 h-3 text-gray-500" />
                   </button>
                   <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
@@ -934,9 +934,9 @@ export default function ProducaoPage() {
                 </div>
               </div>
               <p className="text-xl font-bold text-gray-900">R$ 18,50</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] text-gray-400">Tolerado: R$ 12,00</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
+              <div className="flex items-center justify-between mt-2 gap-1">
+                <span className="text-[10px] text-gray-400 truncate">Tolerado: R$ 12,00</span>
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
                   <ArrowUpRight className="w-3 h-3" />
                   +54.2%
                 </span>
@@ -1074,7 +1074,8 @@ export default function ProducaoPage() {
         </div>
 
         {/* Lotes Performance Summary */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6">
+          <div>
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Desempenho dos Lotes</h3>
@@ -1108,10 +1109,10 @@ export default function ProducaoPage() {
                 const diff = hasPostura ? Math.round((taxa - avg) * 10) / 10 : 0;
                 return (
                   <div key={l.id}>
-                    <div className="flex items-center justify-between py-3 group">
-                      <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-between py-3 group gap-2 flex-wrap sm:flex-nowrap">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <div className={cn(
-                          "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold",
+                          "w-8 h-8 rounded-lg flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0",
                           hasPostura && taxa >= 90 ? "bg-emerald-50 text-emerald-700" :
                           hasPostura && taxa >= 85 ? "bg-amber-50 text-amber-700" :
                           hasPostura ? "bg-red-50 text-red-600" :
@@ -1119,33 +1120,33 @@ export default function ProducaoPage() {
                         )}>
                           {hasPostura ? `${taxa}%` : "—"}
                         </div>
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">{l.codigo}</p>
-                          <p className="text-[11px] text-gray-400">{l.raca} · {l.aves.toLocaleString("pt-BR")} aves</p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{l.codigo}</p>
+                          <p className="text-[11px] text-gray-400 truncate">{l.raca} · {l.aves.toLocaleString("pt-BR")} aves</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
                         {hasPostura && diff > 0 && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
                             <ArrowUpRight className="w-3 h-3" />
                             +{diff}% acima da média
                           </span>
                         )}
                         {hasPostura && diff === 0 && (
-                          <span className="text-[10px] font-semibold text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] font-semibold text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded-full">
                             Na média geral
                           </span>
                         )}
                         {hasPostura && diff < 0 && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
                             <ArrowDownRight className="w-3 h-3" />
                             {diff}% abaixo da média
                           </span>
                         )}
                         {!hasPostura && (
-                          <span className="text-[10px] font-semibold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">Sem Informação</span>
+                          <span className="text-[10px] font-semibold text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded-full">Sem Informação</span>
                         )}
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-500 transition-colors" />
+                        <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-500 transition-colors flex-shrink-0" />
                       </div>
                     </div>
                     {i < lotes.length - 1 && <div className="border-t border-gray-50" />}
@@ -1154,6 +1155,7 @@ export default function ProducaoPage() {
               });
             })()}
           </div>
+        </div>
         </div>
       </div>
 
@@ -1177,16 +1179,16 @@ export default function ProducaoPage() {
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
           <table className="w-full">
-            <thead>
+            <thead className="sticky top-0 bg-white z-10">
               <tr className="border-b border-gray-100 bg-gray-50/50">
                 <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Lote</th>
                 <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Data</th>
                 <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Total</th>
                 <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Quebrados</th>
                 <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Sujos</th>
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Descartados</th>
+                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Descartadas</th>
                 <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Taxa</th>
                 <th className="text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Histórico</th>
                 <th className="text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Ações</th>
@@ -1196,7 +1198,7 @@ export default function ProducaoPage() {
               {filteredRegistros.map((r) => (
                 <tr key={r.id} className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4">
-                    <span className="text-xs font-semibold text-brand-700 bg-brand-50 px-2.5 py-1 rounded-lg">{r.loteCodigo}</span>
+                    <span className="text-xs font-semibold text-brand-700 bg-brand-50 px-2.5 py-1 rounded-lg whitespace-nowrap">{r.loteCodigo}</span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900">{formatDate(r.data)}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-gray-900">{r.total.toLocaleString("pt-BR")}</td>
@@ -1206,7 +1208,7 @@ export default function ProducaoPage() {
                   <td className="px-6 py-4">
                     <span className={cn("text-sm font-medium", r.sujos > 15 ? "text-amber-600" : "text-gray-500")}>{r.sujos}</span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{r.descartados}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{r.descartados} aves</td>
                   <td className="px-6 py-4">
                     <span className={cn(
                       "text-sm font-bold",
