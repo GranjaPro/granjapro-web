@@ -129,7 +129,8 @@
       "Bash(python scripts/search.py \"dashboard KPI card comparison actual expected metric\" --domain ux -n 5)",
       "Bash(python scripts/search.py \"dashboard KPI card comparison\" --domain ux -n 5)",
       "Bash(python scripts/search.py \"chart comparison bar\" --domain chart -n 5)",
-      "Bash(python scripts/search.py \"dashboard KPI cards progress bars\" --domain ux -n 5)"
+      "Bash(python scripts/search.py \"dashboard KPI cards progress bars\" --domain ux -n 5)",
+      "Bash(python \"src/ui-ux-pro-max/scripts/search.py\" \"agritech saas dashboard poultry farming decision-engine green\" --design-system -p \"Granja Pro\")"
     ]
   }
 }

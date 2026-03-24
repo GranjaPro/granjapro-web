@@ -102,6 +102,31 @@ const receitaDiaria = [
   { dia: "17", receita: 2500, despesa: 560 },
 ];
 
+const receitaSemanal = [
+  { dia: "Seg", receita: 1680, despesa: 520 },
+  { dia: "Ter", receita: 1040, despesa: 510 },
+  { dia: "Qua", receita: 2500, despesa: 540 },
+  { dia: "Qui", receita: 1800, despesa: 530 },
+  { dia: "Sex", receita: 3450, despesa: 580 },
+  { dia: "Sáb", receita: 1200, despesa: 490 },
+  { dia: "Dom", receita: 650, despesa: 460 },
+];
+
+const receitaAnual = [
+  { dia: "Jan", receita: 18500, despesa: 15200 },
+  { dia: "Fev", receita: 17200, despesa: 14800 },
+  { dia: "Mar", receita: 19800, despesa: 16300 },
+  { dia: "Abr", receita: 15695, despesa: 16300 },
+  { dia: "Mai", receita: 20100, despesa: 15900 },
+  { dia: "Jun", receita: 21400, despesa: 16100 },
+  { dia: "Jul", receita: 19200, despesa: 15500 },
+  { dia: "Ago", receita: 22800, despesa: 16800 },
+  { dia: "Set", receita: 20500, despesa: 16200 },
+  { dia: "Out", receita: 21900, despesa: 16500 },
+  { dia: "Nov", receita: 23100, despesa: 17000 },
+  { dia: "Dez", receita: 24500, despesa: 17500 },
+];
+
 const historicoPreco = [
   { mes: "Jan", preco: 13.2 },
   { mes: "Fev", preco: 12.8 },
@@ -161,6 +186,7 @@ export default function FinancasPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mes">("mes");
+  const [chartPeriodo, setChartPeriodo] = useState<"semana" | "mes" | "ano">("mes");
 
   const periodoVendas = useMemo(() => {
     if (periodo === "dia") return vendas.filter((v) => v.data === "2024-04-17");
@@ -568,18 +594,36 @@ export default function FinancasPage() {
 
       {/* ── Charts Row 1: Cash Flow + Revenue vs Expenses ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue & Expenses Daily */}
+        {/* Revenue & Expenses */}
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-1">
-            <h3 className="text-sm font-bold text-gray-900">Receita vs Despesa Diária</h3>
+            <h3 className="text-sm font-bold text-gray-900">Receita vs Despesa {chartPeriodo === "semana" ? "Semanal" : chartPeriodo === "ano" ? "Anual" : "Diária"}</h3>
             <div className="flex items-center gap-3 text-xs text-gray-400">
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Receita</span>
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-400" /> Despesa</span>
             </div>
           </div>
-          <p className="text-xs text-gray-400 mb-4">Comparativo diário do mês</p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs text-gray-400">{chartPeriodo === "semana" ? "Comparativo desta semana" : chartPeriodo === "ano" ? "Comparativo mensal do ano" : "Comparativo diário do mês"}</p>
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+              {([
+                { key: "semana" as const, label: "Semana" },
+                { key: "mes" as const, label: "Mês" },
+                { key: "ano" as const, label: "Ano" },
+              ]).map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => setChartPeriodo(p.key)}
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all duration-200 cursor-pointer",
+                    chartPeriodo === p.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  )}
+                >{p.label}</button>
+              ))}
+            </div>
+          </div>
           <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={receitaDiaria}>
+            <AreaChart data={chartPeriodo === "semana" ? receitaSemanal : chartPeriodo === "ano" ? receitaAnual : receitaDiaria}>
               <defs>
                 <linearGradient id="colorReceitaFin" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />

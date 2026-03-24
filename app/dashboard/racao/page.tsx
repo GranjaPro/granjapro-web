@@ -117,13 +117,22 @@ const initialEstoque: ItemEstoque[] = [
   { id: 6, nome: "Fosfato Bicálcico", categoria: "Mineral", quantidade: 15, unidade: "kg", status: "baixo", fornecedor: "MinBrasil", localizacao: "Depósito", lote: "FB-2024-0105", dataChegada: "2026-01-20" },
 ];
 
-const consumoMensal = [
+const consumoMensalRS = [
   { mes: "Jan", valor: 4200 },
   { mes: "Fev", valor: 4500 },
   { mes: "Mar", valor: 4800 },
   { mes: "Abr", valor: 3800 },
   { mes: "Mai", valor: 4600 },
   { mes: "Jun", valor: 4700 },
+];
+
+const consumoMensalKg = [
+  { mes: "Jan", valor: 9800 },
+  { mes: "Fev", valor: 10200 },
+  { mes: "Mar", valor: 11400 },
+  { mes: "Abr", valor: 8900 },
+  { mes: "Mai", valor: 10800 },
+  { mes: "Jun", valor: 11100 },
 ];
 
 const consumoDiario = [
@@ -157,6 +166,7 @@ export default function RacaoPage() {
   const [editEstoqueForm, setEditEstoqueForm] = useState({ nome: "", categoria: "", quantidade: "", unidade: "", status: "normal" as StatusEstoque, fornecedor: "", localizacao: "", lote: "", dataChegada: "" });
   const [modal, setModal] = useState<ModalMode>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [consumoMensalMode, setConsumoMensalMode] = useState<"rs" | "kg">("rs");
 
   useEffect(() => {
     if (searchParams.get("register") === "true") setModal("add");
@@ -267,11 +277,12 @@ export default function RacaoPage() {
     setCalendarOpen(false);
   }, [calendarMonth]);
 
+  const avgConsumoPorGalinha = useMemo(() => registros.length > 0 ? (registros.reduce((s, r) => s + (r.qtdGalinhas > 0 ? r.consumoKg / r.qtdGalinhas : 0), 0) / registros.length * 1000) : 0, [registros]);
+
   /* KPIs */
   const kpis = useMemo(() => {
     const totalConsumo = registros.reduce((s, r) => s + r.consumoKg, 0);
     const totalCusto = registros.reduce((s, r) => s + r.custoRS, 0);
-    const avgConsumoPorGalinha = registros.length > 0 ? (registros.reduce((s, r) => s + (r.qtdGalinhas > 0 ? r.consumoKg / r.qtdGalinhas : 0), 0) / registros.length * 1000) : 0;
     const custoPorKg = totalConsumo > 0 ? (totalCusto / totalConsumo) : 0;
     const estoqueBaixo = estoque.filter((e) => e.status === "baixo" || e.status === "alerta").length;
 
@@ -436,30 +447,30 @@ export default function RacaoPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center">
-            <Wheat className="w-6 h-6 text-brand-600" />
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0">
+            <Wheat className="w-5 h-5 sm:w-6 sm:h-6 text-brand-600" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Gestão de Ração</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Acompanhe consumo, custos e estoque de alimentação</p>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight truncate">Gestão de Ração</h1>
+            <p className="text-xs sm:text-sm text-gray-500 mt-0.5 truncate">Acompanhe consumo, custos e estoque de alimentação</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           <div className="relative" ref={calendarRef}>
             <button
               onClick={() => setCalendarOpen(!calendarOpen)}
-              className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 bg-white border border-gray-200 rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+              className="inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium text-gray-500 bg-white border border-gray-200 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
             >
-              <CalendarDays className="w-4 h-4" />
-              {calendarLabel}
+              <CalendarDays className="w-4 h-4 flex-shrink-0" />
+              <span className="hidden sm:inline">{calendarLabel}</span>
             </button>
 
             {calendarOpen && (
-              <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-gray-200 shadow-2xl p-4 z-50 w-[320px] animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute right-0 sm:right-0 top-full mt-2 bg-white rounded-2xl border border-gray-200 shadow-2xl p-4 z-50 w-[280px] sm:w-[320px] animate-in fade-in zoom-in-95 duration-150">
                 <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 mb-4">
                   {([
                     { key: "intervalo" as const, label: "Intervalo" },
@@ -581,9 +592,10 @@ export default function RacaoPage() {
               </div>
             )}
           </div>
-          <button onClick={openAdd} className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20">
-            <Plus className="w-4 h-4" />
-            Registrar Consumo
+          <button onClick={openAdd} className="inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-3 sm:px-5 py-2 sm:py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20">
+            <Plus className="w-4 h-4 flex-shrink-0" />
+            <span className="hidden sm:inline">Registrar Consumo</span>
+            <span className="sm:hidden">Registrar</span>
           </button>
         </div>
       </div>
@@ -601,52 +613,52 @@ export default function RacaoPage() {
         const statusTextColor = score >= 80 ? "text-emerald-700" : score >= 50 ? "text-amber-700" : "text-red-700";
 
         return (
-          <div className={cn("bg-gradient-to-r rounded-2xl border p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
-            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-              <div className="flex items-center gap-4 lg:min-w-[280px]">
-                <div className="relative w-16 h-16 flex-shrink-0">
-                  <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+          <div className={cn("bg-gradient-to-r rounded-2xl border p-4 sm:p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
+            <div className="flex flex-col lg:flex-row lg:items-center gap-3 sm:gap-4">
+              <div className="flex items-center gap-3 sm:gap-4 lg:min-w-[280px]">
+                <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
+                  <svg className="w-14 h-14 sm:w-16 sm:h-16 -rotate-90" viewBox="0 0 64 64">
                     <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
                     <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(score / 100) * 175.9} 175.9`} className="transition-all duration-700" />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={cn("text-base font-bold", statusTextColor)}>{score}</span>
+                    <span className={cn("text-sm sm:text-base font-bold", statusTextColor)}>{score}</span>
                   </div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <Wheat className="w-4 h-4 text-amber-600" />
+                    <Wheat className="w-4 h-4 text-amber-600 flex-shrink-0" />
                     <span className="text-sm font-bold text-gray-900">Saúde Alimentar</span>
                   </div>
-                  <p className={cn("text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Consumo: 410 kg/dia | Meta: 800 kg | Estoque: {estoqueBaixo} críticos</p>
+                  <p className={cn("text-lg sm:text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
+                  <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 truncate">Consumo: 410 kg/dia | Meta: 800 kg | Estoque: {estoqueBaixo} críticos</p>
                 </div>
               </div>
 
               <div className="hidden lg:block w-px h-14 bg-gray-200" />
 
-              <div className="flex-1 space-y-2">
+              <div className="flex-1 space-y-1.5 sm:space-y-2">
                 {estoqueBaixo > 0 && (
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100">
-                      <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                  <div className="flex items-start sm:items-center gap-2">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100 mt-0.5 sm:mt-0">
+                      <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-600" />
                     </div>
-                    <p className="text-sm text-gray-700">{estoqueBaixo} itens com estoque crítico — reposição urgente</p>
+                    <p className="text-xs sm:text-sm text-gray-700">{estoqueBaixo} itens com estoque crítico — reposição urgente</p>
                   </div>
                 )}
                 {estoqueAlerta > 0 && (
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                  <div className="flex items-start sm:items-center gap-2">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 mt-0.5 sm:mt-0">
+                      <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
                     </div>
-                    <p className="text-sm text-gray-700">{estoqueAlerta} itens em nível de alerta — programar compra</p>
+                    <p className="text-xs sm:text-sm text-gray-700">{estoqueAlerta} itens em nível de alerta — programar compra</p>
                   </div>
                 )}
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100">
-                    <TrendingDown className="w-3.5 h-3.5 text-amber-600" />
+                <div className="flex items-start sm:items-center gap-2">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 mt-0.5 sm:mt-0">
+                    <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
                   </div>
-                  <p className="text-sm text-gray-700">Custo médio por kg subiu 2% — renegociar fornecedor</p>
+                  <p className="text-xs sm:text-sm text-gray-700">Custo médio por kg subiu 2% — renegociar fornecedor</p>
                 </div>
               </div>
             </div>
@@ -654,74 +666,155 @@ export default function RacaoPage() {
         );
       })()}
 
-      {/* KPI Cards — Production Style with Progress Bars */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {kpis.map((kpi) => (
-          <div key={kpi.title} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", kpi.iconBg)}>
-                <kpi.icon className={cn("w-4.5 h-4.5", kpi.iconColor)} />
-              </div>
-              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">{kpi.title}</span>
-            </div>
+      {/* Status Cards — Simple Visual Indicators with Progress Bars */}
+      {(() => {
+        const consumoStatus = avgConsumoPorGalinha <= 130 ? "good" : avgConsumoPorGalinha <= 150 ? "high" : "critical";
+        const consumoPct = Math.min((avgConsumoPorGalinha / 180) * 100, 100);
+        const eficiencia = 0.31;
+        const eficienciaStatus = eficiencia <= 0.30 ? "good" : eficiencia <= 0.33 ? "attention" : "bad";
+        const eficienciaPct = Math.min((eficiencia / 0.40) * 100, 100);
+        const producaoAtual = 2580;
+        const producaoMeta = 3000;
+        const producaoPct = Math.min((producaoAtual / producaoMeta) * 100, 100);
+        const totalEstoqueKg = estoque.filter(e => e.unidade === "kg").reduce((s, e) => s + e.quantidade, 0);
+        const feedDaysLeft = Math.floor(totalEstoqueKg / 410);
+        const estoquePct = Math.min((feedDaysLeft / 14) * 100, 100);
 
-            <div className="flex items-end justify-between">
-              <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{kpi.value}</p>
-              <span className={cn(
-                "inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full",
-                kpi.diff <= 0 ? "text-emerald-700 bg-emerald-50" : "text-red-600 bg-red-50"
-              )}>
-                {kpi.diff <= 0 ? <ArrowDownRight className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
-                {kpi.diffLabel}
-              </span>
-            </div>
-            <p className="text-[11px] text-gray-400 mt-1 font-medium">{kpi.subtitle}</p>
-
-            {(() => {
-              const maxVal = Math.max(kpi.actual, kpi.expectedVal) * 1.08;
-              const fillPct = Math.min((kpi.actual / maxVal) * 100, 100);
-              const markerPct = Math.min((kpi.expectedVal / maxVal) * 100, 100);
-              return (
-                <div className="mt-4 relative">
-                  <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className={cn("h-full rounded-full transition-all duration-700", kpi.progressColor)} style={{ width: `${fillPct}%` }} />
-                  </div>
-                  <div
-                    className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full"
-                    style={{ left: `${markerPct}%` }}
-                    title={`Esperado: ${kpi.expectedLabel}`}
-                  />
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+            {/* Consumo */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer">
+              <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
+                <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", consumoStatus === "good" ? "bg-emerald-50" : consumoStatus === "high" ? "bg-amber-50" : "bg-red-50")}>
+                  <Wheat className={cn("w-4 h-4 sm:w-5 sm:h-5", consumoStatus === "good" ? "text-emerald-600" : consumoStatus === "high" ? "text-amber-600" : "text-red-600")} />
                 </div>
-              );
-            })()}
-
-            <div className="flex items-center justify-between mt-2">
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
-                <span className="text-[10px] text-gray-500 font-medium">Esperado: {kpi.expectedLabel}</span>
+                <span className="text-xs font-semibold text-gray-500">Consumo</span>
               </div>
-              <span className={cn(
-                "text-[10px] font-semibold",
-                kpi.diff <= 0 ? "text-emerald-600" : "text-red-500"
-              )}>
-                {kpi.diff <= 0 ? "Dentro" : "Acima"} do esperado
-              </span>
+              <p className={cn("text-lg font-bold", consumoStatus === "good" ? "text-emerald-700" : consumoStatus === "high" ? "text-amber-700" : "text-red-700")}>
+                {consumoStatus === "good" ? "Normal" : consumoStatus === "high" ? "Acima do ideal" : "Muito alto"}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5 mb-2.5">{avgConsumoPorGalinha.toFixed(0)}g por ave/dia</p>
+              <div className="relative mt-1">
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={cn("h-full rounded-full transition-all duration-700", consumoStatus === "good" ? "bg-emerald-500" : consumoStatus === "high" ? "bg-amber-500" : "bg-red-500")} style={{ width: `${consumoPct}%` }} />
+                </div>
+                <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(130 / 180) * 100}%` }} title="Meta: 130g" />
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
+                  <span className="text-[10px] text-gray-500 font-medium">Meta: 130g</span>
+                </div>
+                <span className={cn("text-[10px] font-semibold", consumoStatus === "good" ? "text-emerald-600" : "text-red-500")}>
+                  {consumoStatus === "good" ? "Dentro" : "Acima"}
+                </span>
+              </div>
+            </div>
+
+            {/* Produção */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer">
+              <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                  <Target className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+                </div>
+                <span className="text-xs font-semibold text-gray-500">Produção</span>
+              </div>
+              <p className="text-lg font-bold text-emerald-700">Normal</p>
+              <p className="text-xs text-gray-400 mt-0.5 mb-2.5">~2.580 ovos/dia</p>
+              <div className="relative mt-1">
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full bg-emerald-500 transition-all duration-700" style={{ width: `${producaoPct}%` }} />
+                </div>
+                <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(producaoMeta / (producaoMeta * 1.1)) * 100}%` }} title={`Meta: ${producaoMeta.toLocaleString("pt-BR")}`} />
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
+                  <span className="text-[10px] text-gray-500 font-medium">Meta: {producaoMeta.toLocaleString("pt-BR")}</span>
+                </div>
+                <span className="text-[10px] font-semibold text-emerald-600">{producaoPct.toFixed(0)}%</span>
+              </div>
+            </div>
+
+            {/* Eficiência */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer">
+              <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
+                <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", eficienciaStatus === "good" ? "bg-emerald-50" : eficienciaStatus === "attention" ? "bg-amber-50" : "bg-red-50")}>
+                  <Activity className={cn("w-4 h-4 sm:w-5 sm:h-5", eficienciaStatus === "good" ? "text-emerald-600" : eficienciaStatus === "attention" ? "text-amber-600" : "text-red-600")} />
+                </div>
+                <span className="text-xs font-semibold text-gray-500">Eficiência</span>
+              </div>
+              <p className={cn("text-lg font-bold", eficienciaStatus === "good" ? "text-emerald-700" : eficienciaStatus === "attention" ? "text-amber-700" : "text-red-700")}>
+                {eficienciaStatus === "good" ? "Boa" : eficienciaStatus === "attention" ? "Atenção" : "Ruim"}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5 mb-2.5">0,31 kg de ração/ovo</p>
+              <div className="relative mt-1">
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={cn("h-full rounded-full transition-all duration-700", eficienciaStatus === "good" ? "bg-emerald-500" : eficienciaStatus === "attention" ? "bg-amber-500" : "bg-red-500")} style={{ width: `${eficienciaPct}%` }} />
+                </div>
+                <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(0.30 / 0.40) * 100}%` }} title="Ideal: 0,30" />
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
+                  <span className="text-[10px] text-gray-500 font-medium">Ideal: 0,30</span>
+                </div>
+                <span className={cn("text-[10px] font-semibold", eficienciaStatus === "good" ? "text-emerald-600" : "text-amber-500")}>
+                  {eficienciaStatus === "good" ? "Dentro" : "Acima"}
+                </span>
+              </div>
+            </div>
+
+            {/* Estoque */}
+            <div className={cn(
+              "rounded-2xl border p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer",
+              feedDaysLeft > 7 ? "bg-white border-gray-100" : feedDaysLeft > 3 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"
+            )}>
+              <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
+                <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", feedDaysLeft > 7 ? "bg-blue-50" : feedDaysLeft > 3 ? "bg-amber-100" : "bg-red-100")}>
+                  <Package className={cn("w-4 h-4 sm:w-5 sm:h-5", feedDaysLeft > 7 ? "text-blue-600" : feedDaysLeft > 3 ? "text-amber-600" : "text-red-600")} />
+                </div>
+                <span className="text-xs font-semibold text-gray-500">Estoque</span>
+              </div>
+              <p className={cn("text-lg font-bold", feedDaysLeft > 7 ? "text-blue-700" : feedDaysLeft > 3 ? "text-amber-700" : "text-red-700")}>
+                Dura {feedDaysLeft} dias
+              </p>
+              {feedDaysLeft <= 7 ? (
+                <p className="text-xs text-amber-600 font-semibold mt-0.5 mb-2.5">Compre em breve</p>
+              ) : (
+                <p className="text-xs text-gray-400 mt-0.5 mb-2.5">{totalEstoqueKg.toLocaleString("pt-BR")} kg em estoque</p>
+              )}
+              <div className="relative mt-1">
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={cn("h-full rounded-full transition-all duration-700", feedDaysLeft > 7 ? "bg-blue-500" : feedDaysLeft > 3 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${estoquePct}%` }} />
+                </div>
+                <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(7 / 14) * 100}%` }} title="Mínimo: 7 dias" />
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
+                  <span className="text-[10px] text-gray-500 font-medium">Mínimo: 7 dias</span>
+                </div>
+                <span className={cn("text-[10px] font-semibold", feedDaysLeft > 7 ? "text-blue-600" : "text-amber-500")}>
+                  {feedDaysLeft} dias
+                </span>
+              </div>
             </div>
           </div>
-        ))}
-      </div>
+        );
+      })()}
 
       {/* AI Insights + Financial Metrics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {/* Assistente de Granja */}
         {insights.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm">
-                  <Zap className="w-5 h-5 text-white" />
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 flex flex-col">
+            <div className="flex items-center justify-between mb-4 sm:mb-5">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm flex-shrink-0">
+                  <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-sm font-bold text-gray-900">Assistente de Granja</h3>
                   <p className="text-[11px] text-gray-400 font-medium">Baseado nos últimos 7 dias</p>
                 </div>
@@ -765,9 +858,9 @@ export default function RacaoPage() {
         )}
 
         {/* Financial Feed Metrics */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
           <div className="flex items-center justify-between mb-4">
-            <div>
+            <div className="min-w-0">
               <h3 className="text-sm font-bold text-gray-900">Resumo Financeiro</h3>
               <p className="text-[11px] text-gray-400 font-medium">Indicadores de custo de alimentação</p>
             </div>
@@ -776,12 +869,12 @@ export default function RacaoPage() {
               Pro
             </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
             {/* Custo / Dúzia */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
+            <div className="bg-gray-50 rounded-xl p-3 sm:p-4">
+              <div className="flex items-center justify-between mb-2 sm:mb-3">
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
                     <DollarSign className="w-4 h-4 text-red-500" />
                   </div>
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Custo/Dúzia</span>
@@ -799,7 +892,7 @@ export default function RacaoPage() {
                   </div>
                 </div>
               </div>
-              <p className="text-xl font-bold text-gray-900">R$ 5,04</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">R$ 5,04</p>
               <div className="flex items-center justify-between mt-2 gap-1">
                 <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 4,56</span>
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
@@ -809,10 +902,10 @@ export default function RacaoPage() {
               </div>
             </div>
             {/* Custo/kg */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+            <div className="bg-gray-50 rounded-xl p-3 sm:p-4">
+              <div className="flex items-center justify-between mb-2 sm:mb-3">
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
                     <Wheat className="w-4 h-4 text-amber-600" />
                   </div>
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Custo/kg</span>
@@ -830,7 +923,7 @@ export default function RacaoPage() {
                   </div>
                 </div>
               </div>
-              <p className="text-xl font-bold text-gray-900">R$ 0,46</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">R$ 0,46</p>
               <div className="flex items-center justify-between mt-2 gap-1">
                 <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 0,42</span>
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
@@ -839,15 +932,29 @@ export default function RacaoPage() {
                 </span>
               </div>
             </div>
-            {/* Economia Mensal */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                  <TrendingUp className="w-4 h-4 text-emerald-600" />
+            {/* Economia */}
+            <div className="bg-gray-50 rounded-xl p-3 sm:p-4">
+              <div className="flex items-center justify-between mb-2 sm:mb-3">
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                    <TrendingUp className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Economia</span>
                 </div>
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Economia/Mês</span>
+                <div className="relative group">
+                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
+                    <HelpCircle className="w-3 h-3 text-gray-500" />
+                  </button>
+                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
+                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Economia?</p>
+                    <p className="text-[10px] text-gray-500 leading-relaxed">Economia mensal gerada por otimizações no consumo de ração e negociação com fornecedores.</p>
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <p className="text-[10px] text-gray-400">Fórmula: Custo Previsto - Custo Real</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <p className="text-xl font-bold text-gray-900">R$ 320</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">R$ 320</p>
               <div className="flex items-center justify-between mt-2 gap-1">
                 <span className="text-[10px] text-gray-400 truncate">Meta: R$ 500</span>
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
@@ -856,65 +963,65 @@ export default function RacaoPage() {
                 </span>
               </div>
             </div>
-            {/* Eficiência Alimentar */}
+            {/* Custo/Ovo */}
             <div className="bg-gray-50 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
-                    <Activity className="w-4 h-4 text-violet-600" />
+                    <Target className="w-4 h-4 text-violet-600" />
                   </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Efic. Alimentar</span>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Custo/Ovo</span>
                 </div>
                 <div className="relative group">
                   <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
                     <HelpCircle className="w-3 h-3 text-gray-500" />
                   </button>
                   <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Eficiência Alimentar?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Quantidade de ração consumida para produzir cada ovo. Quanto menor, mais eficiente.</p>
+                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Custo/Ovo?</p>
+                    <p className="text-[10px] text-gray-500 leading-relaxed">Custo de ração para produzir cada ovo. Quanto menor, mais eficiente.</p>
                     <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: Ração Total (kg) / Total Ovos</p>
+                      <p className="text-[10px] text-gray-400">Fórmula: Custo Total Ração / Total Ovos</p>
                     </div>
                   </div>
                 </div>
               </div>
-              <p className="text-xl font-bold text-gray-900">0,128 kg</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">R$ 0,05</p>
               <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Esperado: 0,120 kg</span>
+                <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 0,04</span>
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
                   <ArrowUpRight className="w-3 h-3" />
-                  +6.7%
+                  +25%
                 </span>
               </div>
             </div>
-            {/* Custo/Ave */}
+            {/* Consumo/Ave */}
             <div className="bg-gray-50 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                    <DollarSign className="w-4 h-4 text-blue-600" />
+                    <Activity className="w-4 h-4 text-blue-600" />
                   </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Custo/Ave</span>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Consumo/Ave</span>
                 </div>
                 <div className="relative group">
                   <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
                     <HelpCircle className="w-3 h-3 text-gray-500" />
                   </button>
                   <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Custo/Ave?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Custo diário de alimentação por ave. Indica eficiência econômica do plantel.</p>
+                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Consumo/Ave?</p>
+                    <p className="text-[10px] text-gray-500 leading-relaxed">Quantidade diária de ração consumida por ave. Indica eficiência do arraçoamento.</p>
                     <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: Custo Total / Nº de Aves</p>
+                      <p className="text-[10px] text-gray-400">Fórmula: Consumo Total / Nº de Aves</p>
                     </div>
                   </div>
                 </div>
               </div>
-              <p className="text-xl font-bold text-gray-900">R$ 0,10</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">128 g</p>
               <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 0,09</span>
+                <span className="text-[10px] text-gray-400 truncate">Esperado: 120 g</span>
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
                   <ArrowUpRight className="w-3 h-3" />
-                  +11.1%
+                  +6.7%
                 </span>
               </div>
             </div>
@@ -940,7 +1047,7 @@ export default function RacaoPage() {
                   </div>
                 </div>
               </div>
-              <p className="text-xl font-bold text-gray-900">12 kg</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">12 kg</p>
               <div className="flex items-center justify-between mt-2 gap-1">
                 <span className="text-[10px] text-gray-400 truncate">Tolerado: 8 kg</span>
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
@@ -954,31 +1061,46 @@ export default function RacaoPage() {
       </div>
 
       {/* Charts Row — 2/3 + 1/3 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
         {/* Combined Chart — Consumo + Produção + Eficiência — 2/3 */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-6">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Consumo x Produção x Eficiência</h3>
               <p className="text-xs text-gray-400 mt-0.5">Comparativo dos últimos 7 dias</p>
             </div>
-            <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
+                <Sparkles className="w-3 h-3" />
+                Pro
+              </span>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-sm bg-brand-600" />
+                <div className="w-3 h-3 rounded-sm bg-brand-600 flex-shrink-0" />
                 <span className="text-[10px] font-medium text-gray-400">Consumo (kg)</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-sm bg-violet-500" />
+                <div className="w-3 h-3 rounded-sm bg-violet-500 flex-shrink-0" />
                 <span className="text-[10px] font-medium text-gray-400">Produção (ovos)</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-5 h-[3px] rounded-full bg-amber-500" />
-                <span className="text-[10px] font-medium text-gray-400">Eficiência (kg/ovo)</span>
+              <div className="flex items-center gap-1.5 relative group">
+                <div className="w-5 h-[3px] rounded-full bg-amber-500 flex-shrink-0" />
+                <span className="text-[10px] font-medium text-gray-400 whitespace-nowrap">Eficiência (kg/ovo)</span>
+                <button className="w-4 h-4 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
+                  <HelpCircle className="w-2.5 h-2.5 text-gray-500" />
+                </button>
+                <div className="absolute right-0 top-7 w-60 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
+                  <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Eficiência (kg/ovo)?</p>
+                  <p className="text-[10px] text-gray-500 leading-relaxed">Quantidade de ração (kg) necessária para produzir cada ovo. Quanto menor o valor, mais eficiente é a conversão alimentar.</p>
+                  <div className="mt-2 pt-2 border-t border-gray-100">
+                    <p className="text-[10px] text-gray-400">Fórmula: Total Ração (kg) / Total Ovos</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Referência: 0,28 - 0,32 kg/ovo</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={consumoDiario} margin={{ top: 10, right: 50, left: -10, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={280}>
+            <ComposedChart data={consumoDiario} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="gradConsumoBar" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#2d7a4f" stopOpacity={0.95} />
@@ -990,9 +1112,9 @@ export default function RacaoPage() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-              <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12, fontWeight: 500 }} dy={10} />
-              <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} domain={[0, 3200]} ticks={[0, 800, 1600, 2400, 3200]} />
-              <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 11, fontWeight: 600 }} dx={4} domain={[0.28, 0.35]} ticks={[0.28, 0.30, 0.32, 0.34]} tickFormatter={(v: number) => v.toFixed(2)} />
+              <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11, fontWeight: 500 }} dy={10} />
+              <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 10 }} dx={-4} domain={[0, 3200]} ticks={[0, 800, 1600, 2400, 3200]} />
+              <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 10, fontWeight: 600 }} dx={4} domain={[0.28, 0.35]} ticks={[0.28, 0.30, 0.32, 0.34]} tickFormatter={(v: number) => v.toFixed(2)} />
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
                 labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px", fontSize: "14px" }}
@@ -1006,20 +1128,20 @@ export default function RacaoPage() {
                 }}
                 cursor={{ fill: "rgba(45, 122, 79, 0.04)" }}
               />
-              <Bar yAxisId="left" dataKey="kg" fill="url(#gradConsumoBar)" radius={[6, 6, 0, 0]} barSize={18} name="kg" />
-              <Bar yAxisId="left" dataKey="ovos" fill="url(#gradOvosBar)" radius={[6, 6, 0, 0]} barSize={18} name="ovos" />
+              <Bar yAxisId="left" dataKey="kg" fill="url(#gradConsumoBar)" radius={[4, 4, 0, 0]} barSize={14} name="kg" />
+              <Bar yAxisId="left" dataKey="ovos" fill="url(#gradOvosBar)" radius={[4, 4, 0, 0]} barSize={14} name="ovos" />
               <Line yAxisId="right" type="monotone" dataKey="eficiencia" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="eficiencia" />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
 
         {/* Consumo por Tipo — 1/3 */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6">
-          <div className="mb-6">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 flex flex-col">
+          <div className="mb-4 sm:mb-6">
             <h3 className="text-sm font-bold text-gray-900">Consumo por Tipo</h3>
             <p className="text-xs text-gray-400 mt-0.5">Distribuição por tipo de ração</p>
           </div>
-          <div className="space-y-4">
+          <div className="flex-1 flex flex-col justify-evenly">
             {consumoPorTipo.map((item) => (
               <div key={item.tipo}>
                 <div className="flex items-center justify-between mb-1.5">
@@ -1034,7 +1156,7 @@ export default function RacaoPage() {
                     {item.pct}%
                   </span>
                 </div>
-                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-700"
                     style={{ width: `${item.pct}%`, backgroundColor: item.color }}
@@ -1057,16 +1179,16 @@ export default function RacaoPage() {
       </div>
 
       {/* Estoque + Consumo Mensal */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {/* Itens em Estoque */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6">
-          <div className="flex items-center justify-between mb-5">
-            <div>
+          <div className="flex items-center justify-between mb-4 sm:mb-5">
+            <div className="min-w-0">
               <h3 className="text-sm font-bold text-gray-900">Itens em Estoque</h3>
               <p className="text-xs text-gray-400 mt-0.5">Status de cada item</p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              <span className="text-[10px] sm:text-[11px] font-bold text-emerald-600 bg-emerald-50 px-1.5 sm:px-2 py-0.5 rounded-md whitespace-nowrap">
                 {estoque.filter(e => e.status === "normal").length}/{estoque.length} normais
               </span>
               <button onClick={() => setEstoqueModal("add")} className="w-7 h-7 rounded-lg bg-brand-50 hover:bg-brand-100 flex items-center justify-center transition-colors cursor-pointer">
@@ -1115,12 +1237,12 @@ export default function RacaoPage() {
                       <p className="text-[11px] text-gray-400 truncate">{item.categoria}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-sm font-medium text-gray-700">{item.quantidade} {item.unidade}</span>
-                    <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full", statusColor[item.status])}>
+                  <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+                    <span className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">{item.quantidade} {item.unidade}</span>
+                    <span className={cn("text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap", statusColor[item.status])}>
                       {statusLabel[item.status]}
                     </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-500 transition-colors flex-shrink-0" />
+                    <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-500 transition-colors flex-shrink-0 hidden sm:block" />
                   </div>
                 </button>
                 {i < estoque.length - 1 && <div className="border-t border-gray-50" />}
@@ -1129,26 +1251,30 @@ export default function RacaoPage() {
           </div>
         </div>
 
-        {/* Consumo Mensal Chart */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
-          <div className="flex items-center justify-between mb-6">
+        {/* Consumo Mensal — R$ / kg toggle */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 flex flex-col">
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
             <div>
-              <h3 className="text-sm font-bold text-gray-900">Consumo Mensal (R$)</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Custo total por mês</p>
+              <h3 className="text-sm font-bold text-gray-900">Consumo Mensal</h3>
+              <p className="text-xs text-gray-400 mt-0.5">{consumoMensalMode === "rs" ? "Custo total por mês" : "Quantidade total por mês"}</p>
+            </div>
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+              <button onClick={() => setConsumoMensalMode("rs")} className={cn("px-3 py-1.5 text-[11px] font-semibold rounded-md transition-all duration-200 cursor-pointer", consumoMensalMode === "rs" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>R$</button>
+              <button onClick={() => setConsumoMensalMode("kg")} className={cn("px-3 py-1.5 text-[11px] font-semibold rounded-md transition-all duration-200 cursor-pointer", consumoMensalMode === "kg" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>kg</button>
             </div>
           </div>
-          <div className="flex-1" style={{ minHeight: 280 }}>
+          <div className="flex-1" style={{ minHeight: 240 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={consumoMensal} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+            <BarChart data={consumoMensalMode === "rs" ? consumoMensalRS : consumoMensalKg} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={8} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dx={-4} tickFormatter={(v) => (v / 1000).toFixed(1) + "k"} />
+              <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dy={8} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} tickFormatter={(v) => (v / 1000).toFixed(1) + "k"} />
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
                 labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                formatter={(value: unknown) => ["R$ " + Number(value).toLocaleString("pt-BR"), "Custo"]}
+                formatter={(value: unknown) => [consumoMensalMode === "rs" ? "R$ " + Number(value).toLocaleString("pt-BR") : Number(value).toLocaleString("pt-BR") + " kg", consumoMensalMode === "rs" ? "Custo" : "Consumo"]}
               />
-              <Bar dataKey="valor" fill="#2d7a4f" radius={[6, 6, 0, 0]} barSize={36} />
+              <Bar dataKey="valor" fill={consumoMensalMode === "rs" ? "#2d7a4f" : "#3b82f6"} radius={[6, 6, 0, 0]} barSize={28} />
             </BarChart>
           </ResponsiveContainer>
           </div>
@@ -1157,26 +1283,24 @@ export default function RacaoPage() {
 
       {/* Records Table — Production Style */}
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
           <div>
             <h3 className="text-sm font-bold text-gray-900">Registros Recentes</h3>
             <p className="text-xs text-gray-400 mt-0.5">{registros.length} registros</p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 bg-gray-100/80 rounded-xl px-3 py-2 w-56 transition-colors focus-within:bg-gray-100 focus-within:ring-2 focus-within:ring-brand-500/20">
-              <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-              <input
-                type="text"
-                placeholder="Buscar registro..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-transparent text-xs text-gray-700 placeholder-gray-400 outline-none w-full"
-              />
-            </div>
+          <div className="flex items-center gap-2 bg-gray-100/80 rounded-xl px-3 py-2 w-full sm:w-56 transition-colors focus-within:bg-gray-100 focus-within:ring-2 focus-within:ring-brand-500/20">
+            <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            <input
+              type="text"
+              placeholder="Buscar registro..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-transparent text-xs text-gray-700 placeholder-gray-400 outline-none w-full"
+            />
           </div>
         </div>
         <div className="overflow-x-auto max-h-[340px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-          <table className="w-full">
+          <table className="w-full min-w-[800px]">
             <thead className="sticky top-0 bg-white z-10">
               <tr className="border-b border-gray-100 bg-gray-50/50">
                 <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Data</th>
@@ -1320,7 +1444,7 @@ export default function RacaoPage() {
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Aviário</label>
                 <input type="text" value={form.aviario} onChange={(e) => setForm({ ...form, aviario: e.target.value })} placeholder="Ex: Aviário 1A" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Consumo (kg)</label>
                   <input type="number" value={form.consumoKg} onChange={(e) => setForm({ ...form, consumoKg: e.target.value })} placeholder="120" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
@@ -1637,16 +1761,16 @@ export default function RacaoPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-gray-50 border border-gray-100">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Quantidade</p>
-                    <p className="text-sm font-bold text-gray-800">{viewingEstoque.quantidade} {viewingEstoque.unidade}</p>
+                    <p className="text-xs sm:text-sm font-bold text-gray-800">{viewingEstoque.quantidade} {viewingEstoque.unidade}</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-gray-50 border border-gray-100">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Unidade</p>
-                    <p className="text-sm font-bold text-gray-800">{viewingEstoque.unidade}</p>
+                    <p className="text-xs sm:text-sm font-bold text-gray-800">{viewingEstoque.unidade}</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-gray-50 border border-gray-100">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Status</p>
                     <span className={cn(
                       "inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-lg",
