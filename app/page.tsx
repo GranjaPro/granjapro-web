@@ -379,11 +379,19 @@ function PricingSection() {
                     </span>
                   </div>
                 )}
+                {plan.name === "ESSENCIAL" && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-white/80 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 uppercase tracking-wider">
+                      <Zap className="w-3.5 h-3.5" />
+                      Inteligência Artificial Experimental
+                    </span>
+                  </div>
+                )}
                 {plan.name === "PREMIUM" && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-200 bg-brand-950 border border-brand-400/30 rounded-full px-4 py-1.5 uppercase tracking-wider">
                       <Zap className="w-3.5 h-3.5" />
-                      Inteligência Artificial Inclusa
+                      Inteligência Artificial Avançada
                     </span>
                   </div>
                 )}

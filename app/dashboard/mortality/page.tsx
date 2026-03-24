@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ModalPortal from "@/components/ui/modal-portal";
@@ -22,13 +22,25 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  Zap,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  Lightbulb,
+  Shield,
+  Bug,
+  CalendarDays,
+  FileText,
+  Thermometer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
+  ComposedChart,
   AreaChart,
   Area,
   BarChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -66,13 +78,14 @@ const initialRegistros: RegistroMortalidade[] = [
   { id: 12, data: "2024-03-12", quantidade: 2, causa: "Doença", lote: "L-2024-01", galpao: "Galpão A2", observacao: "Isolamento tardio" },
 ];
 
-const semanal = [
-  { semana: "S1", mortes: 2 },
-  { semana: "S2", mortes: 3 },
-  { semana: "S3", mortes: 4 },
-  { semana: "S4", mortes: 1 },
-  { semana: "S5", mortes: 4 },
-  { semana: "S6", mortes: 3 },
+const mortalidadeSemanal = [
+  { dia: "11/04", mortes: 1, taxa: 0.04 },
+  { dia: "12/04", mortes: 1, taxa: 0.04 },
+  { dia: "13/04", mortes: 0, taxa: 0.0 },
+  { dia: "14/04", mortes: 1, taxa: 0.04 },
+  { dia: "15/04", mortes: 1, taxa: 0.04 },
+  { dia: "16/04", mortes: 1, taxa: 0.04 },
+  { dia: "17/04", mortes: 2, taxa: 0.07 },
 ];
 
 const causas = [
@@ -100,6 +113,15 @@ const porLote = [
 const loteOptions = ["L-2024-01", "L-2024-02", "L-2024-03", "L-2024-04"];
 const causaOptions = ["Natural", "Doença", "Respiratório", "Predadores", "Estresse", "Desconhecido"];
 
+const causaColor: Record<string, { badge: string }> = {
+  "Natural": { badge: "bg-gray-100 text-gray-600" },
+  "Doença": { badge: "bg-red-50 text-red-600" },
+  "Respiratório": { badge: "bg-orange-50 text-orange-600" },
+  "Predadores": { badge: "bg-amber-50 text-amber-700" },
+  "Estresse": { badge: "bg-violet-50 text-violet-600" },
+  "Desconhecido": { badge: "bg-gray-100 text-gray-500" },
+};
+
 export default function MortalidadePage() {
   const searchParams = useSearchParams();
   const [registros, setRegistros] = useState(initialRegistros);
@@ -112,137 +134,130 @@ export default function MortalidadePage() {
   const [form, setForm] = useState({ data: "", quantidade: "1", causa: "", lote: "", galpao: "", observacao: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [periodo, setPeriodo] = useState<"dia" | "semana" | "mes">("mes");
-  const [selectedDate, setSelectedDate] = useState("2024-04-17");
-  const [selectedWeek, setSelectedWeek] = useState(3); // week index (0-based) within selected month
-  const [selectedMonth, setSelectedMonth] = useState("2024-04");
 
-  /* ── Helpers ── */
-  function getWeekRange(year: number, month: number, weekIndex: number) {
+  /* ── Calendar ── */
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [filterMode, setFilterMode] = useState<"intervalo" | "mes">("intervalo");
+  const [rangeStart, setRangeStart] = useState<Date | null>(new Date());
+  const [rangeEnd, setRangeEnd] = useState<Date | null>(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) setCalendarOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const sameDay = (a: Date, b: Date) => a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+
+  const calendarLabel = useMemo(() => {
+    const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    if (filterMode === "intervalo") {
+      if (rangeStart && rangeEnd) {
+        if (sameDay(rangeStart, rangeEnd)) {
+          const today = new Date();
+          if (sameDay(rangeStart, today)) return `Hoje, ${rangeStart.getDate()} ${months[rangeStart.getMonth()]}`;
+          return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]}, ${rangeStart.getFullYear()}`;
+        }
+        return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]} — ${rangeEnd.getDate()} ${months[rangeEnd.getMonth()]}`;
+      }
+      if (rangeStart) return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]} — ...`;
+      return "Selecionar período";
+    }
+    return `${months[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
+  }, [selectedDate, filterMode, rangeStart, rangeEnd]);
+
+  const calendarDays = useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
     const firstDay = new Date(year, month, 1);
-    const startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; // Monday start
-    const weekStart = new Date(year, month, 1 + weekIndex * 7 - startOffset);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    // Clamp to month
-    const monthStart = new Date(year, month, 1);
-    const monthEnd = new Date(year, month + 1, 0);
-    const clampedStart = weekStart < monthStart ? monthStart : weekStart;
-    const clampedEnd = weekEnd > monthEnd ? monthEnd : weekEnd;
-    return {
-      start: clampedStart.toISOString().split("T")[0],
-      end: clampedEnd.toISOString().split("T")[0],
-    };
-  }
+    const lastDay = new Date(year, month + 1, 0);
+    const startDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+    const days: (Date | null)[] = [];
+    for (let i = 0; i < startDay; i++) days.push(null);
+    for (let i = 1; i <= lastDay.getDate(); i++) days.push(new Date(year, month, i));
+    return days;
+  }, [calendarMonth]);
 
-  function getWeeksInMonth(yearMonth: string) {
-    const [y, m] = yearMonth.split("-").map(Number);
-    const lastDay = new Date(y, m, 0).getDate();
-    const firstDow = new Date(y, m - 1, 1).getDay();
-    const startOffset = firstDow === 0 ? 6 : firstDow - 1;
-    return Math.ceil((lastDay + startOffset) / 7);
-  }
+  const isInRange = useCallback((day: Date) => {
+    if (filterMode !== "intervalo" || !rangeStart) return false;
+    if (!rangeEnd) return sameDay(day, rangeStart);
+    const t = day.getTime();
+    const s = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime();
+    const e = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime();
+    return t >= s && t <= e;
+  }, [filterMode, rangeStart, rangeEnd]);
 
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>();
-    registros.forEach((r) => months.add(r.data.substring(0, 7)));
-    return Array.from(months).sort();
-  }, [registros]);
+  const isRangeStart = useCallback((day: Date) => filterMode === "intervalo" && rangeStart && sameDay(day, rangeStart), [filterMode, rangeStart]);
+  const isRangeEnd = useCallback((day: Date) => filterMode === "intervalo" && rangeEnd && sameDay(day, rangeEnd), [filterMode, rangeEnd]);
 
-  const availableDates = useMemo(() => {
-    const dates = new Set<string>();
-    registros.forEach((r) => dates.add(r.data));
-    return Array.from(dates).sort();
-  }, [registros]);
+  const handleCalDayClick = useCallback((day: Date) => {
+    if (filterMode === "intervalo") {
+      if (!rangeStart || (rangeStart && rangeEnd)) { setRangeStart(day); setRangeEnd(null); }
+      else {
+        if (day.getTime() < rangeStart.getTime()) { setRangeEnd(rangeStart); setRangeStart(day); }
+        else setRangeEnd(day);
+        setCalendarOpen(false);
+      }
+    } else { setSelectedDate(new Date(day.getFullYear(), day.getMonth(), 1)); setCalendarOpen(false); }
+  }, [filterMode, rangeStart, rangeEnd]);
 
-  /* ── Period-filtered registros ── */
-  const periodoRegistros = useMemo(() => {
-    if (periodo === "dia") {
-      return registros.filter((r) => r.data === selectedDate);
-    } else if (periodo === "semana") {
-      const [y, m] = selectedMonth.split("-").map(Number);
-      const { start, end } = getWeekRange(y, m - 1, selectedWeek);
-      return registros.filter((r) => r.data >= start && r.data <= end);
-    } else {
-      return registros.filter((r) => r.data.startsWith(selectedMonth));
-    }
-  }, [registros, periodo, selectedDate, selectedWeek, selectedMonth]);
-
-  const periodoStats = useMemo(() => {
-    const mortes = periodoRegistros.reduce((s, r) => s + r.quantidade, 0);
-    const totalAves = 2851;
-
-    if (periodo === "dia") {
-      const taxa = ((mortes / totalAves) * 100).toFixed(1).replace(".", ",");
-      const dateObj = new Date(selectedDate + "T00:00:00");
-      const label = dateObj.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-      return { mortes, label, taxa: `${taxa}%`, taxaLabel: "Taxa Diária" };
-    } else if (periodo === "semana") {
-      const dias = 7;
-      const media = (mortes / dias).toFixed(1).replace(".", ",");
-      const taxa = ((mortes / totalAves) * 100).toFixed(1).replace(".", ",");
-      return { mortes, label: `Semana ${selectedWeek + 1}`, taxa: `${taxa}%`, taxaLabel: "Taxa Semanal", media: `${media}/dia` };
-    } else {
-      const [y, m] = selectedMonth.split("-").map(Number);
-      const diasNoMes = new Date(y, m, 0).getDate();
-      const media = (mortes / diasNoMes).toFixed(1).replace(".", ",");
-      const taxa = ((mortes / totalAves) * 100).toFixed(1).replace(".", ",");
-      const mesNome = new Date(y, m - 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-      return { mortes, label: mesNome.charAt(0).toUpperCase() + mesNome.slice(1), taxa: `${taxa}%`, taxaLabel: "Taxa Mensal", media: `${media}/dia` };
-    }
-  }, [periodoRegistros, periodo, selectedDate, selectedWeek, selectedMonth]);
-
-  const filteredRegistros = useMemo(() => {
-    const base = searchQuery.trim()
-      ? periodoRegistros.filter((r) => {
-          const q = searchQuery.toLowerCase();
-          return (
-            r.causa.toLowerCase().includes(q) ||
-            r.galpao.toLowerCase().includes(q) ||
-            r.lote.toLowerCase().includes(q) ||
-            r.observacao.toLowerCase().includes(q) ||
-            r.data.includes(q)
-          );
-        })
-      : periodoRegistros;
-    return base;
-  }, [periodoRegistros, searchQuery]);
-
+  /* ── Computed ── */
   const totalMortes = registros.reduce((s, r) => s + r.quantidade, 0);
   const mortesSemana = registros.filter((r) => r.data >= "2024-04-11").reduce((s, r) => s + r.quantidade, 0);
   const mortesMes = registros.filter((r) => r.data >= "2024-04-01").reduce((s, r) => s + r.quantidade, 0);
+  const totalAves = 2851;
+  const taxaMensal = ((mortesMes / totalAves) * 100);
+  const taxaSemanal = ((mortesSemana / totalAves) * 100);
 
-  /* Navigation helpers */
-  function navigatePeriodo(dir: -1 | 1) {
-    if (periodo === "dia") {
-      const idx = availableDates.indexOf(selectedDate);
-      const next = idx + dir;
-      if (next >= 0 && next < availableDates.length) setSelectedDate(availableDates[next]);
-    } else if (periodo === "semana") {
-      const totalWeeks = getWeeksInMonth(selectedMonth);
-      const next = selectedWeek + dir;
-      if (next >= 0 && next < totalWeeks) {
-        setSelectedWeek(next);
-      } else if (dir === -1) {
-        const mIdx = availableMonths.indexOf(selectedMonth);
-        if (mIdx > 0) {
-          const prevMonth = availableMonths[mIdx - 1];
-          setSelectedMonth(prevMonth);
-          setSelectedWeek(getWeeksInMonth(prevMonth) - 1);
-        }
-      } else {
-        const mIdx = availableMonths.indexOf(selectedMonth);
-        if (mIdx < availableMonths.length - 1) {
-          setSelectedMonth(availableMonths[mIdx + 1]);
-          setSelectedWeek(0);
-        }
-      }
-    } else {
-      const idx = availableMonths.indexOf(selectedMonth);
-      const next = idx + dir;
-      if (next >= 0 && next < availableMonths.length) setSelectedMonth(availableMonths[next]);
-    }
-  }
+  /* ── Mortality Score (inverse of health — lower mortality = higher score) ── */
+  const mortalityScore = Math.max(0, Math.min(100, Math.round(100 - (taxaMensal * 20))));
+  const scoreColor = mortalityScore >= 80 ? "#10b981" : mortalityScore >= 60 ? "#f59e0b" : "#ef4444";
+  const statusText = mortalityScore >= 80 ? "Controlada" : mortalityScore >= 60 ? "Atenção" : "Crítica";
+  const statusTextColor = mortalityScore >= 80 ? "text-emerald-700" : mortalityScore >= 60 ? "text-amber-700" : "text-red-700";
+  const bannerGradient = mortalityScore >= 80 ? "from-emerald-50 via-emerald-50/50 to-white" : mortalityScore >= 60 ? "from-amber-50 via-amber-50/50 to-white" : "from-red-50 via-red-50/50 to-white";
+  const bannerBorder = mortalityScore >= 80 ? "border-emerald-200/60" : mortalityScore >= 60 ? "border-amber-200/60" : "border-red-200/60";
+
+  /* ── Top causa ── */
+  const topCausa = causas[0];
+  const causasCriticas = causas.filter(c => c.causa === "Doença" || c.causa === "Respiratório").reduce((s, c) => s + c.quantidade, 0);
+
+  /* ── KPIs ── */
+  const kpis = [
+    { title: "Mortalidade Semanal", value: `${mortesSemana} aves`, icon: Bug, iconBg: "bg-red-50", iconColor: "text-red-500", actual: mortesSemana, expectedVal: 5, expectedLabel: "5 aves", diff: ((mortesSemana / 5) * 100) - 100, progressColor: mortesSemana <= 5 ? "bg-emerald-500" : mortesSemana <= 8 ? "bg-amber-500" : "bg-red-500" },
+    { title: "Taxa Mensal", value: `${taxaMensal.toFixed(1).replace(".", ",")}%`, icon: Activity, iconBg: "bg-amber-50", iconColor: "text-amber-600", actual: taxaMensal, expectedVal: 2, expectedLabel: "2%", diff: ((taxaMensal / 2) * 100) - 100, progressColor: taxaMensal <= 2 ? "bg-emerald-500" : taxaMensal <= 5 ? "bg-amber-500" : "bg-red-500" },
+    { title: "Total Acumulado", value: String(totalMortes), icon: Calendar, iconBg: "bg-orange-50", iconColor: "text-orange-600", actual: totalMortes, expectedVal: 15, expectedLabel: "15 aves", diff: ((totalMortes / 15) * 100) - 100, progressColor: totalMortes <= 15 ? "bg-emerald-500" : totalMortes <= 25 ? "bg-amber-500" : "bg-red-500" },
+    { title: "Aves Vivas", value: "2.851", icon: Heart, iconBg: "bg-brand-50", iconColor: "text-brand-600", actual: totalAves - totalMortes, expectedVal: totalAves, expectedLabel: `${totalAves}`, diff: (((totalAves - totalMortes) / totalAves) * 100) - 100, progressColor: "bg-emerald-500" },
+  ];
+
+  /* ── Insights ── */
+  const insights = useMemo(() => {
+    const arr: { type: "success" | "warning" | "info"; title: string; action: string }[] = [];
+    if (taxaMensal <= 0.5) arr.push({ type: "success", title: "Mortalidade mensal dentro do esperado", action: "Manter protocolos atuais de biossegurança" });
+    else arr.push({ type: "warning", title: `Taxa mensal de ${taxaMensal.toFixed(1)}% — acima do ideal`, action: "Investigar causas e reforçar biossegurança" });
+    if (causasCriticas > 0) arr.push({ type: "warning", title: `${causasCriticas} mortes por doença/respiratório`, action: "Avaliar necessidade de tratamento e isolamento" });
+    const lotesCriticos = porLote.filter(l => l.tendencia === "up");
+    if (lotesCriticos.length > 0) arr.push({ type: "warning", title: `${lotesCriticos.length} lote${lotesCriticos.length > 1 ? "s" : ""} com tendência de alta`, action: `Monitorar: ${lotesCriticos.map(l => l.codigo).join(", ")}` });
+    if (topCausa) arr.push({ type: "info", title: `Causa mais frequente: ${topCausa.causa} (${topCausa.porcentagem}%)`, action: "Mortalidade natural é esperada — manter vigilância" });
+    if (mortesSemana <= 5) arr.push({ type: "success", title: `${mortesSemana} mortes nesta semana — dentro do limite`, action: "Continuar monitoramento regular" });
+    return arr;
+  }, [taxaMensal, causasCriticas, mortesSemana]);
+
+  const filteredRegistros = useMemo(() => {
+    if (!searchQuery.trim()) return registros;
+    const q = searchQuery.toLowerCase();
+    return registros.filter((r) =>
+      r.causa.toLowerCase().includes(q) ||
+      r.galpao.toLowerCase().includes(q) ||
+      r.lote.toLowerCase().includes(q) ||
+      r.observacao.toLowerCase().includes(q) ||
+      r.data.includes(q)
+    );
+  }, [registros, searchQuery]);
 
   function openAdd() {
     setForm({ data: "", quantidade: "1", causa: "", lote: "", galpao: "", observacao: "" });
@@ -299,52 +314,13 @@ export default function MortalidadePage() {
     }
   }
 
-  const kpis = [
-    {
-      title: periodoStats.taxaLabel,
-      value: periodoStats.taxa,
-      icon: Activity,
-      iconBg: "bg-emerald-50",
-      iconColor: "text-emerald-600",
-      badge: "-0.1%",
-      badgeDir: "down" as "up" | "down" | "neutral",
-      insight: "Mortalidade controlada no último mês",
-      insightColor: "text-emerald-600",
-    },
-    {
-      title: `Mortes — ${periodoStats.label}`,
-      value: String(periodoStats.mortes),
-      icon: Skull,
-      iconBg: "bg-red-50",
-      iconColor: "text-red-500",
-      badge: periodoStats.media || `${periodoStats.mortes} mortes`,
-      badgeDir: "neutral" as const,
-      insight: periodoStats.mortes > 5 ? "Número alto de mortes — verifique a causa" : undefined,
-      insightColor: "text-red-500",
-    },
-    {
-      title: "Total Acumulado",
-      value: String(totalMortes),
-      icon: Calendar,
-      iconBg: totalMortes > 10 ? "bg-amber-50" : "bg-emerald-50",
-      iconColor: totalMortes > 10 ? "text-amber-600" : "text-emerald-600",
-      badge: `${mortesMes} este mês`,
-      badgeDir: "neutral" as const,
-    },
-    {
-      title: "Aves Vivas",
-      value: "2.851",
-      icon: Heart,
-      iconBg: "bg-brand-50",
-      iconColor: "text-brand-600",
-      badge: "4 lotes ativos",
-      badgeDir: "neutral" as const,
-    },
-  ];
+  function formatDateShort(dateStr: string) {
+    try { return new Date(dateStr + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", ""); } catch { return dateStr; }
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center">
@@ -355,107 +331,193 @@ export default function MortalidadePage() {
             <p className="text-sm text-gray-500 mt-0.5">Controle e análise de mortalidade de todos os lotes</p>
           </div>
         </div>
-        <button
-          onClick={openAdd}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Registrar Mortalidade
-        </button>
-      </div>
-
-      {/* Period Filter + KPI Cards */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-          {([
-            { key: "dia" as const, label: "Dia" },
-            { key: "semana" as const, label: "Semana" },
-            { key: "mes" as const, label: "Mês" },
-          ]).map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setPeriodo(p.key)}
-              className={cn(
-                "px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
-                periodo === p.key
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              )}
-            >
-              {p.label}
+        <div className="flex items-center gap-3">
+          {/* Calendar Filter */}
+          <div className="relative" ref={calendarRef}>
+            <button onClick={() => setCalendarOpen(!calendarOpen)} className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 bg-white border border-gray-200 rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer shadow-sm">
+              <CalendarDays className="w-4 h-4" />{calendarLabel}
             </button>
-          ))}
-        </div>
-        <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
-          <Sparkles className="w-3 h-3" />
-          Premium
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {kpis.map((kpi) => (
-          <div
-            key={kpi.title}
-            className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center", kpi.iconBg)}>
-                <kpi.icon className={cn("w-5 h-5", kpi.iconColor)} />
-              </div>
-              <span
-                className={cn(
-                  "inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-lg",
-                  kpi.badgeDir === "up" && "text-red-600 bg-red-50",
-                  kpi.badgeDir === "down" && "text-emerald-700 bg-emerald-50",
-                  kpi.badgeDir === "neutral" && "text-gray-500 bg-gray-50"
+            {calendarOpen && (
+              <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-gray-200 shadow-2xl p-4 z-50 w-[320px] animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 mb-4">
+                  {([{ key: "intervalo" as const, label: "Intervalo" }, { key: "mes" as const, label: "Mês" }]).map(p => (
+                    <button key={p.key} onClick={() => setFilterMode(p.key)} className={cn("flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer", filterMode === p.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>{p.label}</button>
+                  ))}
+                </div>
+                {filterMode === "intervalo" && <p className="text-[10px] text-gray-400 font-medium mb-2 text-center">{!rangeStart || (rangeStart && rangeEnd) ? "Clique no dia inicial" : "Clique no dia final"}</p>}
+                <div className="flex items-center justify-between mb-3">
+                  <button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-gray-500" /></button>
+                  <span className="text-sm font-semibold text-gray-900">{["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][calendarMonth.getMonth()]} {calendarMonth.getFullYear()}</span>
+                  <button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-gray-500" /></button>
+                </div>
+                {filterMode === "mes" ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map((m, i) => (
+                      <button key={m} onClick={() => { setSelectedDate(new Date(calendarMonth.getFullYear(), i, 1)); setCalendarOpen(false); }} className={cn("py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer", selectedDate.getMonth() === i && selectedDate.getFullYear() === calendarMonth.getFullYear() ? "bg-red-500 text-white shadow-sm" : "text-gray-700 hover:bg-gray-100")}>{m}</button>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-7 gap-0 mb-1">{["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"].map(d => <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>)}</div>
+                    <div className="grid grid-cols-7 gap-0">
+                      {calendarDays.map((day, i) => {
+                        if (!day) return <div key={`e-${i}`} className="h-9" />;
+                        const today = new Date(); const isToday = sameDay(day, today);
+                        const inRange = isInRange(day); const isStart = isRangeStart(day); const isEnd = isRangeEnd(day); const isSingle = isStart && isEnd;
+                        return (
+                          <button key={i} onClick={() => handleCalDayClick(day)} className={cn("h-9 text-sm font-medium transition-all duration-150 cursor-pointer relative flex items-center justify-center", inRange && !isStart && !isEnd && "bg-red-50 text-red-700", isStart && !isSingle && "bg-red-500 text-white rounded-l-xl", isEnd && !isSingle && "bg-red-500 text-white rounded-r-xl", isSingle && "bg-red-500 text-white rounded-xl shadow-sm", !inRange && "hover:bg-gray-100 rounded-xl")}>
+                            <span className={cn(isToday && !inRange && "w-7 h-7 rounded-full border-2 border-red-400 flex items-center justify-center")}>{day.getDate()}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
-              >
-                {kpi.badgeDir === "up" && <ArrowUpRight className="w-3 h-3" />}
-                {kpi.badgeDir === "down" && <ArrowDownRight className="w-3 h-3" />}
-                {kpi.badge}
-              </span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900 tracking-tight">{kpi.value}</p>
-            <p className="text-xs text-gray-400 mt-1 font-medium">{kpi.title}</p>
-            {kpi.insight && (
-              <p className={cn("text-[11px] mt-2.5 font-medium leading-tight", kpi.insightColor)}>
-                {kpi.insight}
-              </p>
+                <button onClick={() => { const t = new Date(); setRangeStart(t); setRangeEnd(t); setSelectedDate(t); setCalendarMonth(t); setFilterMode("intervalo"); setCalendarOpen(false); }} className="w-full mt-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-xl transition-colors cursor-pointer">Hoje</button>
+              </div>
             )}
           </div>
-        ))}
+          <button
+            onClick={openAdd}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-red-500/20"
+          >
+            <Plus className="w-4 h-4" />
+            Registrar Mortalidade
+          </button>
+        </div>
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Area Chart */}
-        <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-100 p-6">
-          <h3 className="text-sm font-bold text-gray-900 mb-6">Mortes por Semana</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={semanal} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorMortesGlobal" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ef4444" stopOpacity={0.2} />
-                  <stop offset="60%" stopColor="#ef4444" stopOpacity={0.06} />
-                  <stop offset="100%" stopColor="#ef4444" stopOpacity={0.01} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis dataKey="semana" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={8} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dx={-4} allowDecimals={false} />
-              <Tooltip
-                contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                formatter={(value: unknown) => [Number(value), "Mortes"]}
-              />
-              <Area type="monotone" dataKey="mortes" stroke="#ef4444" strokeWidth={2.5} fill="url(#colorMortesGlobal)" dot={{ r: 5, fill: "#fff", stroke: "#ef4444", strokeWidth: 2.5 }} activeDot={{ r: 7, fill: "#ef4444", stroke: "#fff", strokeWidth: 3 }} />
-            </AreaChart>
-          </ResponsiveContainer>
+      {/* ── Mortality Status Banner ── */}
+      <div className={cn("bg-gradient-to-r rounded-2xl border p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+          <div className="flex items-center gap-4 lg:min-w-[280px]">
+            <div className="relative w-16 h-16 flex-shrink-0">
+              <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(mortalityScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className={cn("text-base font-bold", statusTextColor)}>{mortalityScore}</span>
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <Skull className="w-4 h-4 text-red-500" />
+                <span className="text-sm font-bold text-gray-900">Status da Mortalidade</span>
+              </div>
+              <p className={cn("text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
+              <p className="text-xs text-gray-500 mt-0.5">Semana: {mortesSemana} mortes | Mês: {mortesMes} mortes | Total: {totalMortes}</p>
+            </div>
+          </div>
+          <div className="hidden lg:block w-px h-14 bg-gray-200" />
+          <div className="flex-1 space-y-2">
+            {taxaMensal <= 0.5 && (
+              <div className="flex items-center gap-2.5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><Shield className="w-3.5 h-3.5 text-emerald-600" /></div>
+                <p className="text-sm text-gray-700">Mortalidade controlada — taxa mensal de {taxaMensal.toFixed(1).replace(".", ",")}%</p>
+              </div>
+            )}
+            {taxaMensal > 0.5 && (
+              <div className="flex items-center gap-2.5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100"><AlertTriangle className="w-3.5 h-3.5 text-red-600" /></div>
+                <p className="text-sm text-gray-700">Taxa mensal elevada ({taxaMensal.toFixed(1).replace(".", ",")}%) — <button className="font-semibold text-red-600 hover:text-red-700 underline underline-offset-2 decoration-red-300 hover:decoration-red-500 transition-colors cursor-pointer">investigar causas</button></p>
+              </div>
+            )}
+            {porLote.filter(l => l.tendencia === "up").length > 0 && (
+              <div className="flex items-center gap-2.5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100"><TrendingUp className="w-3.5 h-3.5 text-amber-600" /></div>
+                <p className="text-sm text-gray-700">{porLote.filter(l => l.tendencia === "up").length} lotes com tendência de alta — <button className="font-semibold text-amber-600 hover:text-amber-700 underline underline-offset-2 decoration-amber-300 hover:decoration-amber-500 transition-colors cursor-pointer">monitorar lotes</button></p>
+              </div>
+            )}
+            <div className="flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><Heart className="w-3.5 h-3.5 text-emerald-600" /></div>
+              <p className="text-sm text-gray-700">{(totalAves - totalMortes).toLocaleString("pt-BR")} aves vivas em 4 lotes ativos</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── KPI Cards with Progress Bars ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {kpis.map((kpi) => {
+          const isInverse = kpi.title !== "Aves Vivas";
+          const maxVal = Math.max(kpi.actual, kpi.expectedVal) * 1.15;
+          const fillPct = Math.min((kpi.actual / maxVal) * 100, 100);
+          const markerPct = Math.min((kpi.expectedVal / maxVal) * 100, 100);
+          const diffLabel = `${kpi.diff > 0 ? "+" : ""}${kpi.diff.toFixed(1)}%`;
+          const isGood = isInverse ? kpi.diff <= 0 : kpi.diff >= 0;
+          return (
+            <div key={kpi.title} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", kpi.iconBg)}>
+                  <kpi.icon className={cn("w-4.5 h-4.5", kpi.iconColor)} />
+                </div>
+                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">{kpi.title}</span>
+              </div>
+              <div className="flex items-end justify-between">
+                <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{kpi.value}</p>
+                <span className={cn("inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full", isGood ? "text-emerald-700 bg-emerald-50" : "text-red-600 bg-red-50")}>
+                  {isGood ? <ArrowDownRight className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}{diffLabel}
+                </span>
+              </div>
+              <div className="mt-4 relative">
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={cn("h-full rounded-full transition-all duration-700", kpi.progressColor)} style={{ width: `${fillPct}%` }} />
+                </div>
+                <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${markerPct}%` }} title={`Esperado: ${kpi.expectedLabel}`} />
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
+                  <span className="text-[10px] text-gray-500 font-medium">Limite: {kpi.expectedLabel}</span>
+                </div>
+                <span className={cn("text-[10px] font-semibold", isGood ? "text-emerald-600" : "text-red-500")}>{isGood ? "Dentro" : "Acima"} do esperado</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── AI Insights + Causas de Mortalidade ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* AI Insights */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center shadow-sm"><Zap className="w-5 h-5 text-white" /></div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Análise de Mortalidade</h3>
+                <p className="text-[11px] text-gray-400 font-medium">Baseado nos últimos 30 dias</p>
+              </div>
+            </div>
+            <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
+          </div>
+          <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
+            {insights.map((ins, i) => (
+              <div key={i} className={cn("p-3.5 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
+                    {ins.type === "success" && <TrendingDown className="w-2.5 h-2.5 text-emerald-600" />}
+                    {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
+                    {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600" />}
+                  </div>
+                  <span className="text-sm font-semibold text-gray-800">{ins.title}</span>
+                </div>
+                <p className={cn("text-xs font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Pie Chart */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
-          <h3 className="text-sm font-bold text-gray-900 mb-6">Causas de Mortalidade</h3>
+        {/* Causas Pie Chart */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Thermometer className="w-4 h-4 text-red-500" />
+              <h3 className="text-sm font-bold text-gray-900">Causas de Mortalidade</h3>
+            </div>
+            <span className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-md">{totalMortes} total</span>
+          </div>
           <div className="flex flex-col items-center">
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
@@ -465,7 +527,7 @@ export default function MortalidadePage() {
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
+                  contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
                   formatter={(value: unknown, name: unknown) => [`${Number(value)} mortes`, String(name)]}
                 />
               </PieChart>
@@ -488,115 +550,171 @@ export default function MortalidadePage() {
         </div>
       </div>
 
-      {/* Mortalidade por Lote + Evolução Mensal */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Per-flock breakdown */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6">
-          <h3 className="text-sm font-bold text-gray-900 mb-5">Mortalidade por Lote</h3>
-          <div className="space-y-3">
-            {porLote.map((l) => (
-              <div key={l.lote} className="flex items-center justify-between p-3.5 rounded-xl bg-gray-50/80 hover:bg-gray-100/80 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center">
-                    <Skull className="w-4 h-4 text-gray-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{l.codigo}</p>
-                    <p className="text-xs text-gray-400">{l.mortes} mortes total</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <p className={cn("text-sm font-bold", l.taxa <= 0.3 ? "text-emerald-600" : l.taxa <= 0.5 ? "text-amber-600" : "text-red-500")}>
-                      {l.taxa.toFixed(1).replace(".", ",")}%
-                    </p>
-                    <span className={cn(
-                      "inline-flex items-center gap-0.5 text-[10px] font-semibold",
-                      l.tendencia === "up" ? "text-red-500" : l.tendencia === "down" ? "text-emerald-600" : "text-gray-400"
-                    )}>
-                      {l.tendencia === "up" && <ArrowUpRight className="w-3 h-3" />}
-                      {l.tendencia === "down" && <ArrowDownRight className="w-3 h-3" />}
-                      {l.tendencia === "stable" && <Minus className="w-3 h-3" />}
-                      {l.tendencia === "up" ? "Subindo" : l.tendencia === "down" ? "Caindo" : "Estável"}
-                    </span>
-                  </div>
-                  <Link
-                    href={`/dashboard/flocks/detalhes/${l.loteId}/mortalidade`}
-                    className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </Link>
-                </div>
+      {/* ── Charts Row — 2/3 + 1/3 ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Mortalidade x Taxa Composed Chart */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Mortalidade x Taxa</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Últimos 7 dias</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30"><Sparkles className="w-3 h-3" />Pro</span>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-red-500" /><span className="text-[10px] font-medium text-gray-400">Mortes</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-5 h-[3px] rounded-full bg-amber-500" /><span className="text-[10px] font-medium text-gray-400">Taxa (%)</span></div>
               </div>
-            ))}
+            </div>
           </div>
-        </div>
-
-        {/* Monthly Bar Chart */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6">
-          <h3 className="text-sm font-bold text-gray-900 mb-6">Evolução Mensal</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={mensal} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={8} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dx={-4} allowDecimals={false} />
+          <ResponsiveContainer width="100%" height={300}>
+            <ComposedChart data={mortalidadeSemanal} margin={{ top: 10, right: 50, left: -10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gradMortesBarMort" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#ef4444" stopOpacity={0.6} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+              <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12, fontWeight: 500 }} dy={10} />
+              <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} domain={[0, 5]} />
+              <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 11, fontWeight: 600 }} dx={4} domain={[0, 0.12]} tickFormatter={(v: number) => (v * 100).toFixed(1) + "%"} />
               <Tooltip
-                contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
+                contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
+                labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px" }}
                 formatter={(value: unknown, name: unknown) => {
-                  if (String(name) === "mortes") return [Number(value), "Mortes"];
-                  return [`${Number(value)}%`, "Taxa"];
+                  const n = String(name);
+                  if (n === "mortes") return [Number(value) + " aves", "Mortes"];
+                  if (n === "taxa") return [(Number(value) * 100).toFixed(2) + "%", "Taxa"];
+                  return [value, name];
                 }}
               />
-              <Bar dataKey="mortes" fill="#fca5a5" radius={[6, 6, 0, 0]} name="mortes" />
-              <Bar dataKey="taxa" fill="#ef4444" radius={[6, 6, 0, 0]} name="taxa" />
-            </BarChart>
+              <Bar yAxisId="left" dataKey="mortes" fill="url(#gradMortesBarMort)" radius={[6, 6, 0, 0]} barSize={24} name="mortes" />
+              <Line yAxisId="right" type="monotone" dataKey="taxa" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="taxa" />
+            </ComposedChart>
           </ResponsiveContainer>
+        </div>
+
+        {/* Evolução Mensal */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
+          <div className="mb-6">
+            <h3 className="text-sm font-bold text-gray-900">Evolução Mensal</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Mortes acumuladas por mês</p>
+          </div>
+          <div className="flex-1" style={{ minHeight: 280 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={mensal} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gradMortesArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#ef4444" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={8} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dx={-4} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
+                  formatter={(value: unknown) => [Number(value) + " mortes", "Total"]}
+                />
+                <Area type="monotone" dataKey="mortes" stroke="#ef4444" strokeWidth={2.5} fill="url(#gradMortesArea)" dot={{ r: 4, fill: "#fff", stroke: "#ef4444", strokeWidth: 2.5 }} activeDot={{ r: 6, fill: "#ef4444", stroke: "#fff", strokeWidth: 3 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 
-      {/* Records Table */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <div className="p-6 pb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h3 className="text-sm font-bold text-gray-900">Registros de Mortalidade</h3>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar por causa, lote, galpão..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400"
-              />
+      {/* ── Mortalidade por Lote ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-sm font-bold text-gray-900">Mortalidade por Lote</h3>
+          <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-lg">{porLote.length} lotes</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {porLote.map((l) => (
+            <div key={l.lote} className="flex items-center justify-between p-4 rounded-xl bg-gray-50/80 hover:bg-gray-100/80 transition-all duration-200 group">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center border",
+                  l.tendencia === "up" ? "bg-red-50 border-red-200" : l.tendencia === "down" ? "bg-emerald-50 border-emerald-200" : "bg-white border-gray-200"
+                )}>
+                  <Skull className={cn("w-4 h-4", l.tendencia === "up" ? "text-red-500" : l.tendencia === "down" ? "text-emerald-500" : "text-gray-400")} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{l.codigo}</p>
+                  <p className="text-xs text-gray-400">{l.mortes} mortes total</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className={cn("text-sm font-bold", l.taxa <= 0.3 ? "text-emerald-600" : l.taxa <= 0.5 ? "text-amber-600" : "text-red-500")}>
+                    {l.taxa.toFixed(1).replace(".", ",")}%
+                  </p>
+                  <span className={cn(
+                    "inline-flex items-center gap-0.5 text-[10px] font-semibold",
+                    l.tendencia === "up" ? "text-red-500" : l.tendencia === "down" ? "text-emerald-600" : "text-gray-400"
+                  )}>
+                    {l.tendencia === "up" && <ArrowUpRight className="w-3 h-3" />}
+                    {l.tendencia === "down" && <ArrowDownRight className="w-3 h-3" />}
+                    {l.tendencia === "stable" && <Minus className="w-3 h-3" />}
+                    {l.tendencia === "up" ? "Subindo" : l.tendencia === "down" ? "Caindo" : "Estável"}
+                  </span>
+                </div>
+                <Link
+                  href={`/dashboard/flocks/detalhes/${l.loteId}/mortalidade`}
+                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                >
+                  <Eye className="w-4 h-4" />
+                </Link>
+              </div>
             </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Records Table ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-gray-900">Registros de Mortalidade</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{registros.length} registros</p>
+          </div>
+          <div className="flex items-center gap-2 bg-gray-100/80 rounded-xl px-3 py-2 w-full sm:w-72 transition-colors focus-within:bg-gray-100 focus-within:ring-2 focus-within:ring-red-500/20">
+            <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            <input
+              type="text"
+              placeholder="Buscar por causa, lote, galpão..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-transparent text-xs text-gray-700 placeholder-gray-400 outline-none w-full"
+            />
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-t border-gray-100">
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-6 py-3">Data</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-6 py-3">Qtd</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-6 py-3">Lote</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-6 py-3">Causa</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-6 py-3">Galpão</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-6 py-3">Observação</th>
-                <th className="text-right text-xs font-semibold text-gray-400 uppercase tracking-wider px-6 py-3">Ações</th>
+        <div className="overflow-x-auto max-h-[380px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
+          <table className="w-full">
+            <thead className="sticky top-0 bg-white z-10">
+              <tr className="border-b border-gray-100 bg-gray-50/50">
+                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Data</th>
+                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Qtd</th>
+                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Lote</th>
+                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Causa</th>
+                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Galpão</th>
+                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Observação</th>
+                <th className="text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Ações</th>
               </tr>
             </thead>
             <tbody>
               {filteredRegistros.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-gray-400">
+                  <td colSpan={7} className="text-center py-16 text-gray-400 text-sm">
                     Nenhum registro encontrado.
                   </td>
                 </tr>
               ) : (
                 filteredRegistros.map((r) => (
-                  <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-gray-900">{formatDate(r.data)}</td>
+                  <tr key={r.id} className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatDate(r.data)}</td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-red-50 text-red-600 text-xs font-bold">
                         {r.quantidade}
@@ -608,52 +726,26 @@ export default function MortalidadePage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg",
-                          r.causa === "Doença" || r.causa === "Respiratório"
-                            ? "bg-red-50 text-red-600"
-                            : r.causa === "Natural"
-                            ? "bg-gray-100 text-gray-600"
-                            : "bg-amber-50 text-amber-700"
-                        )}
-                      >
+                      <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-lg whitespace-nowrap", causaColor[r.causa]?.badge || "bg-gray-100 text-gray-600")}>
                         {r.causa}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-gray-600">{r.galpao}</td>
-                    <td className="px-6 py-4 text-gray-500 max-w-[200px] truncate">{r.observacao || "—"}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{r.galpao}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500 max-w-[200px] truncate">{r.observacao || "—"}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => openEdit(r)}
-                          className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
-                        {deleteConfirm === r.id ? (
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => deleteRegistro(r.id)}
-                              className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirm(null)}
-                              className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setDeleteConfirm(r.id)}
-                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => setDeleteConfirm(r.id)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -664,54 +756,51 @@ export default function MortalidadePage() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* ── Modal — Add/Edit ── */}
       {modal && (
         <ModalPortal>
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModal(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold text-gray-900">
-                {modal === "add" ? "Registrar Mortalidade" : "Editar Registro"}
-              </h3>
-              <button
-                onClick={() => setModal(null)}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+                  <Skull className="w-5 h-5 text-red-500" />
+                </div>
+                <h2 className="text-lg font-bold text-gray-900">{modal === "add" ? "Registrar Mortalidade" : "Editar Registro"}</h2>
+              </div>
+              <button onClick={() => setModal(null)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
 
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Data</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Data</label>
                   <input
                     type="date"
                     value={form.data}
                     onChange={(e) => setForm({ ...form, data: e.target.value })}
-                    className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Quantidade</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Quantidade</label>
                   <input
                     type="number"
                     min="1"
                     value={form.quantidade}
                     onChange={(e) => setForm({ ...form, quantidade: e.target.value })}
-                    className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Lote</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Lote</label>
                   <select
                     value={form.lote}
                     onChange={(e) => setForm({ ...form, lote: e.target.value })}
-                    className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all appearance-none cursor-pointer"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all bg-white cursor-pointer"
                   >
                     <option value="">Selecione...</option>
                     {loteOptions.map((l) => (
@@ -720,11 +809,11 @@ export default function MortalidadePage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Causa</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Causa</label>
                   <select
                     value={form.causa}
                     onChange={(e) => setForm({ ...form, causa: e.target.value })}
-                    className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all appearance-none cursor-pointer"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all bg-white cursor-pointer"
                   >
                     <option value="">Selecione...</option>
                     {causaOptions.map((c) => (
@@ -735,41 +824,59 @@ export default function MortalidadePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Galpão</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Galpão</label>
                 <input
                   type="text"
                   placeholder="Ex: Galpão A1"
                   value={form.galpao}
                   onChange={(e) => setForm({ ...form, galpao: e.target.value })}
-                  className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all placeholder:text-gray-400"
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Observação</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Observação</label>
                 <textarea
                   rows={3}
                   placeholder="Detalhes sobre a ocorrência..."
                   value={form.observacao}
                   onChange={(e) => setForm({ ...form, observacao: e.target.value })}
-                  className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all placeholder:text-gray-400 resize-none"
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all resize-none"
                 />
               </div>
             </div>
 
-            <div className="flex items-center gap-3 mt-6">
-              <button
-                onClick={() => setModal(null)}
-                className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors cursor-pointer"
-              >
-                Cancelar
-              </button>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button onClick={() => setModal(null)} className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
               <button
                 onClick={save}
-                className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors cursor-pointer shadow-sm"
+                disabled={!form.data || !form.causa || !form.lote || !form.galpao}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold rounded-xl transition-colors cursor-pointer shadow-sm",
+                  form.data && form.causa && form.lote && form.galpao
+                    ? "text-white bg-red-500 hover:bg-red-600"
+                    : "text-gray-400 bg-gray-200 cursor-not-allowed"
+                )}
               >
-                {modal === "add" ? "Registrar" : "Salvar"}
+                <Check className="w-4 h-4" />{modal === "add" ? "Registrar" : "Salvar"}
               </button>
+            </div>
+          </div>
+        </div>
+        </ModalPortal>
+      )}
+
+      {/* ── Delete Confirmation ── */}
+      {deleteConfirm !== null && (
+        <ModalPortal>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setDeleteConfirm(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4 animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto"><Trash2 className="w-5 h-5 text-red-500" /></div>
+            <h3 className="text-base font-bold text-gray-900">Confirmar exclusão</h3>
+            <p className="text-sm text-gray-500">Tem certeza que deseja excluir este registro?</p>
+            <div className="flex items-center justify-center gap-2 pt-1">
+              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
+              <button onClick={() => deleteRegistro(deleteConfirm)} className="px-5 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors cursor-pointer shadow-sm">Excluir</button>
             </div>
           </div>
         </div>

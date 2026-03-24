@@ -42,7 +42,7 @@ import { cn } from "@/lib/utils";
    TYPES & MOCK DATA
    ══════════════════════════════════════════════ */
 
-type ClienteStatus = "ativo" | "inativo" | "risco";
+type ClienteStatus = "em_dia" | "atrasado" | "inadimplente" | "inativo";
 type ClienteTipo = "mercado" | "restaurante" | "distribuidor" | "direto";
 
 interface Cliente {
@@ -75,20 +75,21 @@ const tipoIcons: Record<ClienteTipo, typeof Store> = {
 };
 
 const statusConfig: Record<ClienteStatus, { label: string; color: string; bg: string; border: string; icon: typeof CheckCircle2 }> = {
-  ativo: { label: "Ativo", color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", icon: CheckCircle2 },
+  em_dia: { label: "Em Dia", color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", icon: CheckCircle2 },
+  atrasado: { label: "Atrasado", color: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", icon: Clock },
+  inadimplente: { label: "Inadimplente", color: "text-red-600", bg: "bg-red-50", border: "border-red-200", icon: ShieldAlert },
   inativo: { label: "Inativo", color: "text-gray-500", bg: "bg-gray-50", border: "border-gray-200", icon: XCircle },
-  risco: { label: "Risco", color: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", icon: ShieldAlert },
 };
 
 const initialClientes: Cliente[] = [
-  { id: 1, nome: "Mercado Central", telefone: "(31) 3333-1111", localizacao: "Belo Horizonte, MG", tipo: "mercado", observacoes: "Cliente desde 2022. Compra toda semana. Prefere ovos brancos.", status: "ativo", ultimaCompra: "2024-04-17", frequencia: 4.2, receitaMensal: 6200, ticketMedio: 1475, totalCompras: 48 },
-  { id: 2, nome: "Supermercado BH", telefone: "(31) 3333-2222", localizacao: "Contagem, MG", tipo: "mercado", observacoes: "Pagamento a prazo (15 dias). Volume alto.", status: "ativo", ultimaCompra: "2024-04-15", frequencia: 3.5, receitaMensal: 4100, ticketMedio: 1171, totalCompras: 36 },
-  { id: 3, nome: "Restaurante Sabor", telefone: "(31) 9999-3333", localizacao: "Belo Horizonte, MG", tipo: "restaurante", observacoes: "Aceita ovos caipira. Compra às terças e sextas.", status: "ativo", ultimaCompra: "2024-04-16", frequencia: 8.0, receitaMensal: 2850, ticketMedio: 356, totalCompras: 72 },
-  { id: 4, nome: "Padaria Boa Mesa", telefone: "(31) 9999-4444", localizacao: "Betim, MG", tipo: "restaurante", observacoes: "Compra pequena mas constante. Potencial para aumentar.", status: "ativo", ultimaCompra: "2024-04-14", frequencia: 5.0, receitaMensal: 1680, ticketMedio: 336, totalCompras: 55 },
-  { id: 5, nome: "Feira Livre Municipal", telefone: "(31) 9999-5555", localizacao: "Santa Luzia, MG", tipo: "direto", observacoes: "Sábados de manhã. Negocia muito preço.", status: "risco", ultimaCompra: "2024-03-30", frequencia: 1.2, receitaMensal: 865, ticketMedio: 721, totalCompras: 12 },
+  { id: 1, nome: "Mercado Central", telefone: "(31) 3333-1111", localizacao: "Belo Horizonte, MG", tipo: "mercado", observacoes: "Cliente desde 2022. Compra toda semana. Prefere ovos brancos.", status: "em_dia", ultimaCompra: "2024-04-17", frequencia: 4.2, receitaMensal: 6200, ticketMedio: 1475, totalCompras: 48 },
+  { id: 2, nome: "Supermercado BH", telefone: "(31) 3333-2222", localizacao: "Contagem, MG", tipo: "mercado", observacoes: "Pagamento a prazo (15 dias). Volume alto.", status: "em_dia", ultimaCompra: "2024-04-15", frequencia: 3.5, receitaMensal: 4100, ticketMedio: 1171, totalCompras: 36 },
+  { id: 3, nome: "Restaurante Sabor", telefone: "(31) 9999-3333", localizacao: "Belo Horizonte, MG", tipo: "restaurante", observacoes: "Aceita ovos caipira. Compra às terças e sextas.", status: "em_dia", ultimaCompra: "2024-04-16", frequencia: 8.0, receitaMensal: 2850, ticketMedio: 356, totalCompras: 72 },
+  { id: 4, nome: "Padaria Boa Mesa", telefone: "(31) 9999-4444", localizacao: "Betim, MG", tipo: "restaurante", observacoes: "Compra pequena mas constante. Potencial para aumentar.", status: "em_dia", ultimaCompra: "2024-04-14", frequencia: 5.0, receitaMensal: 1680, ticketMedio: 336, totalCompras: 55 },
+  { id: 5, nome: "Feira Livre Municipal", telefone: "(31) 9999-5555", localizacao: "Santa Luzia, MG", tipo: "direto", observacoes: "Sábados de manhã. Negocia muito preço.", status: "atrasado", ultimaCompra: "2024-03-30", frequencia: 1.2, receitaMensal: 865, ticketMedio: 721, totalCompras: 12 },
   { id: 6, nome: "Distribuidora Minas Ovos", telefone: "(31) 3333-6666", localizacao: "Ribeirão das Neves, MG", tipo: "distribuidor", observacoes: "Comprava em volume. Parou há 2 meses. Ligar para reativar.", status: "inativo", ultimaCompra: "2024-02-10", frequencia: 0, receitaMensal: 0, ticketMedio: 2800, totalCompras: 18 },
-  { id: 7, nome: "Hotel Fazenda Sol", telefone: "(31) 9999-7777", localizacao: "Nova Lima, MG", tipo: "restaurante", observacoes: "Pedidos esporádicos. Último pedido atrasou pagamento.", status: "risco", ultimaCompra: "2024-04-01", frequencia: 0.8, receitaMensal: 420, ticketMedio: 525, totalCompras: 8 },
-  { id: 8, nome: "Mercearia do Zé", telefone: "(31) 9999-8888", localizacao: "Ibirité, MG", tipo: "mercado", observacoes: "Pequeno volume mas sempre paga em dia.", status: "ativo", ultimaCompra: "2024-04-12", frequencia: 2.0, receitaMensal: 540, ticketMedio: 270, totalCompras: 22 },
+  { id: 7, nome: "Hotel Fazenda Sol", telefone: "(31) 9999-7777", localizacao: "Nova Lima, MG", tipo: "restaurante", observacoes: "Pedidos esporádicos. Último pedido atrasou pagamento.", status: "inadimplente", ultimaCompra: "2024-04-01", frequencia: 0.8, receitaMensal: 420, ticketMedio: 525, totalCompras: 8 },
+  { id: 8, nome: "Mercearia do Zé", telefone: "(31) 9999-8888", localizacao: "Ibirité, MG", tipo: "mercado", observacoes: "Pequeno volume mas sempre paga em dia.", status: "em_dia", ultimaCompra: "2024-04-12", frequencia: 2.0, receitaMensal: 540, ticketMedio: 270, totalCompras: 22 },
 ];
 
 const tipoOptions: ClienteTipo[] = ["mercado", "restaurante", "distribuidor", "direto"];
@@ -122,12 +123,20 @@ export default function ClientesPage() {
           c.telefone.includes(q)
       );
     }
+    const statusPriority: Record<ClienteStatus, number> = { inadimplente: 0, atrasado: 1, em_dia: 2, inativo: 3 };
+    list = [...list].sort((a, b) => {
+      const pa = statusPriority[a.status];
+      const pb = statusPriority[b.status];
+      if (pa !== pb) return pa - pb;
+      return b.receitaMensal - a.receitaMensal;
+    });
     return list;
   }, [clientes, filterStatus, filterTipo, searchQuery]);
 
   const totalClientes = clientes.length;
-  const clientesAtivos = clientes.filter((c) => c.status === "ativo").length;
-  const clientesRisco = clientes.filter((c) => c.status === "risco").length;
+  const clientesEmDia = clientes.filter((c) => c.status === "em_dia").length;
+  const clientesAtrasados = clientes.filter((c) => c.status === "atrasado").length;
+  const clientesInadimplentes = clientes.filter((c) => c.status === "inadimplente").length;
   const clientesInativos = clientes.filter((c) => c.status === "inativo").length;
   const receitaTotal = clientes.reduce((s, c) => s + c.receitaMensal, 0);
   const ticketMedioGeral = clientes.filter((c) => c.ticketMedio > 0).length > 0
@@ -156,7 +165,7 @@ export default function ClientesPage() {
       localizacao: form.localizacao,
       tipo: form.tipo as ClienteTipo,
       observacoes: form.observacoes,
-      status: editing?.status || "ativo",
+      status: editing?.status || "em_dia",
       ultimaCompra: editing?.ultimaCompra || new Date().toISOString().split("T")[0],
       frequencia: editing?.frequencia || 0,
       receitaMensal: editing?.receitaMensal || 0,
@@ -323,7 +332,7 @@ export default function ClientesPage() {
                 <span className="text-sm font-medium text-gray-900">{tipoLabels[c.tipo]}</span>
               </div>
               <div className="flex items-center justify-between py-2 border-b border-gray-50">
-                <span className="text-sm text-gray-500">Status</span>
+                <span className="text-sm text-gray-500">Pagamento</span>
                 <span className={cn("inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full border", sc.color, sc.bg, sc.border)}>
                   <sc.icon className="w-3 h-3" />
                   {sc.label}
@@ -376,7 +385,7 @@ export default function ClientesPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
           <div className="flex items-center justify-between mb-3">
             <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
@@ -393,18 +402,28 @@ export default function ClientesPage() {
               <UserCheck className="w-5 h-5 text-emerald-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900 tracking-tight">{clientesAtivos}</p>
-          <p className="text-xs text-gray-400 mt-1 font-medium">Ativos</p>
+          <p className="text-2xl font-bold text-gray-900 tracking-tight">{clientesEmDia}</p>
+          <p className="text-xs text-gray-400 mt-1 font-medium">Em Dia</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
           <div className="flex items-center justify-between mb-3">
             <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-              <ShieldAlert className="w-5 h-5 text-amber-600" />
+              <Clock className="w-5 h-5 text-amber-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900 tracking-tight">{clientesRisco}</p>
-          <p className="text-xs text-gray-400 mt-1 font-medium">Em Risco</p>
+          <p className="text-2xl font-bold text-gray-900 tracking-tight">{clientesAtrasados}</p>
+          <p className="text-xs text-gray-400 mt-1 font-medium">Atrasados</p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+              <ShieldAlert className="w-5 h-5 text-red-500" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-gray-900 tracking-tight">{clientesInadimplentes}</p>
+          <p className="text-xs text-gray-400 mt-1 font-medium">Inadimplentes</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
@@ -433,8 +452,9 @@ export default function ClientesPage() {
         <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
           {([
             { key: "todos" as const, label: "Todos" },
-            { key: "ativo" as const, label: "Ativos" },
-            { key: "risco" as const, label: "Risco" },
+            { key: "em_dia" as const, label: "Em Dia" },
+            { key: "atrasado" as const, label: "Atrasados" },
+            { key: "inadimplente" as const, label: "Inadimplentes" },
             { key: "inativo" as const, label: "Inativos" },
           ]).map((s) => (
             <button
@@ -498,7 +518,7 @@ export default function ClientesPage() {
               <tr className="border-b border-gray-100">
                 <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Cliente</th>
                 <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Tipo</th>
-                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Pagamento</th>
                 <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Última Compra</th>
                 <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                   <span className="inline-flex items-center gap-1">
