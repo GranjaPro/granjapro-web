@@ -130,7 +130,11 @@
       "Bash(python scripts/search.py \"dashboard KPI card comparison\" --domain ux -n 5)",
       "Bash(python scripts/search.py \"chart comparison bar\" --domain chart -n 5)",
       "Bash(python scripts/search.py \"dashboard KPI cards progress bars\" --domain ux -n 5)",
-      "Bash(python \"src/ui-ux-pro-max/scripts/search.py\" \"agritech saas dashboard poultry farming decision-engine green\" --design-system -p \"Granja Pro\")"
+      "Bash(python \"src/ui-ux-pro-max/scripts/search.py\" \"agritech saas dashboard poultry farming decision-engine green\" --design-system -p \"Granja Pro\")",
+      "Bash(python3 \"C:\\\\Users\\\\Bernardo Timo\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"agritech dashboard sales charts modern\" --design-system -p \"Granja Pro\")",
+      "Bash(python \"C:\\\\Users\\\\Bernardo Timo\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"agritech dashboard sales charts modern\" --design-system -p \"Granja Pro\")",
+      "Bash(python \"C:\\\\Users\\\\Bernardo Timo\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\src\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"agritech dashboard sales charts modern\" --design-system -p \"Granja Pro\")",
+      "Bash(python \"C:\\\\Users\\\\Bernardo Timo\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\src\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"agritech dashboard equipment management industrial\" --design-system -p \"AgroEquipamentos\")"
     ]
   }
 }

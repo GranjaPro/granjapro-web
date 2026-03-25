@@ -141,13 +141,6 @@ const fluxoMensal = [
   { mes: "Abr", receita: 15695, despesa: 16300, lucro: -605 },
 ];
 
-const topClientes = [
-  { nome: "Mercado Central", receita: 6200, vendas: 12, share: 39.5 },
-  { nome: "Supermercado BH", receita: 4100, vendas: 8, share: 26.1 },
-  { nome: "Restaurante Sabor", receita: 2850, vendas: 6, share: 18.2 },
-  { nome: "Padaria Boa Mesa", receita: 1680, vendas: 5, share: 10.7 },
-  { nome: "Feira Livre", receita: 865, vendas: 3, share: 5.5 },
-];
 
 interface Venda {
   id: number;
@@ -187,6 +180,7 @@ export default function FinancasPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mes">("mes");
   const [chartPeriodo, setChartPeriodo] = useState<"semana" | "mes" | "ano">("mes");
+  const [breakdownTab, setBreakdownTab] = useState<"cliente" | "lote" | "galpao">("cliente");
 
   const periodoVendas = useMemo(() => {
     if (periodo === "dia") return vendas.filter((v) => v.data === "2024-04-17");
@@ -248,6 +242,34 @@ export default function FinancasPage() {
         v.data.includes(q)
     );
   }, [periodoVendas, searchQuery]);
+
+  /* ── Revenue Breakdown ── */
+  const receitaPorCliente = useMemo(() => {
+    const map = new Map<string, { valor: number; vendas: number }>();
+    periodoVendas.forEach((v) => {
+      const e = map.get(v.cliente) || { valor: 0, vendas: 0 };
+      map.set(v.cliente, { valor: e.valor + v.total, vendas: e.vendas + 1 });
+    });
+    return Array.from(map.entries()).map(([nome, d]) => ({ nome, ...d })).sort((a, b) => b.valor - a.valor);
+  }, [periodoVendas]);
+
+  const receitaPorLote = useMemo(() => {
+    const map = new Map<string, { valor: number; volume: number }>();
+    periodoVendas.forEach((v) => {
+      const e = map.get(v.lote) || { valor: 0, volume: 0 };
+      map.set(v.lote, { valor: e.valor + v.total, volume: e.volume + v.quantidade });
+    });
+    return Array.from(map.entries()).map(([nome, d]) => ({ nome, ...d })).sort((a, b) => b.valor - a.valor);
+  }, [periodoVendas]);
+
+  const receitaPorGalpao = useMemo(() => {
+    const map = new Map<string, number>();
+    periodoVendas.forEach((v) => { map.set(v.galpao, (map.get(v.galpao) || 0) + v.total); });
+    return Array.from(map.entries()).map(([nome, valor]) => ({ nome, valor })).sort((a, b) => b.valor - a.valor);
+  }, [periodoVendas]);
+
+  const breakdownData = breakdownTab === "cliente" ? receitaPorCliente : breakdownTab === "lote" ? receitaPorLote : receitaPorGalpao;
+  const breakdownMax = Math.max(...breakdownData.map((d) => d.valor), 1);
 
   /* ── Health Score ── */
   const healthScore = useMemo(() => {
@@ -733,40 +755,70 @@ export default function FinancasPage() {
           </div>
         </div>
 
-        {/* Top Customers */}
+        {/* Receitas por Categoria */}
         <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="text-sm font-bold text-gray-900">Top Clientes</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Receita por cliente este mês</p>
+              <h3 className="text-sm font-bold text-gray-900">Receitas por Categoria</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Receita por categoria — {periodoLabel}</p>
+            </div>
+            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+              {([
+                { key: "cliente" as const, label: "Cliente" },
+                { key: "lote" as const, label: "Lote" },
+                { key: "galpao" as const, label: "Galpão" },
+              ]).map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setBreakdownTab(t.key)}
+                  className={cn(
+                    "px-3 py-1 text-[11px] font-semibold rounded-lg transition-all duration-200 cursor-pointer",
+                    breakdownTab === t.key
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
           </div>
           <div className="space-y-3">
-            {topClientes.map((c, i) => (
-              <div key={c.nome} className="flex items-center gap-3">
-                <div className={cn(
-                  "w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0",
-                  i === 0 && "bg-amber-100 text-amber-700",
-                  i === 1 && "bg-gray-100 text-gray-600",
-                  i === 2 && "bg-orange-50 text-orange-600",
-                  i > 2 && "bg-gray-50 text-gray-400",
-                )}>
-                  {i + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-gray-800 truncate">{c.nome}</span>
-                    <span className="text-sm font-bold text-gray-900 ml-2">{formatCurrency(c.receita)}</span>
+            {(breakdownTab === "cliente" ? receitaPorCliente : breakdownTab === "lote" ? receitaPorLote : receitaPorGalpao).map((d, i) => {
+              const pct = receitaPeriodo > 0 ? (d.valor / receitaPeriodo) * 100 : 0;
+              return (
+                <div key={d.nome} className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0",
+                    i === 0 && "bg-amber-100 text-amber-700",
+                    i === 1 && "bg-gray-100 text-gray-600",
+                    i === 2 && "bg-orange-50 text-orange-600",
+                    i > 2 && "bg-gray-50 text-gray-400",
+                  )}>
+                    {i + 1}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-brand-400 transition-all duration-500" style={{ width: `${c.share}%` }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      {breakdownTab === "lote" ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-xs font-semibold">{d.nome}</span>
+                      ) : (
+                        <span className="text-sm font-medium text-gray-800 truncate">{d.nome}</span>
+                      )}
+                      <span className="text-sm font-bold text-gray-900 ml-2">{formatCurrency(d.valor)}</span>
                     </div>
-                    <span className="text-[10px] text-gray-400 font-medium w-8 text-right">{c.share}%</span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-brand-400 transition-all duration-500" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-medium w-8 text-right">{pct.toFixed(1)}%</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
+            {breakdownData.length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-8">Nenhuma venda neste período</p>
+            )}
           </div>
         </div>
       </div>

@@ -17,8 +17,14 @@ import {
   Cog,
   Zap,
   Droplets,
-  Thermometer,
   Fan,
+  Clock,
+  ShieldAlert,
+  CalendarDays,
+  TrendingDown,
+  ArrowUpRight,
+  Activity,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +42,11 @@ interface Equipamento {
   dataInstalacao: string;
   proximaManutencao: string;
   observacoes: string;
+  valorEquipamento: number;
+  horasUso: number;
+  vidaUtilHoras: number;
+  empresaInstalacao: string;
+  contatoEmpresa: string;
 }
 
 const tipoLabel: Record<TipoEquipamento, string> = {
@@ -75,11 +86,11 @@ const statusColor: Record<StatusEquipamento, string> = {
 };
 
 const initialEquipamentos: Equipamento[] = [
-  { id: 1, nome: "Comedouro Automático", localizacao: "Galpão Vale Verde", tipo: "alimentacao", status: "operacional", marca: "AviTech", modelo: "CA-500", dataInstalacao: "2024-03-15", proximaManutencao: "2026-06-15", observacoes: "Sistema automático com sensor de nível." },
-  { id: 2, nome: "Ventilador Industrial", localizacao: "Galpão Central", tipo: "climatizacao", status: "operacional", marca: "CoolFarm", modelo: "VF-1200", dataInstalacao: "2023-11-20", proximaManutencao: "2026-05-20", observacoes: "4 unidades instaladas. Funcionamento 24h no verão." },
-  { id: 3, nome: "Sistema de Iluminação LED", localizacao: "Galpão Nascente", tipo: "iluminacao", status: "manutencao", marca: "LuxAviar", modelo: "LED-PRO", dataInstalacao: "2024-07-10", proximaManutencao: "2026-04-10", observacoes: "Troca de lâmpadas programada." },
-  { id: 4, nome: "Bebedouro Nipple", localizacao: "Galpão Vale Verde", tipo: "hidraulico", status: "operacional", marca: "HydroFarm", modelo: "NP-300", dataInstalacao: "2024-01-05", proximaManutencao: "2026-07-05", observacoes: "Linha principal com 200 bicos." },
-  { id: 5, nome: "Gerador de Emergência", localizacao: "Setor C", tipo: "geral", status: "inativo", marca: "PowerGen", modelo: "PG-50KVA", dataInstalacao: "2022-06-01", proximaManutencao: "2026-04-01", observacoes: "Necessita revisão completa antes de reativar." },
+  { id: 1, nome: "Comedouro Automático", localizacao: "Galpão Vale Verde", tipo: "alimentacao", status: "operacional", marca: "AviTech", modelo: "CA-500", dataInstalacao: "2024-03-15", proximaManutencao: "2026-04-15", observacoes: "Sistema automático com sensor de nível.", valorEquipamento: 18500, horasUso: 14200, vidaUtilHoras: 25000, empresaInstalacao: "AviTech Soluções", contatoEmpresa: "(11) 98765-4321" },
+  { id: 2, nome: "Ventilador Industrial", localizacao: "Galpão Central", tipo: "climatizacao", status: "operacional", marca: "CoolFarm", modelo: "VF-1200", dataInstalacao: "2023-11-20", proximaManutencao: "2026-05-20", observacoes: "4 unidades instaladas. Funcionamento 24h no verão.", valorEquipamento: 32000, horasUso: 8500, vidaUtilHoras: 30000, empresaInstalacao: "CoolFarm Brasil", contatoEmpresa: "(19) 3456-7890" },
+  { id: 3, nome: "Sistema de Iluminação LED", localizacao: "Galpão Nascente", tipo: "iluminacao", status: "manutencao", marca: "LuxAviar", modelo: "LED-PRO", dataInstalacao: "2024-07-10", proximaManutencao: "2026-03-28", observacoes: "Troca de lâmpadas programada.", valorEquipamento: 9800, horasUso: 6100, vidaUtilHoras: 20000, empresaInstalacao: "IlumiAgro Ltda", contatoEmpresa: "(11) 91234-5678" },
+  { id: 4, nome: "Bebedouro Nipple", localizacao: "Galpão Vale Verde", tipo: "hidraulico", status: "operacional", marca: "HydroFarm", modelo: "NP-300", dataInstalacao: "2024-01-05", proximaManutencao: "2026-07-05", observacoes: "Linha principal com 200 bicos.", valorEquipamento: 14200, horasUso: 11800, vidaUtilHoras: 20000, empresaInstalacao: "HydroFarm Instalações", contatoEmpresa: "(19) 99876-5432" },
+  { id: 5, nome: "Gerador de Emergência", localizacao: "Setor C", tipo: "geral", status: "inativo", marca: "PowerGen", modelo: "PG-50KVA", dataInstalacao: "2022-06-01", proximaManutencao: "2026-04-01", observacoes: "Necessita revisão completa antes de reativar.", valorEquipamento: 45000, horasUso: 4200, vidaUtilHoras: 15000, empresaInstalacao: "EnerTech Geradores", contatoEmpresa: "(11) 3210-9876" },
 ];
 
 const tipoOptions: TipoEquipamento[] = ["alimentacao", "climatizacao", "iluminacao", "hidraulico", "geral"];
@@ -96,6 +107,11 @@ const emptyForm = {
   dataInstalacao: "",
   proximaManutencao: "",
   observacoes: "",
+  valorEquipamento: "",
+  horasUso: "",
+  vidaUtilHoras: "",
+  empresaInstalacao: "",
+  contatoEmpresa: "",
 };
 
 export default function EquipamentosPage() {
@@ -124,6 +140,11 @@ export default function EquipamentosPage() {
       dataInstalacao: item.dataInstalacao,
       proximaManutencao: item.proximaManutencao,
       observacoes: item.observacoes,
+      valorEquipamento: String(item.valorEquipamento),
+      horasUso: String(item.horasUso),
+      vidaUtilHoras: String(item.vidaUtilHoras),
+      empresaInstalacao: item.empresaInstalacao,
+      contatoEmpresa: item.contatoEmpresa,
     });
     setEditing(item);
     setModal("edit");
@@ -142,6 +163,11 @@ export default function EquipamentosPage() {
       dataInstalacao: form.dataInstalacao,
       proximaManutencao: form.proximaManutencao,
       observacoes: form.observacoes,
+      valorEquipamento: Number(form.valorEquipamento) || 0,
+      horasUso: Number(form.horasUso) || 0,
+      vidaUtilHoras: Number(form.vidaUtilHoras) || 0,
+      empresaInstalacao: form.empresaInstalacao,
+      contatoEmpresa: form.contatoEmpresa,
     };
     if (modal === "add") setEquipamentos((prev) => [...prev, item]);
     else if (editing) setEquipamentos((prev) => prev.map((i) => (i.id === editing.id ? item : i)));
@@ -159,9 +185,30 @@ export default function EquipamentosPage() {
     return matchSearch && matchTipo;
   });
 
+  const today = new Date("2026-03-24T00:00:00");
+  function formatCurrency(v: number) { return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
+  function diasAteManutencao(d: string) {
+    if (!d) return Infinity;
+    return Math.ceil((new Date(d + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  }
+  function vidaUtilPercent(item: Equipamento) {
+    if (item.vidaUtilHoras <= 0) return 0;
+    return Math.min(100, Math.round((item.horasUso / item.vidaUtilHoras) * 100));
+  }
+
   const totalOperacional = equipamentos.filter((i) => i.status === "operacional").length;
   const totalManutencao = equipamentos.filter((i) => i.status === "manutencao").length;
   const totalInativo = equipamentos.filter((i) => i.status === "inativo").length;
+  const patrimonioTotal = equipamentos.reduce((s, i) => s + i.valorEquipamento, 0);
+  const disponibilidade = equipamentos.length > 0 ? Math.round((totalOperacional / equipamentos.length) * 100) : 0;
+
+  const comManutencao = equipamentos.map((i) => ({ ...i, diasManut: diasAteManutencao(i.proximaManutencao) })).sort((a, b) => a.diasManut - b.diasManut);
+  const manutencaoProxima = comManutencao.filter((i) => i.diasManut <= 30 && i.diasManut >= 0);
+  const manutencaoAtrasada = comManutencao.filter((i) => i.diasManut < 0);
+  const vidaUtilCritica = equipamentos.filter((i) => vidaUtilPercent(i) >= 80);
+  const custoManutencaoRisco = [...manutencaoProxima, ...manutencaoAtrasada].reduce((s, i) => s + i.valorEquipamento, 0);
+  const custoVidaUtilRisco = vidaUtilCritica.reduce((s, i) => s + i.valorEquipamento, 0);
+  const totalAlertas = manutencaoProxima.length + manutencaoAtrasada.length + vidaUtilCritica.length + totalInativo;
 
   return (
     <div className="space-y-6">
@@ -183,47 +230,171 @@ export default function EquipamentosPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-              <Package className="w-5 h-5 text-blue-600" />
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
+        {/* Patrimônio */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <DollarSign className="w-4.5 h-4.5 text-emerald-600" />
             </div>
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Patrimônio</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900 tracking-tight">{equipamentos.length}</p>
-          <p className="text-xs text-gray-400 mt-1 font-medium">Total de Equipamentos</p>
+          <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{formatCurrency(patrimonioTotal)}</p>
+          <div className="mt-3 flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full"><ArrowUpRight className="w-3 h-3" />{equipamentos.length} equip.</span>
+            <span className="text-[10px] text-gray-400">cadastrados</span>
+          </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+        {/* Operacionais */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
+              <CheckCircle2 className="w-4.5 h-4.5 text-blue-600" />
+            </div>
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Operacionais</span>
+          </div>
+          <div className="flex items-end justify-between">
+            <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{totalOperacional}<span className="text-sm text-gray-400 font-medium">/{equipamentos.length}</span></p>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">Ativos</span>
+          </div>
+          <div className="mt-3 relative">
+            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-blue-500 transition-all duration-700" style={{ width: `${(totalOperacional / Math.max(equipamentos.length, 1)) * 100}%` }} />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900 tracking-tight">{totalOperacional}</p>
-          <p className="text-xs text-gray-400 mt-1 font-medium">Operacionais</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-amber-600" />
+        {/* Disponibilidade */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center">
+              <Activity className="w-4.5 h-4.5 text-purple-600" />
+            </div>
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Disponibilidade</span>
+          </div>
+          <p className={cn("text-2xl font-bold tracking-tight leading-none", disponibilidade >= 80 ? "text-emerald-700" : disponibilidade >= 50 ? "text-amber-600" : "text-red-600")}>{disponibilidade}%</p>
+          <div className="mt-3 relative">
+            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className={cn("h-full rounded-full transition-all duration-700", disponibilidade >= 80 ? "bg-emerald-500" : disponibilidade >= 50 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${disponibilidade}%` }} />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900 tracking-tight">{totalManutencao}</p>
-          <p className="text-xs text-gray-400 mt-1 font-medium">Em Manutenção</p>
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-[10px] text-gray-400 font-medium">{totalManutencao} manut. · {totalInativo} inativo{totalInativo !== 1 ? "s" : ""}</span>
+          </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center">
-              <Wrench className="w-5 h-5 text-gray-500" />
+        {/* Próxima Manutenção */}
+        <div className={cn("rounded-2xl border p-5 hover:shadow-lg transition-all duration-300 cursor-pointer", manutencaoAtrasada.length > 0 ? "bg-gradient-to-br from-red-50/80 to-white border-red-200/60 hover:shadow-red-200/30" : manutencaoProxima.length > 0 ? "bg-gradient-to-br from-amber-50/80 to-white border-amber-200/60 hover:shadow-amber-200/30" : "bg-white border-gray-100 hover:shadow-gray-200/50 hover:border-gray-200")}>
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", manutencaoAtrasada.length > 0 ? "bg-red-100" : manutencaoProxima.length > 0 ? "bg-amber-100" : "bg-emerald-50")}>
+              <CalendarDays className={cn("w-4.5 h-4.5", manutencaoAtrasada.length > 0 ? "text-red-500" : manutencaoProxima.length > 0 ? "text-amber-600" : "text-emerald-600")} />
             </div>
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Manutenção</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900 tracking-tight">{totalInativo}</p>
-          <p className="text-xs text-gray-400 mt-1 font-medium">Inativos</p>
+          {comManutencao.length > 0 && comManutencao[0].diasManut < Infinity ? (
+            <>
+              <p className={cn("text-2xl font-bold tracking-tight leading-none", comManutencao[0].diasManut < 0 ? "text-red-600" : comManutencao[0].diasManut <= 15 ? "text-amber-600" : "text-gray-900")}>{comManutencao[0].diasManut < 0 ? `${Math.abs(comManutencao[0].diasManut)}d atrasada` : `${comManutencao[0].diasManut}d`}</p>
+              <p className="text-[10px] text-gray-400 font-medium mt-1 truncate">{comManutencao[0].nome}</p>
+              {custoManutencaoRisco > 0 && (
+                <div className="mt-2 flex items-center gap-1">
+                  <TrendingDown className="w-3 h-3 text-red-500" />
+                  <span className="text-[10px] font-bold text-red-600">{formatCurrency(custoManutencaoRisco)} em risco</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-2xl font-bold text-emerald-700 tracking-tight leading-none">OK</p>
+              <p className="text-[10px] text-emerald-600 font-medium mt-1">Sem manutenções pendentes</p>
+            </>
+          )}
+        </div>
+
+        {/* Alertas */}
+        <div className={cn("rounded-2xl border p-5 hover:shadow-lg transition-all duration-300 cursor-pointer", totalAlertas > 0 ? "bg-gradient-to-br from-amber-50/80 to-white border-amber-200/60 hover:shadow-amber-200/30" : "bg-white border-gray-100 hover:shadow-gray-200/50 hover:border-gray-200")}>
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", totalAlertas > 0 ? "bg-amber-100" : "bg-emerald-50")}>
+              {totalAlertas > 0 ? <ShieldAlert className="w-4.5 h-4.5 text-amber-600" /> : <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />}
+            </div>
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Alertas</span>
+          </div>
+          <p className={cn("text-2xl font-bold tracking-tight leading-none", totalAlertas > 0 ? "text-amber-700" : "text-emerald-700")}>{totalAlertas}</p>
+          <div className="mt-2 space-y-0.5">
+            {(custoManutencaoRisco + custoVidaUtilRisco) > 0 && <p className="text-[10px] text-red-600 font-bold">{formatCurrency(custoManutencaoRisco + custoVidaUtilRisco)} em risco</p>}
+            {manutencaoAtrasada.length > 0 && <p className="text-[10px] text-red-500 font-medium">{manutencaoAtrasada.length} manut. atrasada{manutencaoAtrasada.length > 1 ? "s" : ""}</p>}
+            {manutencaoProxima.length > 0 && <p className="text-[10px] text-amber-600 font-medium">{manutencaoProxima.length} manut. em 30d</p>}
+            {vidaUtilCritica.length > 0 && <p className="text-[10px] text-orange-600 font-medium">{vidaUtilCritica.length} vida útil &gt;80%</p>}
+            {totalInativo > 0 && <p className="text-[10px] text-gray-500 font-medium">{totalInativo} inativo{totalInativo > 1 ? "s" : ""}</p>}
+            {totalAlertas === 0 && <p className="text-[10px] text-emerald-600 font-medium">Tudo em ordem</p>}
+          </div>
         </div>
       </div>
+
+      {/* ── Riscos Críticos ── */}
+      {(manutencaoAtrasada.length > 0 || manutencaoProxima.length > 0 || vidaUtilCritica.length > 0) && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center shadow-sm">
+              <AlertTriangle className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Riscos Críticos</h3>
+              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Equipamentos que requerem ação imediata</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {manutencaoAtrasada.map((item) => (
+              <div key={`atr-${item.id}`} className="flex items-center gap-3 p-3 rounded-xl bg-red-50/50 border border-red-100">
+                <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <CalendarDays className="w-4 h-4 text-red-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{item.nome}</p>
+                    <span className="text-[11px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-md flex-shrink-0">{formatCurrency(item.valorEquipamento)}</span>
+                  </div>
+                  <p className="text-[11px] text-red-500 font-medium">Manutenção atrasada {Math.abs(item.diasManut)} dias — {new Date(item.proximaManutencao + "T00:00:00").toLocaleDateString("pt-BR")}</p>
+                </div>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 text-white bg-red-500">{Math.abs(item.diasManut)}d</span>
+              </div>
+            ))}
+            {manutencaoProxima.map((item) => (
+              <div key={`man-${item.id}`} className="flex items-center gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{item.nome}</p>
+                    <span className="text-[11px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-md flex-shrink-0">{formatCurrency(item.valorEquipamento)}</span>
+                  </div>
+                  <p className="text-[11px] text-amber-600 font-medium">Manutenção em {item.diasManut} dias — {new Date(item.proximaManutencao + "T00:00:00").toLocaleDateString("pt-BR")}</p>
+                </div>
+                <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0", item.diasManut <= 7 ? "text-white bg-amber-500" : "text-amber-700 bg-amber-100")}>{item.diasManut}d</span>
+              </div>
+            ))}
+            {vidaUtilCritica.map((item) => {
+              const pct = vidaUtilPercent(item);
+              return (
+                <div key={`vida-${item.id}`} className="flex items-center gap-3 p-3 rounded-xl bg-orange-50/50 border border-orange-100">
+                  <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                    <TrendingDown className="w-4 h-4 text-orange-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{item.nome}</p>
+                      <span className="text-[11px] font-bold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded-md flex-shrink-0">{formatCurrency(item.valorEquipamento)}</span>
+                    </div>
+                    <p className="text-[11px] text-orange-600 font-medium">Vida útil em {pct}% — {item.horasUso.toLocaleString("pt-BR")}h de {item.vidaUtilHoras.toLocaleString("pt-BR")}h</p>
+                  </div>
+                  <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0", pct >= 90 ? "text-white bg-red-500" : "text-orange-700 bg-orange-100")}>{pct}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filters + Search */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -259,6 +430,8 @@ export default function EquipamentosPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map((item) => {
           const TipoIcon = tipoIcons[item.tipo];
+          const diasManut = diasAteManutencao(item.proximaManutencao);
+          const pctVida = vidaUtilPercent(item);
           return (
             <div key={item.id} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
               <div className="flex items-start justify-between mb-3">
@@ -284,24 +457,70 @@ export default function EquipamentosPage() {
                 </div>
               </div>
 
-              {/* Info */}
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500">Marca / Modelo</span>
-                  <span className="font-semibold text-gray-700">{item.marca} {item.modelo}</span>
+              {/* Value + Brand */}
+              <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2 mt-1">
+                <div>
+                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Valor</p>
+                  <p className="text-sm font-bold text-gray-900">{formatCurrency(item.valorEquipamento)}</p>
                 </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500">Instalação</span>
-                  <span className="font-semibold text-gray-700">{item.dataInstalacao ? new Date(item.dataInstalacao).toLocaleDateString("pt-BR") : "—"}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500">Próx. Manutenção</span>
-                  <span className="font-semibold text-gray-700">{item.proximaManutencao ? new Date(item.proximaManutencao).toLocaleDateString("pt-BR") : "—"}</span>
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Marca</p>
+                  <p className="text-sm font-bold text-gray-900">{item.marca} <span className="text-[10px] text-gray-400 font-medium">{item.modelo}</span></p>
                 </div>
               </div>
 
-              {item.observacoes && (
-                <p className="text-xs text-gray-400 mt-3 line-clamp-2">{item.observacoes}</p>
+              {/* Vida útil bar */}
+              <div className="mt-3 space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Vida útil</span>
+                  <span className="font-semibold text-gray-700">{pctVida}% <span className="text-[10px] text-gray-400 font-normal">({item.horasUso.toLocaleString("pt-BR")}h)</span></span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-gray-100">
+                  <div
+                    className={cn(
+                      "h-1.5 rounded-full transition-all",
+                      pctVida >= 90 ? "bg-red-400" : pctVida >= 70 ? "bg-amber-400" : "bg-brand-500"
+                    )}
+                    style={{ width: pctVida + "%" }}
+                  />
+                </div>
+              </div>
+
+              {/* Maintenance + Installation dates */}
+              <div className="mt-3 flex items-center gap-2">
+                {item.proximaManutencao && (
+                  <div className={cn("flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg", diasManut < 0 ? "text-red-600 bg-red-50" : diasManut <= 15 ? "text-amber-600 bg-amber-50" : "text-gray-500 bg-gray-50")}>
+                    <Clock className="w-3 h-3" />
+                    {diasManut < 0 ? `${Math.abs(diasManut)}d atrasada` : `${diasManut}d p/ manut.`}
+                  </div>
+                )}
+                {item.dataInstalacao && (
+                  <div className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg text-gray-500 bg-gray-50">
+                    <CalendarDays className="w-3 h-3" />
+                    {new Date(item.dataInstalacao + "T00:00:00").toLocaleDateString("pt-BR")}
+                  </div>
+                )}
+              </div>
+
+              {/* Suporte */}
+              {(item.empresaInstalacao || item.contatoEmpresa) && (
+                <div className="mt-3 border-t border-dashed border-gray-100 pt-3">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Suporte</p>
+                  <div className="space-y-1">
+                    {item.empresaInstalacao && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500">Empresa</span>
+                        <span className="font-semibold text-gray-700">{item.empresaInstalacao}</span>
+                      </div>
+                    )}
+                    {item.contatoEmpresa && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500">Contato</span>
+                        <span className="font-semibold text-blue-600">{item.contatoEmpresa}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
 
               {/* Badges */}
@@ -380,6 +599,36 @@ export default function EquipamentosPage() {
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Próxima Manutenção</label>
                   <input type="date" value={form.proximaManutencao} onChange={(e) => setForm({ ...form, proximaManutencao: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Valor (R$)</label>
+                  <input type="number" min="0" step="0.01" value={form.valorEquipamento} onChange={(e) => setForm({ ...form, valorEquipamento: e.target.value })} placeholder="18500" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Horas de Uso</label>
+                  <input type="number" min="0" value={form.horasUso} onChange={(e) => setForm({ ...form, horasUso: e.target.value })} placeholder="14200" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Vida Útil (h)</label>
+                  <input type="number" min="0" value={form.vidaUtilHoras} onChange={(e) => setForm({ ...form, vidaUtilHoras: e.target.value })} placeholder="25000" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+              </div>
+
+              {/* Suporte */}
+              <div className="border-t border-dashed border-gray-200 pt-4">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Suporte</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Empresa de Suporte</label>
+                    <input type="text" value={form.empresaInstalacao} onChange={(e) => setForm({ ...form, empresaInstalacao: e.target.value })} placeholder="Ex: AviTech Soluções" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Contato do Suporte</label>
+                    <input type="text" value={form.contatoEmpresa} onChange={(e) => setForm({ ...form, contatoEmpresa: e.target.value })} placeholder="(11) 98765-4321" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  </div>
                 </div>
               </div>
 

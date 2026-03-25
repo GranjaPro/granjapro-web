@@ -870,7 +870,69 @@ export default function RacaoPage() {
             </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
-            {/* Custo / Dúzia */}
+            {/* Economia */}
+            <div className="bg-gray-50 rounded-xl p-3 sm:p-4">
+              <div className="flex items-center justify-between mb-2 sm:mb-3">
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                    <TrendingUp className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Economia</span>
+                </div>
+                <div className="relative group">
+                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
+                    <HelpCircle className="w-3 h-3 text-gray-500" />
+                  </button>
+                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
+                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Economia?</p>
+                    <p className="text-[10px] text-gray-500 leading-relaxed">Economia mensal gerada por otimizações no consumo de ração e negociação com fornecedores.</p>
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <p className="text-[10px] text-gray-400">Fórmula: Custo Previsto - Custo Real</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">R$ 320</p>
+              <div className="flex items-center justify-between mt-2 gap-1">
+                <span className="text-[10px] text-gray-400 truncate">Meta: R$ 500</span>
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                  <ArrowDownRight className="w-3 h-3" />
+                  64%
+                </span>
+              </div>
+            </div>
+            {/* Desperdício */}
+            <div className="bg-gray-50 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
+                    <AlertTriangle className="w-4 h-4 text-red-500" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Desperdício</span>
+                </div>
+                <div className="relative group">
+                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
+                    <HelpCircle className="w-3 h-3 text-gray-500" />
+                  </button>
+                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
+                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Desperdício?</p>
+                    <p className="text-[10px] text-gray-500 leading-relaxed">Custo estimado de ração desperdiçada por dia. Inclui sobras e perdas no processo.</p>
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <p className="text-[10px] text-gray-400">Fórmula: (Fornecido - Consumido) × Preço/kg</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">R$ 18,00</p>
+              <div className="flex items-center justify-between mt-2 gap-1">
+                <span className="text-[10px] text-gray-400 truncate">Tolerado: R$ 12,00</span>
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                  <ArrowUpRight className="w-3 h-3" />
+                  +50%
+                </span>
+              </div>
+            </div>
+            {/* Custo/Dúzia */}
             <div className="bg-gray-50 rounded-xl p-3 sm:p-4">
               <div className="flex items-center justify-between mb-2 sm:mb-3">
                 <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
@@ -932,37 +994,6 @@ export default function RacaoPage() {
                 </span>
               </div>
             </div>
-            {/* Economia */}
-            <div className="bg-gray-50 rounded-xl p-3 sm:p-4">
-              <div className="flex items-center justify-between mb-2 sm:mb-3">
-                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                    <TrendingUp className="w-4 h-4 text-emerald-600" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Economia</span>
-                </div>
-                <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
-                    <HelpCircle className="w-3 h-3 text-gray-500" />
-                  </button>
-                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Economia?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Economia mensal gerada por otimizações no consumo de ração e negociação com fornecedores.</p>
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: Custo Previsto - Custo Real</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-lg sm:text-xl font-bold text-gray-900">R$ 320</p>
-              <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Meta: R$ 500</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                  <ArrowDownRight className="w-3 h-3" />
-                  64%
-                </span>
-              </div>
-            </div>
             {/* Custo/Ovo */}
             <div className="bg-gray-50 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
@@ -1009,50 +1040,19 @@ export default function RacaoPage() {
                   </button>
                   <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
                     <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Consumo/Ave?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Quantidade diária de ração consumida por ave. Indica eficiência do arraçoamento.</p>
+                    <p className="text-[10px] text-gray-500 leading-relaxed">Custo diário de ração por ave. Indica eficiência do arraçoamento.</p>
                     <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: Consumo Total / Nº de Aves</p>
+                      <p className="text-[10px] text-gray-400">Fórmula: Custo Total / Nº de Aves</p>
                     </div>
                   </div>
                 </div>
               </div>
-              <p className="text-lg sm:text-xl font-bold text-gray-900">128 g</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">R$ 0,18</p>
               <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Esperado: 120 g</span>
+                <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 0,15</span>
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
                   <ArrowUpRight className="w-3 h-3" />
-                  +6.7%
-                </span>
-              </div>
-            </div>
-            {/* Desperdício */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
-                    <AlertTriangle className="w-4 h-4 text-red-500" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Desperdício</span>
-                </div>
-                <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
-                    <HelpCircle className="w-3 h-3 text-gray-500" />
-                  </button>
-                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Desperdício?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Estimativa de ração desperdiçada por dia. Inclui sobras e perdas no processo.</p>
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: Fornecido - Consumido</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-lg sm:text-xl font-bold text-gray-900">12 kg</p>
-              <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Tolerado: 8 kg</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                  <ArrowUpRight className="w-3 h-3" />
-                  +50%
+                  +20%
                 </span>
               </div>
             </div>

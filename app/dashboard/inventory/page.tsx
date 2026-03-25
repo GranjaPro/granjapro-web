@@ -18,6 +18,14 @@ import {
   Wheat,
   Pill,
   Box,
+  TrendingDown,
+  ArrowUpRight,
+  ArrowDownRight,
+  Clock,
+  ShieldAlert,
+  Sparkles,
+  Zap,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +42,11 @@ interface ItemEstoque {
   capacidade: string;
   ocupacaoAtual: number; // percentage 0-100
   observacoes: string;
+  quantidade: number;
+  unidade: string;
+  valorEstoque: number;
+  vencimento: string | null; // ISO date or null
+  consumoDiario: number; // units per day
 }
 
 const tipoLabel: Record<TipoArmazenamento, string> = {
@@ -70,10 +83,10 @@ const statusColor: Record<StatusEstoque, string> = {
 };
 
 const initialEstoque: ItemEstoque[] = [
-  { id: 1, nome: "Galpão de Ração", localizacao: "Setor C, Lote 1", area: "800 m²", status: "ativo", tipo: "racao", capacidade: "50 toneladas", ocupacaoAtual: 72, observacoes: "Estoque principal de ração. Reposição semanal." },
-  { id: 2, nome: "Galpão de Equipamentos", localizacao: "Setor C, Lote 2", area: "600 m²", status: "manutencao", tipo: "equipamentos", capacidade: "200 m³", ocupacaoAtual: 45, observacoes: "Em manutenção — reforma do telhado prevista para maio." },
-  { id: 3, nome: "Depósito de Medicamentos", localizacao: "Setor A, Lote 4", area: "120 m²", status: "ativo", tipo: "medicamentos", capacidade: "500 itens", ocupacaoAtual: 38, observacoes: "Ambiente climatizado. Controle de temperatura ativo." },
-  { id: 4, nome: "Sala de Embalagens", localizacao: "Setor B, Lote 5", area: "250 m²", status: "ativo", tipo: "embalagens", capacidade: "10.000 unidades", ocupacaoAtual: 85, observacoes: "Estoque alto — próxima compra pode ser adiada." },
+  { id: 1, nome: "Galpão de Ração", localizacao: "Setor C, Lote 1", area: "800 m²", status: "ativo", tipo: "racao", capacidade: "50 toneladas", ocupacaoAtual: 72, observacoes: "Estoque principal de ração. Reposição semanal.", quantidade: 36000, unidade: "kg", valorEstoque: 28800, vencimento: "2026-05-15", consumoDiario: 850 },
+  { id: 2, nome: "Galpão de Equipamentos", localizacao: "Setor C, Lote 2", area: "600 m²", status: "manutencao", tipo: "equipamentos", capacidade: "200 m³", ocupacaoAtual: 45, observacoes: "Em manutenção — reforma do telhado prevista para maio.", quantidade: 47, unidade: "itens", valorEstoque: 12500, vencimento: null, consumoDiario: 0 },
+  { id: 3, nome: "Depósito de Medicamentos", localizacao: "Setor A, Lote 4", area: "120 m²", status: "ativo", tipo: "medicamentos", capacidade: "500 itens", ocupacaoAtual: 38, observacoes: "Ambiente climatizado. Controle de temperatura ativo.", quantidade: 190, unidade: "itens", valorEstoque: 4750, vencimento: "2026-04-10", consumoDiario: 8 },
+  { id: 4, nome: "Sala de Embalagens", localizacao: "Setor B, Lote 5", area: "250 m²", status: "ativo", tipo: "embalagens", capacidade: "10.000 unidades", ocupacaoAtual: 85, observacoes: "Estoque alto — próxima compra pode ser adiada.", quantidade: 8500, unidade: "un", valorEstoque: 3400, vencimento: null, consumoDiario: 120 },
 ];
 
 const tipoOptions: TipoArmazenamento[] = ["racao", "medicamentos", "equipamentos", "embalagens"];
@@ -89,6 +102,11 @@ const emptyForm = {
   capacidade: "",
   ocupacaoAtual: "",
   observacoes: "",
+  quantidade: "",
+  unidade: "",
+  valorEstoque: "",
+  vencimento: "",
+  consumoDiario: "",
 };
 
 export default function EstoquePage() {
@@ -116,6 +134,11 @@ export default function EstoquePage() {
       capacidade: item.capacidade,
       ocupacaoAtual: String(item.ocupacaoAtual),
       observacoes: item.observacoes,
+      quantidade: String(item.quantidade),
+      unidade: item.unidade,
+      valorEstoque: String(item.valorEstoque),
+      vencimento: item.vencimento || "",
+      consumoDiario: String(item.consumoDiario),
     });
     setEditing(item);
     setModal("edit");
@@ -133,6 +156,11 @@ export default function EstoquePage() {
       capacidade: form.capacidade,
       ocupacaoAtual: Number(form.ocupacaoAtual) || 0,
       observacoes: form.observacoes,
+      quantidade: Number(form.quantidade) || 0,
+      unidade: form.unidade,
+      valorEstoque: Number(form.valorEstoque) || 0,
+      vencimento: form.vencimento || null,
+      consumoDiario: Number(form.consumoDiario) || 0,
     };
     if (modal === "add") setEstoque((prev) => [...prev, item]);
     else if (editing) setEstoque((prev) => prev.map((i) => (i.id === editing.id ? item : i)));
@@ -153,6 +181,25 @@ export default function EstoquePage() {
   const totalAtivos = estoque.filter((i) => i.status === "ativo").length;
   const totalManutencao = estoque.filter((i) => i.status === "manutencao").length;
   const mediaOcupacao = estoque.length > 0 ? Math.round(estoque.reduce((s, i) => s + i.ocupacaoAtual, 0) / estoque.length) : 0;
+  const valorTotal = estoque.reduce((s, i) => s + i.valorEstoque, 0);
+  const today = new Date("2026-03-24T00:00:00");
+
+  function formatCurrency(v: number) { return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
+  function diasAteVencimento(d: string | null) {
+    if (!d) return Infinity;
+    return Math.ceil((new Date(d + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  }
+  function diasDeEstoque(item: ItemEstoque) {
+    if (item.consumoDiario <= 0) return Infinity;
+    return Math.floor(item.quantidade / item.consumoDiario);
+  }
+
+  const itensComVencimento = estoque.filter((i) => i.vencimento).map((i) => ({ ...i, diasVenc: diasAteVencimento(i.vencimento) })).sort((a, b) => a.diasVenc - b.diasVenc);
+  const vencimentoCritico = itensComVencimento.filter((i) => i.diasVenc <= 30);
+  const estoquesCriticos = estoque.filter((i) => i.consumoDiario > 0 && diasDeEstoque(i) <= 14);
+  const estoqueBaixo = estoque.filter((i) => i.ocupacaoAtual <= 25 && i.status === "ativo");
+  const totalAlertas = vencimentoCritico.length + estoquesCriticos.length + totalManutencao;
+  const perdaVencimento = vencimentoCritico.reduce((s, i) => s + i.valorEstoque, 0);
 
   return (
     <div className="space-y-6">
@@ -174,47 +221,149 @@ export default function EstoquePage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
-              <Warehouse className="w-5 h-5 text-purple-600" />
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
+        {/* Valor Total */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <Package className="w-4.5 h-4.5 text-emerald-600" />
             </div>
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Valor em Estoque</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900 tracking-tight">{estoque.length}</p>
-          <p className="text-xs text-gray-400 mt-1 font-medium">Total de Espaços</p>
+          <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{formatCurrency(valorTotal)}</p>
+          <div className="mt-3 flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full"><ArrowUpRight className="w-3 h-3" />+3%</span>
+            <span className="text-[10px] text-gray-400">vs mês anterior</span>
+          </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+        {/* Espaços Ativos */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center">
+              <Warehouse className="w-4.5 h-4.5 text-purple-600" />
+            </div>
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Espaços</span>
+          </div>
+          <div className="flex items-end justify-between">
+            <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{totalAtivos}<span className="text-sm text-gray-400 font-medium">/{estoque.length}</span></p>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">Ativos</span>
+          </div>
+          <div className="mt-3 relative">
+            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-purple-500 transition-all duration-700" style={{ width: `${(totalAtivos / Math.max(estoque.length, 1)) * 100}%` }} />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900 tracking-tight">{totalAtivos}</p>
-          <p className="text-xs text-gray-400 mt-1 font-medium">Ativos</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-amber-600" />
+        {/* Ocupação Média */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
+              <Box className="w-4.5 h-4.5 text-blue-600" />
+            </div>
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Ocupação</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{mediaOcupacao}%</p>
+          <div className="mt-3 relative">
+            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className={cn("h-full rounded-full transition-all duration-700", mediaOcupacao > 80 ? "bg-red-500" : mediaOcupacao > 50 ? "bg-blue-500" : "bg-amber-500")} style={{ width: `${mediaOcupacao}%` }} />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900 tracking-tight">{totalManutencao}</p>
-          <p className="text-xs text-gray-400 mt-1 font-medium">Em Manutenção</p>
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-[10px] text-gray-400 font-medium">{estoqueBaixo.length > 0 ? `${estoqueBaixo.length} abaixo de 25%` : "Todos acima de 25%"}</span>
+          </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-              <Package className="w-5 h-5 text-blue-600" />
+        {/* Próximo Vencimento */}
+        <div className={cn("rounded-2xl border p-5 hover:shadow-lg transition-all duration-300 cursor-pointer", vencimentoCritico.length > 0 ? "bg-gradient-to-br from-red-50/80 to-white border-red-200/60 hover:shadow-red-200/30" : "bg-white border-gray-100 hover:shadow-gray-200/50 hover:border-gray-200")}>
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", vencimentoCritico.length > 0 ? "bg-red-100" : "bg-amber-50")}>
+              <CalendarDays className={cn("w-4.5 h-4.5", vencimentoCritico.length > 0 ? "text-red-500" : "text-amber-600")} />
             </div>
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Vencimento</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900 tracking-tight">{mediaOcupacao}%</p>
-          <p className="text-xs text-gray-400 mt-1 font-medium">Ocupação Média</p>
+          {itensComVencimento.length > 0 ? (
+            <>
+              <p className={cn("text-2xl font-bold tracking-tight leading-none", itensComVencimento[0].diasVenc <= 15 ? "text-red-600" : itensComVencimento[0].diasVenc <= 30 ? "text-amber-600" : "text-gray-900")}>{itensComVencimento[0].diasVenc}d</p>
+              <p className="text-[10px] text-gray-400 font-medium mt-1 truncate">{itensComVencimento[0].nome}</p>
+              {perdaVencimento > 0 && (
+                <div className="mt-2 flex items-center gap-1">
+                  <TrendingDown className="w-3 h-3 text-red-500" />
+                  <span className="text-[10px] font-bold text-red-600">{formatCurrency(perdaVencimento)} em risco</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">—</p>
+          )}
+        </div>
+
+        {/* Alertas */}
+        <div className={cn("rounded-2xl border p-5 hover:shadow-lg transition-all duration-300 cursor-pointer", totalAlertas > 0 ? "bg-gradient-to-br from-amber-50/80 to-white border-amber-200/60 hover:shadow-amber-200/30" : "bg-white border-gray-100 hover:shadow-gray-200/50 hover:border-gray-200")}>
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", totalAlertas > 0 ? "bg-amber-100" : "bg-emerald-50")}>
+              {totalAlertas > 0 ? <ShieldAlert className="w-4.5 h-4.5 text-amber-600" /> : <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />}
+            </div>
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Alertas</span>
+          </div>
+          <p className={cn("text-2xl font-bold tracking-tight leading-none", totalAlertas > 0 ? "text-amber-700" : "text-emerald-700")}>{totalAlertas}</p>
+          <div className="mt-2 space-y-0.5">
+            {perdaVencimento > 0 && <p className="text-[10px] text-red-600 font-bold">{formatCurrency(perdaVencimento)} em risco</p>}
+            {vencimentoCritico.length > 0 && <p className="text-[10px] text-red-500 font-medium">{vencimentoCritico.length} vencendo em 30d</p>}
+            {estoquesCriticos.length > 0 && <p className="text-[10px] text-amber-600 font-medium">{estoquesCriticos.length} estoque &lt;14 dias</p>}
+            {totalManutencao > 0 && <p className="text-[10px] text-gray-500 font-medium">{totalManutencao} em manutenção</p>}
+            {totalAlertas === 0 && <p className="text-[10px] text-emerald-600 font-medium">Tudo em ordem</p>}
+          </div>
         </div>
       </div>
+
+      {/* ── Riscos Críticos ── */}
+      {(vencimentoCritico.length > 0 || estoquesCriticos.length > 0) && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center shadow-sm">
+              <AlertTriangle className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Riscos Críticos</h3>
+              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Itens que requerem ação imediata</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {vencimentoCritico.map((item) => (
+              <div key={`venc-${item.id}`} className="flex items-center gap-3 p-3 rounded-xl bg-red-50/50 border border-red-100">
+                <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <CalendarDays className="w-4 h-4 text-red-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{item.nome}</p>
+                    <span className="text-[11px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-md flex-shrink-0">{formatCurrency(item.valorEstoque)}</span>
+                  </div>
+                  <p className="text-[11px] text-red-500 font-medium">Vence em {item.diasVenc} dias — {new Date(item.vencimento! + "T00:00:00").toLocaleDateString("pt-BR")} — Perda: {formatCurrency(item.valorEstoque)}</p>
+                </div>
+                <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0", item.diasVenc <= 7 ? "text-white bg-red-500" : "text-red-700 bg-red-100")}>{item.diasVenc}d</span>
+              </div>
+            ))}
+            {estoquesCriticos.map((item) => {
+              const dias = diasDeEstoque(item);
+              return (
+                <div key={`est-${item.id}`} className="flex items-center gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                    <TrendingDown className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{item.nome}</p>
+                    <p className="text-[11px] text-amber-600 font-medium">Estoque para {dias} dias — {item.quantidade.toLocaleString("pt-BR")} {item.unidade} restantes</p>
+                  </div>
+                  <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0", dias <= 7 ? "text-white bg-amber-500" : "text-amber-700 bg-amber-100")}>{dias}d</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filters + Search */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -249,6 +398,8 @@ export default function EstoquePage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map((item) => {
           const TipoIcon = tipoIcons[item.tipo];
+          const diasVenc = diasAteVencimento(item.vencimento);
+          const diasEst = diasDeEstoque(item);
           return (
             <div key={item.id} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
               <div className="flex items-start justify-between mb-3">
@@ -274,12 +425,20 @@ export default function EstoquePage() {
                 </div>
               </div>
 
-              {/* Info */}
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500">Capacidade</span>
-                  <span className="font-semibold text-gray-700">{item.capacidade}</span>
+              {/* Value + Quantity */}
+              <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2 mt-1">
+                <div>
+                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Valor</p>
+                  <p className="text-sm font-bold text-gray-900">{formatCurrency(item.valorEstoque)}</p>
                 </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Qtd</p>
+                  <p className="text-sm font-bold text-gray-900">{item.quantidade.toLocaleString("pt-BR")} <span className="text-[10px] text-gray-400 font-medium">{item.unidade}</span></p>
+                </div>
+              </div>
+
+              {/* Occupancy bar */}
+              <div className="mt-3 space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-500">Ocupação</span>
                   <span className="font-semibold text-gray-700">{item.ocupacaoAtual}%</span>
@@ -295,9 +454,21 @@ export default function EstoquePage() {
                 </div>
               </div>
 
-              {item.observacoes && (
-                <p className="text-xs text-gray-400 mt-3 line-clamp-2">{item.observacoes}</p>
-              )}
+              {/* Expiration + Days of stock */}
+              <div className="mt-3 flex items-center gap-2">
+                {item.vencimento && (
+                  <div className={cn("flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg", diasVenc <= 15 ? "text-red-600 bg-red-50" : diasVenc <= 30 ? "text-amber-600 bg-amber-50" : "text-gray-500 bg-gray-50")}>
+                    <CalendarDays className="w-3 h-3" />
+                    {diasVenc}d p/ vencer
+                  </div>
+                )}
+                {item.consumoDiario > 0 && (
+                  <div className={cn("flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg", diasEst <= 7 ? "text-red-600 bg-red-50" : diasEst <= 14 ? "text-amber-600 bg-amber-50" : "text-emerald-600 bg-emerald-50")}>
+                    <Clock className="w-3 h-3" />
+                    {diasEst}d de estoque
+                  </div>
+                )}
+              </div>
 
               {/* Badges */}
               <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -372,6 +543,32 @@ export default function EstoquePage() {
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Ocupação Atual (%)</label>
                   <input type="number" min="0" max="100" value={form.ocupacaoAtual} onChange={(e) => setForm({ ...form, ocupacaoAtual: e.target.value })} placeholder="72" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Quantidade</label>
+                  <input type="number" min="0" value={form.quantidade} onChange={(e) => setForm({ ...form, quantidade: e.target.value })} placeholder="36000" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Unidade</label>
+                  <input type="text" value={form.unidade} onChange={(e) => setForm({ ...form, unidade: e.target.value })} placeholder="kg, itens, un" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Valor (R$)</label>
+                  <input type="number" min="0" step="0.01" value={form.valorEstoque} onChange={(e) => setForm({ ...form, valorEstoque: e.target.value })} placeholder="28800" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Vencimento</label>
+                  <input type="date" value={form.vencimento} onChange={(e) => setForm({ ...form, vencimento: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Consumo/dia</label>
+                  <input type="number" min="0" value={form.consumoDiario} onChange={(e) => setForm({ ...form, consumoDiario: e.target.value })} placeholder="850" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
               </div>
 

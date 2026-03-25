@@ -143,7 +143,7 @@ const services = [
 const faqs = [
   {
     question: "Preciso de cartão de crédito para testar?",
-    answer: "Não. Você pode testar o Granja Pro gratuitamente por 7 dias sem precisar cadastrar cartão de crédito.",
+    answer: "Não. Você pode testar o Granja Pro gratuitamente por 14 Dias sem precisar cadastrar cartão de crédito.",
   },
   {
     question: "Posso cancelar quando quiser?",
@@ -151,7 +151,7 @@ const faqs = [
   },
   {
     question: "O que acontece depois do período de teste?",
-    answer: "Após os 7 dias, você escolhe um plano para continuar usando. Se não quiser continuar, o acesso é pausado e não há cobrança.",
+    answer: "Após os 14 Dias, você escolhe um plano para continuar usando. Se não quiser continuar, o acesso é pausado e não há cobrança.",
   },
   {
     question: "O sistema funciona para granjas pequenas?",
@@ -187,7 +187,7 @@ const pricingPlans = [
   {
     name: "ESSENCIAL",
     description: "Saia do caderno e comece a controlar sua granja",
-    price: "39,90",
+    price: "44,90",
     features: [
       "Até 300 galinhas",
       "Registro de produção de ovos",
@@ -212,7 +212,7 @@ const pricingPlans = [
   {
     name: "PROFISSIONAL",
     description: "Descubra se sua granja está dando lucro ou prejuízo",
-    price: "59,90",
+    price: "66,90",
     features: [
       "Tudo do ESSENCIAL +",
       "Até 1000 galinhas",
@@ -231,13 +231,13 @@ const pricingPlans = [
       "Histórico de até 12 meses",
     ],
     excluded: [],
-    cta: "Testar grátis por 7 dias",
+    cta: "Escolher Profissional",
     highlighted: true,
   },
   {
     name: "PREMIUM",
     description: "Controle total e inteligência avançada da sua granja",
-    price: "89,90",
+    price: "99,90",
     features: [
       "Tudo do PROFISSIONAL +",
       "Galinhas ilimitadas",
@@ -254,7 +254,7 @@ const pricingPlans = [
       "Até 5 usuários",
     ],
     excluded: [],
-    cta: "Escolher Premium",
+    cta: "Teste Grátis por 14 Dias",
     highlighted: false,
   },
 ];
@@ -655,7 +655,7 @@ export default function LandingPage() {
                 href="/dashboard"
                 className="group relative inline-flex items-center gap-3 bg-brand-500 hover:bg-brand-400 text-white px-9 py-4 rounded-full font-semibold text-base transition-all duration-300 shadow-2xl shadow-brand-500/30 hover:shadow-brand-400/40 hover:-translate-y-1 cursor-pointer"
               >
-                Testar Grátis por 7 Dias
+                Testar Grátis por 14 Dias
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
@@ -834,7 +834,7 @@ export default function LandingPage() {
               Comece sem risco, cancele quando quiser
             </h2>
             <p className="text-gray-500 max-w-md mx-auto">
-              Use por 7 dias. Se não fizer sentido para sua granja, devolvemos 100% do seu dinheiro.
+              Use por 14 Dias. Se fizer sentido para sua granja, o pagamento vem somente depois do teste.
             </p>
           </AnimatedSection>
 
@@ -846,8 +846,8 @@ export default function LandingPage() {
                 accent: "bg-emerald-500",
                 iconBg: "bg-emerald-50",
                 iconColor: "text-emerald-600",
-                title: "7 dias de garantia",
-                description: "Se não ficar satisfeito, devolvemos seu dinheiro sem perguntas e sem complicação.",
+                title: "14 Dias de garantia",
+                description: "Ficando satisfeito, o pagamento ocorre somente após concluído o período de teste.",
               },
               {
                 icon: Lock,
@@ -903,7 +903,7 @@ export default function LandingPage() {
                 href="/dashboard"
                 className="group inline-flex items-center gap-2 bg-white hover:bg-gray-100 text-gray-900 font-semibold text-sm px-7 py-3 rounded-full transition-all duration-200 cursor-pointer flex-shrink-0"
               >
-                Testar grátis por 7 dias
+                Testar grátis por 14 Dias
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
