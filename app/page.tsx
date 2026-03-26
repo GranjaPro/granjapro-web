@@ -143,7 +143,7 @@ const services = [
 const faqs = [
   {
     question: "Preciso de cartão de crédito para testar?",
-    answer: "Não. Você pode testar o Granja Pro gratuitamente por 14 Dias sem precisar cadastrar cartão de crédito.",
+    answer: "Não. Você pode testar o Granja Pro gratuitamente por 7 Dias sem precisar cadastrar cartão de crédito.",
   },
   {
     question: "Posso cancelar quando quiser?",
@@ -151,7 +151,7 @@ const faqs = [
   },
   {
     question: "O que acontece depois do período de teste?",
-    answer: "Após os 14 Dias, você escolhe um plano para continuar usando. Se não quiser continuar, o acesso é pausado e não há cobrança.",
+    answer: "Após os 7 Dias, você escolhe um plano para continuar usando. Se não quiser continuar, o acesso é pausado e não há cobrança.",
   },
   {
     question: "O sistema funciona para granjas pequenas?",
@@ -187,74 +187,69 @@ const pricingPlans = [
   {
     name: "ESSENCIAL",
     description: "Saia do caderno e comece a controlar sua granja",
+    tagline: "👉 Ideal para quem está começando a organizar a produção",
     price: "44,90",
     features: [
+      "Controle básico da produção de ovos",
+      "Controle básico de ração e estoque",
+      "Acompanhamento de mortalidade",
+      "Registro de vendas e clientes",
       "Até 300 galinhas",
-      "Registro de produção de ovos",
-      "Registro de vendas",
-      "Registro de fornecedores",
-      "Controle de mortalidade",
-      "Controle de lotes e galpões",
-      "Controle de ração",
-      "Controle de estoque e insumos",
-      "Dashboards simples",
-      "Até 1 usuário",
+      "1 usuário",
+      "🤖 Até 15 análises com IA por mês (uso básico)",
     ],
     excluded: [
       "Relatórios avançados",
       "Exportação de dados",
       "Alertas automáticos",
-      "IA completa",
+      "IA completa com recomendações contínuas",
     ],
-    cta: "Começar Agora",
+    cta: "Começar Teste Grátis",
     highlighted: false,
   },
   {
     name: "PROFISSIONAL",
-    description: "Descubra se sua granja está dando lucro ou prejuízo",
+    description: "Descubra onde você está perdendo dinheiro e aumente seu lucro",
+    tagline: "👉 Para quem quer tomar decisões e ganhar mais com a granja",
     price: "66,90",
     features: [
       "Tudo do ESSENCIAL +",
+      "💰 Cálculo de lucro automático (custo por ovo e por galinha)",
+      "📉 Alertas quando sua produção cair",
+      "🤖 IA que analisa sua granja e sugere melhorias",
+      "📊 Comparação semanal e mensal",
+      "📦 Controle por lote e período",
+      "📈 Previsão de produção e custos",
+      "📄 Relatórios em PDF e Excel",
+      "👥 Gestão de colaboradores",
+      "🤖 Até 30 análises com IA por mês (uso frequente)",
       "Até 1000 galinhas",
-      "Produção por período",
-      "Comparação semanal / mensal",
-      "Ovos por galinha",
-      "Custo por ovo",
-      "Previsões de produção e custo",
-      "Gestão de colaboradores e tarefas",
-      "IA do Granja Pro",
-      "IA analisa sua granja automaticamente",
-      "Chat inteligente e recomendações com IA",
-      "Receba alertas quando sua produção cair",
-      "Relatórios em PDF e Excel",
       "Até 2 usuários",
-      "Histórico de até 12 meses",
     ],
     excluded: [],
-    cta: "Escolher Profissional",
+    cta: "Começar Teste Grátis",
     highlighted: true,
   },
   {
     name: "PREMIUM",
     description: "Controle total e inteligência avançada da sua granja",
+    tagline: "👉 Para produtores que querem escalar e profissionalizar a operação",
     price: "99,90",
     features: [
       "Tudo do PROFISSIONAL +",
-      "Galinhas ilimitadas",
-      "IA avançada",
-      "Previsões de produção com IA",
-      "Análises contínuas",
-      "Comparação com outras granjas",
-      "Ranking de desempenho",
-      "Lembretes automáticos",
-      "Rotinas e tarefas",
-      "Histórico completo de lotes",
-      "Histórico ilimitado",
-      "Suporte prioritário",
-      "Até 5 usuários",
+      "🧠 IA avançada com análises contínuas",
+      "🤖 Até 60 análises com IA por mês (uso intensivo)",
+      "📊 Comparação com outras granjas",
+      "🏆 Ranking de desempenho",
+      "🔔 Alertas automáticos inteligentes",
+      "📅 Gestão de tarefas e rotinas",
+      "📚 Histórico completo ilimitado",
+      "👥 Até 5 usuários",
+      "🐔 Galinhas ilimitadas",
+      "⚡ Suporte prioritário",
     ],
     excluded: [],
-    cta: "Teste Grátis por 14 Dias",
+    cta: "Começar Teste Grátis",
     highlighted: false,
   },
 ];
@@ -403,6 +398,9 @@ function PricingSection() {
                   <p className={`text-sm ${plan.highlighted ? "text-gray-500" : "text-white/60"}`}>
                     {plan.description}
                   </p>
+                  <p className={`text-xs mt-2 ${plan.highlighted ? "text-gray-600 bg-gray-100" : "text-white/80 bg-white/10"} rounded-lg px-3 py-1.5 inline-block`}>
+                    {plan.tagline}
+                  </p>
                 </div>
 
                 <div className="mb-6">
@@ -432,18 +430,21 @@ function PricingSection() {
                 </Link>
 
                 <div className="space-y-3 flex-1">
-                  {plan.features.map((feature) => (
-                    <div key={feature} className="flex items-start gap-3">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                        plan.highlighted ? "bg-brand-100" : "bg-white/10"
-                      }`}>
-                        <Check className={`w-3 h-3 ${plan.highlighted ? "text-brand-600" : "text-brand-300"}`} />
-                      </div>
-                      <span className={`text-sm leading-snug ${plan.highlighted ? "text-gray-600" : "text-white/80"}`}>
+                  {plan.features.map((feature) => {
+                    const isTitle = feature.startsWith("Tudo do ");
+                    return isTitle ? (
+                      <p key={feature} className={`text-sm font-bold uppercase tracking-wide pb-1 border-b ${plan.highlighted ? "text-brand-700 border-brand-200" : "text-white border-white/15"}`}>
                         {feature}
-                      </span>
-                    </div>
-                  ))}
+                      </p>
+                    ) : (
+                      <div key={feature} className="flex items-start gap-2">
+                        <span className={`text-sm font-bold flex-shrink-0 ${plan.highlighted ? "text-brand-600" : "text-brand-300"}`}>•</span>
+                        <span className={`text-sm leading-snug ${plan.highlighted ? "text-gray-600" : "text-white/80"}`}>
+                          {feature}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {plan.excluded.length > 0 && (
@@ -655,7 +656,7 @@ export default function LandingPage() {
                 href="/dashboard"
                 className="group relative inline-flex items-center gap-3 bg-brand-500 hover:bg-brand-400 text-white px-9 py-4 rounded-full font-semibold text-base transition-all duration-300 shadow-2xl shadow-brand-500/30 hover:shadow-brand-400/40 hover:-translate-y-1 cursor-pointer"
               >
-                Testar Grátis por 14 Dias
+                Testar Grátis por 7 Dias
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
@@ -683,7 +684,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Problems ── */}
-      <section className="relative z-20 px-4 sm:px-6 lg:px-8 py-20 sm:py-28 overflow-hidden bg-gradient-to-b from-white via-gray-50/80 to-white">
+      <section id="sobre" className="relative z-20 px-4 sm:px-6 lg:px-8 py-20 sm:py-28 overflow-hidden bg-gradient-to-b from-white via-gray-50/80 to-white scroll-mt-4">
         {/* Subtle background decoration */}
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-20 -left-32 w-72 h-72 bg-red-100/40 rounded-full blur-3xl" />
@@ -834,7 +835,7 @@ export default function LandingPage() {
               Comece sem risco, cancele quando quiser
             </h2>
             <p className="text-gray-500 max-w-md mx-auto">
-              Use por 14 Dias. Se fizer sentido para sua granja, o pagamento vem somente depois do teste.
+              Use por 7 Dias. Se fizer sentido para sua granja, o pagamento vem somente depois do teste.
             </p>
           </AnimatedSection>
 
@@ -846,7 +847,7 @@ export default function LandingPage() {
                 accent: "bg-emerald-500",
                 iconBg: "bg-emerald-50",
                 iconColor: "text-emerald-600",
-                title: "14 Dias de garantia",
+                title: "7 Dias de garantia",
                 description: "Ficando satisfeito, o pagamento ocorre somente após concluído o período de teste.",
               },
               {
@@ -903,7 +904,7 @@ export default function LandingPage() {
                 href="/dashboard"
                 className="group inline-flex items-center gap-2 bg-white hover:bg-gray-100 text-gray-900 font-semibold text-sm px-7 py-3 rounded-full transition-all duration-200 cursor-pointer flex-shrink-0"
               >
-                Testar grátis por 14 Dias
+                Testar grátis por 7 Dias
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
