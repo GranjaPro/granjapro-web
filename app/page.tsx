@@ -204,7 +204,7 @@ const pricingPlans = [
       "Alertas automáticos",
       "IA completa com recomendações contínuas",
     ],
-    cta: "Começar Teste Grátis",
+    cta: "Começar Grátis",
     highlighted: false,
   },
   {
@@ -215,13 +215,13 @@ const pricingPlans = [
     features: [
       "Tudo do ESSENCIAL +",
       "💰 Cálculo de lucro automático (custo por ovo e por galinha)",
-      "📉 Alertas quando sua produção cair",
-      "🤖 IA que analisa sua granja e sugere melhorias",
-      "📊 Comparação semanal e mensal",
-      "📦 Controle por lote e período",
-      "📈 Previsão de produção e custos",
-      "📄 Relatórios em PDF e Excel",
-      "👥 Gestão de colaboradores",
+      "⚠️ Alertas quando sua produção cair",
+      "🧠 IA que analisa sua granja e sugere melhorias",
+      "Comparação semanal e mensal",
+      "Controle por lote e período",
+      "Previsão de produção e custos",
+      "Relatórios em PDF e Excel",
+      "Gestão de colaboradores",
       "🤖 Até 30 análises com IA por mês (uso frequente)",
       "Até 1000 galinhas",
       "Até 2 usuários",
@@ -238,18 +238,18 @@ const pricingPlans = [
     features: [
       "Tudo do PROFISSIONAL +",
       "🧠 IA avançada com análises contínuas",
-      "🤖 Até 60 análises com IA por mês (uso intensivo)",
       "📊 Comparação com outras granjas",
       "🏆 Ranking de desempenho",
-      "🔔 Alertas automáticos inteligentes",
-      "📅 Gestão de tarefas e rotinas",
-      "📚 Histórico completo ilimitado",
-      "👥 Até 5 usuários",
-      "🐔 Galinhas ilimitadas",
+      "Alertas automáticos inteligentes",
+      "Gestão de tarefas e rotinas",
+      "Histórico completo ilimitado",
+      "🤖 Até 60 análises com IA por mês (uso intensivo)",
+      "Até 5 usuários",
+      "Galinhas ilimitadas",
       "⚡ Suporte prioritário",
     ],
     excluded: [],
-    cta: "Começar Teste Grátis",
+    cta: "Começar Grátis",
     highlighted: false,
   },
 ];
@@ -357,16 +357,23 @@ function PricingSection() {
 
         {/* Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-stretch">
-          {pricingPlans.map((plan, i) => (
+          {pricingPlans.map((plan, i) => {
+            const isEssencial = plan.name === "ESSENCIAL";
+            const isPro = plan.highlighted;
+            const isPremium = plan.name === "PREMIUM";
+
+            return (
             <AnimatedSection key={plan.name} delay={i * 120}>
               <div
                 className={`relative rounded-3xl p-7 transition-all duration-300 h-full flex flex-col ${
-                  plan.highlighted
-                    ? "bg-white text-gray-900 shadow-2xl shadow-brand-500/20 md:scale-[1.03] ring-2 ring-brand-400/50"
-                    : "bg-white/10 backdrop-blur-md text-white border border-white/15 hover:bg-white/15"
+                  isPro
+                    ? "bg-white text-gray-900 shadow-2xl shadow-brand-500/25 md:scale-[1.05] ring-2 ring-brand-400/50"
+                    : isPremium
+                    ? "bg-gradient-to-b from-white/15 to-white/5 backdrop-blur-md text-white border border-brand-400/30 hover:border-brand-400/50"
+                    : "bg-white/[0.06] backdrop-blur-sm text-white border border-white/10 hover:bg-white/10"
                 }`}
               >
-                {plan.highlighted && (
+                {isPro && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-brand-500 to-brand-600 rounded-full px-4 py-1.5 shadow-lg shadow-brand-500/30 uppercase tracking-wider">
                       <Zap className="w-3.5 h-3.5" />
@@ -374,17 +381,17 @@ function PricingSection() {
                     </span>
                   </div>
                 )}
-                {plan.name === "ESSENCIAL" && (
+                {isEssencial && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-white/80 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 uppercase tracking-wider">
-                      <Zap className="w-3.5 h-3.5" />
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-white/50 bg-white/[0.06] border border-white/10 rounded-full px-3.5 py-1.5 uppercase tracking-wider">
+                      <Zap className="w-3 h-3" />
                       Inteligência Artificial Experimental
                     </span>
                   </div>
                 )}
-                {plan.name === "PREMIUM" && (
+                {isPremium && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-200 bg-brand-950 border border-brand-400/30 rounded-full px-4 py-1.5 uppercase tracking-wider">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-200 bg-brand-950/80 border border-brand-400/30 rounded-full px-4 py-1.5 uppercase tracking-wider shadow-md">
                       <Zap className="w-3.5 h-3.5" />
                       Inteligência Artificial Avançada
                     </span>
@@ -392,26 +399,30 @@ function PricingSection() {
                 )}
 
                 <div className="mb-5">
-                  <h3 className={`font-heading text-lg font-bold mb-1 ${plan.highlighted ? "text-gray-900" : "text-white"}`}>
+                  <h3 className={`font-heading text-lg font-bold mb-1 ${isPro ? "text-gray-900" : isPremium ? "text-white" : "text-white/80"}`}>
                     {plan.name}
                   </h3>
-                  <p className={`text-sm ${plan.highlighted ? "text-gray-500" : "text-white/60"}`}>
+                  <p className={`text-sm ${isPro ? "text-gray-500" : isPremium ? "text-white/60" : "text-white/40"}`}>
                     {plan.description}
                   </p>
-                  <p className={`text-xs mt-2 ${plan.highlighted ? "text-gray-600 bg-gray-100" : "text-white/80 bg-white/10"} rounded-lg px-3 py-1.5 inline-block`}>
+                  <p className={`text-xs mt-2 rounded-lg px-3 py-1.5 inline-block ${
+                    isPro ? "text-gray-600 bg-gray-100" : isPremium ? "text-white/80 bg-white/10" : "text-white/50 bg-white/[0.05]"
+                  }`}>
                     {plan.tagline}
                   </p>
                 </div>
 
                 <div className="mb-6">
                   <div className="flex items-baseline gap-1">
-                    <span className={`text-sm font-medium ${plan.highlighted ? "text-gray-500" : "text-white/60"}`}>
+                    <span className={`text-sm font-medium ${isPro ? "text-gray-500" : isPremium ? "text-white/60" : "text-white/40"}`}>
                       R$
                     </span>
-                    <span className={`font-heading font-bold tracking-tight ${plan.highlighted ? "text-[2.75rem] sm:text-5xl text-gray-900" : "text-4xl text-white"}`}>
+                    <span className={`font-heading font-bold tracking-tight ${
+                      isPro ? "text-[2.75rem] sm:text-5xl text-gray-900" : isPremium ? "text-4xl text-white" : "text-3xl text-white/70"
+                    }`}>
                       {plan.price}
                     </span>
-                    <span className={`text-sm font-medium ${plan.highlighted ? "text-gray-500" : "text-white/60"}`}>
+                    <span className={`text-sm font-medium ${isPro ? "text-gray-500" : isPremium ? "text-white/60" : "text-white/40"}`}>
                       /mês
                     </span>
                   </div>
@@ -420,9 +431,11 @@ function PricingSection() {
                 <Link
                   href="/signup"
                   className={`group w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full font-semibold text-sm transition-all duration-200 cursor-pointer mb-6 ${
-                    plan.highlighted
-                      ? "bg-brand-500 hover:bg-brand-600 text-white shadow-md shadow-brand-500/25 hover:shadow-brand-500/40 hover:-translate-y-0.5"
-                      : "bg-white/15 hover:bg-white/25 text-white border border-white/20 hover:-translate-y-0.5"
+                    isPro
+                      ? "bg-brand-500 hover:bg-brand-600 text-white shadow-lg shadow-brand-500/30 hover:shadow-brand-500/50 hover:-translate-y-1"
+                      : isPremium
+                      ? "bg-white/20 hover:bg-white/30 text-white border border-brand-400/30 hover:border-brand-400/50 hover:-translate-y-0.5 shadow-md"
+                      : "bg-white/10 hover:bg-white/15 text-white/70 border border-white/10 hover:-translate-y-0.5"
                   }`}
                 >
                   {plan.cta}
@@ -433,13 +446,15 @@ function PricingSection() {
                   {plan.features.map((feature) => {
                     const isTitle = feature.startsWith("Tudo do ");
                     return isTitle ? (
-                      <p key={feature} className={`text-sm font-bold uppercase tracking-wide pb-1 border-b ${plan.highlighted ? "text-brand-700 border-brand-200" : "text-white border-white/15"}`}>
+                      <p key={feature} className={`text-sm font-bold uppercase tracking-wide pb-1 border-b ${
+                        isPro ? "text-brand-700 border-brand-200" : isPremium ? "text-brand-300 border-brand-400/20" : "text-white/50 border-white/10"
+                      }`}>
                         {feature}
                       </p>
                     ) : (
                       <div key={feature} className="flex items-start gap-2">
-                        <span className={`text-sm font-bold flex-shrink-0 ${plan.highlighted ? "text-brand-600" : "text-brand-300"}`}>•</span>
-                        <span className={`text-sm leading-snug ${plan.highlighted ? "text-gray-600" : "text-white/80"}`}>
+                        <span className={`text-sm font-bold flex-shrink-0 ${isPro ? "text-brand-600" : isPremium ? "text-brand-400" : "text-white/25"}`}>•</span>
+                        <span className={`text-sm leading-snug ${isPro ? "text-gray-600" : isPremium ? "text-white/75" : "text-white/50"}`}>
                           {feature}
                         </span>
                       </div>
@@ -448,16 +463,16 @@ function PricingSection() {
                 </div>
 
                 {plan.excluded.length > 0 && (
-                  <div className="mt-6 pt-5 border-t border-white/10">
-                    <p className="flex items-center gap-2 text-sm font-semibold text-white/70 mb-3">
-                      <X className="w-4 h-4 text-red-400" />
+                  <div className="mt-6 pt-5 border-t border-white/[0.06]">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-white/40 mb-3">
+                      <X className="w-4 h-4 text-red-400/50" />
                       Não inclui
                     </p>
                     <div className="space-y-2.5">
                       {plan.excluded.map((item) => (
                         <div key={item} className="flex items-center gap-3">
-                          <span className="w-1.5 h-1.5 rounded-full bg-white/30 flex-shrink-0" />
-                          <span className="text-sm text-white/50">{item}</span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-white/15 flex-shrink-0" />
+                          <span className="text-sm text-white/30">{item}</span>
                         </div>
                       ))}
                     </div>
@@ -465,7 +480,8 @@ function PricingSection() {
                 )}
               </div>
             </AnimatedSection>
-          ))}
+            );
+          })}
         </div>
 
         {/* Essentials banner */}
