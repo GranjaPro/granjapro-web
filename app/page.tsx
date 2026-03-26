@@ -418,7 +418,7 @@ function PricingSection() {
                 </div>
 
                 <Link
-                  href="/dashboard"
+                  href="/signup"
                   className={`group w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full font-semibold text-sm transition-all duration-200 cursor-pointer mb-6 ${
                     plan.highlighted
                       ? "bg-brand-500 hover:bg-brand-600 text-white shadow-md shadow-brand-500/25 hover:shadow-brand-500/40 hover:-translate-y-0.5"
@@ -566,13 +566,13 @@ export default function LandingPage() {
 
           <div className="flex items-center gap-3">
             <Link
-              href="/cadastro"
+              href="/signup"
               className={`hidden sm:inline-flex items-center text-sm px-5 py-2.5 rounded-full font-semibold transition-all duration-200 cursor-pointer ${scrolled ? "text-gray-700 hover:text-brand-600 hover:bg-gray-100" : "text-white/90 hover:text-white hover:bg-white/10"}`}
             >
               Cadastre-se
             </Link>
             <Link
-              href="/dashboard"
+              href="/login"
               className="hidden sm:inline-flex items-center gap-2 text-sm bg-brand-500 hover:bg-brand-600 text-white px-6 py-2.5 rounded-full font-semibold transition-all duration-200 shadow-md shadow-brand-500/25 hover:shadow-brand-500/40 hover:-translate-y-px cursor-pointer"
             >
               Entrar
@@ -601,13 +601,13 @@ export default function LandingPage() {
               </a>
             ))}
             <Link
-              href="/cadastro"
+              href="/signup"
               className="block text-sm text-gray-700 text-center px-5 py-3 rounded-xl font-semibold mt-3 border border-gray-200 hover:bg-gray-50 cursor-pointer"
             >
               Cadastre-se
             </Link>
             <Link
-              href="/dashboard"
+              href="/login"
               className="block text-sm bg-brand-500 text-white text-center px-5 py-3 rounded-xl font-semibold mt-2 cursor-pointer"
             >
               Entrar
@@ -653,7 +653,7 @@ export default function LandingPage() {
               <div className="absolute -inset-4 bg-brand-500/20 rounded-full blur-2xl" />
 
               <Link
-                href="/dashboard"
+                href="/signup"
                 className="group relative inline-flex items-center gap-3 bg-brand-500 hover:bg-brand-400 text-white px-9 py-4 rounded-full font-semibold text-base transition-all duration-300 shadow-2xl shadow-brand-500/30 hover:shadow-brand-400/40 hover:-translate-y-1 cursor-pointer"
               >
                 Testar Grátis por 7 Dias
@@ -901,7 +901,7 @@ export default function LandingPage() {
                 </p>
               </div>
               <Link
-                href="/dashboard"
+                href="/signup"
                 className="group inline-flex items-center gap-2 bg-white hover:bg-gray-100 text-gray-900 font-semibold text-sm px-7 py-3 rounded-full transition-all duration-200 cursor-pointer flex-shrink-0"
               >
                 Testar grátis por 7 Dias
@@ -958,13 +958,15 @@ export default function LandingPage() {
 
           {/* Contact CTA */}
           <AnimatedSection className="mt-10 text-center" delay={200}>
-            <Link
-              href="#contato"
+            <a
+              href="https://wa.me/5561999012004"
+              target="_blank"
+              rel="noopener noreferrer"
               className="group inline-flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white px-7 py-3 rounded-full font-medium text-sm transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
             >
               Fale Conosco
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
+            </a>
           </AnimatedSection>
         </div>
       </section>
@@ -1037,7 +1039,7 @@ export default function LandingPage() {
                   <div className="w-8 h-8 rounded-lg bg-brand-800/50 flex items-center justify-center flex-shrink-0">
                     <MapPin className="w-4 h-4 text-brand-400" />
                   </div>
-                  <span className="text-sm text-gray-400">São Paulo, SP &mdash; Brasil</span>
+                  <span className="text-sm text-gray-400">Brasília, DF &mdash; Brasil</span>
                 </li>
               </ul>
             </div>
@@ -1048,12 +1050,12 @@ export default function LandingPage() {
               &copy; 2026 Granja Pro. Todos os direitos reservados.
             </p>
             <div className="flex items-center gap-6">
-              <a href="#" className="text-xs text-gray-500 hover:text-gray-300 transition-colors cursor-pointer">
+              <Link href="/politica-de-privacidade" className="text-xs text-gray-500 hover:text-gray-300 transition-colors cursor-pointer">
                 Privacidade
-              </a>
-              <a href="#" className="text-xs text-gray-500 hover:text-gray-300 transition-colors cursor-pointer">
+              </Link>
+              <Link href="/termos-de-uso" className="text-xs text-gray-500 hover:text-gray-300 transition-colors cursor-pointer">
                 Termos
-              </a>
+              </Link>
             </div>
           </div>
         </div>
