@@ -48,8 +48,26 @@ export async function updateSession(request: NextRequest) {
   );
 
   if (user && isAuthRoute) {
+    // Check if first-time user (no farm) → onboarding
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("farm_id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    let hasFarm = !!profile?.farm_id;
+    if (!hasFarm) {
+      const { data: farm } = await supabase
+        .from("farms")
+        .select("id")
+        .eq("owner_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      hasFarm = !!farm;
+    }
+
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = hasFarm ? "/dashboard" : "/dashboard/onboarding";
     return NextResponse.redirect(url);
   }
 

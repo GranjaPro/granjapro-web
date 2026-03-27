@@ -50,7 +50,7 @@ export default function LoginPage() {
   return (
     <div>
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Bem-vindo de volta</h2>
+        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Bem-vindo</h2>
         <p className="mt-1.5 text-sm text-gray-400">
           Acesse o painel da sua granja
         </p>

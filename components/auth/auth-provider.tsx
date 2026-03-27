@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const checkOnboarding = useCallback((foundFarm: boolean) => {
     const p = pathnameRef.current;
     if (!foundFarm && p?.startsWith("/dashboard") && p !== "/dashboard/onboarding") {
-      router.push("/dashboard/onboarding");
+      router.replace("/dashboard/onboarding");
     }
   }, [router]);
 
@@ -125,8 +125,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (event === "SIGNED_IN") {
           const currentUser = session?.user ?? null;
           if (!currentUser) return;
-          // Skip reload if the same user is already loaded (e.g. tab refocus re-fires SIGNED_IN)
-          if (userRef.current?.id === currentUser.id) return;
+          if (userRef.current?.id === currentUser.id) {
+            // Same user but still check onboarding (e.g. after OAuth redirect)
+            if (!farm) checkOnboarding(false);
+            return;
+          }
           userRef.current = currentUser;
           setUser(currentUser);
           setLoading(true);
