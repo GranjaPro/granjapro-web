@@ -69,6 +69,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     .toUpperCase();
   const roleName = profile?.role === "owner" ? "Proprietário" : profile?.role === "manager" ? "Gerente" : "Funcionário";
 
+  // Onboarding: render children only, no sidebar/header
+  if (pathname === "/dashboard/onboarding") {
+    return (
+      <div className="min-h-screen bg-[#f8faf9]">
+        {children}
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8faf9]">
