@@ -1297,7 +1297,7 @@ export default function DashboardPage() {
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
                 labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                formatter={(value: unknown, name: unknown) => [formatNumber(Number(value)), String(name)]}
+                formatter={((value: any, name: any) => [formatNumber(Number(value)), String(name)]) as any}
               />
               <Area type="monotone" dataKey="meta" stroke="#d1d5db" strokeWidth={1.5} strokeDasharray="6 4" fill="none" dot={false} name="Meta" />
               <Area type="monotone" dataKey="ovos" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#colorOvos)" dot={{ r: 4, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 }} activeDot={{ r: 6, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} name="Ovos" />

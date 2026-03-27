@@ -981,7 +981,7 @@ export default function ProducaoPage() {
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
                 labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                formatter={(value: unknown, name: unknown) => [Number(value).toLocaleString("pt-BR"), String(name) === "ovos" ? "Produção" : "Meta"]}
+                formatter={((value: any, name: any) => [Number(value).toLocaleString("pt-BR"), String(name) === "ovos" ? "Produção" : "Meta"]) as any}
               />
               <ReferenceLine y={2600} stroke="#d1d5db" strokeDasharray="6 4" strokeWidth={1.5} />
               <Area type="monotone" dataKey="ovos" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#colorProd)" dot={{ r: 5, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 }} activeDot={{ r: 7, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} name="ovos" />

@@ -528,7 +528,7 @@ export default function MortalidadePage() {
                 </Pie>
                 <Tooltip
                   contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
-                  formatter={(value: unknown, name: unknown) => [`${Number(value)} mortes`, String(name)]}
+                  formatter={((value: any, name: any) => [`${Number(value)} mortes`, String(name)]) as any}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -582,12 +582,12 @@ export default function MortalidadePage() {
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
                 labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px" }}
-                formatter={(value: unknown, name: unknown) => {
-                  const n = String(name);
-                  if (n === "mortes") return [Number(value) + " aves", "Mortes"];
-                  if (n === "taxa") return [(Number(value) * 100).toFixed(2) + "%", "Taxa"];
-                  return [value, name];
-                }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={((value: any, name: any) => {
+                  if (name === "mortes") return [Number(value) + " aves", "Mortes"];
+                  if (name === "taxa") return [(Number(value) * 100).toFixed(2) + "%", "Taxa"];
+                  return [String(value), name];
+                }) as any}
               />
               <Bar yAxisId="left" dataKey="mortes" fill="url(#gradMortesBarMort)" radius={[6, 6, 0, 0]} barSize={24} name="mortes" />
               <Line yAxisId="right" type="monotone" dataKey="taxa" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="taxa" />

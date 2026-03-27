@@ -882,8 +882,8 @@ export default function VendasPage() {
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
                 <Tooltip
                   contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "12px", padding: "10px 14px" }}
-                  formatter={(value: number, name: string) => [name === "receita" ? `R$ ${value.toLocaleString("pt-BR")}` : `${value} dz`, name === "receita" ? "Receita" : "Volume"]}
-                  labelFormatter={(l: string) => `Dia ${l}`}
+                  formatter={((value: any, name: any) => [name === "receita" ? `R$ ${Number(value).toLocaleString("pt-BR")}` : `${value} dz`, name === "receita" ? "Receita" : "Volume"]) as any}
+                  labelFormatter={((l: any) => `Dia ${l}`) as any}
                 />
                 <Bar yAxisId="right" dataKey="volume" fill="#c4b5fd" radius={[4, 4, 0, 0]} barSize={20} opacity={0.6} />
                 <Area yAxisId="left" type="monotone" dataKey="receita" stroke="#10b981" strokeWidth={2.5} fill="url(#receitaGrad)" dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }} />
@@ -911,7 +911,7 @@ export default function VendasPage() {
                 <YAxis domain={[11, 15]} tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v.toFixed(1)}`} />
                 <Tooltip
                   contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "12px", padding: "10px 14px" }}
-                  formatter={(value: number, name: string) => [`R$ ${value.toFixed(2).replace(".", ",")}`, name === "preco" ? "Preço Médio" : "Meta"]}
+                  formatter={((value: any, name: any) => [`R$ ${Number(value).toFixed(2).replace(".", ",")}`, name === "preco" ? "Preço Médio" : "Meta"]) as any}
                 />
                 <Line type="monotone" dataKey="meta" stroke="#d1d5db" strokeWidth={1.5} strokeDasharray="6 3" dot={false} />
                 <Line type="monotone" dataKey="preco" stroke="#8b5cf6" strokeWidth={2.5} dot={{ r: 4, fill: "#8b5cf6", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#8b5cf6", stroke: "#fff", strokeWidth: 2 }} />

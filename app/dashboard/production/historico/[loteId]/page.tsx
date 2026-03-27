@@ -244,7 +244,7 @@ export default function HistoricoLotePage() {
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
                 labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                formatter={(value: unknown, name: unknown) => [String(name) === "ovos" ? Number(value).toLocaleString("pt-BR") : Number(value) + "%", String(name) === "ovos" ? "Ovos" : "Taxa"]}
+                formatter={((value: any, name: any) => [String(name) === "ovos" ? Number(value).toLocaleString("pt-BR") : Number(value) + "%", String(name) === "ovos" ? "Ovos" : "Taxa"]) as any}
               />
               <Area type="monotone" dataKey="ovos" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#colorHist)" dot={{ r: 5, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 }} activeDot={{ r: 7, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} name="ovos" />
             </AreaChart>

@@ -1119,13 +1119,13 @@ export default function RacaoPage() {
                 contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
                 labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px", fontSize: "14px" }}
                 itemStyle={{ padding: "2px 0" }}
-                formatter={(value: unknown, name: unknown) => {
+                formatter={((value: any, name: any) => {
                   const n = String(name);
                   if (n === "kg") return [Number(value) + " kg", "Consumo"];
                   if (n === "ovos") return [Number(value).toLocaleString("pt-BR") + " ovos", "Produção"];
                   if (n === "eficiencia") return [Number(value).toFixed(3) + " kg/ovo", "Eficiência"];
                   return [value, name];
-                }}
+                }) as any}
                 cursor={{ fill: "rgba(45, 122, 79, 0.04)" }}
               />
               <Bar yAxisId="left" dataKey="kg" fill="url(#gradConsumoBar)" radius={[4, 4, 0, 0]} barSize={14} name="kg" />

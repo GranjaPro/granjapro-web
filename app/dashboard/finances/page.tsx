@@ -661,10 +661,10 @@ export default function FinancasPage() {
               <YAxis axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`} />
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                formatter={(value: unknown, name: unknown) => [
+                formatter={((value: any, name: any) => [
                   `R$ ${Number(value).toLocaleString("pt-BR")}`,
                   String(name) === "receita" ? "Receita" : "Despesa"
-                ]}
+                ]) as any}
               />
               <Area type="monotone" dataKey="receita" stroke="#10b981" strokeWidth={2.5} fill="url(#colorReceitaFin)" dot={{ fill: "#10b981", r: 3, strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#fff", strokeWidth: 2, fill: "#10b981" }} />
               <Area type="monotone" dataKey="despesa" stroke="#f87171" strokeWidth={2} fill="url(#colorDespesaFin)" dot={{ fill: "#f87171", r: 2, strokeWidth: 0 }} strokeDasharray="4 4" />
@@ -683,10 +683,10 @@ export default function FinancasPage() {
               <YAxis axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                formatter={(value: unknown, name: unknown) => [
+                formatter={((value: any, name: any) => [
                   formatCurrency(Number(value)),
                   String(name) === "receita" ? "Receita" : String(name) === "despesa" ? "Despesa" : "Lucro"
-                ]}
+                ]) as any}
               />
               <Bar dataKey="receita" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={28} />
               <Bar dataKey="despesa" fill="#f87171" radius={[4, 4, 0, 0]} maxBarSize={28} />
@@ -715,7 +715,7 @@ export default function FinancasPage() {
               </Pie>
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                formatter={(value: unknown, name: unknown) => [formatCurrency(Number(value)), String(name)]}
+                formatter={((value: any, name: any) => [formatCurrency(Number(value)), String(name)]) as any}
               />
             </PieChart>
           </ResponsiveContainer>
