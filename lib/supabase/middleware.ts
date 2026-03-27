@@ -41,14 +41,16 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirect authenticated users away from auth pages to dashboard
+  // Redirect authenticated users away from auth pages
   const authRoutes = ["/login", "/signup", "/forgot-password"];
   const isAuthRoute = authRoutes.some(
     (route) => request.nextUrl.pathname === route
   );
+  const isDashboard = request.nextUrl.pathname.startsWith("/dashboard");
+  const isOnboarding = request.nextUrl.pathname === "/dashboard/onboarding";
 
-  if (user && isAuthRoute) {
-    // Check if first-time user (no farm) → onboarding
+  // Check farm for: auth routes (to decide where to send) OR dashboard pages (to enforce onboarding)
+  if (user && (isAuthRoute || (isDashboard && !isOnboarding))) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("farm_id")
@@ -66,9 +68,17 @@ export async function updateSession(request: NextRequest) {
       hasFarm = !!farm;
     }
 
-    const url = request.nextUrl.clone();
-    url.pathname = hasFarm ? "/dashboard" : "/dashboard/onboarding";
-    return NextResponse.redirect(url);
+    if (!hasFarm) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard/onboarding";
+      return NextResponse.redirect(url);
+    }
+
+    if (isAuthRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;
