@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Bird, Building2, Egg, ChevronRight, ChevronLeft, Loader2, Check, Sparkles, Target, TrendingUp, DollarSign, BarChart3, Wheat, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -30,6 +30,23 @@ export default function OnboardingPage() {
   const [sellOutros, setSellOutros] = useState("");
   const [objectives, setObjectives] = useState<string[]>([]);
   const [birdsError, setBirdsError] = useState("");
+  const stepContentRef = useRef<HTMLDivElement>(null);
+
+  const goToStep = (next: number) => {
+    const dir = next > step ? 1 : -1;
+    const el = stepContentRef.current;
+    if (el) {
+      el.style.transition = "none";
+      el.style.opacity = "0";
+      el.style.transform = `translateX(${dir * 40}px)`;
+      requestAnimationFrame(() => {
+        el.style.transition = "opacity 0.3s ease, transform 0.3s ease";
+        el.style.opacity = "1";
+        el.style.transform = "translateX(0)";
+      });
+    }
+    setStep(next);
+  };
 
   const birdRanges = [
     { label: "Até 100", icon: "🐣" },
@@ -47,7 +64,8 @@ export default function OnboardingPage() {
     if (!user) return;
     setLoading(true);
     try {
-      const insert: Record<string, unknown> = { name, owner_id: user.id };
+      const displayName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Produtor";
+      const insert: Record<string, unknown> = { name, owner_id: user.id, producer_name: displayName };
       if (birds) {
         insert.total_birds = birds;
       }
@@ -150,6 +168,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
+          <div ref={stepContentRef}>
+
           {/* Step 1 */}
           {step === 0 && (
             <div className="space-y-5">
@@ -158,7 +178,7 @@ export default function OnboardingPage() {
                   <Bird className="w-7 h-7 text-brand-600" />
                 </div>
                 <h2 className="text-xl font-bold text-gray-900">Bem-vindo ao Granja Pro</h2>
-                <p className="text-sm text-gray-500 mt-1">Vamos configurar sua granja em poucos passos</p>
+                <p className="text-sm text-gray-500 mt-1">Vamos iniciar a configuração da sua granja em poucos passos</p>
               </div>
 
               <div>
@@ -531,15 +551,15 @@ export default function OnboardingPage() {
 
           {/* Advice */}
           {step === 4 && (
-            <p className="text-[11px] text-gray-400 text-center mt-4 leading-relaxed">Estimativas iniciais com base no mercado.
-Com dados reais da sua granja, você terá controle total da operação.</p>
+            <p className="text-[11px] text-gray-400 text-center mt-4 leading-relaxed">Valores estimados com base nos dados informados até agora. Para garantir a precisão e a melhora da sua granja, utilize o <span className="font-semibold text-gray-500">Granja Pro</span> diariamente.</p>
           )}
+          </div>
 
           {/* Navigation */}
           <div className="flex items-center justify-between mt-7 pt-5 border-t border-gray-100">
             {step > 0 ? (
               <button
-                onClick={() => setStep(step - 1)}
+                onClick={() => goToStep(step - 1)}
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-800 cursor-pointer transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -572,7 +592,7 @@ Com dados reais da sua granja, você terá controle total da operação.</p>
                     }
                   }
                   setBirdsError("");
-                  setStep(step + 1);
+                  goToStep(step + 1);
                 }}
                 disabled={!canProceed()}
                 className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-5 rounded-xl transition-all cursor-pointer shadow-sm shadow-brand-600/20 hover:shadow-brand-600/30"
