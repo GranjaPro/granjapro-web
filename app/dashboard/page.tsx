@@ -55,7 +55,6 @@ import {
   PieChart,
   Pie,
 } from "recharts";
-import next from "next";
 import Link from "next/link";
 import ModalPortal from "@/components/ui/modal-portal";
 import { X, Pencil, Trash2 } from "lucide-react";
@@ -102,7 +101,7 @@ const kpis = [
     progress: 72,
   },
   {
-    title: "Lucro Últimos 30 Dias",
+    title: "Lucro",
     value: formatCurrency(mockMonthFinancial.profit),
     badge: "+8.5%",
     badgeDir: "up" as "up" | "down" | "neutral",
@@ -181,6 +180,10 @@ export default function DashboardPage() {
   const [dbTasks, setDbTasks] = useState(tasks);
   const [dbAlerts, setDbAlerts] = useState(alerts);
   const [dataLoaded, setDataLoaded] = useState(false);
+
+  // Chart production data
+  const [chartProductionData, setChartProductionData] = useState(weeklyData);
+  const [chartLoading, setChartLoading] = useState(false);
 
   // Calendar filter state
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -407,6 +410,186 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [farm]);
 
+  // Fetch chart production data based on filter
+  useEffect(() => {
+    if (!farm) return;
+    const farmId = farm.id;
+    const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+    const today = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    let startDate: string;
+    let endDate: string;
+    let isMonthMode = false;
+
+    if (filterMode === "mes") {
+      const y = selectedDate.getFullYear();
+      const m = selectedDate.getMonth();
+      startDate = `${y}-${pad(m + 1)}-01`;
+      const isCurrentMonth = m === today.getMonth() && y === today.getFullYear();
+      endDate = isCurrentMonth ? toISO(today) : toISO(new Date(y, m + 1, 0));
+      isMonthMode = true;
+    } else if (rangeStart && rangeEnd) {
+      if (sameDay(rangeStart, rangeEnd) && sameDay(rangeStart, today)) {
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 6);
+        startDate = toISO(weekAgo);
+        endDate = toISO(today);
+      } else {
+        startDate = toISO(rangeStart);
+        endDate = toISO(rangeEnd);
+      }
+    } else {
+      const weekAgo = new Date(today);
+      weekAgo.setDate(weekAgo.getDate() - 6);
+      startDate = toISO(weekAgo);
+      endDate = toISO(today);
+    }
+
+    // Helper: get ISO week number for a date
+    function getWeekOfMonth(d: Date): number {
+      const first = new Date(d.getFullYear(), d.getMonth(), 1);
+      const firstDay = first.getDay() === 0 ? 7 : first.getDay(); // Mon=1
+      return Math.ceil((d.getDate() + firstDay - 1) / 7);
+    }
+
+    async function fetchChartData() {
+      setChartLoading(true);
+      try {
+        const { data } = await supabase
+          .from("egg_production")
+          .select("date, eggs_produced, laying_rate")
+          .eq("farm_id", farmId)
+          .gte("date", startDate)
+          .lte("date", endDate)
+          .order("date");
+
+        // Build grouped data from DB rows
+        const rows = data ?? [];
+
+        if (isMonthMode) {
+          // Group by week of month
+          const weekGroups: Record<number, { ovos: number; meta: number; postura: number[]; days: number }> = {};
+
+          // Seed all weeks of the month so empty weeks still appear
+          const mYear = parseInt(startDate.split("-")[0]);
+          const mMonth = parseInt(startDate.split("-")[1]) - 1;
+          const lastDayOfMonth = new Date(mYear, mMonth + 1, 0).getDate();
+          for (let d = 1; d <= lastDayOfMonth; d++) {
+            const wk = getWeekOfMonth(new Date(mYear, mMonth, d));
+            if (!weekGroups[wk]) weekGroups[wk] = { ovos: 0, meta: 0, postura: [], days: 0 };
+          }
+
+          rows.forEach((r: any) => {
+            const d = new Date(r.date + "T12:00:00");
+            const wk = getWeekOfMonth(d);
+            if (!weekGroups[wk]) weekGroups[wk] = { ovos: 0, meta: 0, postura: [], days: 0 };
+            weekGroups[wk].ovos += r.eggs_produced ?? 0;
+            weekGroups[wk].meta += 13500;
+            if (r.laying_rate) weekGroups[wk].postura.push(Number(r.laying_rate));
+            weekGroups[wk].days += 1;
+          });
+
+          const chartData = Object.entries(weekGroups)
+            .sort(([a], [b]) => Number(a) - Number(b))
+            .map(([wk, vals]) => {
+              const avgPostura = vals.postura.length > 0
+                ? vals.postura.reduce((s, v) => s + v, 0) / vals.postura.length
+                : 0;
+              return {
+                day: `Semana ${wk}`,
+                ovos: vals.ovos,
+                meta: vals.days > 0 ? vals.meta : 0,
+                postura: Math.round(avgPostura * 10) / 10,
+              };
+            });
+
+          setChartProductionData(chartData);
+        } else {
+          // Daily view — seed all days in range so gaps show as 0
+          const grouped: Record<string, { ovos: number; meta: number; postura: number[] }> = {};
+          const cursor = new Date(startDate + "T12:00:00");
+          const end = new Date(endDate + "T12:00:00");
+          while (cursor <= end) {
+            const key = toISO(cursor);
+            grouped[key] = { ovos: 0, meta: 13500, postura: [] };
+            cursor.setDate(cursor.getDate() + 1);
+          }
+
+          rows.forEach((r: any) => {
+            if (!grouped[r.date]) grouped[r.date] = { ovos: 0, meta: 13500, postura: [] };
+            grouped[r.date].ovos += r.eggs_produced ?? 0;
+            if (r.laying_rate) grouped[r.date].postura.push(Number(r.laying_rate));
+          });
+
+          const diffDays = (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24) + 1;
+
+          const chartData = Object.entries(grouped)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([dateStr, vals]) => {
+              const d = new Date(dateStr + "T12:00:00");
+              let label: string;
+              if (diffDays <= 7) {
+                label = sameDay(d, today) ? "Hoje" : dayNames[d.getDay()];
+              } else {
+                label = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+              }
+              const avgPostura = vals.postura.length > 0
+                ? vals.postura.reduce((s, v) => s + v, 0) / vals.postura.length
+                : 0;
+              return { day: label, ovos: vals.ovos, meta: 13500, postura: Math.round(avgPostura * 10) / 10 };
+            });
+
+          setChartProductionData(chartData);
+        }
+      } catch {
+        setChartProductionData(weeklyData);
+      }
+      setChartLoading(false);
+    }
+
+    fetchChartData();
+  }, [farm, filterMode, rangeStart, rangeEnd, selectedDate]);
+
+  // Chart label and subtitle based on filter
+  const chartTitle = useMemo(() => {
+    const today = new Date();
+    if (filterMode === "mes") return "Produção Mensal";
+    if (rangeStart && rangeEnd) {
+      if (sameDay(rangeStart, rangeEnd) && sameDay(rangeStart, today)) return "Controle de Produção";
+      if (sameDay(rangeStart, rangeEnd)) return "Produção do Dia";
+      const diff = Math.round((rangeEnd.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      return `Produção · ${diff} dias`;
+    }
+    return "Controle de Produção";
+  }, [filterMode, rangeStart, rangeEnd]);
+
+  const chartSubtitle = useMemo(() => {
+    const today = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const fmtDate = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+    if (filterMode === "mes") return `${months[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
+    if (rangeStart && rangeEnd) {
+      if (sameDay(rangeStart, rangeEnd) && sameDay(rangeStart, today)) return "Últimos 7 dias · Atualizado agora";
+      if (sameDay(rangeStart, rangeEnd)) return fmtDate(rangeStart);
+      return `${fmtDate(rangeStart)} — ${fmtDate(rangeEnd)}`;
+    }
+    return "Últimos 7 dias · Atualizado agora";
+  }, [filterMode, rangeStart, rangeEnd, selectedDate]);
+
+  // Dynamic Y-axis domain for chart
+  const chartYDomain = useMemo(() => {
+    if (chartProductionData.length === 0) return [12000, 14000];
+    const values = chartProductionData.map((d) => d.ovos);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const padding = Math.max(Math.round((max - min) * 0.2), 200);
+    return [Math.max(0, Math.floor((min - padding) / 500) * 500), Math.ceil((max + padding) / 500) * 500];
+  }, [chartProductionData]);
+
   const profitMargin = financialData.revenue > 0
     ? ((financialData.profit / financialData.revenue) * 100).toFixed(1)
     : "0.0";
@@ -464,61 +647,105 @@ export default function DashboardPage() {
     return "Boa noite";
   })();
 
+  // Period helpers for KPI labels
+  const periodInfo = useMemo(() => {
+    const today = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const fmtDate = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+
+    if (filterMode === "mes") {
+      const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+      const m = selectedDate.getMonth();
+      const y = selectedDate.getFullYear();
+      const lastDay = new Date(y, m + 1, 0).getDate();
+      const isCurrentMonth = m === today.getMonth() && y === today.getFullYear();
+      const daysInPeriod = isCurrentMonth ? today.getDate() : lastDay;
+      return { label: `${months[m]} ${y}`, isMultiDay: true, days: daysInPeriod };
+    }
+
+    if (filterMode === "intervalo" && rangeStart && rangeEnd) {
+      if (sameDay(rangeStart, rangeEnd)) {
+        if (sameDay(rangeStart, today)) {
+          return { label: "Hoje", isMultiDay: false, days: 1 };
+        }
+        return { label: `Em ${fmtDate(rangeStart)}`, isMultiDay: false, days: 1 };
+      }
+      const diffMs = rangeEnd.getTime() - rangeStart.getTime();
+      const days = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
+      return { label: `${fmtDate(rangeStart)} — ${fmtDate(rangeEnd)}`, isMultiDay: true, days };
+    }
+
+    return { label: "Hoje", isMultiDay: false, days: 1 };
+  }, [filterMode, rangeStart, rangeEnd, selectedDate]);
+
   // Recompute KPI data from real state
-  const currentKpis = useMemo(() => [
-    {
-      title: "Ovos",
-      value: formatNumber(productionData.eggsProduced),
-      badge: "+3.2%",
-      badgeDir: "up" as "up" | "down" | "neutral",
-      subtitle: `Meta: 15.000 · ${((productionData.eggsProduced / 15000) * 100).toFixed(0)}% atingido`,
-      icon: Egg,
-      color: "brand",
-      gradient: "from-brand-500 to-brand-600",
-      lightBg: "bg-brand-50",
-      lightIcon: "text-brand-600",
-      progress: (productionData.eggsProduced / 15000) * 100,
-    },
-    {
-      title: "Taxa de Postura",
-      value: `${productionData.layingRate.toFixed(1)}%`,
-      badge: "+1.2%",
-      badgeDir: "up" as "up" | "down" | "neutral",
-      subtitle: "Meta: 90% · Padrão: 85-92%",
-      icon: Target,
-      color: "violet",
-      gradient: "from-violet-500 to-violet-600",
-      lightBg: "bg-violet-50",
-      lightIcon: "text-violet-600",
-      progress: (productionData.layingRate / 92) * 100,
-    },
-    {
-      title: "Custo por Ovo",
-      value: `R$ ${feedData.costPerEgg.toFixed(3)}`,
-      badge: "-2.1%",
-      badgeDir: "up" as "up" | "down" | "neutral",
-      subtitle: `Ração: R$ ${formatNumber(feedData.cost)} · ${formatNumber(feedData.quantity)}kg`,
-      icon: Wheat,
-      color: "amber",
-      gradient: "from-amber-500 to-amber-600",
-      lightBg: "bg-amber-50",
-      lightIcon: "text-amber-600",
-      progress: 72,
-    },
-    {
-      title: "Lucro Últimos 30 Dias",
-      value: formatCurrency(financialData.profit),
-      badge: "+8.5%",
-      badgeDir: "up" as "up" | "down" | "neutral",
-      subtitle: `Receita: ${formatCurrency(financialData.revenue)}`,
-      icon: DollarSign,
-      color: "emerald",
-      gradient: "from-emerald-500 to-emerald-600",
-      lightBg: "bg-emerald-50",
-      lightIcon: "text-emerald-600",
-      progress: financialData.revenue > 0 ? (financialData.profit / financialData.revenue) * 100 : 0,
-    },
-  ], [productionData, feedData, financialData]);
+  const currentKpis = useMemo(() => {
+    const { isMultiDay, days } = periodInfo;
+    const avgPerDay = isMultiDay && days > 0 ? productionData.eggsProduced / days : 0;
+
+    return [
+      {
+        title: "Ovos",
+        value: formatNumber(productionData.eggsProduced),
+        periodDetail: isMultiDay
+          ? `Média: ${formatNumber(Math.round(avgPerDay))} ovos/dia`
+          : undefined,
+        badge: "+3.2%",
+        badgeDir: "up" as "up" | "down" | "neutral",
+        subtitle: `Meta: 15.000 · ${((productionData.eggsProduced / 15000) * 100).toFixed(0)}% atingido`,
+        icon: Egg,
+        color: "brand",
+        gradient: "from-brand-500 to-brand-600",
+        lightBg: "bg-brand-50",
+        lightIcon: "text-brand-600",
+        progress: (productionData.eggsProduced / 15000) * 100,
+      },
+      {
+        title: "Taxa de Postura",
+        value: `${productionData.layingRate.toFixed(1)}%`,
+        periodDetail: isMultiDay ? "Média do período" : undefined,
+        badge: "+1.2%",
+        badgeDir: "up" as "up" | "down" | "neutral",
+        subtitle: "Meta: 90% · Padrão: 85-92%",
+        icon: Target,
+        color: "violet",
+        gradient: "from-violet-500 to-violet-600",
+        lightBg: "bg-violet-50",
+        lightIcon: "text-violet-600",
+        progress: (productionData.layingRate / 92) * 100,
+      },
+      {
+        title: "Custo por Ovo",
+        value: `R$ ${feedData.costPerEgg.toFixed(3)}`,
+        periodDetail: isMultiDay ? "Média do período" : undefined,
+        badge: "-2.1%",
+        badgeDir: "up" as "up" | "down" | "neutral",
+        subtitle: `Ração: R$ ${formatNumber(feedData.cost)} · ${formatNumber(feedData.quantity)}kg`,
+        icon: Wheat,
+        color: "amber",
+        gradient: "from-amber-500 to-amber-600",
+        lightBg: "bg-amber-50",
+        lightIcon: "text-amber-600",
+        progress: 72,
+      },
+      {
+        title: isMultiDay ? `Lucro · ${days} dias` : "Lucro",
+        value: formatCurrency(financialData.profit),
+        periodDetail: isMultiDay
+          ? `Média: ${formatCurrency(Math.round(financialData.profit / days))}/dia`
+          : undefined,
+        badge: "+8.5%",
+        badgeDir: "up" as "up" | "down" | "neutral",
+        subtitle: `Receita: ${formatCurrency(financialData.revenue)}`,
+        icon: DollarSign,
+        color: "emerald",
+        gradient: "from-emerald-500 to-emerald-600",
+        lightBg: "bg-emerald-50",
+        lightIcon: "text-emerald-600",
+        progress: financialData.revenue > 0 ? (financialData.profit / financialData.revenue) * 100 : 0,
+      },
+    ];
+  }, [productionData, feedData, financialData, periodInfo]);
 
   const currentExpenseBreakdown = useMemo(() => [
     { name: "Ração", value: financialData.feedCost, color: "#f59e0b" },
@@ -708,8 +935,11 @@ export default function DashboardPage() {
           >
             <div className={cn("absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r opacity-0 group-hover:opacity-100 transition-opacity", kpi.gradient)} />
             <div className="flex items-start justify-between mb-3">
-              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", kpi.lightBg)}>
-                <kpi.icon className={cn("w-5 h-5", kpi.lightIcon)} />
+              <div className="flex items-center gap-2.5">
+                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", kpi.lightBg)}>
+                  <kpi.icon className={cn("w-5 h-5", kpi.lightIcon)} />
+                </div>
+                <p className="text-[13px] font-semibold text-gray-600">{kpi.title}</p>
               </div>
               <span className={cn(
                 "inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-lg",
@@ -723,8 +953,11 @@ export default function DashboardPage() {
               </span>
             </div>
             <p className="text-2xl font-bold text-gray-900 tracking-tight">{kpi.value}</p>
-            <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{kpi.title}</p>
-            <p className="text-[11px] text-gray-400 mt-2">{kpi.subtitle}</p>
+            <p className="text-[10px] text-gray-400 mt-0.5 font-medium">
+              {periodInfo.label}
+              {kpi.periodDetail && <span className="ml-1">· {kpi.periodDetail}</span>}
+            </p>
+            <p className="text-[11px] text-gray-400 mt-1.5">{kpi.subtitle}</p>
             {/* Mini progress bar */}
             <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
               <div
@@ -1270,7 +1503,7 @@ export default function DashboardPage() {
         {/* Chart */}
         <div className="xl:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-1">
-            <h3 className="text-sm font-bold text-gray-900">Produção Semanal</h3>
+            <h3 className="text-sm font-bold text-gray-900">{chartTitle}</h3>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-brand-500" />
@@ -1282,9 +1515,14 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-          <p className="text-[11px] text-gray-400 mb-5">Últimos 7 dias · Atualizado agora</p>
+          <p className="text-[11px] text-gray-400 mb-5">{chartSubtitle}</p>
+          {chartLoading ? (
+            <div className="flex items-center justify-center h-[280px]">
+              <Loader2 className="w-6 h-6 text-gray-300 animate-spin" />
+            </div>
+          ) : (
           <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={weeklyData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+            <AreaChart data={chartProductionData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorOvos" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#2d7a4f" stopOpacity={0.2} />
@@ -1292,17 +1530,18 @@ export default function DashboardPage() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={8} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dx={-4} domain={[12000, 14000]} />
+              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={8} interval={chartProductionData.length > 14 ? Math.floor(chartProductionData.length / 7) : 0} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dx={-4} domain={chartYDomain} />
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
                 labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
                 formatter={((value: any, name: any) => [formatNumber(Number(value)), String(name)]) as any}
               />
               <Area type="monotone" dataKey="meta" stroke="#d1d5db" strokeWidth={1.5} strokeDasharray="6 4" fill="none" dot={false} name="Meta" />
-              <Area type="monotone" dataKey="ovos" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#colorOvos)" dot={{ r: 4, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 }} activeDot={{ r: 6, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} name="Ovos" />
+              <Area type="monotone" dataKey="ovos" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#colorOvos)" dot={chartProductionData.length <= 14 ? { r: 4, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 } : false} activeDot={{ r: 6, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} name="Ovos" />
             </AreaChart>
           </ResponsiveContainer>
+          )}
         </div>
 
         {/* AI Performance Insights */}
@@ -1389,7 +1628,7 @@ export default function DashboardPage() {
       {/* ── Financial Row: Revenue Chart + Expense Breakdown + Profit Summary ── */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         {/* Revenue vs Expenses */}
-        <div className="xl:col-span-5 bg-white rounded-2xl border border-gray-100 p-6">
+        <div className="xl:col-span-5 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-sm font-bold text-gray-900">Receita vs Despesas</h3>
             <div className="flex items-center gap-3">
@@ -1404,7 +1643,8 @@ export default function DashboardPage() {
             </div>
           </div>
           <p className="text-[11px] text-gray-400 mb-5">Últimos 6 meses</p>
-          <ResponsiveContainer width="100%" height={220}>
+          <div className="flex-1 min-h-0">
+          <ResponsiveContainer width="100%" height="100%">
             <BarChart data={revenueData} margin={{ top: 5, right: 5, left: -15, bottom: 0 }} barGap={3}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
               <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dy={8} />
@@ -1417,11 +1657,12 @@ export default function DashboardPage() {
               <Bar dataKey="despesas" fill="#e24a4a" radius={[5, 5, 0, 0]} name="Despesas" />
             </BarChart>
           </ResponsiveContainer>
+          </div>
         </div>
 
         {/* Expense Breakdown Donut */}
         <div className="xl:col-span-3 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
-          <h3 className="text-sm font-bold text-gray-900 mb-1">Despesas Últimos 30 Dias</h3>
+          <h3 className="text-sm font-bold text-gray-900 mb-1">Despesas</h3>
           <p className="text-[11px] text-gray-400 mb-3">Total: {formatCurrency(financialData.expenses)}</p>
           <div className="flex-1 flex items-center justify-center">
             <ResponsiveContainer width="100%" height={160}>
