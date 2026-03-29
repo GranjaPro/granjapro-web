@@ -1,8 +1,9 @@
 "use client";
 
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Egg, TrendingUp, AlertTriangle, Activity, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ArrowLeft, Egg, TrendingUp, AlertTriangle, Activity, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AreaChart,
@@ -16,157 +17,172 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { useAuth } from "@/components/auth/auth-provider";
+import { createClient } from "@/lib/supabase/client";
 
-/* ── Mock Data per Lote ── */
-const lotesData: Record<string, {
+interface LoteDetails {
+  id: string;
   codigo: string;
   raca: string;
   aves: number;
-  sistema: string;
   idade: string;
-  registros: { data: string; total: number; quebrados: number; sujos: number; descartados: number; taxa: string }[];
-  producaoMensal: { mes: string; ovos: number; meta: number }[];
-  qualidade: { mes: string; quebrados: number; sujos: number; descartados: number }[];
-}> = {
-  "1": {
-    codigo: "L-2024-01",
-    raca: "Hy-Line Brown",
-    aves: 800,
-    sistema: "Cage-Free",
-    idade: "42 semanas",
-    registros: [
-      { data: "2024-03-17", total: 2450, quebrados: 12, sujos: 18, descartados: 5, taxa: "90.0%" },
-      { data: "2024-03-16", total: 2520, quebrados: 10, sujos: 15, descartados: 4, taxa: "92.6%" },
-      { data: "2024-03-15", total: 2700, quebrados: 15, sujos: 20, descartados: 7, taxa: "96.2%" },
-      { data: "2024-03-14", total: 2580, quebrados: 8, sujos: 12, descartados: 3, taxa: "94.8%" },
-      { data: "2024-03-13", total: 2650, quebrados: 11, sujos: 16, descartados: 6, taxa: "95.5%" },
-      { data: "2024-03-12", total: 2490, quebrados: 14, sujos: 19, descartados: 8, taxa: "91.5%" },
-      { data: "2024-03-11", total: 2610, quebrados: 9, sujos: 13, descartados: 4, taxa: "93.6%" },
-    ],
-    producaoMensal: [
-      { mes: "Out", ovos: 72000, meta: 74000 },
-      { mes: "Nov", ovos: 73500, meta: 74000 },
-      { mes: "Dez", ovos: 71000, meta: 74000 },
-      { mes: "Jan", ovos: 74200, meta: 74000 },
-      { mes: "Fev", ovos: 73800, meta: 74000 },
-      { mes: "Mar", ovos: 68500, meta: 74000 },
-    ],
-    qualidade: [
-      { mes: "Out", quebrados: 280, sujos: 420, descartados: 150 },
-      { mes: "Nov", quebrados: 310, sujos: 380, descartados: 130 },
-      { mes: "Dez", quebrados: 350, sujos: 450, descartados: 180 },
-      { mes: "Jan", quebrados: 260, sujos: 360, descartados: 120 },
-      { mes: "Fev", quebrados: 290, sujos: 400, descartados: 140 },
-      { mes: "Mar", quebrados: 320, sujos: 430, descartados: 160 },
-    ],
-  },
-  "2": {
-    codigo: "L-2024-02",
-    raca: "Lohmann LSL",
-    aves: 600,
-    sistema: "Free Range",
-    idade: "28 semanas",
-    registros: [
-      { data: "2024-03-16", total: 2620, quebrados: 8, sujos: 14, descartados: 3, taxa: "95.3%" },
-      { data: "2024-03-15", total: 2580, quebrados: 10, sujos: 16, descartados: 5, taxa: "94.1%" },
-      { data: "2024-03-14", total: 2550, quebrados: 7, sujos: 11, descartados: 2, taxa: "93.8%" },
-      { data: "2024-03-13", total: 2600, quebrados: 9, sujos: 13, descartados: 4, taxa: "95.0%" },
-      { data: "2024-03-12", total: 2480, quebrados: 12, sujos: 18, descartados: 6, taxa: "91.2%" },
-    ],
-    producaoMensal: [
-      { mes: "Out", ovos: 54000, meta: 55000 },
-      { mes: "Nov", ovos: 55200, meta: 55000 },
-      { mes: "Dez", ovos: 53800, meta: 55000 },
-      { mes: "Jan", ovos: 56000, meta: 55000 },
-      { mes: "Fev", ovos: 55500, meta: 55000 },
-      { mes: "Mar", ovos: 52000, meta: 55000 },
-    ],
-    qualidade: [
-      { mes: "Out", quebrados: 200, sujos: 310, descartados: 100 },
-      { mes: "Nov", quebrados: 220, sujos: 290, descartados: 90 },
-      { mes: "Dez", quebrados: 250, sujos: 340, descartados: 120 },
-      { mes: "Jan", quebrados: 190, sujos: 270, descartados: 80 },
-      { mes: "Fev", quebrados: 210, sujos: 300, descartados: 95 },
-      { mes: "Mar", quebrados: 230, sujos: 320, descartados: 110 },
-    ],
-  },
-  "3": {
-    codigo: "L-2024-03",
-    raca: "ISA Brown",
-    aves: 1000,
-    sistema: "Gaiola",
-    idade: "18 semanas",
-    registros: [],
-    producaoMensal: [],
-    qualidade: [],
-  },
-  "4": {
-    codigo: "L-2024-04",
-    raca: "Novogen Brown",
-    aves: 500,
-    sistema: "Orgânico",
-    idade: "60 semanas",
-    registros: [
-      { data: "2024-03-17", total: 1800, quebrados: 20, sujos: 25, descartados: 10, taxa: "78.0%" },
-      { data: "2024-03-16", total: 1850, quebrados: 18, sujos: 22, descartados: 8, taxa: "80.2%" },
-      { data: "2024-03-15", total: 1780, quebrados: 22, sujos: 28, descartados: 12, taxa: "77.4%" },
-    ],
-    producaoMensal: [
-      { mes: "Out", ovos: 42000, meta: 46000 },
-      { mes: "Nov", ovos: 40500, meta: 46000 },
-      { mes: "Dez", ovos: 39000, meta: 46000 },
-      { mes: "Jan", ovos: 38000, meta: 46000 },
-      { mes: "Fev", ovos: 36500, meta: 46000 },
-      { mes: "Mar", ovos: 35000, meta: 46000 },
-    ],
-    qualidade: [
-      { mes: "Out", quebrados: 380, sujos: 500, descartados: 200 },
-      { mes: "Nov", quebrados: 400, sujos: 520, descartados: 220 },
-      { mes: "Dez", quebrados: 420, sujos: 550, descartados: 250 },
-      { mes: "Jan", quebrados: 450, sujos: 580, descartados: 270 },
-      { mes: "Fev", quebrados: 460, sujos: 600, descartados: 280 },
-      { mes: "Mar", quebrados: 480, sujos: 620, descartados: 300 },
-    ],
-  },
-};
+  sistema: string;
+}
+
+interface Registro {
+  id: string;
+  data: string;
+  total: number;
+  quebrados: number;
+  sujos: number;
+  descartados: number;
+  taxa: string;
+}
 
 export default function HistoricoLotePage() {
   const params = useParams();
   const loteId = params.loteId as string;
-  const lote = lotesData[loteId];
+  const { farm, loading: authLoading } = useAuth();
 
-  if (!lote) {
-    return (
-      <div className="space-y-6">
-        <Link href="/dashboard/production" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-600 transition-colors">
-          <ArrowLeft className="w-4 h-4" />
-          Voltar para Produção
-        </Link>
-        <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
-          <p className="text-gray-400">Lote não encontrado.</p>
-        </div>
-      </div>
-    );
-  }
+  const [lote, setLote] = useState<LoteDetails | null>(null);
+  const [registros, setRegistros] = useState<Registro[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const avgTaxa = lote.registros.length > 0
-    ? (lote.registros.reduce((s, r) => s + parseFloat(r.taxa), 0) / lote.registros.length).toFixed(1) + "%"
+  const fetchData = useCallback(async () => {
+    if (!farm || !loteId) return;
+    setLoading(true);
+    const supabase = createClient();
+
+    try {
+      // Fetch lote details
+      const { data: flockData, error: flockErr } = await supabase
+        .from("flocks")
+        .select("*, barns(production_system)")
+        .eq("id", loteId)
+        .eq("farm_id", farm.id)
+        .single();
+
+      if (flockErr) throw flockErr;
+
+      if (flockData) {
+        // Calculate age in weeks based on arrival_date and arrival_age_weeks
+        let currentAge = `${flockData.arrival_age_weeks || 0} semanas`;
+        if (flockData.arrival_date) {
+          const arrDate = new Date(flockData.arrival_date);
+          const now = new Date();
+          const diffMs = now.getTime() - arrDate.getTime();
+          const diffWeeks = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
+          const totalWeeks = (flockData.arrival_age_weeks || 0) + diffWeeks;
+          currentAge = `${totalWeeks} semanas`;
+        }
+
+        let sys = "—";
+        if (flockData.barns && !Array.isArray(flockData.barns)) {
+           sys = (flockData.barns as any).production_system || "—";
+        } else if (flockData.barns && Array.isArray(flockData.barns) && flockData.barns.length > 0) {
+           sys = (flockData.barns[0] as any).production_system || "—";
+        }
+
+        setLote({
+          id: flockData.id,
+          codigo: flockData.code,
+          raca: flockData.breed,
+          aves: flockData.bird_count,
+          idade: currentAge,
+          sistema: sys,
+        });
+      }
+
+      // Fetch productions
+      const { data: prodData, error: prodErr } = await supabase
+        .from("egg_production")
+        .select("*")
+        .eq("flock_id", loteId)
+        .order("date", { ascending: false });
+
+      if (prodErr) throw prodErr;
+
+      if (prodData) {
+        setRegistros(prodData.map((r: any) => ({
+          id: r.id,
+          data: r.date,
+          total: r.eggs_produced || 0,
+          quebrados: r.broken_eggs || 0,
+          sujos: r.dirty_eggs || 0,
+          descartados: r.discarded_eggs || 0,
+          taxa: r.laying_rate != null ? `${Number(r.laying_rate).toFixed(1)}%` : "—",
+        })));
+      }
+
+    } catch (err) {
+      console.error("Error fetching history:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [farm, loteId]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      fetchData();
+    }
+  }, [authLoading, fetchData]);
+
+  // Derived metrics
+  const avgTaxaNum = useMemo(() => {
+    const valid = registros.filter(r => r.taxa !== "—");
+    if (valid.length === 0) return 0;
+    return valid.reduce((acc, r) => acc + parseFloat(r.taxa), 0) / valid.length;
+  }, [registros]);
+  const avgTaxa = avgTaxaNum > 0 ? avgTaxaNum.toFixed(1) + "%" : "—";
+
+  const totalOvos = registros.reduce((s, r) => s + r.total, 0);
+  const totalQuebrados = registros.reduce((s, r) => s + r.quebrados + r.sujos, 0);
+  const melhorDia = registros.length > 0
+    ? Math.max(...registros.map((r) => r.total)).toLocaleString("pt-BR")
     : "—";
-  const totalOvos = lote.registros.reduce((s, r) => s + r.total, 0);
-  const totalQuebrados = lote.registros.reduce((s, r) => s + r.quebrados + r.sujos, 0);
-  const melhorDia = lote.registros.length > 0
-    ? Math.max(...lote.registros.map((r) => r.total)).toLocaleString("pt-BR")
-    : "—";
 
-  const chartData = [...lote.registros].reverse().map((r) => ({
+  const chartData = [...registros].reverse().map((r) => ({
     data: new Date(r.data + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
     ovos: r.total,
-    taxa: parseFloat(r.taxa),
+    taxa: parseFloat(r.taxa) || 0,
   }));
 
+  // Mensal Data
+  const producaoMensal = useMemo(() => {
+    const map = new Map<string, { mes: string; ovos: number; meta: number }>();
+    const expectedDaily = (lote?.aves || 0) * 0.9;
+
+    // Iterate oldest to newest so months are in order
+    const sorted = [...registros].sort((a, b) => a.data.localeCompare(b.data));
+    for (const r of sorted) {
+      const d = new Date(r.data + "T00:00:00");
+      const monthLabel = d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
+      const current = map.get(monthLabel) || { mes: monthLabel, ovos: 0, meta: 0 };
+      current.ovos += r.total;
+      current.meta += expectedDaily;
+      map.set(monthLabel, current);
+    }
+    return Array.from(map.values());
+  }, [registros, lote]);
+
+  const qualidadeMensal = useMemo(() => {
+    const map = new Map<string, { mes: string; quebrados: number; sujos: number; descartados: number }>();
+    const sorted = [...registros].sort((a, b) => a.data.localeCompare(b.data));
+    for (const r of sorted) {
+      const d = new Date(r.data + "T00:00:00");
+      const monthLabel = d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
+      const current = map.get(monthLabel) || { mes: monthLabel, quebrados: 0, sujos: 0, descartados: 0 };
+      current.quebrados += r.quebrados;
+      current.sujos += r.sujos;
+      current.descartados += r.descartados;
+      map.set(monthLabel, current);
+    }
+    return Array.from(map.values());
+  }, [registros]);
+
   const kpis = [
-    { title: "Total Produzido", value: totalOvos.toLocaleString("pt-BR"), badge: String(lote.registros.length) + " dias", badgeDir: "neutral" as const, icon: Egg, iconBg: "bg-brand-50", iconColor: "text-brand-600" },
-    { title: "Taxa Média", value: avgTaxa, badge: avgTaxa !== "—" && parseFloat(avgTaxa) >= 90 ? "Bom" : "Atenção", badgeDir: avgTaxa !== "—" && parseFloat(avgTaxa) >= 90 ? "up" as const : "down" as const, icon: TrendingUp, iconBg: "bg-blue-50", iconColor: "text-blue-600" },
+    { title: "Total Produzido", value: totalOvos.toLocaleString("pt-BR"), badge: String(registros.length) + " dias", badgeDir: "neutral" as const, icon: Egg, iconBg: "bg-brand-50", iconColor: "text-brand-600" },
+    { title: "Taxa Média", value: avgTaxa, badge: avgTaxa !== "—" && avgTaxaNum >= 90 ? "Bom" : "Atenção", badgeDir: avgTaxa !== "—" && avgTaxaNum >= 90 ? "up" as const : "down" as const, icon: TrendingUp, iconBg: "bg-blue-50", iconColor: "text-blue-600" },
     { title: "Quebrados / Sujos", value: totalQuebrados.toLocaleString("pt-BR"), badge: totalOvos > 0 ? ((totalQuebrados / totalOvos) * 100).toFixed(1) + "%" : "—", badgeDir: "neutral" as const, icon: AlertTriangle, iconBg: "bg-amber-50", iconColor: "text-amber-600" },
     { title: "Melhor Dia", value: melhorDia, badge: "pico", badgeDir: "up" as const, icon: Activity, iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
   ];
@@ -178,6 +194,41 @@ export default function HistoricoLotePage() {
     } catch {
       return dateStr;
     }
+  }
+
+  if (authLoading || loading) {
+    return (
+      <div className="space-y-6">
+        <Link href="/dashboard/production" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-600 transition-colors mb-4">
+          <ArrowLeft className="w-4 h-4" />
+          Voltar para Produção
+        </Link>
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 rounded-xl bg-gray-100 animate-pulse" />
+          <div className="space-y-2">
+            <div className="h-6 w-48 bg-gray-100 rounded-lg animate-pulse" />
+            <div className="h-4 w-72 bg-gray-100 rounded-lg animate-pulse" />
+          </div>
+        </div>
+        <div className="flex justify-center p-12">
+          <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!lote) {
+    return (
+      <div className="space-y-6">
+        <Link href="/dashboard/production" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-600 transition-colors mb-4">
+          <ArrowLeft className="w-4 h-4" />
+          Voltar para Produção
+        </Link>
+        <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
+          <p className="text-gray-400">Lote não encontrado.</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -253,11 +304,11 @@ export default function HistoricoLotePage() {
       )}
 
       {/* Monthly Production vs Target */}
-      {lote.producaoMensal.length > 0 && (
+      {producaoMensal.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
           <h3 className="text-sm font-bold text-gray-900 mb-6">Produção Mensal vs Meta</h3>
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={lote.producaoMensal} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+            <BarChart data={producaoMensal} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
               <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={8} />
               <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dx={-4} />
@@ -275,11 +326,11 @@ export default function HistoricoLotePage() {
       )}
 
       {/* Quality Chart */}
-      {lote.qualidade.length > 0 && (
+      {qualidadeMensal.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
           <h3 className="text-sm font-bold text-gray-900 mb-6">Qualidade Mensal</h3>
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={lote.qualidade} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+            <BarChart data={qualidadeMensal} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
               <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={8} />
               <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dx={-4} />
@@ -301,9 +352,9 @@ export default function HistoricoLotePage() {
         <div className="px-6 py-4 border-b border-gray-100">
           <h3 className="text-sm font-bold text-gray-900">Todos os Registros</h3>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[500px]" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
           <table className="w-full">
-            <thead>
+            <thead className="sticky top-0 bg-white shadow-sm z-10">
               <tr className="border-b border-gray-100">
                 <th className="text-left text-xs font-bold text-gray-900 px-6 py-3">Data</th>
                 <th className="text-left text-xs font-bold text-gray-900 px-6 py-3">Total</th>
@@ -314,7 +365,7 @@ export default function HistoricoLotePage() {
               </tr>
             </thead>
             <tbody>
-              {lote.registros.map((r, i) => (
+              {registros.map((r, i) => (
                 <tr key={i} className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4 text-sm font-semibold text-gray-900">{formatDate(r.data)}</td>
                   <td className="px-6 py-4 text-sm text-gray-700">{r.total.toLocaleString("pt-BR")}</td>
@@ -326,7 +377,7 @@ export default function HistoricoLotePage() {
                   </td>
                 </tr>
               ))}
-              {lote.registros.length === 0 && (
+              {registros.length === 0 && (
                 <tr><td colSpan={6} className="text-center py-16 text-gray-400 text-sm">Nenhum registro encontrado para este lote.</td></tr>
               )}
             </tbody>
