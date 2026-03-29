@@ -36,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
   const userRef = useRef<User | null>(null);
+  const farmRef = useRef<Tables<"farms"> | null>(null);
 
   const loadUserData = useCallback(async (currentUser: User) => {
     let foundFarm = false;
@@ -56,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single();
         if (farmData) {
           setFarm(farmData);
+          farmRef.current = farmData;
           foundFarm = true;
         }
       }
@@ -70,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (farmData) {
           setFarm(farmData);
+          farmRef.current = farmData;
           foundFarm = true;
           await supabase
             .from("profiles")
@@ -118,6 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null);
           setProfile(null);
           setFarm(null);
+          farmRef.current = null;
           setLoading(false);
           return;
         }
@@ -127,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!currentUser) return;
           if (userRef.current?.id === currentUser.id) {
             // Same user but still check onboarding (e.g. after OAuth redirect)
-            if (!farm) checkOnboarding(false);
+            if (!farmRef.current) checkOnboarding(false);
             return;
           }
           userRef.current = currentUser;
@@ -162,7 +166,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .select("*")
           .eq("id", profileData.farm_id)
           .single();
-        if (farmData) setFarm(farmData);
+        if (farmData) {
+          setFarm(farmData);
+          farmRef.current = farmData;
+        }
       }
     } catch (err) {
       console.error("Error refreshing profile:", err);

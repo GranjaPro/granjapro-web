@@ -24,77 +24,40 @@ import {
   BarChart3,
   Sparkles,
   Zap,
-  CalendarDays,
-  ChevronLeft,
   HelpCircle,
   Wheat,
   CircleDollarSign,
   AlertOctagon,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
-  Cell,
 } from "recharts";
+import { useAuth } from "@/components/auth/auth-provider";
+import { createClient } from "@/lib/supabase/client";
+import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 
-/* ── Lotes (shared mock data) ── */
+/* ── Interfaces ── */
 interface Lote {
-  id: number;
+  id: string;
   codigo: string;
   raca: string;
   aves: number;
   postura: string;
 }
 
-const initialLotes: Lote[] = [
-  { id: 1, codigo: "L-2024-01", raca: "Hy-Line Brown", aves: 800, postura: "92%" },
-  { id: 2, codigo: "L-2024-02", raca: "Lohmann LSL", aves: 600, postura: "88%" },
-  { id: 3, codigo: "L-2024-03", raca: "ISA Brown", aves: 1000, postura: "—" },
-  { id: 4, codigo: "L-2024-04", raca: "Novogen Brown", aves: 500, postura: "78%" },
-];
-
-/* ── Chart Data ── */
-const curvaProducao = [
-  { day: "Seg", ovos: 2450, meta: 2600 },
-  { day: "Ter", ovos: 2620, meta: 2600 },
-  { day: "Qua", ovos: 2700, meta: 2600 },
-  { day: "Qui", ovos: 2650, meta: 2600 },
-  { day: "Sex", ovos: 2580, meta: 2600 },
-  { day: "Sáb", ovos: 2600, meta: 2600 },
-  { day: "Dom", ovos: 2500, meta: 2600 },
-];
-
-/* ── Quality Breakdown ── */
-const qualityData = [
-  { name: "Bons", value: 96.2, color: "#2d7a4f", qty: 2356 },
-  { name: "Quebrados", value: 1.5, color: "#ef4444", qty: 12 },
-  { name: "Sujos", value: 1.8, color: "#f59e0b", qty: 18 },
-  { name: "Reaproveitados", value: 0.3, color: "#3b82f6", qty: 7 },
-  { name: "Descartados", value: 0.2, color: "#94a3b8", qty: 5 },
-];
-
-/* ── Production by Lote ── */
-const producaoPorLote = [
-  { lote: "L-2024-01", ovos: 736, taxa: 92, color: "#2d7a4f" },
-  { lote: "L-2024-02", ovos: 528, taxa: 88, color: "#3b82f6" },
-  { lote: "L-2024-03", ovos: 850, taxa: 85, color: "#f59e0b" },
-  { lote: "L-2024-04", ovos: 390, taxa: 78, color: "#ef4444" },
-];
-
-/* ── Table Data ── */
 interface Registro {
-  id: number;
-  loteId: number;
+  id: string;
+  loteId: string;
   loteCodigo: string;
   data: string;
   total: number;
@@ -104,20 +67,18 @@ interface Registro {
   taxa: string;
 }
 
-const initialRegistros: Registro[] = [
-  { id: 1, loteId: 1, loteCodigo: "L-2024-01", data: "2024-03-17", total: 2450, quebrados: 12, sujos: 18, descartados: 5, taxa: "90.0%" },
-  { id: 2, loteId: 2, loteCodigo: "L-2024-02", data: "2024-03-16", total: 2620, quebrados: 8, sujos: 14, descartados: 3, taxa: "95.3%" },
-  { id: 3, loteId: 1, loteCodigo: "L-2024-01", data: "2024-03-15", total: 2700, quebrados: 15, sujos: 20, descartados: 7, taxa: "96.2%" },
-  { id: 4, loteId: 3, loteCodigo: "L-2024-03", data: "2024-03-14", total: 2400, quebrados: 10, sujos: 12, descartados: 4, taxa: "85.0%" },
-  { id: 5, loteId: 4, loteCodigo: "L-2024-04", data: "2024-03-13", total: 1950, quebrados: 20, sujos: 25, descartados: 8, taxa: "78.0%" },
-];
-
 type ModalMode = "add" | "edit" | null;
 
 export default function ProducaoPage() {
   const searchParams = useSearchParams();
-  const [lotes, setLotes] = useState(initialLotes);
-  const [registros, setRegistros] = useState(initialRegistros);
+  const { farm, loading: authLoading } = useAuth();
+
+  const [lotes, setLotes] = useState<Lote[]>([]);
+  const [registros, setRegistros] = useState<Registro[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
   const [modal, setModal] = useState<ModalMode>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -126,104 +87,160 @@ export default function ProducaoPage() {
   }, [searchParams]);
   const [editing, setEditing] = useState<Registro | null>(null);
   const [form, setForm] = useState({ loteId: "", data: "", total: "", quebrados: "", sujos: "", descartados: "" });
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  // Calendar filter state
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [filterMode, setFilterMode] = useState<"intervalo" | "mes">("intervalo");
-  const [rangeStart, setRangeStart] = useState<Date | null>(new Date());
-  const [rangeEnd, setRangeEnd] = useState<Date | null>(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [calendarMonth, setCalendarMonth] = useState(new Date());
-  const calendarRef = useRef<HTMLDivElement>(null);
+  // Shared calendar filter
+  const { dateRange } = useDateFilter();
+
+  /* ── Data Fetching ── */
+  const farmRef = useRef(farm);
+  farmRef.current = farm;
+
+  const fetchData = useCallback(async () => {
+    const currentFarm = farmRef.current;
+    if (!currentFarm) { setLoading(false); return; }
+    setLoading(true);
+    const supabase = createClient();
+
+    try {
+      const { startDate, endDate } = dateRange;
+
+      const [productionRes, flocksRes] = await Promise.all([
+        supabase
+          .from("egg_production")
+          .select("*, flocks(code, breed, bird_count)")
+          .eq("farm_id", currentFarm.id)
+          .gte("date", startDate)
+          .lte("date", endDate)
+          .order("date", { ascending: false }),
+        supabase
+          .from("flocks")
+          .select("id, code, breed, bird_count, status")
+          .eq("farm_id", currentFarm.id)
+          .order("code"),
+      ]);
+
+      if (flocksRes.error) throw flocksRes.error;
+      if (productionRes.error) throw productionRes.error;
+
+      const flocksData = flocksRes.data || [];
+      const productionData = productionRes.data || [];
+
+      // Calculate postura per flock from latest records
+      const flockPostura = new Map<string, number>();
+      for (const r of productionData) {
+        if (r.flock_id && r.laying_rate != null && !flockPostura.has(r.flock_id)) {
+          flockPostura.set(r.flock_id, r.laying_rate);
+        }
+      }
+
+      setLotes(flocksData.map((f: any) => ({
+        id: f.id,
+        codigo: f.code,
+        raca: f.breed,
+        aves: f.bird_count,
+        postura: flockPostura.has(f.id) ? `${flockPostura.get(f.id)!.toFixed(1)}%` : "—",
+      })));
+
+      const mapped: Registro[] = productionData.map((r: any) => ({
+        id: r.id,
+        loteId: r.flock_id || "",
+        loteCodigo: r.flocks?.code || "—",
+        data: r.date,
+        total: r.eggs_produced,
+        quebrados: r.broken_eggs || 0,
+        sujos: r.dirty_eggs || 0,
+        descartados: r.discarded_eggs || 0,
+        taxa: r.laying_rate != null ? `${Number(r.laying_rate).toFixed(1)}%` : "—",
+      }));
+      setRegistros(mapped);
+    } catch (err: any) {
+      console.error("Erro ao carregar dados de produção:", err);
+      setError("Erro ao carregar dados de produção.");
+    }
+    setLoading(false);
+  }, [dateRange]);
 
   useEffect(() => {
-    function handleClickOutsideCal(e: MouseEvent) {
-      if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) {
-        setCalendarOpen(false);
-      }
+    if (authLoading || !farm) return;
+    fetchData();
+  }, [authLoading, farm, fetchData]);
+
+  /* ── Derived Chart Data ── */
+  const curvaProducao = useMemo(() => {
+    const byDate = new Map<string, number>();
+    for (const r of registros) {
+      byDate.set(r.data, (byDate.get(r.data) || 0) + r.total);
     }
-    document.addEventListener("mousedown", handleClickOutsideCal);
-    return () => document.removeEventListener("mousedown", handleClickOutsideCal);
-  }, []);
+    const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+    const totalAves = lotes.reduce((s, l) => s + l.aves, 0);
+    const meta = Math.round(totalAves * 0.9);
+    return Array.from(byDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, ovos]) => {
+        const d = new Date(date + "T00:00:00");
+        return { day: days[d.getDay()], ovos, meta };
+      });
+  }, [registros, lotes]);
 
-  const sameDay = (a: Date, b: Date) =>
-    a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+  const qualityData = useMemo(() => {
+    const totals = registros.reduce(
+      (acc, r) => ({
+        total: acc.total + r.total,
+        quebrados: acc.quebrados + r.quebrados,
+        sujos: acc.sujos + r.sujos,
+        descartados: acc.descartados + r.descartados,
+      }),
+      { total: 0, quebrados: 0, sujos: 0, descartados: 0 }
+    );
+    const bons = totals.total - totals.quebrados - totals.sujos - totals.descartados;
+    const t = totals.total || 1;
+    return [
+      { name: "Bons", value: +((bons / t) * 100).toFixed(1), color: "#2d7a4f", qty: bons },
+      { name: "Quebrados", value: +((totals.quebrados / t) * 100).toFixed(1), color: "#ef4444", qty: totals.quebrados },
+      { name: "Sujos", value: +((totals.sujos / t) * 100).toFixed(1), color: "#f59e0b", qty: totals.sujos },
+      { name: "Descartados", value: +((totals.descartados / t) * 100).toFixed(1), color: "#94a3b8", qty: totals.descartados },
+    ];
+  }, [registros]);
 
-  const calendarLabel = useMemo(() => {
-    const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    if (filterMode === "intervalo") {
-      if (rangeStart && rangeEnd) {
-        if (sameDay(rangeStart, rangeEnd)) {
-          const today = new Date();
-          if (sameDay(rangeStart, today)) return `Hoje, ${rangeStart.getDate()} ${months[rangeStart.getMonth()]}`;
-          return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]}, ${rangeStart.getFullYear()}`;
-        }
-        return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]} — ${rangeEnd.getDate()} ${months[rangeEnd.getMonth()]}`;
-      }
-      if (rangeStart) return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]} — ...`;
-      return "Selecionar período";
+  const producaoPorLote = useMemo(() => {
+    const colors = ["#2d7a4f", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+    const byFlock = new Map<string, { code: string; ovos: number; birdCount: number }>();
+    for (const r of registros) {
+      const lote = lotes.find(l => l.id === r.loteId);
+      if (!lote) continue;
+      const existing = byFlock.get(r.loteId) || { code: lote.codigo, ovos: 0, birdCount: lote.aves };
+      existing.ovos += r.total;
+      byFlock.set(r.loteId, existing);
     }
-    const d = selectedDate;
-    return `${months[d.getMonth()]} ${d.getFullYear()}`;
-  }, [selectedDate, filterMode, rangeStart, rangeEnd]);
+    const numDays = new Set(registros.map(r => r.data)).size || 1;
+    return Array.from(byFlock.entries()).map(([, val], i) => ({
+      lote: val.code,
+      ovos: val.ovos,
+      taxa: val.birdCount > 0 ? Math.round((val.ovos / numDays / val.birdCount) * 100) : 0,
+      color: colors[i % colors.length],
+    }));
+  }, [registros, lotes]);
 
-  const calendarDays = useMemo(() => {
-    const year = calendarMonth.getFullYear();
-    const month = calendarMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
-    const days: (Date | null)[] = [];
-    for (let i = 0; i < startDay; i++) days.push(null);
-    for (let i = 1; i <= lastDay.getDate(); i++) days.push(new Date(year, month, i));
-    return days;
-  }, [calendarMonth]);
-
-  const isInRange = useCallback((day: Date) => {
-    if (filterMode !== "intervalo" || !rangeStart) return false;
-    if (!rangeEnd) return sameDay(day, rangeStart);
-    const t = day.getTime();
-    const s = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime();
-    const e = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime();
-    return t >= s && t <= e;
-  }, [filterMode, rangeStart, rangeEnd]);
-
-  const isRangeStart = useCallback((day: Date) => {
-    return filterMode === "intervalo" && rangeStart && sameDay(day, rangeStart);
-  }, [filterMode, rangeStart]);
-
-  const isRangeEnd = useCallback((day: Date) => {
-    return filterMode === "intervalo" && rangeEnd && sameDay(day, rangeEnd);
-  }, [filterMode, rangeEnd]);
-
-  const handleCalDayClick = useCallback((day: Date) => {
-    if (filterMode === "intervalo") {
-      if (!rangeStart || (rangeStart && rangeEnd)) {
-        setRangeStart(day);
-        setRangeEnd(null);
-      } else {
-        if (day.getTime() < rangeStart.getTime()) {
-          setRangeEnd(rangeStart);
-          setRangeStart(day);
-        } else {
-          setRangeEnd(day);
-        }
-        setCalendarOpen(false);
-      }
-    } else {
-      setSelectedDate(new Date(day.getFullYear(), day.getMonth(), 1));
-      setCalendarOpen(false);
-    }
-  }, [filterMode, rangeStart, rangeEnd]);
-
-  const handleMonthClick = useCallback((monthIndex: number) => {
-    setSelectedDate(new Date(calendarMonth.getFullYear(), monthIndex, 1));
-    setCalendarOpen(false);
-  }, [calendarMonth]);
+  /* ── Health Score (period-based) ── */
+  const healthScore = useMemo(() => {
+    if (registros.length === 0) return { score: 0, label: "Sem dados", color: "gray", posturaRate: 0, lossRate: 0 };
+    const totalEggs = registros.reduce((s, r) => s + r.total, 0);
+    const totalLosses = registros.reduce((s, r) => s + r.quebrados + r.sujos + r.descartados, 0);
+    const totalAves = lotes.reduce((s, l) => s + l.aves, 0);
+    const numDays = new Set(registros.map(r => r.data)).size || 1;
+    const posturaRate = totalAves > 0 ? (totalEggs / numDays / totalAves) * 100 : 0;
+    const lossRate = totalEggs > 0 ? (totalLosses / totalEggs) * 100 : 0;
+    const posturaScore = Math.min(posturaRate / 92, 1) * 70;
+    const qualityScore = Math.max(1 - lossRate / 5, 0) * 30;
+    const score = Math.round(posturaScore + qualityScore);
+    const label = score >= 80 ? "Excelente" : score >= 60 ? "Bom" : score >= 40 ? "Atenção" : "Crítico";
+    const color = score >= 80 ? "emerald" : score >= 60 ? "blue" : score >= 40 ? "amber" : "red";
+    return { score, label, color, posturaRate, lossRate };
+  }, [registros, lotes]);
 
   const taxaCalculada = useMemo(() => {
-    const selectedLote = lotes.find((l) => l.id === Number(form.loteId));
+    const selectedLote = lotes.find((l) => l.id === form.loteId);
     const total = Number(form.total) || 0;
     if (!selectedLote || selectedLote.aves === 0 || total === 0) return "—";
     const taxa = (total / selectedLote.aves) * 100;
@@ -232,33 +249,43 @@ export default function ProducaoPage() {
 
   /* KPIs */
   const kpis = useMemo(() => {
-    const todayTotal = registros.slice(0, 1).reduce((s, r) => s + r.total, 0);
-    const todayQuebrados = registros.slice(0, 1).reduce((s, r) => s + r.quebrados, 0);
-    const todaySujos = registros.slice(0, 1).reduce((s, r) => s + r.sujos, 0);
-    const weeklyAvg = Math.round(registros.reduce((s, r) => s + r.total, 0) / (registros.length || 1));
     const totalAves = lotes.reduce((s, l) => s + l.aves, 0);
-    const taxaPostura = totalAves > 0 ? ((todayTotal / totalAves) * 100).toFixed(1) : "0";
-    const metaDiaria = 2600;
-    const metaPercent = ((todayTotal / metaDiaria) * 100).toFixed(0);
 
-    const qualidade = ((1 - (todayQuebrados + todaySujos) / (todayTotal || 1)) * 100);
+    // All KPIs use period data (calendar-filtered registros)
+    const periodTotal = registros.reduce((s, r) => s + r.total, 0);
+    const periodQuebrados = registros.reduce((s, r) => s + r.quebrados, 0);
+    const periodSujos = registros.reduce((s, r) => s + r.sujos, 0);
+    const numDays = new Set(registros.map(r => r.data)).size || 1;
+    const dailyAvg = Math.round(periodTotal / numDays);
+
+    // Produção: total eggs in the period, expected based on days * daily goal
+    const metaDiaria = Math.round(totalAves * 0.9);
+    const metaPeriodo = metaDiaria * numDays;
+    const metaPercent = metaPeriodo > 0 ? ((periodTotal / metaPeriodo) * 100).toFixed(0) : "0";
+
+    // Taxa de postura: average daily laying rate across the period
+    const taxaPostura = totalAves > 0 ? ((periodTotal / numDays / totalAves) * 100).toFixed(1) : "0";
+
+    // Qualidade: based on all eggs in the period
+    const qualidade = ((1 - (periodQuebrados + periodSujos) / (periodTotal || 1)) * 100);
+
     const metaPostura = 90;
     const metaQualidade = 98;
-    const metaMediaSemanal = 2500;
+    const metaMediaSemanal = Math.round(totalAves * 0.88);
     const diffPostura = (Number(taxaPostura) - metaPostura).toFixed(1);
     const diffQualidade = (qualidade - metaQualidade).toFixed(1);
-    const diffMedia = (((weeklyAvg - metaMediaSemanal) / metaMediaSemanal) * 100).toFixed(1);
+    const diffMedia = metaMediaSemanal > 0 ? (((dailyAvg - metaMediaSemanal) / metaMediaSemanal) * 100).toFixed(1) : "0";
 
     return [
       {
-        title: "Produção Hoje",
-        value: todayTotal.toLocaleString("pt-BR"),
+        title: "Produção",
+        value: periodTotal.toLocaleString("pt-BR"),
         icon: Egg,
         iconBg: "bg-brand-50",
         iconColor: "text-brand-600",
-        actual: todayTotal,
-        expectedVal: metaDiaria,
-        expectedLabel: metaDiaria.toLocaleString("pt-BR"),
+        actual: periodTotal,
+        expectedVal: metaPeriodo,
+        expectedLabel: metaPeriodo.toLocaleString("pt-BR"),
         unit: "ovos",
         progress: Number(metaPercent),
         progressColor: Number(metaPercent) >= 100 ? "bg-emerald-500" : Number(metaPercent) >= 90 ? "bg-amber-500" : "bg-red-500",
@@ -296,45 +323,54 @@ export default function ProducaoPage() {
         progressColor: qualidade >= metaQualidade ? "bg-emerald-500" : qualidade >= 96 ? "bg-amber-400" : "bg-red-500",
         diff: Number(diffQualidade),
         diffLabel: `${Number(diffQualidade) > 0 ? "+" : ""}${diffQualidade}%`,
-        subtitle: `${todayQuebrados} quebrados · ${todaySujos} sujos`,
+        subtitle: `${periodQuebrados} quebrados · ${periodSujos} sujos`,
       },
       {
-        title: "Média Semanal de Postura",
-        value: weeklyAvg.toLocaleString("pt-BR"),
+        title: "Média Diária no Período",
+        value: dailyAvg.toLocaleString("pt-BR"),
         icon: Activity,
         iconBg: "bg-emerald-50",
         iconColor: "text-emerald-600",
-        actual: weeklyAvg,
+        actual: dailyAvg,
         expectedVal: metaMediaSemanal,
         expectedLabel: metaMediaSemanal.toLocaleString("pt-BR"),
         unit: "ovos",
-        progress: Math.min((weeklyAvg / metaMediaSemanal) * 100, 100),
-        progressColor: weeklyAvg >= metaMediaSemanal ? "bg-emerald-500" : weeklyAvg >= metaMediaSemanal * 0.9 ? "bg-amber-500" : "bg-red-500",
+        progress: metaMediaSemanal > 0 ? Math.min((dailyAvg / metaMediaSemanal) * 100, 100) : 0,
+        progressColor: dailyAvg >= metaMediaSemanal ? "bg-emerald-500" : dailyAvg >= metaMediaSemanal * 0.9 ? "bg-amber-500" : "bg-red-500",
         diff: Number(diffMedia),
         diffLabel: `${Number(diffMedia) > 0 ? "+" : ""}${diffMedia}%`,
-        subtitle: `${registros.length} registros`,
+        subtitle: `${numDays} dias · ${registros.length} registros`,
       },
     ];
   }, [registros, lotes]);
 
-  /* Insights */
+  /* Insights (period-based) */
   const insights = useMemo(() => {
     const arr: { type: "success" | "warning" | "info"; title: string; action: string }[] = [];
-    const todayTotal = registros[0]?.total || 0;
-    const metaDiaria = 2600;
+    if (registros.length === 0) return arr;
 
-    if (todayTotal >= metaDiaria) {
-      arr.push({ type: "success", title: `Produção acima da meta (+${((todayTotal / metaDiaria - 1) * 100).toFixed(0)}%)`, action: "Manter condições atuais de manejo e alimentação" });
-    } else {
-      const diff = (((metaDiaria - todayTotal) / metaDiaria) * 100).toFixed(0);
-      arr.push({ type: "warning", title: `Produção abaixo do esperado (-${diff}%)`, action: "Verificar ventilação e consumo de ração" });
+    const totalAves = lotes.reduce((s, l) => s + l.aves, 0);
+    const metaDiaria = Math.round(totalAves * 0.9);
+    const periodTotal = registros.reduce((s, r) => s + r.total, 0);
+    const numDays = new Set(registros.map(r => r.data)).size || 1;
+    const dailyAvg = Math.round(periodTotal / numDays);
+
+    if (periodTotal > 0) {
+      if (dailyAvg >= metaDiaria) {
+        arr.push({ type: "success", title: `Média diária acima da meta (+${((dailyAvg / metaDiaria - 1) * 100).toFixed(0)}%)`, action: "Manter condições atuais de manejo e alimentação" });
+      } else {
+        const diff = metaDiaria > 0 ? (((metaDiaria - dailyAvg) / metaDiaria) * 100).toFixed(0) : "0";
+        arr.push({ type: "warning", title: `Média diária abaixo do esperado (-${diff}%)`, action: "Verificar ventilação e consumo de ração" });
+      }
     }
 
-    const quebrados = registros[0]?.quebrados || 0;
-    const sujos = registros[0]?.sujos || 0;
-    const perdaRate = ((quebrados + sujos) / (todayTotal || 1) * 100).toFixed(1);
-    if ((quebrados + sujos) / (todayTotal || 1) > 0.01) {
-      arr.push({ type: "warning", title: `Qualidade caiu ${perdaRate}% na última semana`, action: "Possível problema nutricional — revisar ração e suplementos" });
+    const quebrados = registros.reduce((s, r) => s + r.quebrados, 0);
+    const sujos = registros.reduce((s, r) => s + r.sujos, 0);
+    if (periodTotal > 0) {
+      const perdaRate = ((quebrados + sujos) / periodTotal * 100).toFixed(1);
+      if ((quebrados + sujos) / periodTotal > 0.01) {
+        arr.push({ type: "warning", title: `Taxa de perdas em ${perdaRate}%`, action: "Possível problema nutricional — revisar ração e suplementos" });
+      }
     }
 
     const lowPerformance = lotes.filter(l => {
@@ -345,14 +381,11 @@ export default function ProducaoPage() {
       arr.push({ type: "warning", title: `${lowPerformance.map(l => l.codigo).join(", ")} com postura abaixo de 85%`, action: "Avaliar saúde do lote e ajustar dieta" });
     }
 
-    const weeklyAvg = Math.round(registros.reduce((s, r) => s + r.total, 0) / (registros.length || 1));
-    if (weeklyAvg >= metaDiaria * 0.95) {
-      arr.push({ type: "success", title: `Média semanal estável (${weeklyAvg.toLocaleString("pt-BR")} ovos)`, action: "Ritmo consistente — manter práticas atuais" });
-    } else {
-      arr.push({ type: "info", title: `Média semanal abaixo da meta (${weeklyAvg.toLocaleString("pt-BR")} ovos)`, action: "Intensificar coleta e revisar horários de alimentação" });
+    if (metaDiaria > 0 && dailyAvg >= metaDiaria * 0.95) {
+      arr.push({ type: "success", title: `Média do período estável (${dailyAvg.toLocaleString("pt-BR")} ovos/dia)`, action: "Ritmo consistente — manter práticas atuais" });
+    } else if (metaDiaria > 0) {
+      arr.push({ type: "info", title: `Média do período abaixo da meta (${dailyAvg.toLocaleString("pt-BR")} ovos/dia)`, action: "Intensificar coleta e revisar horários de alimentação" });
     }
-
-    arr.push({ type: "info", title: "Queda de produção nos fins de semana detectada", action: "Reforçar equipe de coleta aos sábados e domingos" });
 
     return arr;
   }, [registros, lotes]);
@@ -370,12 +403,13 @@ export default function ProducaoPage() {
   function openAdd() {
     setForm({ loteId: "", data: "", total: "", quebrados: "", sujos: "", descartados: "" });
     setEditing(null);
+    setError("");
     setModal("add");
   }
 
   function openEdit(r: Registro) {
     setForm({
-      loteId: String(r.loteId),
+      loteId: r.loteId,
       data: r.data,
       total: String(r.total),
       quebrados: String(r.quebrados),
@@ -383,48 +417,64 @@ export default function ProducaoPage() {
       descartados: String(r.descartados),
     });
     setEditing(r);
+    setError("");
     setModal("edit");
   }
 
-  function save() {
-    const loteId = Number(form.loteId);
-    const selectedLote = lotes.find((l) => l.id === loteId);
+  async function save() {
+    if (!farm) return;
+    const flockId = form.loteId;
+    const selectedLote = lotes.find(l => l.id === flockId);
     if (!selectedLote || !form.data.trim()) return;
 
     const total = Number(form.total) || 0;
     const quebrados = Number(form.quebrados) || 0;
     const sujos = Number(form.sujos) || 0;
     const descartados = Number(form.descartados) || 0;
-    const taxa = selectedLote.aves > 0 ? ((total / selectedLote.aves) * 100).toFixed(1) + "%" : "—";
+    const layingRate = selectedLote.aves > 0 ? (total / selectedLote.aves) * 100 : 0;
 
-    const registro: Registro = {
-      id: editing?.id || Date.now(),
-      loteId,
-      loteCodigo: selectedLote.codigo,
-      data: form.data,
-      total,
-      quebrados,
-      sujos,
-      descartados,
-      taxa,
+    setSaving(true);
+    setError("");
+
+    const record = {
+      farm_id: farm.id,
+      flock_id: flockId || null,
+      date: form.data,
+      eggs_produced: total,
+      broken_eggs: quebrados,
+      dirty_eggs: sujos,
+      discarded_eggs: descartados,
+      laying_rate: +layingRate.toFixed(2),
+      eggs_per_bird: selectedLote.aves > 0 ? +(total / selectedLote.aves).toFixed(4) : 0,
     };
 
-    if (modal === "add") {
-      setRegistros((prev) => [registro, ...prev]);
-    } else if (editing) {
-      setRegistros((prev) => prev.map((r) => (r.id === editing.id ? registro : r)));
+    const supabase = createClient();
+    try {
+      if (modal === "add") {
+        const { error: insertErr } = await supabase.from("egg_production").insert(record);
+        if (insertErr) throw insertErr;
+      } else if (editing) {
+        const { error: updateErr } = await supabase.from("egg_production").update(record).eq("id", editing.id);
+        if (updateErr) throw updateErr;
+      }
+      setModal(null);
+      await fetchData();
+    } catch (err: any) {
+      setError(err.message || "Erro ao salvar registro.");
     }
-
-    setLotes((prev) =>
-      prev.map((l) => (l.id === loteId ? { ...l, postura: taxa } : l))
-    );
-
-    setModal(null);
+    setSaving(false);
   }
 
-  function deleteRegistro(id: number) {
-    setRegistros((prev) => prev.filter((r) => r.id !== id));
-    setDeleteConfirm(null);
+  async function deleteRegistro(id: string) {
+    const supabase = createClient();
+    try {
+      const { error: delErr } = await supabase.from("egg_production").delete().eq("id", id);
+      if (delErr) throw delErr;
+      setDeleteConfirm(null);
+      await fetchData();
+    } catch (err: any) {
+      console.error("Erro ao excluir registro:", err);
+    }
   }
 
   function formatDate(dateStr: string) {
@@ -435,6 +485,34 @@ export default function ProducaoPage() {
       return dateStr;
     }
   }
+
+  /* ── Loading State ── */
+  if (authLoading || loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-gray-100 animate-pulse" />
+          <div className="space-y-2">
+            <div className="h-6 w-48 bg-gray-100 rounded-lg animate-pulse" />
+            <div className="h-4 w-72 bg-gray-100 rounded-lg animate-pulse" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-40 bg-gray-100 rounded-2xl animate-pulse" />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="h-64 bg-gray-100 rounded-2xl animate-pulse" />
+          <div className="h-64 bg-gray-100 rounded-2xl animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  const healthStrokeColor = healthScore.color === "emerald" ? "#10b981" : healthScore.color === "blue" ? "#3b82f6" : healthScore.color === "amber" ? "#f59e0b" : "#ef4444";
+  const healthTextColor = healthScore.color === "emerald" ? "text-emerald-700" : healthScore.color === "blue" ? "text-blue-700" : healthScore.color === "amber" ? "text-amber-700" : "text-red-700";
+  const healthBgFrom = healthScore.color === "emerald" ? "from-emerald-50" : healthScore.color === "blue" ? "from-blue-50" : healthScore.color === "amber" ? "from-amber-50" : "from-red-50";
+  const healthBgVia = healthScore.color === "emerald" ? "via-emerald-50/50" : healthScore.color === "blue" ? "via-blue-50/50" : healthScore.color === "amber" ? "via-amber-50/50" : "via-red-50/50";
+  const healthBorder = healthScore.color === "emerald" ? "border-emerald-200/60" : healthScore.color === "blue" ? "border-blue-200/60" : healthScore.color === "amber" ? "border-amber-200/60" : "border-red-200/60";
 
   return (
     <div className="space-y-6">
@@ -450,141 +528,7 @@ export default function ProducaoPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="relative" ref={calendarRef}>
-            <button
-              onClick={() => setCalendarOpen(!calendarOpen)}
-              className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 bg-white border border-gray-200 rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
-            >
-              <CalendarDays className="w-4 h-4" />
-              {calendarLabel}
-            </button>
-
-            {calendarOpen && (
-              <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-gray-200 shadow-2xl p-4 z-50 w-[320px] animate-in fade-in zoom-in-95 duration-150">
-                {/* Mode selector */}
-                <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 mb-4">
-                  {([
-                    { key: "intervalo" as const, label: "Intervalo" },
-                    { key: "mes" as const, label: "Mês" },
-                  ]).map((p) => (
-                    <button
-                      key={p.key}
-                      onClick={() => setFilterMode(p.key)}
-                      className={cn(
-                        "flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
-                        filterMode === p.key
-                          ? "bg-white text-gray-900 shadow-sm"
-                          : "text-gray-500 hover:text-gray-700"
-                      )}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Range hint */}
-                {filterMode === "intervalo" && (
-                  <p className="text-[10px] text-gray-400 font-medium mb-2 text-center">
-                    {!rangeStart || (rangeStart && rangeEnd) ? "Clique no dia inicial" : "Clique no dia final"}
-                  </p>
-                )}
-
-                {/* Month navigation */}
-                <div className="flex items-center justify-between mb-3">
-                  <button
-                    onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
-                  >
-                    <ChevronLeft className="w-4 h-4 text-gray-500" />
-                  </button>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
-                  </span>
-                  <button
-                    onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
-                  >
-                    <ChevronRight className="w-4 h-4 text-gray-500" />
-                  </button>
-                </div>
-
-                {filterMode === "mes" ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"].map((m, i) => {
-                      const isSelected = selectedDate.getMonth() === i && selectedDate.getFullYear() === calendarMonth.getFullYear();
-                      return (
-                        <button
-                          key={m}
-                          onClick={() => handleMonthClick(i)}
-                          className={cn(
-                            "py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer",
-                            isSelected ? "bg-brand-600 text-white shadow-sm" : "text-gray-700 hover:bg-gray-100"
-                          )}
-                        >
-                          {m}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-7 gap-0 mb-1">
-                      {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((d) => (
-                        <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-7 gap-0">
-                      {calendarDays.map((day, i) => {
-                        if (!day) return <div key={`empty-${i}`} className="h-9" />;
-                        const today = new Date();
-                        const isToday = sameDay(day, today);
-                        const inRange = isInRange(day);
-                        const isStart = isRangeStart(day);
-                        const isEnd = isRangeEnd(day);
-                        const isSingle = isStart && isEnd;
-
-                        return (
-                          <button
-                            key={i}
-                            onClick={() => handleCalDayClick(day)}
-                            className={cn(
-                              "h-9 text-sm font-medium transition-all duration-150 cursor-pointer relative flex items-center justify-center",
-                              inRange && !isStart && !isEnd && "bg-brand-50 text-brand-700",
-                              isStart && !isSingle && "bg-brand-600 text-white rounded-l-xl",
-                              isEnd && !isSingle && "bg-brand-600 text-white rounded-r-xl",
-                              isSingle && "bg-brand-600 text-white rounded-xl shadow-sm",
-                              !inRange && "hover:bg-gray-100 rounded-xl",
-                            )}
-                          >
-                            <span className={cn(
-                              isToday && !inRange && "w-7 h-7 rounded-full border-2 border-brand-500 flex items-center justify-center",
-                            )}>
-                              {day.getDate()}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-
-                <button
-                  onClick={() => {
-                    const today = new Date();
-                    setRangeStart(today);
-                    setRangeEnd(today);
-                    setSelectedDate(today);
-                    setCalendarMonth(today);
-                    setFilterMode("intervalo");
-                    setCalendarOpen(false);
-                  }}
-                  className="w-full mt-3 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-50 rounded-xl transition-colors cursor-pointer"
-                >
-                  Hoje
-                </button>
-              </div>
-            )}
-          </div>
+          <CalendarFilter />
           <button onClick={openAdd} className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20">
             <Plus className="w-4 h-4" />
             Registrar Produção
@@ -593,17 +537,17 @@ export default function ProducaoPage() {
       </div>
 
       {/* Resumo de Hoje */}
-      <div className="bg-gradient-to-r from-amber-50 via-amber-50/50 to-white rounded-2xl border border-amber-200/60 p-5 transition-all duration-300">
+      <div className={cn("bg-gradient-to-r to-white rounded-2xl border p-5 transition-all duration-300", healthBgFrom, healthBgVia, healthBorder)}>
         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
           {/* Health Score */}
           <div className="flex items-center gap-4 lg:min-w-[280px]">
             <div className="relative w-16 h-16 flex-shrink-0">
               <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
                 <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
-                <circle cx="32" cy="32" r="28" fill="none" stroke="#f59e0b" strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(45 / 100) * 175.9} 175.9`} className="transition-all duration-700" />
+                <circle cx="32" cy="32" r="28" fill="none" stroke={healthStrokeColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(healthScore.score / 100) * 175.9} 175.9`} className="transition-all duration-700" />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-base font-bold text-amber-700">45</span>
+                <span className={cn("text-base font-bold", healthTextColor)}>{healthScore.score}</span>
               </div>
             </div>
             <div>
@@ -611,8 +555,8 @@ export default function ProducaoPage() {
                 <Target className="w-4 h-4 text-amber-600" />
                 <span className="text-sm font-bold text-gray-900">Saúde Produtiva</span>
               </div>
-              <p className="text-xl font-bold mt-0.5 text-amber-700">Atenção</p>
-              <p className="text-xs text-gray-500 mt-0.5">Postura: 88.5% | Meta: 92% | Perdas: 3.5%</p>
+              <p className={cn("text-xl font-bold mt-0.5", healthTextColor)}>{healthScore.label}</p>
+              <p className="text-xs text-gray-500 mt-0.5">Postura: {healthScore.posturaRate.toFixed(1)}% | Meta: 92% | Perdas: {healthScore.lossRate.toFixed(1)}%</p>
             </div>
           </div>
 
@@ -621,24 +565,22 @@ export default function ProducaoPage() {
 
           {/* Action Items */}
           <div className="flex-1 space-y-2">
-            <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+            {insights.slice(0, 3).map((ins, i) => (
+              <div key={i} className="flex items-center gap-2.5">
+                <div className={cn(
+                  "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
+                  ins.type === "success" ? "bg-emerald-100" : ins.type === "warning" ? "bg-amber-100" : "bg-blue-100"
+                )}>
+                  {ins.type === "success" ? <TrendingUp className="w-3.5 h-3.5 text-emerald-600" /> :
+                   ins.type === "warning" ? <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> :
+                   <Lightbulb className="w-3.5 h-3.5 text-blue-600" />}
+                </div>
+                <p className="text-sm text-gray-700">{ins.title}</p>
               </div>
-              <p className="text-sm text-gray-700">Produção abaixo da meta (-4%) — verificar ventilação</p>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-              </div>
-              <p className="text-sm text-gray-700">Quebras acima do normal (+0.8%) — revisar coleta</p>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100">
-                <TrendingDown className="w-3.5 h-3.5 text-red-600" />
-              </div>
-              <p className="text-sm text-gray-700">Lote C com postura em queda — monitorar ração</p>
-            </div>
+            ))}
+            {insights.length === 0 && (
+              <p className="text-sm text-gray-400">Nenhuma informação disponível para hoje.</p>
+            )}
           </div>
         </div>
       </div>
@@ -671,8 +613,8 @@ export default function ProducaoPage() {
             {/* Bullet-style progress bar with target marker */}
             {(() => {
               const maxVal = Math.max(kpi.actual, kpi.expectedVal) * 1.08;
-              const fillPct = Math.min((kpi.actual / maxVal) * 100, 100);
-              const markerPct = Math.min((kpi.expectedVal / maxVal) * 100, 100);
+              const fillPct = maxVal > 0 ? Math.min((kpi.actual / maxVal) * 100, 100) : 0;
+              const markerPct = maxVal > 0 ? Math.min((kpi.expectedVal / maxVal) * 100, 100) : 0;
               return (
                 <div className="mt-4 relative">
                   <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -716,7 +658,7 @@ export default function ProducaoPage() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-gray-900">Assistente de Granja</h3>
-                  <p className="text-[11px] text-gray-400 font-medium">Baseado nos últimos 7 dias</p>
+                  <p className="text-[11px] text-gray-400 font-medium">Baseado nos dados do período</p>
                 </div>
               </div>
               <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
@@ -953,7 +895,7 @@ export default function ProducaoPage() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Curva de Produção</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Produção vs Meta (esta semana)</p>
+              <p className="text-xs text-gray-400 mt-0.5">Produção vs Meta (período selecionado)</p>
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-1.5">
@@ -966,27 +908,35 @@ export default function ProducaoPage() {
               </div>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={curvaProducao} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorProd" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2d7a4f" stopOpacity={0.2} />
-                  <stop offset="60%" stopColor="#2d7a4f" stopOpacity={0.05} />
-                  <stop offset="100%" stopColor="#2d7a4f" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={8} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dx={-4} domain={[2200, 2900]} />
-              <Tooltip
-                contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                formatter={((value: any, name: any) => [Number(value).toLocaleString("pt-BR"), String(name) === "ovos" ? "Produção" : "Meta"]) as any}
-              />
-              <ReferenceLine y={2600} stroke="#d1d5db" strokeDasharray="6 4" strokeWidth={1.5} />
-              <Area type="monotone" dataKey="ovos" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#colorProd)" dot={{ r: 5, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 }} activeDot={{ r: 7, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} name="ovos" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {curvaProducao.length > 0 ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart data={curvaProducao} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorProd" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#2d7a4f" stopOpacity={0.2} />
+                    <stop offset="60%" stopColor="#2d7a4f" stopOpacity={0.05} />
+                    <stop offset="100%" stopColor="#2d7a4f" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={8} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dx={-4} domain={["auto", "auto"]} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
+                  labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
+                  formatter={((value: any, name: any) => [Number(value).toLocaleString("pt-BR"), String(name) === "ovos" ? "Produção" : "Meta"]) as any}
+                />
+                {curvaProducao[0]?.meta > 0 && (
+                  <ReferenceLine y={curvaProducao[0].meta} stroke="#d1d5db" strokeDasharray="6 4" strokeWidth={1.5} />
+                )}
+                <Area type="monotone" dataKey="ovos" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#colorProd)" dot={{ r: 5, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 }} activeDot={{ r: 7, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} name="ovos" />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[280px] text-sm text-gray-400">
+              Nenhum dado de produção para o período selecionado.
+            </div>
+          )}
         </div>
 
         {/* Production by Lote — 1/3 */}
@@ -995,33 +945,39 @@ export default function ProducaoPage() {
             <h3 className="text-sm font-bold text-gray-900">Produção por Lote</h3>
             <p className="text-xs text-gray-400 mt-0.5">Taxa de postura por lote</p>
           </div>
-          <div className="space-y-4">
-            {producaoPorLote.map((item) => (
-              <div key={item.lote}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md">{item.lote}</span>
-                    <span className="text-xs text-gray-400">{item.ovos} ovos</span>
+          {producaoPorLote.length > 0 ? (
+            <div className="space-y-4">
+              {producaoPorLote.map((item) => (
+                <div key={item.lote}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md">{item.lote}</span>
+                      <span className="text-xs text-gray-400">{item.ovos.toLocaleString("pt-BR")} ovos</span>
+                    </div>
+                    <span className={cn(
+                      "text-xs font-bold",
+                      item.taxa >= 90 ? "text-emerald-600" : item.taxa >= 85 ? "text-amber-600" : "text-red-600"
+                    )}>
+                      {item.taxa}%
+                    </span>
                   </div>
-                  <span className={cn(
-                    "text-xs font-bold",
-                    item.taxa >= 90 ? "text-emerald-600" : item.taxa >= 85 ? "text-amber-600" : "text-red-600"
-                  )}>
-                    {item.taxa}%
-                  </span>
+                  <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-700",
+                        item.taxa >= 90 ? "bg-emerald-500" : item.taxa >= 85 ? "bg-amber-400" : "bg-red-400"
+                      )}
+                      style={{ width: `${Math.min(item.taxa, 100)}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full rounded-full transition-all duration-700",
-                      item.taxa >= 90 ? "bg-emerald-500" : item.taxa >= 85 ? "bg-amber-400" : "bg-red-400"
-                    )}
-                    style={{ width: `${item.taxa}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-32 text-sm text-gray-400">
+              Sem dados por lote.
+            </div>
+          )}
           <div className="mt-5 pt-4 border-t border-gray-50">
             <div className="flex items-center gap-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
               <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500" /> {"≥90%"}</div>
@@ -1039,9 +995,9 @@ export default function ProducaoPage() {
           <div className="flex items-center justify-between mb-1">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Qualidade dos Ovos</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Distribuição da produção de hoje</p>
+              <p className="text-xs text-gray-400 mt-0.5">Distribuição da produção no período</p>
             </div>
-            <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">{qualityData[0].value}% aproveitamento</span>
+            <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">{qualityData[0]?.value || 0}% aproveitamento</span>
           </div>
           {/* Stacked bar */}
           <div className="w-full h-5 rounded-full overflow-hidden flex mt-4 mb-4">
@@ -1097,6 +1053,7 @@ export default function ProducaoPage() {
               </div>
             );
           })()}
+          {lotes.length > 0 ? (
           <div className="space-y-0">
             {(() => {
               const lotesComPostura = lotes.filter(l => !isNaN(parseFloat(l.postura)));
@@ -1155,6 +1112,11 @@ export default function ProducaoPage() {
               });
             })()}
           </div>
+          ) : (
+            <div className="flex items-center justify-center h-24 text-sm text-gray-400">
+              Nenhum lote cadastrado.
+            </div>
+          )}
         </div>
         </div>
       </div>
@@ -1188,7 +1150,7 @@ export default function ProducaoPage() {
                 <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Total</th>
                 <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Quebrados</th>
                 <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Sujos</th>
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Descartadas</th>
+                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Descartados</th>
                 <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Taxa</th>
                 <th className="text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Histórico</th>
                 <th className="text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Ações</th>
@@ -1208,7 +1170,7 @@ export default function ProducaoPage() {
                   <td className="px-6 py-4">
                     <span className={cn("text-sm font-medium", r.sujos > 15 ? "text-amber-600" : "text-gray-500")}>{r.sujos}</span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{r.descartados} aves</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{r.descartados}</td>
                   <td className="px-6 py-4">
                     <span className={cn(
                       "text-sm font-bold",
@@ -1255,6 +1217,12 @@ export default function ProducaoPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-600">
+                {error}
+              </div>
+            )}
 
             {/* Auto-calculated taxa preview */}
             {taxaCalculada !== "—" && (
@@ -1346,16 +1314,16 @@ export default function ProducaoPage() {
               <button onClick={() => setModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
               <button
                 onClick={save}
-                disabled={!form.loteId || !form.data}
+                disabled={!form.loteId || !form.data || saving}
                 className={cn(
                   "inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold rounded-xl transition-colors cursor-pointer shadow-sm",
-                  form.loteId && form.data
+                  form.loteId && form.data && !saving
                     ? "text-white bg-brand-600 hover:bg-brand-700"
                     : "text-gray-400 bg-gray-200 cursor-not-allowed"
                 )}
               >
-                <Check className="w-4 h-4" />
-                Salvar
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                {saving ? "Salvando..." : "Salvar"}
               </button>
             </div>
           </div>

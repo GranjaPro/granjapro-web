@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import ProfileSettings from "@/components/dashboard/profile-settings";
+import { DateFilterProvider } from "@/components/date-filter";
 import {
   LayoutDashboard,
   Building2,
@@ -87,6 +88,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
+    <DateFilterProvider>
     <div className="min-h-screen bg-[#f8faf9]">
       {/* Mobile overlay */}
       {sidebarOpen && (
@@ -269,5 +271,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Profile Settings Modal */}
       <ProfileSettings open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
+    </DateFilterProvider>
   );
 }

@@ -136,7 +136,11 @@
       "Bash(python \"C:\\\\Users\\\\Bernardo Timo\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\src\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"agritech dashboard sales charts modern\" --design-system -p \"Granja Pro\")",
       "Bash(python \"C:\\\\Users\\\\Bernardo Timo\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\src\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"agritech dashboard equipment management industrial\" --design-system -p \"AgroEquipamentos\")",
       "Bash(python3 -c \":*)",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Bash(ls -la /c/Users/samue/Documents/GitHub/GranjaPro/.env*)",
+      "Bash(find C:UserssamueDocumentsGitHubGranjaProapp -type f -name *.ts -o -name *.tsx)",
+      "Bash(head:*)",
+      "Bash(grep -l \"calendarOpen\\\\|filterMode\\\\|rangeStart\\\\|CalendarDays\" /c/Users/samue/Documents/GitHub/GranjaPro/app/dashboard/**/*.tsx)"
     ]
   }
 }

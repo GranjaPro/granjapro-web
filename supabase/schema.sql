@@ -90,7 +90,7 @@ create policy "Owners can delete own farms"
 -- Add foreign key from profiles to farms (after farms table exists)
 alter table public.profiles
   add constraint profiles_farm_id_fkey
-  foreign key (farm_id) references public.farms(id) on delete set null;
+  foreign key (farm_id) references public.farms(id) on delete cascade;
 
 -- ============================================
 -- 3. BARNS
@@ -143,7 +143,7 @@ create table public.flocks (
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null,
   farm_id uuid references public.farms on delete cascade not null,
-  barn_id uuid references public.barns on delete set null,
+  barn_id uuid references public.barns on delete cascade,
   code text not null,
   breed text not null,
   lineage text,
@@ -194,8 +194,8 @@ create table public.egg_production (
   id uuid default uuid_generate_v4() primary key,
   created_at timestamptz default now() not null,
   farm_id uuid references public.farms on delete cascade not null,
-  barn_id uuid references public.barns on delete set null,
-  flock_id uuid references public.flocks on delete set null,
+  barn_id uuid references public.barns on delete cascade,
+  flock_id uuid references public.flocks on delete cascade,
   date date not null,
   eggs_produced int not null,
   broken_eggs int default 0,
@@ -242,8 +242,8 @@ create table public.feed_consumption (
   id uuid default uuid_generate_v4() primary key,
   created_at timestamptz default now() not null,
   farm_id uuid references public.farms on delete cascade not null,
-  barn_id uuid references public.barns on delete set null,
-  flock_id uuid references public.flocks on delete set null,
+  barn_id uuid references public.barns on delete cascade,
+  flock_id uuid references public.flocks on delete cascade,
   date date not null,
   quantity_kg numeric(10,2) not null,
   cost numeric(10,2) default 0,
@@ -286,8 +286,8 @@ create table public.mortality (
   id uuid default uuid_generate_v4() primary key,
   created_at timestamptz default now() not null,
   farm_id uuid references public.farms on delete cascade not null,
-  barn_id uuid references public.barns on delete set null,
-  flock_id uuid references public.flocks on delete set null,
+  barn_id uuid references public.barns on delete cascade,
+  flock_id uuid references public.flocks on delete cascade,
   date date not null,
   dead_birds int not null,
   cause text default 'Natural',
@@ -419,7 +419,7 @@ create table public.sales (
   id uuid default uuid_generate_v4() primary key,
   created_at timestamptz default now() not null,
   farm_id uuid references public.farms on delete cascade not null,
-  customer_id uuid references public.customers on delete set null,
+  customer_id uuid references public.customers on delete cascade,
   date date not null,
   quantity int not null,
   egg_type text default 'Branco',
@@ -468,7 +468,7 @@ create table public.tasks (
   done boolean default false,
   scheduled_time time,
   date date not null,
-  assigned_to uuid references public.profiles on delete set null
+  assigned_to uuid references public.profiles on delete cascade
 );
 
 alter table public.tasks enable row level security;

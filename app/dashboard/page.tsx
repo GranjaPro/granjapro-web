@@ -10,7 +10,6 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   MoreHorizontal,
-  CalendarDays,
   TrendingUp,
   TrendingDown,
   Target,
@@ -19,7 +18,6 @@ import {
   Circle,
   Clock,
   ChevronRight,
-  ChevronLeft,
   Zap,
   Plus,
   BarChart3,
@@ -32,6 +30,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { createClient } from "@/lib/supabase/client";
 import {
   mockFarm,
@@ -185,120 +184,28 @@ export default function DashboardPage() {
   const [chartProductionData, setChartProductionData] = useState(weeklyData);
   const [chartLoading, setChartLoading] = useState(false);
 
-  // Calendar filter state
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [filterMode, setFilterMode] = useState<"intervalo" | "mes">("intervalo");
-  const [rangeStart, setRangeStart] = useState<Date | null>(new Date());
-  const [rangeEnd, setRangeEnd] = useState<Date | null>(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [calendarMonth, setCalendarMonth] = useState(new Date());
-  const calendarRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutsideCal(e: MouseEvent) {
-      if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) {
-        setCalendarOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutsideCal);
-    return () => document.removeEventListener("mousedown", handleClickOutsideCal);
-  }, []);
+  // Shared calendar filter
+  const { dateRange, filterMode, rangeStart, rangeEnd, selectedDate } = useDateFilter();
 
   const sameDay = (a: Date, b: Date) =>
     a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
 
-  const calendarLabel = useMemo(() => {
-    const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    if (filterMode === "intervalo") {
-      if (rangeStart && rangeEnd) {
-        if (sameDay(rangeStart, rangeEnd)) {
-          const today = new Date();
-          if (sameDay(rangeStart, today)) return `Hoje, ${rangeStart.getDate()} ${months[rangeStart.getMonth()]}`;
-          return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]}, ${rangeStart.getFullYear()}`;
-        }
-        return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]} — ${rangeEnd.getDate()} ${months[rangeEnd.getMonth()]}`;
-      }
-      if (rangeStart) return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]} — ...`;
-      return "Selecionar período";
-    }
-    const d = selectedDate;
-    return `${months[d.getMonth()]} ${d.getFullYear()}`;
-  }, [selectedDate, filterMode, rangeStart, rangeEnd]);
-
-  const calendarDays = useMemo(() => {
-    const year = calendarMonth.getFullYear();
-    const month = calendarMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
-    const days: (Date | null)[] = [];
-    for (let i = 0; i < startDay; i++) days.push(null);
-    for (let i = 1; i <= lastDay.getDate(); i++) days.push(new Date(year, month, i));
-    return days;
-  }, [calendarMonth]);
-
-  const isInRange = useCallback((day: Date) => {
-    if (filterMode !== "intervalo" || !rangeStart) return false;
-    if (!rangeEnd) return sameDay(day, rangeStart);
-    const t = day.getTime();
-    const s = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime();
-    const e = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime();
-    return t >= s && t <= e;
-  }, [filterMode, rangeStart, rangeEnd]);
-
-  const isRangeStart = useCallback((day: Date) => {
-    return filterMode === "intervalo" && rangeStart && sameDay(day, rangeStart);
-  }, [filterMode, rangeStart]);
-
-  const isRangeEnd = useCallback((day: Date) => {
-    return filterMode === "intervalo" && rangeEnd && sameDay(day, rangeEnd);
-  }, [filterMode, rangeEnd]);
-
-  const handleDayClick = useCallback((day: Date) => {
-    if (filterMode === "intervalo") {
-      if (!rangeStart || (rangeStart && rangeEnd)) {
-        setRangeStart(day);
-        setRangeEnd(null);
-      } else {
-        if (day.getTime() < rangeStart.getTime()) {
-          setRangeEnd(rangeStart);
-          setRangeStart(day);
-        } else {
-          setRangeEnd(day);
-        }
-        setCalendarOpen(false);
-      }
-    } else {
-      setSelectedDate(new Date(day.getFullYear(), day.getMonth(), 1));
-      setCalendarOpen(false);
-    }
-  }, [filterMode, rangeStart, rangeEnd]);
-
-  const handleMonthClick = useCallback((monthIndex: number) => {
-    setSelectedDate(new Date(calendarMonth.getFullYear(), monthIndex, 1));
-    setCalendarOpen(false);
-  }, [calendarMonth]);
-
-  // Fetch real data from Supabase when farm is available
+  // Fetch real data from Supabase when farm or dateRange changes
   useEffect(() => {
     if (!farm) return;
     const currentFarm = farm;
     const farmId = currentFarm.id;
+    const { startDate, endDate } = dateRange;
 
     async function fetchDashboardData() {
       try {
-        const today = new Date().toISOString().split("T")[0];
-        const now = new Date();
-        const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
-
         const [prodRes, feedRes, barnsRes, tasksRes, alertsRes, finRes] = await Promise.all([
-          supabase.from("egg_production").select("*").eq("farm_id", farmId).eq("date", today),
-          supabase.from("feed_consumption").select("*").eq("farm_id", farmId).eq("date", today),
+          supabase.from("egg_production").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
+          supabase.from("feed_consumption").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
           supabase.from("barns").select("*").eq("farm_id", farmId).order("created_at"),
-          supabase.from("tasks").select("*").eq("farm_id", farmId).eq("date", today).order("scheduled_time"),
+          supabase.from("tasks").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate).order("scheduled_time"),
           supabase.from("alerts").select("*").eq("farm_id", farmId).eq("read", false).order("created_at", { ascending: false }).limit(5),
-          supabase.from("financial_transactions").select("*").eq("farm_id", farmId).gte("date", monthStart).lte("date", monthEnd),
+          supabase.from("financial_transactions").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
         ]);
 
         // Update farm info — total birds from barns capacity
@@ -313,7 +220,7 @@ export default function DashboardPage() {
           productionSystem: currentFarm.production_system,
         });
 
-        // Aggregate today's production
+        // Aggregate production for selected period
         if (prodRes.data && prodRes.data.length > 0) {
           const totalEggs = prodRes.data.reduce((s, r) => s + r.eggs_produced, 0);
           const totalBroken = prodRes.data.reduce((s, r) => s + (r.broken_eggs ?? 0), 0);
@@ -324,7 +231,7 @@ export default function DashboardPage() {
           const avgRate = prodRes.data.reduce((s, r) => s + Number(r.laying_rate ?? 0), 0) / prodRes.data.length;
           const avgPerBird = prodRes.data.reduce((s, r) => s + Number(r.eggs_per_bird ?? 0), 0) / prodRes.data.length;
           setProductionData({
-            date: today,
+            date: startDate === endDate ? startDate : `${startDate} - ${endDate}`,
             eggsProduced: totalEggs,
             brokenEggs: totalBroken,
             dirtyEggs: totalDirty,
@@ -334,9 +241,22 @@ export default function DashboardPage() {
             layingRate: avgRate,
             eggsPerBird: avgPerBird,
           });
+        } else {
+          // Reset if no data for period
+          setProductionData({
+            date: startDate,
+            eggsProduced: 0,
+            brokenEggs: 0,
+            dirtyEggs: 0,
+            discardedEggs: 0,
+            eggsSold: 0,
+            eggPrice: 0,
+            layingRate: 0,
+            eggsPerBird: 0,
+          });
         }
 
-        // Aggregate today's feed
+        // Aggregate feed for selected period
         if (feedRes.data && feedRes.data.length > 0) {
           const totalQty = feedRes.data.reduce((s, r) => s + Number(r.quantity_kg), 0);
           const totalCost = feedRes.data.reduce((s, r) => s + Number(r.cost ?? 0), 0);
@@ -347,9 +267,16 @@ export default function DashboardPage() {
             type: feedRes.data[0].feed_type ?? "Ração Postura",
             costPerEgg: avgCostPerEgg,
           });
+        } else {
+          setFeedData({
+            quantity: 0,
+            cost: 0,
+            type: "Ração",
+            costPerEgg: 0,
+          });
         }
 
-        // Barns
+        // Barns (static status for now, could be improved with period stats)
         if (barnsRes.data && barnsRes.data.length > 0) {
           setBarnsData(barnsRes.data.map((b) => ({
             id: b.id as any,
@@ -360,19 +287,19 @@ export default function DashboardPage() {
           })));
         }
 
-        // Tasks
-        if (tasksRes.data && tasksRes.data.length > 0) {
+        // Tasks for selected period
+        if (tasksRes.data) {
           setDbTasks(tasksRes.data.map((t) => ({
             id: t.id as any,
             title: t.title,
             status: (t.done ? "done" : "pending") as "done" | "progress" | "pending",
             time: t.scheduled_time ?? "",
-            date: t.scheduled_date ?? todayStr,
+            date: t.scheduled_date ?? t.date,
           })));
         }
 
-        // Alerts
-        if (alertsRes.data && alertsRes.data.length > 0) {
+        // Alerts (not strictly date-bound in most cases)
+        if (alertsRes.data) {
           setDbAlerts(alertsRes.data.map((a) => ({
             id: a.id as any,
             type: (a.type === "error" ? "danger" : a.type) as "danger" | "warning" | "info",
@@ -383,8 +310,8 @@ export default function DashboardPage() {
           })));
         }
 
-        // Financial summary
-        if (finRes.data && finRes.data.length > 0) {
+        // Financial summary for selected period
+        if (finRes.data) {
           const revenue = finRes.data.filter((t) => t.type === "revenue").reduce((s, t) => s + Number(t.amount), 0);
           const expenses = finRes.data.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
           const feedCost = finRes.data.filter((t) => t.type === "expense" && t.category === "feed").reduce((s, t) => s + Number(t.amount), 0);
@@ -408,7 +335,7 @@ export default function DashboardPage() {
     }
 
     fetchDashboardData();
-  }, [farm]);
+  }, [farm, dateRange]);
 
   // Fetch chart production data based on filter
   useEffect(() => {
@@ -419,33 +346,8 @@ export default function DashboardPage() {
     const pad = (n: number) => String(n).padStart(2, "0");
     const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-    let startDate: string;
-    let endDate: string;
-    let isMonthMode = false;
-
-    if (filterMode === "mes") {
-      const y = selectedDate.getFullYear();
-      const m = selectedDate.getMonth();
-      startDate = `${y}-${pad(m + 1)}-01`;
-      const isCurrentMonth = m === today.getMonth() && y === today.getFullYear();
-      endDate = isCurrentMonth ? toISO(today) : toISO(new Date(y, m + 1, 0));
-      isMonthMode = true;
-    } else if (rangeStart && rangeEnd) {
-      if (sameDay(rangeStart, rangeEnd) && sameDay(rangeStart, today)) {
-        const weekAgo = new Date(today);
-        weekAgo.setDate(weekAgo.getDate() - 6);
-        startDate = toISO(weekAgo);
-        endDate = toISO(today);
-      } else {
-        startDate = toISO(rangeStart);
-        endDate = toISO(rangeEnd);
-      }
-    } else {
-      const weekAgo = new Date(today);
-      weekAgo.setDate(weekAgo.getDate() - 6);
-      startDate = toISO(weekAgo);
-      endDate = toISO(today);
-    }
+    const { startDate, endDate } = dateRange;
+    const isMonthMode = filterMode === "mes";
 
     // Helper: get ISO week number for a date
     function getWeekOfMonth(d: Date): number {
@@ -550,7 +452,7 @@ export default function DashboardPage() {
     }
 
     fetchChartData();
-  }, [farm, filterMode, rangeStart, rangeEnd, selectedDate]);
+  }, [farm, dateRange]);
 
   // Chart label and subtitle based on filter
   const chartTitle = useMemo(() => {
@@ -766,146 +668,7 @@ export default function DashboardPage() {
               {farmData.name} · {formatNumber(farmData.activeBirds)} aves ativas · {farmData.barns} galpões
             </p>
           </div>
-          <div className="relative" ref={calendarRef}>
-            <button
-              onClick={() => setCalendarOpen(!calendarOpen)}
-              className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 bg-white border border-gray-200 rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
-            >
-              <CalendarDays className="w-4 h-4" />
-              {calendarLabel}
-            </button>
-
-            {calendarOpen && (
-              <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-gray-200 shadow-2xl p-4 z-50 w-[320px] animate-in fade-in zoom-in-95 duration-150">
-                {/* Mode selector */}
-                <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 mb-4">
-                  {([
-                    { key: "intervalo" as const, label: "Intervalo" },
-                    { key: "mes" as const, label: "Mês" },
-                  ]).map((p) => (
-                    <button
-                      key={p.key}
-                      onClick={() => setFilterMode(p.key)}
-                      className={cn(
-                        "flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
-                        filterMode === p.key
-                          ? "bg-white text-gray-900 shadow-sm"
-                          : "text-gray-500 hover:text-gray-700"
-                      )}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Range hint */}
-                {filterMode === "intervalo" && (
-                  <p className="text-[10px] text-gray-400 font-medium mb-2 text-center">
-                    {!rangeStart || (rangeStart && rangeEnd) ? "Clique no dia inicial" : "Clique no dia final"}
-                  </p>
-                )}
-
-                {/* Month navigation */}
-                <div className="flex items-center justify-between mb-3">
-                  <button
-                    onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
-                  >
-                    <ChevronLeft className="w-4 h-4 text-gray-500" />
-                  </button>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
-                  </span>
-                  <button
-                    onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
-                  >
-                    <ChevronRight className="w-4 h-4 text-gray-500" />
-                  </button>
-                </div>
-
-                {filterMode === "mes" ? (
-                  /* Month grid */
-                  <div className="grid grid-cols-3 gap-2">
-                    {["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"].map((m, i) => {
-                      const isSelected = selectedDate.getMonth() === i && selectedDate.getFullYear() === calendarMonth.getFullYear();
-                      return (
-                        <button
-                          key={m}
-                          onClick={() => handleMonthClick(i)}
-                          className={cn(
-                            "py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer",
-                            isSelected
-                              ? "bg-brand-600 text-white shadow-sm"
-                              : "text-gray-700 hover:bg-gray-100"
-                          )}
-                        >
-                          {m}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  /* Interval day grid */
-                  <>
-                    <div className="grid grid-cols-7 gap-0 mb-1">
-                      {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((d) => (
-                        <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-7 gap-0">
-                      {calendarDays.map((day, i) => {
-                        if (!day) return <div key={`empty-${i}`} className="h-9" />;
-                        const today = new Date();
-                        const isToday = sameDay(day, today);
-                        const inRange = isInRange(day);
-                        const isStart = isRangeStart(day);
-                        const isEnd = isRangeEnd(day);
-                        const isSingle = isStart && isEnd;
-
-                        return (
-                          <button
-                            key={i}
-                            onClick={() => handleDayClick(day)}
-                            className={cn(
-                              "h-9 text-sm font-medium transition-all duration-150 cursor-pointer relative flex items-center justify-center",
-                              inRange && !isStart && !isEnd && "bg-brand-50 text-brand-700",
-                              isStart && !isSingle && "bg-brand-600 text-white rounded-l-xl",
-                              isEnd && !isSingle && "bg-brand-600 text-white rounded-r-xl",
-                              isSingle && "bg-brand-600 text-white rounded-xl shadow-sm",
-                              !inRange && "hover:bg-gray-100 rounded-xl",
-                            )}
-                          >
-                            <span className={cn(
-                              isToday && !inRange && "w-7 h-7 rounded-full border-2 border-brand-500 flex items-center justify-center",
-                            )}>
-                              {day.getDate()}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-
-                {/* Today button */}
-                <button
-                  onClick={() => {
-                    const today = new Date();
-                    setRangeStart(today);
-                    setRangeEnd(today);
-                    setSelectedDate(today);
-                    setCalendarMonth(today);
-                    setFilterMode("intervalo");
-                    setCalendarOpen(false);
-                  }}
-                  className="w-full mt-3 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-50 rounded-xl transition-colors cursor-pointer"
-                >
-                  Hoje
-                </button>
-              </div>
-            )}
-          </div>
+          <CalendarFilter />
         </div>
 
         {/* Quick Actions */}
