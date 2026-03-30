@@ -44,13 +44,17 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { createClient } from "@/lib/supabase/client";
+import { getFeedByDateRange, createFeedRecord, updateFeedRecord, deleteFeedRecord } from "@/lib/services/feed";
+import { getFeedInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem } from "@/lib/services/feed_inventory";
+import { getProductionByDateRange } from "@/lib/services/production";
 
 /* ── Types ── */
 type TipoRacao = "milho" | "soja" | "comercial" | "custom";
 type StatusEstoque = "normal" | "alerta" | "baixo";
 
 interface RegistroRacao {
-  id: number;
+  id: string | number;
   data: string;
   tipo: TipoRacao;
   aviario: string;
@@ -60,7 +64,7 @@ interface RegistroRacao {
 }
 
 interface ItemEstoque {
-  id: number;
+  id: string;
   nome: string;
   categoria: string;
   quantidade: number;
@@ -98,67 +102,48 @@ const statusLabel: Record<StatusEstoque, string> = {
   baixo: "Baixo",
 };
 
-/* ── Mock Data ── */
-const initialRegistros: RegistroRacao[] = [
-  { id: 1, data: "2024-03-12", tipo: "milho", aviario: "Aviário 1A", consumoKg: 120, custoRS: 78.50, qtdGalinhas: 800 },
-  { id: 2, data: "2024-03-12", tipo: "comercial", aviario: "Aviário 1B", consumoKg: 95, custoRS: 65.20, qtdGalinhas: 600 },
-  { id: 3, data: "2024-03-11", tipo: "soja", aviario: "Aviário 2A", consumoKg: 110, custoRS: 72.35, qtdGalinhas: 1000 },
-  { id: 4, data: "2024-03-11", tipo: "custom", aviario: "Aviário 3A", consumoKg: 85, custoRS: 58.90, qtdGalinhas: 500 },
-  { id: 5, data: "2024-03-10", tipo: "comercial", aviario: "Aviário 1A", consumoKg: 125, custoRS: 62.46, qtdGalinhas: 800 },
-  { id: 6, data: "2024-03-10", tipo: "milho", aviario: "Aviário 3B", consumoKg: 100, custoRS: 44.00, qtdGalinhas: 500 },
-];
+function KpiSkeleton() {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 animate-pulse">
+      <div className="flex items-center gap-2.5 mb-3">
+        <div className="w-10 h-10 rounded-xl bg-gray-200" />
+        <div className="w-20 h-4 bg-gray-200 rounded" />
+      </div>
+      <div className="w-24 h-6 bg-gray-200 rounded mb-2" />
+      <div className="w-32 h-3 bg-gray-200 rounded mb-3" />
+      <div className="w-full h-2 bg-gray-100 rounded-full mt-1" />
+    </div>
+  );
+}
 
-const initialEstoque: ItemEstoque[] = [
-  { id: 1, nome: "Ração Postura Comercial", categoria: "Ração", quantidade: 1200, unidade: "kg", status: "normal", fornecedor: "AgroMix Ltda", localizacao: "Galpão A - Setor 1", lote: "RM-2024-0312", dataChegada: "2026-03-20" },
-  { id: 2, nome: "Farelo de Soja", categoria: "Insumo", quantidade: 450, unidade: "kg", status: "normal", fornecedor: "Soja Brasil", localizacao: "Galpão A - Setor 2", lote: "FS-2024-0228", dataChegada: "2026-03-05" },
-  { id: 3, nome: "Milho Moído", categoria: "Insumo", quantidade: 35, unidade: "kg", status: "baixo", fornecedor: "Grãos do Sul", localizacao: "Galpão B", lote: "MM-2024-0115", dataChegada: "2026-02-15" },
-  { id: 4, nome: "Premix Vitaminas", categoria: "Suplemento", quantidade: 80, unidade: "kg", status: "normal", fornecedor: "NutriAves", localizacao: "Depósito", lote: "PV-2024-0310", dataChegada: "2026-03-18" },
-  { id: 5, nome: "Calcita", categoria: "Mineral", quantidade: 320, unidade: "kg", status: "alerta", fornecedor: "MinBrasil", localizacao: "Galpão A - Setor 3", lote: "CA-2024-0201", dataChegada: "2026-03-01" },
-  { id: 6, nome: "Fosfato Bicálcico", categoria: "Mineral", quantidade: 15, unidade: "kg", status: "baixo", fornecedor: "MinBrasil", localizacao: "Depósito", lote: "FB-2024-0105", dataChegada: "2026-01-20" },
-];
-
-const consumoMensalRS = [
-  { mes: "Jan", valor: 4200 },
-  { mes: "Fev", valor: 4500 },
-  { mes: "Mar", valor: 4800 },
-  { mes: "Abr", valor: 3800 },
-  { mes: "Mai", valor: 4600 },
-  { mes: "Jun", valor: 4700 },
-];
-
-const consumoMensalKg = [
-  { mes: "Jan", valor: 9800 },
-  { mes: "Fev", valor: 10200 },
-  { mes: "Mar", valor: 11400 },
-  { mes: "Abr", valor: 8900 },
-  { mes: "Mai", valor: 10800 },
-  { mes: "Jun", valor: 11100 },
-];
-
-const consumoDiario = [
-  { dia: "06/03", kg: 780, ovos: 2450, eficiencia: 0.318 },
-  { dia: "07/03", kg: 800, ovos: 2620, eficiencia: 0.305 },
-  { dia: "08/03", kg: 818, ovos: 2700, eficiencia: 0.303 },
-  { dia: "09/03", kg: 790, ovos: 2580, eficiencia: 0.306 },
-  { dia: "10/03", kg: 825, ovos: 2650, eficiencia: 0.311 },
-  { dia: "11/03", kg: 800, ovos: 2600, eficiencia: 0.308 },
-  { dia: "12/03", kg: 818, ovos: 2500, eficiencia: 0.327 },
-];
-
-/* ── Consumo por Tipo ── */
-const consumoPorTipo = [
-  { tipo: "Milho Mix", kg: 220, pct: 35, color: "#f59e0b" },
-  { tipo: "Comercial", kg: 220, pct: 34, color: "#10b981" },
-  { tipo: "Soja Blend", kg: 110, pct: 17, color: "#f97316" },
-  { tipo: "Custom", kg: 85, pct: 14, color: "#ef4444" },
-];
+function TableSkeleton() {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-6 animate-pulse">
+      <div className="flex justify-between items-center mb-4">
+        <div className="w-32 h-5 bg-gray-200 rounded" />
+        <div className="w-48 h-8 bg-gray-200 rounded-xl" />
+      </div>
+      <div className="space-y-4">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="flex justify-between items-center border-b border-gray-50 pb-4">
+            <div className="w-24 h-4 bg-gray-200 rounded" />
+            <div className="w-20 h-6 bg-gray-200 rounded-lg" />
+            <div className="w-16 h-4 bg-gray-200 rounded" />
+            <div className="w-16 h-4 bg-gray-200 rounded" />
+            <div className="w-8 h-8 bg-gray-200 rounded-lg" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 type ModalMode = "add" | "edit" | null;
 
 export default function RacaoPage() {
   const searchParams = useSearchParams();
-  const [registros, setRegistros] = useState(initialRegistros);
-  const [estoque, setEstoque] = useState(initialEstoque);
+  const [registros, setRegistros] = useState<RegistroRacao[]>([]);
+  const [estoque, setEstoque] = useState<ItemEstoque[]>([]);
   const [estoqueModal, setEstoqueModal] = useState<"add" | "view" | null>(null);
   const [estoqueForm, setEstoqueForm] = useState({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal" as StatusEstoque, fornecedor: "", localizacao: "", lote: "", dataChegada: "" });
   const [viewingEstoque, setViewingEstoque] = useState<ItemEstoque | null>(null);
@@ -167,6 +152,157 @@ export default function RacaoPage() {
   const [modal, setModal] = useState<ModalMode>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [consumoMensalMode, setConsumoMensalMode] = useState<"rs" | "kg">("rs");
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [farmId, setFarmId] = useState<string | null>(null);
+
+  // Dynamic Data States
+  const [monthlyRS, setMonthlyRS] = useState<{ mes: string; valor: number }[]>([]);
+  const [monthlyKg, setMonthlyKg] = useState<{ mes: string; valor: number }[]>([]);
+  const [dailyChart, setDailyChart] = useState<any[]>([]);
+  const [distType, setDistType] = useState<{ tipo: string; kg: number; pct: number; color: string }[]>([]);
+
+  const calculateMonthly = useCallback((data: any[], key: string) => {
+    const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const map: Record<string, number> = {};
+    
+    // Last 6 months
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      map[`${months[d.getMonth()]}`] = 0;
+    }
+
+    data.forEach(r => {
+      const date = new Date(r.date + "T00:00:00");
+      const m = months[date.getMonth()];
+      if (map[m] !== undefined) {
+        map[m] += Number(r[key]) || 0;
+      }
+    });
+
+    return Object.entries(map).map(([mes, valor]) => ({ mes, valor }));
+  }, []);
+
+  const mapDailyEfficiency = useCallback((feed: any[], prod: any[]) => {
+    const last7Days: any[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split("T")[0];
+      const displayDate = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+      
+      const dayFeed = feed.filter(f => f.date === dateStr).reduce((s, f) => s + Number(f.quantity_kg), 0);
+      const dayProd = prod.filter(p => p.date === dateStr).reduce((s, p) => s + Number(p.eggs_produced), 0);
+      
+      last7Days.push({
+        dia: displayDate,
+        kg: dayFeed,
+        ovos: dayProd,
+        eficiencia: dayProd > 0 ? (dayFeed / dayProd) : 0
+      });
+    }
+    return last7Days;
+  }, []);
+
+  const calculateDistribution = useCallback((data: any[]) => {
+    const totals: Record<string, number> = {};
+    let grandTotal = 0;
+    
+    data.forEach(r => {
+      const type = r.feed_type || "Comercial";
+      totals[type] = (totals[type] || 0) + Number(r.quantity_kg);
+      grandTotal += Number(r.quantity_kg);
+    });
+
+    const colors = ["#f59e0b", "#10b981", "#f97316", "#ef4444", "#3b82f6", "#8b5cf6"];
+    return Object.entries(totals).map(([tipo, kg], i) => ({
+      tipo,
+      kg,
+      pct: grandTotal > 0 ? Math.round((kg / grandTotal) * 100) : 0,
+      color: colors[i % colors.length]
+    })).sort((a, b) => b.kg - a.kg);
+  }, []);
+
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const supabase = createClient();
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error("Usuário não autenticado");
+
+      const { data: profile } = await supabase.from("profiles").select("farm_id").eq("id", userData.user.id).single();
+      if (!profile?.farm_id) throw new Error("Farm ID não encontrado");
+      
+      setFarmId(profile.farm_id);
+
+      // Fetch last 180 days for charts, but we filter in memory for simplicity
+      const start = new Date();
+      start.setDate(start.getDate() - 180);
+      const startDate = start.toISOString().split("T")[0];
+      const endDate = new Date().toISOString().split("T")[0];
+
+      const [feedData, prodData, inventoryData] = await Promise.all([
+        getFeedByDateRange(profile.farm_id, startDate, endDate),
+        getProductionByDateRange(profile.farm_id, startDate, endDate),
+        getFeedInventory(profile.farm_id)
+      ]);
+      
+      // Map Table
+      const mapped: RegistroRacao[] = feedData.map(d => {
+        const typeStr = d.feed_type.toLowerCase();
+        let tipo: TipoRacao = "comercial";
+        if (typeStr.includes("milho")) tipo = "milho";
+        else if (typeStr.includes("soja")) tipo = "soja";
+        else if (typeStr.includes("custom")) tipo = "custom";
+
+        return {
+          id: d.id,
+          data: d.date,
+          tipo,
+          aviario: "Geral", 
+          consumoKg: Number(d.quantity_kg),
+          custoRS: Number(d.cost),
+          qtdGalinhas: 1000 
+        };
+      });
+      
+      setRegistros(mapped.sort((a, b) => b.data.localeCompare(a.data)));
+      
+      // Map Inventory
+      const mappedInv: ItemEstoque[] = inventoryData.map(d => ({
+        id: d.id,
+        nome: d.name,
+        categoria: d.category,
+        quantidade: Number(d.quantity),
+        unidade: d.unit,
+        status: d.status as StatusEstoque,
+        fornecedor: d.supplier,
+        location: d.location,
+        lote: d.lot_number,
+        dataChegada: d.arrival_date
+      }));
+      setEstoque(mappedInv);
+
+      // Transformers
+      setMonthlyRS(calculateMonthly(feedData, 'cost'));
+      setMonthlyKg(calculateMonthly(feedData, 'quantity_kg'));
+      setDailyChart(mapDailyEfficiency(feedData, prodData));
+      setDistType(calculateDistribution(feedData));
+
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Erro ao carregar dados");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [calculateMonthly, mapDailyEfficiency, calculateDistribution]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   useEffect(() => {
     if (searchParams.get("register") === "true") setModal("add");
@@ -181,7 +317,7 @@ export default function RacaoPage() {
 
   const [editing, setEditing] = useState<RegistroRacao | null>(null);
   const [form, setForm] = useState({ data: "", tipo: "comercial" as TipoRacao, aviario: "", consumoKg: "", custoRS: "", qtdGalinhas: "" });
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | number | null>(null);
 
   // Calendar filter state
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -413,28 +549,48 @@ export default function RacaoPage() {
     setModal("edit");
   }
 
-  function save() {
-    if (!form.data.trim() || !form.aviario.trim()) return;
-    const registro: RegistroRacao = {
-      id: editing?.id || Date.now(),
-      data: form.data,
-      tipo: form.tipo,
-      aviario: form.aviario,
-      consumoKg: Number(form.consumoKg) || 0,
-      custoRS: Number(form.custoRS) || 0,
-      qtdGalinhas: Number(form.qtdGalinhas) || 0,
-    };
-    if (modal === "add") {
-      setRegistros((prev) => [registro, ...prev]);
-    } else if (editing) {
-      setRegistros((prev) => prev.map((r) => (r.id === editing.id ? registro : r)));
+  async function save() {
+    if (!form.data.trim() || !farmId) return;
+    
+    setIsLoading(true);
+    try {
+      const payload = {
+        farm_id: farmId,
+        date: form.data,
+        quantity_kg: Number(form.consumoKg) || 0,
+        cost: Number(form.custoRS) || 0,
+        feed_type: tipoLabel[form.tipo] || "Ração Postura",
+      };
+
+      if (modal === "add") {
+        await createFeedRecord(payload);
+      } else if (editing) {
+        await updateFeedRecord(editing.id as string, payload);
+      }
+      
+      setModal(null);
+      await loadData(); // Reload to get fresh data
+    } catch (err: any) {
+      console.error(err);
+      alert("Erro ao salvar registro");
+    } finally {
+      setIsLoading(false);
     }
-    setModal(null);
   }
 
-  function deleteRegistro(id: number) {
-    setRegistros((prev) => prev.filter((r) => r.id !== id));
-    setDeleteConfirm(null);
+  async function deleteRegistro(id: string | number) {
+    if (typeof id !== "string") return;
+    setIsLoading(true);
+    try {
+      await deleteFeedRecord(id);
+      setDeleteConfirm(null);
+      await loadData();
+    } catch (err: any) {
+      console.error(err);
+      alert("Erro ao excluir registro");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   function formatDate(dateStr: string) {
@@ -444,6 +600,21 @@ export default function RacaoPage() {
     } catch {
       return dateStr;
     }
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 text-center">
+        <div className="w-12 h-12 bg-red-50 text-red-500 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <AlertTriangle className="w-6 h-6" />
+        </div>
+        <h2 className="text-lg font-bold text-gray-900">Erro ao carregar dados</h2>
+        <p className="text-gray-500 mt-1 mb-4">{error}</p>
+        <button onClick={() => window.location.reload()} className="px-4 py-2 bg-brand-600 text-white rounded-xl cursor-pointer hover:bg-brand-700 transition-colors">
+          Tentar novamente
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -667,142 +838,153 @@ export default function RacaoPage() {
       })()}
 
       {/* Status Cards — Simple Visual Indicators with Progress Bars */}
-      {(() => {
-        const consumoStatus = avgConsumoPorGalinha <= 130 ? "good" : avgConsumoPorGalinha <= 150 ? "high" : "critical";
-        const consumoPct = Math.min((avgConsumoPorGalinha / 180) * 100, 100);
-        const eficiencia = 0.31;
-        const eficienciaStatus = eficiencia <= 0.30 ? "good" : eficiencia <= 0.33 ? "attention" : "bad";
-        const eficienciaPct = Math.min((eficiencia / 0.40) * 100, 100);
-        const producaoAtual = 2580;
-        const producaoMeta = 3000;
-        const producaoPct = Math.min((producaoAtual / producaoMeta) * 100, 100);
-        const totalEstoqueKg = estoque.filter(e => e.unidade === "kg").reduce((s, e) => s + e.quantidade, 0);
-        const feedDaysLeft = Math.floor(totalEstoqueKg / 410);
-        const estoquePct = Math.min((feedDaysLeft / 14) * 100, 100);
+      <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+        {isLoading ? (
+          <>
+            <KpiSkeleton />
+            <KpiSkeleton />
+            <KpiSkeleton />
+            <KpiSkeleton />
+          </>
+        ) : (
+          (() => {
+            const consumoStatus = avgConsumoPorGalinha <= 130 ? "good" : avgConsumoPorGalinha <= 150 ? "high" : "critical";
+            const consumoPct = Math.min((avgConsumoPorGalinha / 180) * 100, 100);
+            const eficiencia = 0.31;
+            const eficienciaStatus = eficiencia <= 0.30 ? "good" : eficiencia <= 0.33 ? "attention" : "bad";
+            const eficienciaPct = Math.min((eficiencia / 0.40) * 100, 100);
+            const producaoAtual = 2580;
+            const producaoMeta = 3000;
+            const producaoPct = Math.min((producaoAtual / producaoMeta) * 100, 100);
+            const totalEstoqueKg = estoque.filter(e => e.unidade === "kg").reduce((s, e) => s + e.quantidade, 0);
+            const feedDaysLeft = Math.floor(totalEstoqueKg / 410);
+            const estoquePct = Math.min((feedDaysLeft / 14) * 100, 100);
 
-        return (
-          <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-            {/* Consumo */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer">
-              <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
-                <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", consumoStatus === "good" ? "bg-emerald-50" : consumoStatus === "high" ? "bg-amber-50" : "bg-red-50")}>
-                  <Wheat className={cn("w-4 h-4 sm:w-5 sm:h-5", consumoStatus === "good" ? "text-emerald-600" : consumoStatus === "high" ? "text-amber-600" : "text-red-600")} />
+            return (
+              <>
+                {/* Consumo */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer">
+                  <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
+                    <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", consumoStatus === "good" ? "bg-emerald-50" : consumoStatus === "high" ? "bg-amber-50" : "bg-red-50")}>
+                      <Wheat className={cn("w-4 h-4 sm:w-5 sm:h-5", consumoStatus === "good" ? "text-emerald-600" : consumoStatus === "high" ? "text-amber-600" : "text-red-600")} />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-500">Consumo</span>
+                  </div>
+                  <p className={cn("text-lg font-bold", consumoStatus === "good" ? "text-emerald-700" : consumoStatus === "high" ? "text-amber-700" : "text-red-700")}>
+                    {consumoStatus === "good" ? "Normal" : consumoStatus === "high" ? "Acima do ideal" : "Muito alto"}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5 mb-2.5">{avgConsumoPorGalinha.toFixed(0)}g por ave/dia</p>
+                  <div className="relative mt-1">
+                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={cn("h-full rounded-full transition-all duration-700", consumoStatus === "good" ? "bg-emerald-500" : consumoStatus === "high" ? "bg-amber-500" : "bg-red-500")} style={{ width: `${consumoPct}%` }} />
+                    </div>
+                    <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(130 / 180) * 100}%` }} title="Meta: 130g" />
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
+                      <span className="text-[10px] text-gray-500 font-medium">Meta: 130g</span>
+                    </div>
+                    <span className={cn("text-[10px] font-semibold", consumoStatus === "good" ? "text-emerald-600" : "text-red-500")}>
+                      {consumoStatus === "good" ? "Dentro" : "Acima"}
+                    </span>
+                  </div>
                 </div>
-                <span className="text-xs font-semibold text-gray-500">Consumo</span>
-              </div>
-              <p className={cn("text-lg font-bold", consumoStatus === "good" ? "text-emerald-700" : consumoStatus === "high" ? "text-amber-700" : "text-red-700")}>
-                {consumoStatus === "good" ? "Normal" : consumoStatus === "high" ? "Acima do ideal" : "Muito alto"}
-              </p>
-              <p className="text-xs text-gray-400 mt-0.5 mb-2.5">{avgConsumoPorGalinha.toFixed(0)}g por ave/dia</p>
-              <div className="relative mt-1">
-                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className={cn("h-full rounded-full transition-all duration-700", consumoStatus === "good" ? "bg-emerald-500" : consumoStatus === "high" ? "bg-amber-500" : "bg-red-500")} style={{ width: `${consumoPct}%` }} />
-                </div>
-                <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(130 / 180) * 100}%` }} title="Meta: 130g" />
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
-                  <span className="text-[10px] text-gray-500 font-medium">Meta: 130g</span>
-                </div>
-                <span className={cn("text-[10px] font-semibold", consumoStatus === "good" ? "text-emerald-600" : "text-red-500")}>
-                  {consumoStatus === "good" ? "Dentro" : "Acima"}
-                </span>
-              </div>
-            </div>
 
-            {/* Produção */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer">
-              <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                  <Target className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+                {/* Produção */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer">
+                  <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                      <Target className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-500">Produção</span>
+                  </div>
+                  <p className="text-lg font-bold text-emerald-700">Normal</p>
+                  <p className="text-xs text-gray-400 mt-0.5 mb-2.5">~2.580 ovos/dia</p>
+                  <div className="relative mt-1">
+                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-emerald-500 transition-all duration-700" style={{ width: `${producaoPct}%` }} />
+                    </div>
+                    <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(producaoMeta / (producaoMeta * 1.1)) * 100}%` }} title={`Meta: ${producaoMeta.toLocaleString("pt-BR")}`} />
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
+                      <span className="text-[10px] text-gray-500 font-medium">Meta: {producaoMeta.toLocaleString("pt-BR")}</span>
+                    </div>
+                    <span className="text-[10px] font-semibold text-emerald-600">{producaoPct.toFixed(0)}%</span>
+                  </div>
                 </div>
-                <span className="text-xs font-semibold text-gray-500">Produção</span>
-              </div>
-              <p className="text-lg font-bold text-emerald-700">Normal</p>
-              <p className="text-xs text-gray-400 mt-0.5 mb-2.5">~2.580 ovos/dia</p>
-              <div className="relative mt-1">
-                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full bg-emerald-500 transition-all duration-700" style={{ width: `${producaoPct}%` }} />
-                </div>
-                <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(producaoMeta / (producaoMeta * 1.1)) * 100}%` }} title={`Meta: ${producaoMeta.toLocaleString("pt-BR")}`} />
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
-                  <span className="text-[10px] text-gray-500 font-medium">Meta: {producaoMeta.toLocaleString("pt-BR")}</span>
-                </div>
-                <span className="text-[10px] font-semibold text-emerald-600">{producaoPct.toFixed(0)}%</span>
-              </div>
-            </div>
 
-            {/* Eficiência */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer">
-              <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
-                <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", eficienciaStatus === "good" ? "bg-emerald-50" : eficienciaStatus === "attention" ? "bg-amber-50" : "bg-red-50")}>
-                  <Activity className={cn("w-4 h-4 sm:w-5 sm:h-5", eficienciaStatus === "good" ? "text-emerald-600" : eficienciaStatus === "attention" ? "text-amber-600" : "text-red-600")} />
+                {/* Eficiência */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer">
+                  <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
+                    <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", eficienciaStatus === "good" ? "bg-emerald-50" : eficienciaStatus === "attention" ? "bg-amber-50" : "bg-red-50")}>
+                      <Activity className={cn("w-4 h-4 sm:w-5 sm:h-5", eficienciaStatus === "good" ? "text-emerald-600" : eficienciaStatus === "attention" ? "text-amber-600" : "text-red-600")} />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-500">Eficiência</span>
+                  </div>
+                  <p className={cn("text-lg font-bold", eficienciaStatus === "good" ? "text-emerald-700" : eficienciaStatus === "attention" ? "text-amber-700" : "text-red-700")}>
+                    {eficienciaStatus === "good" ? "Boa" : eficienciaStatus === "attention" ? "Atenção" : "Ruim"}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5 mb-2.5">0,31 kg de ração/ovo</p>
+                  <div className="relative mt-1">
+                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={cn("h-full rounded-full transition-all duration-700", eficienciaStatus === "good" ? "bg-emerald-500" : eficienciaStatus === "attention" ? "bg-amber-500" : "bg-red-500")} style={{ width: `${eficienciaPct}%` }} />
+                    </div>
+                    <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(0.30 / 0.40) * 100}%` }} title="Ideal: 0,30" />
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
+                      <span className="text-[10px] text-gray-500 font-medium">Ideal: 0,30</span>
+                    </div>
+                    <span className={cn("text-[10px] font-semibold", eficienciaStatus === "good" ? "text-emerald-600" : "text-amber-500")}>
+                      {eficienciaStatus === "good" ? "Dentro" : "Acima"}
+                    </span>
+                  </div>
                 </div>
-                <span className="text-xs font-semibold text-gray-500">Eficiência</span>
-              </div>
-              <p className={cn("text-lg font-bold", eficienciaStatus === "good" ? "text-emerald-700" : eficienciaStatus === "attention" ? "text-amber-700" : "text-red-700")}>
-                {eficienciaStatus === "good" ? "Boa" : eficienciaStatus === "attention" ? "Atenção" : "Ruim"}
-              </p>
-              <p className="text-xs text-gray-400 mt-0.5 mb-2.5">0,31 kg de ração/ovo</p>
-              <div className="relative mt-1">
-                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className={cn("h-full rounded-full transition-all duration-700", eficienciaStatus === "good" ? "bg-emerald-500" : eficienciaStatus === "attention" ? "bg-amber-500" : "bg-red-500")} style={{ width: `${eficienciaPct}%` }} />
-                </div>
-                <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(0.30 / 0.40) * 100}%` }} title="Ideal: 0,30" />
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
-                  <span className="text-[10px] text-gray-500 font-medium">Ideal: 0,30</span>
-                </div>
-                <span className={cn("text-[10px] font-semibold", eficienciaStatus === "good" ? "text-emerald-600" : "text-amber-500")}>
-                  {eficienciaStatus === "good" ? "Dentro" : "Acima"}
-                </span>
-              </div>
-            </div>
 
-            {/* Estoque */}
-            <div className={cn(
-              "rounded-2xl border p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer",
-              feedDaysLeft > 7 ? "bg-white border-gray-100" : feedDaysLeft > 3 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"
-            )}>
-              <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
-                <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", feedDaysLeft > 7 ? "bg-blue-50" : feedDaysLeft > 3 ? "bg-amber-100" : "bg-red-100")}>
-                  <Package className={cn("w-4 h-4 sm:w-5 sm:h-5", feedDaysLeft > 7 ? "text-blue-600" : feedDaysLeft > 3 ? "text-amber-600" : "text-red-600")} />
+                {/* Estoque */}
+                <div className={cn(
+                  "rounded-2xl border p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer",
+                  feedDaysLeft > 7 ? "bg-white border-gray-100" : feedDaysLeft > 3 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"
+                )}>
+                  <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
+                    <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", feedDaysLeft > 7 ? "bg-blue-50" : feedDaysLeft > 3 ? "bg-amber-100" : "bg-red-100")}>
+                      <Package className={cn("w-4 h-4 sm:w-5 sm:h-5", feedDaysLeft > 7 ? "text-blue-600" : feedDaysLeft > 3 ? "text-amber-600" : "text-red-600")} />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-500">Estoque</span>
+                  </div>
+                  <p className={cn("text-lg font-bold", feedDaysLeft > 7 ? "text-blue-700" : feedDaysLeft > 3 ? "text-amber-700" : "text-red-700")}>
+                    Dura {feedDaysLeft} dias
+                  </p>
+                  {feedDaysLeft <= 7 ? (
+                    <p className="text-xs text-amber-600 font-semibold mt-0.5 mb-2.5">Compre em breve</p>
+                  ) : (
+                    <p className="text-xs text-gray-400 mt-0.5 mb-2.5">{totalEstoqueKg.toLocaleString("pt-BR")} kg em estoque</p>
+                  )}
+                  <div className="relative mt-1">
+                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={cn("h-full rounded-full transition-all duration-700", feedDaysLeft > 7 ? "bg-blue-500" : feedDaysLeft > 3 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${estoquePct}%` }} />
+                    </div>
+                    <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(7 / 14) * 100}%` }} title="Mínimo: 7 dias" />
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
+                      <span className="text-[10px] text-gray-500 font-medium">Mínimo: 7 dias</span>
+                    </div>
+                    <span className={cn("text-[10px] font-semibold", feedDaysLeft > 7 ? "text-blue-600" : "text-amber-500")}>
+                      {feedDaysLeft} dias
+                    </span>
+                  </div>
                 </div>
-                <span className="text-xs font-semibold text-gray-500">Estoque</span>
-              </div>
-              <p className={cn("text-lg font-bold", feedDaysLeft > 7 ? "text-blue-700" : feedDaysLeft > 3 ? "text-amber-700" : "text-red-700")}>
-                Dura {feedDaysLeft} dias
-              </p>
-              {feedDaysLeft <= 7 ? (
-                <p className="text-xs text-amber-600 font-semibold mt-0.5 mb-2.5">Compre em breve</p>
-              ) : (
-                <p className="text-xs text-gray-400 mt-0.5 mb-2.5">{totalEstoqueKg.toLocaleString("pt-BR")} kg em estoque</p>
-              )}
-              <div className="relative mt-1">
-                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className={cn("h-full rounded-full transition-all duration-700", feedDaysLeft > 7 ? "bg-blue-500" : feedDaysLeft > 3 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${estoquePct}%` }} />
-                </div>
-                <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(7 / 14) * 100}%` }} title="Mínimo: 7 dias" />
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
-                  <span className="text-[10px] text-gray-500 font-medium">Mínimo: 7 dias</span>
-                </div>
-                <span className={cn("text-[10px] font-semibold", feedDaysLeft > 7 ? "text-blue-600" : "text-amber-500")}>
-                  {feedDaysLeft} dias
-                </span>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+              </>
+            );
+          })()
+        )}
+      </div>
 
       {/* AI Insights + Financial Metrics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
@@ -1100,7 +1282,7 @@ export default function RacaoPage() {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={280}>
-            <ComposedChart data={consumoDiario} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
+            <ComposedChart data={dailyChart} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="gradConsumoBar" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#2d7a4f" stopOpacity={0.95} />
@@ -1113,8 +1295,8 @@ export default function RacaoPage() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
               <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11, fontWeight: 500 }} dy={10} />
-              <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 10 }} dx={-4} domain={[0, 3200]} ticks={[0, 800, 1600, 2400, 3200]} />
-              <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 10, fontWeight: 600 }} dx={4} domain={[0.28, 0.35]} ticks={[0.28, 0.30, 0.32, 0.34]} tickFormatter={(v: number) => v.toFixed(2)} />
+              <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 10 }} dx={-4} domain={[0, 'auto']} />
+              <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 10, fontWeight: 600 }} dx={4} domain={[0, 'auto']} tickFormatter={(v: number) => v.toFixed(2)} />
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
                 labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px", fontSize: "14px" }}
@@ -1142,7 +1324,9 @@ export default function RacaoPage() {
             <p className="text-xs text-gray-400 mt-0.5">Distribuição por tipo de ração</p>
           </div>
           <div className="flex-1 flex flex-col justify-evenly">
-            {consumoPorTipo.map((item) => (
+            {distType.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-xs text-gray-400 italic">Sem dados de distribuição</div>
+            ) : distType.map((item) => (
               <div key={item.tipo}>
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
@@ -1167,7 +1351,7 @@ export default function RacaoPage() {
           </div>
           <div className="mt-5 pt-4 border-t border-gray-50">
             <div className="flex items-center gap-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider flex-wrap">
-              {consumoPorTipo.map((item) => (
+              {distType.map((item) => (
                 <div key={item.tipo} className="flex items-center gap-1">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
                   {item.tipo}
@@ -1265,7 +1449,7 @@ export default function RacaoPage() {
           </div>
           <div className="flex-1" style={{ minHeight: 240 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={consumoMensalMode === "rs" ? consumoMensalRS : consumoMensalKg} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
+            <BarChart data={consumoMensalMode === "rs" ? monthlyRS : monthlyKg} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
               <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dy={8} />
               <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} tickFormatter={(v) => (v / 1000).toFixed(1) + "k"} />
@@ -1282,120 +1466,134 @@ export default function RacaoPage() {
       </div>
 
       {/* Records Table — Production Style */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
-          <div>
-            <h3 className="text-sm font-bold text-gray-900">Registros Recentes</h3>
-            <p className="text-xs text-gray-400 mt-0.5">{registros.length} registros</p>
+      {isLoading ? (
+        <TableSkeleton />
+      ) : (
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Registros Recentes</h3>
+              <p className="text-xs text-gray-400 mt-0.5">{registros.length} registros</p>
+            </div>
+            <div className="flex items-center gap-2 bg-gray-100/80 rounded-xl px-3 py-2 w-full sm:w-56 transition-colors focus-within:bg-gray-100 focus-within:ring-2 focus-within:ring-brand-500/20">
+              <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+              <input
+                type="text"
+                placeholder="Buscar registro..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-transparent text-xs text-gray-700 placeholder-gray-400 outline-none w-full"
+              />
+            </div>
           </div>
-          <div className="flex items-center gap-2 bg-gray-100/80 rounded-xl px-3 py-2 w-full sm:w-56 transition-colors focus-within:bg-gray-100 focus-within:ring-2 focus-within:ring-brand-500/20">
-            <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-            <input
-              type="text"
-              placeholder="Buscar registro..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-transparent text-xs text-gray-700 placeholder-gray-400 outline-none w-full"
-            />
-          </div>
-        </div>
-        <div className="overflow-x-auto max-h-[340px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-          <table className="w-full min-w-[800px]">
-            <thead className="sticky top-0 bg-white z-10">
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Data</th>
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Tipo</th>
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Aviário</th>
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Consumo</th>
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">
-                  <span className="inline-flex items-center gap-1.5">
-                    Custo
-                    <span className="relative group">
-                      <HelpCircle className="w-3.5 h-3.5 text-gray-400 cursor-help" />
-                      <span className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-52 px-3 py-2 text-[11px] font-normal text-white bg-gray-900 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] shadow-lg pointer-events-none leading-relaxed">
-                        Custo total (R$) da quantidade de ração consumida neste registro.
-                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-0 border-4 border-transparent border-b-gray-900" />
+          <div className="overflow-x-auto max-h-[340px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
+            {filteredRegistros.length === 0 ? (
+              <div className="p-12 text-center flex flex-col items-center justify-center">
+                <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4">
+                  <Wheat className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-1">Nenhum consumo registrado</h3>
+                <p className="text-sm text-gray-500 mb-4 max-w-sm">Comece a registrar o consumo de ração para acompanhar custos e eficiência do seu lote.</p>
+                <button onClick={openAdd} className="px-5 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors cursor-pointer">
+                  Registrar Consumo
+                </button>
+              </div>
+            ) : (
+              <table className="w-full min-w-[800px]">
+                <thead className="sticky top-0 bg-white z-10">
+                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                    <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Data</th>
+                    <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Tipo</th>
+                    <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Aviário</th>
+                    <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Consumo</th>
+                    <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">
+                      <span className="inline-flex items-center gap-1.5">
+                        Custo
+                        <span className="relative group">
+                          <HelpCircle className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                          <span className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-52 px-3 py-2 text-[11px] font-normal text-white bg-gray-900 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] shadow-lg pointer-events-none leading-relaxed">
+                            Custo total (R$) da quantidade de ração consumida neste registro.
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-0 border-4 border-transparent border-b-gray-900" />
+                          </span>
+                        </span>
                       </span>
-                    </span>
-                  </span>
-                </th>
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">
-                  <span className="inline-flex items-center gap-1.5">
-                    g/Galinha
-                    <span className="relative group">
-                      <HelpCircle className="w-3.5 h-3.5 text-gray-400 cursor-help" />
-                      <span className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 px-3 py-2 text-[11px] font-normal text-white bg-gray-900 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] shadow-lg pointer-events-none leading-relaxed">
-                        Quantidade de ração consumida dividida pelo número de galinhas (em gramas por ave).
-                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-0 border-4 border-transparent border-b-gray-900" />
+                    </th>
+                    <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">
+                      <span className="inline-flex items-center gap-1.5">
+                        g/Galinha
+                        <span className="relative group">
+                          <HelpCircle className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                          <span className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 px-3 py-2 text-[11px] font-normal text-white bg-gray-900 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] shadow-lg pointer-events-none leading-relaxed">
+                            Quantidade de ração consumida dividida pelo número de galinhas (em gramas por ave).
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-0 border-4 border-transparent border-b-gray-900" />
+                          </span>
+                        </span>
                       </span>
-                    </span>
-                  </span>
-                </th>
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">
-                  <span className="inline-flex items-center gap-1.5">
-                    R$/Galinha
-                    <span className="relative group">
-                      <HelpCircle className="w-3.5 h-3.5 text-gray-400 cursor-help" />
-                      <span className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 px-3 py-2 text-[11px] font-normal text-white bg-gray-900 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] shadow-lg pointer-events-none leading-relaxed">
-                        Custo total da ração dividido pelo número de galinhas (em R$ por ave).
-                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-0 border-4 border-transparent border-b-gray-900" />
+                    </th>
+                    <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">
+                      <span className="inline-flex items-center gap-1.5">
+                        R$/Galinha
+                        <span className="relative group">
+                          <HelpCircle className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                          <span className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 px-3 py-2 text-[11px] font-normal text-white bg-gray-900 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] shadow-lg pointer-events-none leading-relaxed">
+                            Custo total da ração dividido pelo número de galinhas (em R$ por ave).
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-0 border-4 border-transparent border-b-gray-900" />
+                          </span>
+                        </span>
                       </span>
-                    </span>
-                  </span>
-                </th>
-                <th className="text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider px-3 py-3">Detalhes</th>
-                <th className="text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider px-3 py-3 pr-6">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRegistros.map((r) => {
-                const consumoGalinha = r.qtdGalinhas > 0 ? ((r.consumoKg / r.qtdGalinhas) * 1000).toFixed(0) : "—";
-                const custoGalinha = r.qtdGalinhas > 0 ? (r.custoRS / r.qtdGalinhas).toFixed(2).replace(".", ",") : "—";
-                return (
-                  <tr key={r.id} className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-gray-900">{formatDate(r.data)}</td>
-                    <td className="px-6 py-4">
-                      <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-lg whitespace-nowrap", tipoColor[r.tipo])}>
-                        {tipoLabel[r.tipo]}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">{r.aviario}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">{r.consumoKg} kg</td>
-                    <td className="px-6 py-4 text-sm text-gray-700">R$ {r.custoRS.toFixed(2).replace(".", ",")}</td>
-                    <td className="px-6 py-4">
-                      <span className={cn(
-                        "text-sm font-bold",
-                        consumoGalinha !== "—" && Number(consumoGalinha) > 150 ? "text-red-600" : consumoGalinha !== "—" && Number(consumoGalinha) > 130 ? "text-amber-600" : "text-emerald-600"
-                      )}>
-                        {consumoGalinha !== "—" ? consumoGalinha + " g" : "—"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-700">{custoGalinha !== "—" ? "R$ " + custoGalinha : "—"}</td>
-                    <td className="px-3 py-4 text-center">
-                      <Link href={`/dashboard/racao/${r.id}`} className="inline-flex items-center justify-center p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer">
-                        <FileText className="w-4 h-4" />
-                      </Link>
-                    </td>
-                    <td className="px-3 pr-6 py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer">
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={() => setDeleteConfirm(r.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
+                    </th>
+                    <th className="text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider px-3 py-3">Detalhes</th>
+                    <th className="text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider px-3 py-3 pr-6">Ações</th>
                   </tr>
-                );
-              })}
-              {filteredRegistros.length === 0 && (
-                <tr><td colSpan={9} className="text-center py-16 text-gray-400 text-sm">Nenhum registro encontrado.</td></tr>
-              )}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {filteredRegistros.map((r) => {
+                    const consumoGalinha = r.qtdGalinhas > 0 ? ((r.consumoKg / r.qtdGalinhas) * 1000).toFixed(0) : "—";
+                    const custoGalinha = r.qtdGalinhas > 0 ? (r.custoRS / r.qtdGalinhas).toFixed(2).replace(".", ",") : "—";
+                    return (
+                      <tr key={r.id} className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50/50 transition-colors">
+                        <td className="px-6 py-4 text-sm text-gray-900">{formatDate(r.data)}</td>
+                        <td className="px-6 py-4">
+                          <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-lg whitespace-nowrap", tipoColor[r.tipo])}>
+                            {tipoLabel[r.tipo]}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{r.aviario}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-gray-900">{r.consumoKg} kg</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">R$ {r.custoRS.toFixed(2).replace(".", ",")}</td>
+                        <td className="px-6 py-4">
+                          <span className={cn(
+                            "text-sm font-bold",
+                            consumoGalinha !== "—" && Number(consumoGalinha) > 150 ? "text-red-600" : consumoGalinha !== "—" && Number(consumoGalinha) > 130 ? "text-amber-600" : "text-emerald-600"
+                          )}>
+                            {consumoGalinha !== "—" ? consumoGalinha + " g" : "—"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm font-medium text-gray-700">{custoGalinha !== "—" ? "R$ " + custoGalinha : "—"}</td>
+                        <td className="px-3 py-4 text-center">
+                          <Link href={`/dashboard/racao/${r.id}`} className="inline-flex items-center justify-center p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer">
+                            <FileText className="w-4 h-4" />
+                          </Link>
+                        </td>
+                        <td className="px-3 pr-6 py-4">
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer">
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => setDeleteConfirm(r.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Modal */}
       {modal && (
@@ -1463,10 +1661,10 @@ export default function RacaoPage() {
               <button onClick={() => setModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
               <button
                 onClick={save}
-                disabled={!form.data || !form.aviario}
+                disabled={!form.data}
                 className={cn(
                   "inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold rounded-xl transition-colors cursor-pointer shadow-sm",
-                  form.data && form.aviario
+                  form.data
                     ? "text-white bg-brand-600 hover:bg-brand-700"
                     : "text-gray-400 bg-gray-200 cursor-not-allowed"
                 )}
@@ -1573,22 +1771,31 @@ export default function RacaoPage() {
             <div className="flex items-center justify-end gap-2 pt-2">
               <button onClick={() => setEstoqueModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
               <button
-                onClick={() => {
-                  if (!estoqueForm.nome.trim() || !estoqueForm.quantidade) return;
-                  setEstoque((prev) => [...prev, {
-                    id: Date.now(),
-                    nome: estoqueForm.nome,
-                    categoria: estoqueForm.categoria,
-                    quantidade: Number(estoqueForm.quantidade) || 0,
-                    unidade: estoqueForm.unidade,
-                    status: estoqueForm.status,
-                    fornecedor: estoqueForm.fornecedor || undefined,
-                    localizacao: estoqueForm.localizacao || undefined,
-                    lote: estoqueForm.lote || undefined,
-                    dataChegada: estoqueForm.dataChegada || undefined,
-                  }]);
-                  setEstoqueForm({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal", fornecedor: "", localizacao: "", lote: "", dataChegada: "" });
-                  setEstoqueModal(null);
+                onClick={async () => {
+                  if (!estoqueForm.nome.trim() || !estoqueForm.quantidade || !farmId) return;
+                  setIsLoading(true);
+                  try {
+                    await createInventoryItem({
+                      farm_id: farmId,
+                      name: estoqueForm.nome,
+                      category: estoqueForm.categoria,
+                      quantity: Number(estoqueForm.quantidade) || 0,
+                      unit: estoqueForm.unidade,
+                      status: estoqueForm.status,
+                      supplier: estoqueForm.fornecedor || null,
+                      location: estoqueForm.localizacao || null,
+                      lot_number: estoqueForm.lote || null,
+                      arrival_date: estoqueForm.dataChegada || null,
+                    });
+                    setEstoqueForm({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal", fornecedor: "", localizacao: "", lote: "", dataChegada: "" });
+                    setEstoqueModal(null);
+                    await loadData();
+                  } catch (err) {
+                    console.error(err);
+                    alert("Erro ao salvar item");
+                  } finally {
+                    setIsLoading(false);
+                  }
                 }}
                 disabled={!estoqueForm.nome.trim() || !estoqueForm.quantidade}
                 className={cn(
@@ -1713,22 +1920,31 @@ export default function RacaoPage() {
                     Cancelar
                   </button>
                   <button
-                    onClick={() => {
-                      const updated = {
-                        ...viewingEstoque,
-                        nome: editEstoqueForm.nome.trim() || viewingEstoque.nome,
-                        categoria: editEstoqueForm.categoria || viewingEstoque.categoria,
-                        quantidade: Number(editEstoqueForm.quantidade) || viewingEstoque.quantidade,
-                        unidade: editEstoqueForm.unidade || viewingEstoque.unidade,
-                        status: editEstoqueForm.status,
-                        fornecedor: editEstoqueForm.fornecedor || undefined,
-                        localizacao: editEstoqueForm.localizacao || undefined,
-                        lote: editEstoqueForm.lote || undefined,
-                        dataChegada: editEstoqueForm.dataChegada || undefined,
-                      };
-                      setEstoque((prev) => prev.map((e) => e.id === viewingEstoque.id ? updated : e));
-                      setViewingEstoque(updated);
-                      setEditingEstoque(false);
+                    onClick={async () => {
+                      if (!farmId) return;
+                      setIsLoading(true);
+                      try {
+                        await updateInventoryItem(viewingEstoque.id, {
+                          name: editEstoqueForm.nome.trim() || viewingEstoque.nome,
+                          category: editEstoqueForm.categoria || viewingEstoque.categoria,
+                          quantity: Number(editEstoqueForm.quantidade) || viewingEstoque.quantidade,
+                          unit: editEstoqueForm.unidade || viewingEstoque.unidade,
+                          status: editEstoqueForm.status,
+                          supplier: editEstoqueForm.fornecedor || null,
+                          location: editEstoqueForm.localizacao || null,
+                          lot_number: editEstoqueForm.lote || null,
+                          arrival_date: editEstoqueForm.dataChegada || null,
+                        });
+                        setEditingEstoque(false);
+                        await loadData();
+                        setEstoqueModal(null);
+                        setViewingEstoque(null);
+                      } catch (err) {
+                        console.error(err);
+                        alert("Erro ao atualizar item");
+                      } finally {
+                        setIsLoading(false);
+                      }
                     }}
                     className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors cursor-pointer shadow-sm"
                   >
@@ -1824,10 +2040,19 @@ export default function RacaoPage() {
                     Editar
                   </button>
                   <button
-                    onClick={() => {
-                      setEstoque((prev) => prev.filter((e) => e.id !== viewingEstoque.id));
-                      setEstoqueModal(null);
-                      setViewingEstoque(null);
+                    onClick={async () => {
+                      setIsLoading(true);
+                      try {
+                        await deleteInventoryItem(viewingEstoque.id);
+                        setEstoqueModal(null);
+                        setViewingEstoque(null);
+                        await loadData();
+                      } catch (err) {
+                        console.error(err);
+                        alert("Erro ao excluir item");
+                      } finally {
+                        setIsLoading(false);
+                      }
                     }}
                     className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                   >
