@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 
-const steps = ["Granja", "Produção", "Venda", "Objetivos", "Resultado"];
+const steps = ["Granja", "Produção", "Venda", "Objetivos", "Resumo"];
 
 export default function OnboardingPage() {
   const { user } = useAuth();
@@ -61,107 +61,135 @@ export default function OnboardingPage() {
   };
 
   const createFarm = async (name: string, birds?: number) => {
-    if (!user) return;
+    if (!user) {
+      setError("Usuário não autenticado. Faça login novamente.");
+      return;
+    }
     setLoading(true);
+    setError("");
     try {
       const displayName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Produtor";
-      const insert: Record<string, unknown> = { name, owner_id: user.id, producer_name: displayName };
-      if (birds) {
-        insert.total_birds = birds;
-      }
+
+      // 1. Create farm
       const { data: farmData, error: farmError } = await supabase
-        .from("farms").insert(insert).select().single();
-      if (farmError) throw farmError;
-      await supabase.from("profiles").update({ farm_id: farmData.id }).eq("id", user.id);
+        .from("farms")
+        .insert({ name, owner_id: user.id, producer_name: displayName, total_birds: birds ?? 0 })
+        .select()
+        .single();
+      if (farmError) throw new Error(`Erro ao criar granja: ${farmError.message}`);
 
-      if (birds && barnCount > 0) {
-        const birdsPerBarn = Math.floor(birds / barnCount);
-        const barnInserts = Array.from({ length: barnCount }, (_, i) => ({
+      // 2. Link profile to farm
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ farm_id: farmData.id })
+        .eq("id", user.id);
+      if (profileError) {
+        // Fallback: upsert profile
+        const { error: upsertErr } = await supabase.from("profiles").upsert({
+          id: user.id,
+          email: user.email ?? "",
+          full_name: displayName,
           farm_id: farmData.id,
-          name: `Galpão ${i + 1}`,
-          capacity: birdsPerBarn + (i === 0 ? birds % barnCount : 0),
-          current_birds: birdsPerBarn + (i === 0 ? birds % barnCount : 0),
-          status: "active" as const,
-        }));
-        await supabase.from("barns").insert(barnInserts);
+        });
+        if (upsertErr) throw new Error(`Erro ao vincular perfil: ${upsertErr.message}`);
       }
 
-      const today = new Date().toISOString().split("T")[0];
-      await supabase.from("tasks").insert([
-        { farm_id: farmData.id, title: "Coletar ovos", date: today, scheduled_time: "06:00" },
-        { farm_id: farmData.id, title: "Alimentar aves", date: today, scheduled_time: "07:00" },
-        { farm_id: farmData.id, title: "Limpeza dos bebedouros", date: today, scheduled_time: "09:00" },
-        { farm_id: farmData.id, title: "Inspeção sanitária", date: today, scheduled_time: "10:00" },
-      ]);
+      // 3. Verify profile was linked before redirecting
+      const { data: checkProfile } = await supabase
+        .from("profiles")
+        .select("farm_id")
+        .eq("id", user.id)
+        .single();
 
-      window.location.href = "/dashboard";
+      if (!checkProfile?.farm_id) {
+        throw new Error("Perfil não foi vinculado à granja. Tente novamente.");
+      }
+
+      // 4. Non-critical: create barns and tasks
+      try {
+        if (birds && barnCount > 0) {
+          const birdsPerBarn = Math.floor(birds / barnCount);
+          const barnInserts = Array.from({ length: barnCount }, (_, i) => ({
+            farm_id: farmData.id,
+            name: `Galpão ${i + 1}`,
+            capacity: birdsPerBarn + (i === 0 ? birds % barnCount : 0),
+            current_birds: birdsPerBarn + (i === 0 ? birds % barnCount : 0),
+            status: "active" as const,
+          }));
+          await supabase.from("barns").insert(barnInserts);
+        }
+        const today = new Date().toISOString().split("T")[0];
+        await supabase.from("tasks").insert([
+          { farm_id: farmData.id, title: "Coletar ovos", date: today, scheduled_time: "06:00" },
+          { farm_id: farmData.id, title: "Alimentar aves", date: today, scheduled_time: "07:00" },
+          { farm_id: farmData.id, title: "Limpeza dos bebedouros", date: today, scheduled_time: "09:00" },
+          { farm_id: farmData.id, title: "Inspeção sanitária", date: today, scheduled_time: "10:00" },
+        ]);
+      } catch (e) {
+        console.warn("Non-critical onboarding error (barns/tasks):", e);
+      }
+
+      // 5. Redirect to dashboard
+      window.location.replace("/dashboard");
     } catch (err: any) {
+      console.error("Onboarding error:", err);
       setError(err.message || "Erro ao criar granja.");
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden">
-      {/* Background decorations */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute -top-32 -right-32 w-96 h-96 bg-brand-500/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-brand-600/5 rounded-full blur-3xl" />
-      </div>
+    <div className="h-screen flex flex-col items-center justify-center px-4 relative overflow-hidden">
 
       <div className="relative w-full max-w-xl">
-        {/* Logo */}
-        <div className="flex items-center justify-center gap-2.5 mb-8">
-          <div className="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center shadow-lg shadow-brand-600/20">
-            <Bird className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <span className="font-bold text-lg text-gray-900 block leading-tight">Granja Pro</span>
-            <span className="text-[11px] text-gray-400 block leading-tight">Configure sua granja</span>
-          </div>
-        </div>
-
         {/* Progress - Mobile */}
-        <div className="mb-8 sm:hidden">
+        <div className="mb-6 sm:hidden">
           <div className="flex items-center gap-1 mb-3">
             {steps.map((_, i) => (
               <div key={i} className={cn(
-                "h-1.5 rounded-full flex-1 transition-all duration-300",
-                i <= step ? "bg-brand-500" : "bg-gray-200"
+                "h-1 rounded-full flex-1 transition-all duration-500",
+                i <= step ? "bg-brand-500" : "bg-white/60"
               )} />
             ))}
           </div>
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-900">{steps[step]}</p>
-            <p className="text-xs text-gray-400">{step + 1} de {steps.length}</p>
+            <p className="text-sm font-semibold text-white/90">{steps[step]}</p>
+            <p className="text-xs text-white/50">{step + 1} de {steps.length}</p>
           </div>
         </div>
 
         {/* Progress - Desktop */}
-        <div className="hidden sm:flex items-center justify-center gap-2 mb-8">
+        <div className="hidden sm:flex items-center justify-center mb-6">
           {steps.map((s, i) => (
-            <div key={s} className="flex items-center gap-2">
-              <div className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors",
-                i < step && "bg-brand-600 text-white",
-                i === step && "bg-brand-600 text-white ring-4 ring-brand-100",
-                i > step && "bg-gray-100 text-gray-400"
-              )}>
-                {i < step ? <Check className="w-4 h-4" /> : i + 1}
+            <div key={s} className="flex items-center">
+              {/* Step circle + label */}
+              <div className="flex flex-col items-center gap-1.5">
+                <div className={cn(
+                  "rounded-full flex items-center justify-center font-bold transition-all duration-300",
+                  i < step && "w-8 h-8 bg-brand-500 text-white text-xs",
+                  i === step && "w-9 h-9 bg-brand-600 text-white text-sm ring-[3px] ring-brand-200/50 shadow-lg shadow-brand-500/20",
+                  i > step && "w-7 h-7 bg-white/80 text-gray-400 text-xs border border-gray-200"
+                )}>
+                  {i < step ? <Check className="w-4 h-4" /> : i + 1}
+                </div>
+                <span className={cn(
+                  "text-xs transition-all duration-300 whitespace-nowrap text-gray-900",
+                  i === step ? "font-semibold" : "font-medium"
+                )}>{s}</span>
               </div>
-              <span className={cn(
-                "text-sm font-medium",
-                i <= step ? "text-gray-900" : "text-gray-400"
-              )}>{s}</span>
+              {/* Connector line */}
               {i < steps.length - 1 && (
-                <div className={cn("w-12 h-0.5 rounded-full", i < step ? "bg-brand-500" : "bg-gray-200")} />
+                <div className={cn(
+                  "w-16 h-[2px] rounded-full mx-3 mb-5 transition-all duration-500",
+                  i < step ? "bg-brand-500" : "bg-gray-200"
+                )} />
               )}
             </div>
           ))}
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-xl shadow-gray-900/[0.04] border border-gray-100/80 p-7 mt-4">
+        <div className="bg-white rounded-2xl shadow-xl shadow-gray-900/[0.04] border border-gray-100/80 p-7 mt-4 max-h-[calc(100vh-200px)] overflow-y-auto scroll-smooth onboarding-scroll">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm mb-5">
               {error}
@@ -259,7 +287,7 @@ export default function OnboardingPage() {
                     "w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 focus:bg-white transition-all",
                     dontKnowEggs && "opacity-40 cursor-not-allowed bg-gray-100"
                   )}
-                  placeholder="Ex: 500"
+                  placeholder={`Ex: ${totalBirds > 0 ? Math.round(totalBirds * 0.85) : birdRange === "Até 100" ? 80 : birdRange === "100 - 500" ? 350 : birdRange === "500 - 1000" ? 750 : 500}`}
                 />
                 <label className="flex items-center gap-2 mt-2 px-4 pb-2 cursor-pointer">
                   <input
@@ -601,17 +629,22 @@ export default function OnboardingPage() {
                 <ChevronRight className="w-4 h-4" />
               </button>
             ) : (
-              <button
-                onClick={() => createFarm(farmName, totalBirds)}
-                disabled={loading || !canProceed()}
-                className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-5 rounded-xl transition-all cursor-pointer shadow-sm shadow-brand-600/20 hover:shadow-brand-600/30"
-              >
-                {loading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Criando...</>
-                ) : (
-                  <><Check className="w-4 h-4" /> Ver análise completa</>
+              <div className="flex flex-col items-end gap-2">
+                {error && (
+                  <p className="text-xs text-red-600 font-medium">{error}</p>
                 )}
-              </button>
+                <button
+                  onClick={() => createFarm(farmName, totalBirds)}
+                  disabled={loading || !canProceed()}
+                  className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-5 rounded-xl transition-all cursor-pointer shadow-sm shadow-brand-600/20 hover:shadow-brand-600/30"
+                >
+                  {loading ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Criando...</>
+                  ) : (
+                    <><Check className="w-4 h-4" /> Criar granja</>
+                  )}
+                </button>
+              </div>
             )}
           </div>
         </div>

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import ProfileSettings from "@/components/dashboard/profile-settings";
 import { DateFilterProvider } from "@/components/date-filter";
+import dynamic from "next/dynamic";
 import {
   LayoutDashboard,
   Building2,
@@ -32,6 +33,8 @@ import {
   Loader2,
   Sparkles,
 } from "lucide-react";
+
+const OnboardingPage = dynamic(() => import("./onboarding/page"), { ssr: false });
 
 const sidebarNav = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -70,14 +73,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     .toUpperCase();
   const roleName = profile?.role === "owner" ? "Proprietário" : profile?.role === "manager" ? "Gerente" : "Funcionário";
 
-  // Onboarding: render children only, no sidebar/header
-  if (pathname === "/dashboard/onboarding") {
-    return (
-      <div className="min-h-screen bg-[#f8faf9]">
-        {children}
-      </div>
-    );
-  }
+  const isOnboardingRoute = pathname === "/dashboard/onboarding";
+  const needsOnboarding = !loading && user && (!farm || isOnboardingRoute);
 
   if (loading) {
     return (
@@ -221,7 +218,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main content area */}
       <div className={cn(
-        "min-h-screen transition-all duration-300 ease-in-out",
+        "min-h-screen transition-all duration-300 ease-in-out relative",
         collapsed ? "lg:pl-[68px]" : "lg:pl-[244px]"
       )}>
         {/* Top bar */}
@@ -264,9 +261,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Page content */}
         <main className="p-4 sm:p-6 lg:p-8">
-          {children}
+          {!isOnboardingRoute && !needsOnboarding && children}
         </main>
       </div>
+
+      {/* Onboarding: blur entire shell + overlay */}
+      {needsOnboarding && (
+        <>
+          {/* Blur layer over sidebar + header + content */}
+          <div className="fixed inset-0 z-40 backdrop-blur-[3px] bg-white/30 pointer-events-none" />
+          {/* Onboarding on top */}
+          <div className="fixed inset-0 z-50 overflow-hidden">
+            <OnboardingPage />
+          </div>
+        </>
+      )}
 
       {/* Profile Settings Modal */}
       <ProfileSettings open={profileOpen} onClose={() => setProfileOpen(false)} />
