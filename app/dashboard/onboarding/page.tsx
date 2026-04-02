@@ -116,7 +116,20 @@ export default function OnboardingPage() {
             current_birds: birdsPerBarn + (i === 0 ? birds % barnCount : 0),
             status: "active" as const,
           }));
-          await supabase.from("barns").insert(barnInserts);
+          const { data: createdBarns } = await supabase.from("barns").insert(barnInserts).select("id");
+
+          // Create first flock linked to first barn
+          const firstBarnId = createdBarns?.[0]?.id;
+          const today = new Date().toISOString().split("T")[0];
+          await supabase.from("flocks").insert({
+            farm_id: farmData.id,
+            barn_id: firstBarnId ?? null,
+            code: "LT-001",
+            breed: "Não informada",
+            bird_count: birds,
+            arrival_date: today,
+            status: "active",
+          });
         }
         const today = new Date().toISOString().split("T")[0];
         await supabase.from("tasks").insert([

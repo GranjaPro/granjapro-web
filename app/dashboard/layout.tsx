@@ -74,6 +74,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const roleName = profile?.role === "owner" ? "Proprietário" : profile?.role === "manager" ? "Gerente" : "Funcionário";
 
   const isOnboardingRoute = pathname === "/dashboard/onboarding";
+  const isAiRoute = pathname === "/dashboard/ai";
   const needsOnboarding = !loading && user && (!farm || isOnboardingRoute);
 
   if (loading) {
@@ -218,7 +219,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main content area */}
       <div className={cn(
-        "min-h-screen transition-all duration-300 ease-in-out relative",
+        "h-screen flex flex-col transition-all duration-300 ease-in-out relative",
         collapsed ? "lg:pl-[68px]" : "lg:pl-[244px]"
       )}>
         {/* Top bar */}
@@ -260,7 +261,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* Page content */}
-        <main className="p-4 sm:p-6 lg:p-8">
+        <main className={cn("flex-1 p-4 sm:p-6 lg:p-8 dashboard-scroll", isAiRoute ? "overflow-hidden" : "overflow-y-auto")}>
           {!isOnboardingRoute && !needsOnboarding && children}
         </main>
       </div>

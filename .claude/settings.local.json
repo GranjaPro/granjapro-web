@@ -140,7 +140,13 @@
       "Bash(ls -la /c/Users/samue/Documents/GitHub/GranjaPro/.env*)",
       "Bash(find C:UserssamueDocumentsGitHubGranjaProapp -type f -name *.ts -o -name *.tsx)",
       "Bash(head:*)",
-      "Bash(grep -l \"calendarOpen\\\\|filterMode\\\\|rangeStart\\\\|CalendarDays\" /c/Users/samue/Documents/GitHub/GranjaPro/app/dashboard/**/*.tsx)"
+      "Bash(grep -l \"calendarOpen\\\\|filterMode\\\\|rangeStart\\\\|CalendarDays\" /c/Users/samue/Documents/GitHub/GranjaPro/app/dashboard/**/*.tsx)",
+      "Bash(python3 \"C:\\\\Users\\\\Bernardo Timo\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"AI assistant chatbot dashboard agritech modern\" --design-system -p \"Granja Pro AI\")",
+      "Bash(python \"C:\\\\Users\\\\Bernardo Timo\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"AI chatbot assistant SaaS dashboard modern\" --design-system -p \"Granja Pro AI\")",
+      "Bash(dir \"C:\\\\Users\\\\Bernardo Timo\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\"\" 2>nul || echo \"Dir not found \")",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(npx supabase:*)"
     ]
   }
 }
