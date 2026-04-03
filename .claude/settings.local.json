@@ -140,7 +140,9 @@
       "Bash(ls -la /c/Users/samue/Documents/GitHub/GranjaPro/.env*)",
       "Bash(find C:UserssamueDocumentsGitHubGranjaProapp -type f -name *.ts -o -name *.tsx)",
       "Bash(head:*)",
-      "Bash(grep -l \"calendarOpen\\\\|filterMode\\\\|rangeStart\\\\|CalendarDays\" /c/Users/samue/Documents/GitHub/GranjaPro/app/dashboard/**/*.tsx)"
+      "Bash(grep -l \"calendarOpen\\\\|filterMode\\\\|rangeStart\\\\|CalendarDays\" /c/Users/samue/Documents/GitHub/GranjaPro/app/dashboard/**/*.tsx)",
+      "Bash(find:*)",
+      "Bash(cat /c/Users/samue/Documents/GitHub/GranjaPro/app/dashboard/flocks/detalhes/[loteId]/saude/page.tsx)"
     ]
   }
 }

@@ -32,7 +32,9 @@ create policy "Users can update own profile"
 
 -- Auto-create profile on signup
 create or replace function public.handle_new_user()
-returns trigger as $$
+returns trigger 
+set search_path = public, auth
+as $$
 begin
   insert into public.profiles (id, email, full_name)
   values (
@@ -47,6 +49,48 @@ $$ language plpgsql security definer;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+-- Trigger to auto-sync barns.current_birds when flocks change
+CREATE OR REPLACE FUNCTION public.sync_barn_birds()
+RETURNS trigger
+SET search_path = public
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' OR TG_OP = 'UPDATE' THEN
+    IF OLD.barn_id IS NOT NULL THEN
+      UPDATE barns
+      SET current_birds = GREATEST((
+        SELECT COALESCE(SUM(bird_count), 0) FROM flocks WHERE barn_id = OLD.barn_id AND id != OLD.id
+      ), 0),
+      updated_at = now()
+      WHERE id = OLD.barn_id;
+    END IF;
+  END IF;
+
+  IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+    IF NEW.barn_id IS NOT NULL THEN
+      UPDATE barns
+      SET current_birds = (
+        SELECT COALESCE(SUM(bird_count), 0) FROM flocks WHERE barn_id = NEW.barn_id
+      ),
+      updated_at = now()
+      WHERE id = NEW.barn_id;
+    END IF;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_sync_barn_birds ON flocks;
+CREATE TRIGGER trg_sync_barn_birds
+AFTER INSERT OR UPDATE OR DELETE ON flocks
+FOR EACH ROW EXECUTE FUNCTION sync_barn_birds();
 
 -- ============================================
 -- 2. FARMS
@@ -143,20 +187,19 @@ create table public.flocks (
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null,
   farm_id uuid references public.farms on delete cascade not null,
-  barn_id uuid references public.barns on delete cascade,
+  barn_id uuid references public.barns on delete cascade not null,
   code text not null,
   breed text not null,
   lineage text,
   bird_count int not null,
-  age_weeks int default 0,
+  arrival_age_weeks int default 0,
   arrival_date date not null,
-  production_start_date date,
   avg_weight_kg numeric(5,2),
   supplier text,
   supplier_contact text,
   origin text,
   production_system text default 'Convencional',
-  status text default 'active' check (status in ('active', 'growing', 'declining', 'disposed'))
+  status text default 'active'
 );
 
 alter table public.flocks enable row level security;
@@ -319,6 +362,52 @@ create policy "Users can update mortality in their farm"
 
 create policy "Users can delete mortality in their farm"
   on public.mortality for delete
+  using (farm_id in (
+    select id from public.farms where owner_id = auth.uid()
+  ));
+
+-- ============================================
+-- 7b. HEALTH RECORDS
+-- ============================================
+create table public.health_records (
+  id uuid default uuid_generate_v4() primary key,
+  created_at timestamptz default now() not null,
+  farm_id uuid references public.farms on delete cascade not null,
+  flock_id uuid references public.flocks on delete cascade,
+  title text not null,
+  date date not null,
+  type text not null check (type in ('vaccination', 'treatment', 'inspection')),
+  status text not null default 'completed' check (status in ('completed', 'in_progress', 'scheduled', 'upcoming')),
+  responsible text,
+  notes text
+);
+
+alter table public.health_records enable row level security;
+
+create index idx_health_records_farm_date on public.health_records (farm_id, date);
+
+create policy "Users can view health records of their farm"
+  on public.health_records for select
+  using (farm_id in (
+    select id from public.farms where owner_id = auth.uid()
+    union
+    select farm_id from public.profiles where id = auth.uid()
+  ));
+
+create policy "Users can insert health records in their farm"
+  on public.health_records for insert
+  with check (farm_id in (
+    select id from public.farms where owner_id = auth.uid()
+  ));
+
+create policy "Users can update health records in their farm"
+  on public.health_records for update
+  using (farm_id in (
+    select id from public.farms where owner_id = auth.uid()
+  ));
+
+create policy "Users can delete health records in their farm"
+  on public.health_records for delete
   using (farm_id in (
     select id from public.farms where owner_id = auth.uid()
   ));
@@ -558,7 +647,9 @@ create index idx_profiles_farm_id on public.profiles(farm_id);
 -- 14. UPDATED_AT trigger
 -- ============================================
 create or replace function public.handle_updated_at()
-returns trigger as $$
+returns trigger 
+set search_path = public
+as $$
 begin
   new.updated_at = now();
   return new;

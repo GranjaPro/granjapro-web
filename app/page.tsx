@@ -7,9 +7,7 @@ import {
   Egg,
   Wheat,
   ArrowRight,
-  ArrowUpRight,
   ChevronDown,
-  ChevronUp,
   Menu,
   X,
   Zap,
@@ -20,13 +18,10 @@ import {
   Mail,
   MapPin,
   BarChart3,
-  Smartphone,
   Shield,
   TrendingUp,
-  Check,
   Lock,
   Headphones,
-  RefreshCw,
   Clock,
   Calculator,
   AlertTriangle,
@@ -306,9 +301,8 @@ function FAQItem({ question, answer, index }: { question: string; answer: string
         </span>
       </button>
       <div
-        className={`overflow-hidden transition-all duration-300 ease-out ${
-          isOpen ? "max-h-40 pb-6" : "max-h-0"
-        }`}
+        className={`overflow-hidden transition-all duration-300 ease-out ${isOpen ? "max-h-40 pb-6" : "max-h-0"
+          }`}
       >
         <p className="text-sm text-gray-500 leading-relaxed pl-12">{answer}</p>
       </div>
@@ -363,123 +357,118 @@ function PricingSection() {
             const isPremium = plan.name === "PREMIUM";
 
             return (
-            <AnimatedSection key={plan.name} delay={i * 120}>
-              <div
-                className={`relative rounded-3xl p-7 transition-all duration-300 h-full flex flex-col ${
-                  isPro
-                    ? "bg-white text-gray-900 shadow-2xl shadow-brand-500/25 md:scale-[1.05] ring-2 ring-brand-400/50"
-                    : isPremium
-                    ? "bg-gradient-to-b from-white/15 to-white/5 backdrop-blur-md text-white border border-brand-400/30 hover:border-brand-400/50"
-                    : "bg-white/[0.06] backdrop-blur-sm text-white border border-white/10 hover:bg-white/10"
-                }`}
-              >
-                {isPro && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-brand-500 to-brand-600 rounded-full px-4 py-1.5 shadow-lg shadow-brand-500/30 uppercase tracking-wider">
-                      <Zap className="w-3.5 h-3.5" />
-                      Mais Popular + Inteligência Artificial
-                    </span>
-                  </div>
-                )}
-                {isEssencial && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-white/50 bg-white/[0.06] border border-white/10 rounded-full px-3.5 py-1.5 uppercase tracking-wider">
-                      <Zap className="w-3 h-3" />
-                      Inteligência Artificial Experimental
-                    </span>
-                  </div>
-                )}
-                {isPremium && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-200 bg-brand-950/80 border border-brand-400/30 rounded-full px-4 py-1.5 uppercase tracking-wider shadow-md">
-                      <Zap className="w-3.5 h-3.5" />
-                      Inteligência Artificial Avançada
-                    </span>
-                  </div>
-                )}
-
-                <div className="mb-5">
-                  <h3 className={`font-heading text-lg font-bold mb-1 ${isPro ? "text-gray-900" : isPremium ? "text-white" : "text-white/80"}`}>
-                    {plan.name}
-                  </h3>
-                  <p className={`text-sm ${isPro ? "text-gray-500" : isPremium ? "text-white/60" : "text-white/40"}`}>
-                    {plan.description}
-                  </p>
-                  <p className={`text-xs mt-2 rounded-lg px-3 py-1.5 inline-block ${
-                    isPro ? "text-gray-600 bg-gray-100" : isPremium ? "text-white/80 bg-white/10" : "text-white/50 bg-white/[0.05]"
-                  }`}>
-                    {plan.tagline}
-                  </p>
-                </div>
-
-                <div className="mb-6">
-                  <div className="flex items-baseline gap-1">
-                    <span className={`text-sm font-medium ${isPro ? "text-gray-500" : isPremium ? "text-white/60" : "text-white/40"}`}>
-                      R$
-                    </span>
-                    <span className={`font-heading font-bold tracking-tight ${
-                      isPro ? "text-[2.75rem] sm:text-5xl text-gray-900" : isPremium ? "text-4xl text-white" : "text-3xl text-white/70"
-                    }`}>
-                      {plan.price}
-                    </span>
-                    <span className={`text-sm font-medium ${isPro ? "text-gray-500" : isPremium ? "text-white/60" : "text-white/40"}`}>
-                      /mês
-                    </span>
-                  </div>
-                </div>
-
-                <Link
-                  href="/signup"
-                  className={`group w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full font-semibold text-sm transition-all duration-200 cursor-pointer mb-6 ${
-                    isPro
-                      ? "bg-brand-500 hover:bg-brand-600 text-white shadow-lg shadow-brand-500/30 hover:shadow-brand-500/50 hover:-translate-y-1"
+              <AnimatedSection key={plan.name} delay={i * 120}>
+                <div
+                  className={`relative rounded-3xl p-7 transition-all duration-300 h-full flex flex-col ${isPro
+                      ? "bg-white text-gray-900 shadow-2xl shadow-brand-500/25 md:scale-[1.05] ring-2 ring-brand-400/50"
                       : isPremium
-                      ? "bg-white/20 hover:bg-white/30 text-white border border-brand-400/30 hover:border-brand-400/50 hover:-translate-y-0.5 shadow-md"
-                      : "bg-white/10 hover:bg-white/15 text-white/70 border border-white/10 hover:-translate-y-0.5"
-                  }`}
+                        ? "bg-gradient-to-b from-white/15 to-white/5 backdrop-blur-md text-white border border-brand-400/30 hover:border-brand-400/50"
+                        : "bg-white/[0.06] backdrop-blur-sm text-white border border-white/10 hover:bg-white/10"
+                    }`}
                 >
-                  {plan.cta}
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                </Link>
+                  {isPro && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-brand-500 to-brand-600 rounded-full px-4 py-1.5 shadow-lg shadow-brand-500/30 uppercase tracking-wider">
+                        <Zap className="w-3.5 h-3.5" />
+                        Mais Popular + Inteligência Artificial
+                      </span>
+                    </div>
+                  )}
+                  {isEssencial && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-white/50 bg-white/[0.06] border border-white/10 rounded-full px-3.5 py-1.5 uppercase tracking-wider">
+                        <Zap className="w-3 h-3" />
+                        Inteligência Artificial Experimental
+                      </span>
+                    </div>
+                  )}
+                  {isPremium && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-200 bg-brand-950/80 border border-brand-400/30 rounded-full px-4 py-1.5 uppercase tracking-wider shadow-md">
+                        <Zap className="w-3.5 h-3.5" />
+                        Inteligência Artificial Avançada
+                      </span>
+                    </div>
+                  )}
 
-                <div className="space-y-3 flex-1">
-                  {plan.features.map((feature) => {
-                    const isTitle = feature.startsWith("Tudo do ");
-                    return isTitle ? (
-                      <p key={feature} className={`text-sm font-bold uppercase tracking-wide pb-1 border-b ${
-                        isPro ? "text-brand-700 border-brand-200" : isPremium ? "text-brand-300 border-brand-400/20" : "text-white/50 border-white/10"
-                      }`}>
-                        {feature}
-                      </p>
-                    ) : (
-                      <div key={feature} className="flex items-start gap-2">
-                        <span className={`text-sm font-bold flex-shrink-0 ${isPro ? "text-brand-600" : isPremium ? "text-brand-400" : "text-white/25"}`}>•</span>
-                        <span className={`text-sm leading-snug ${isPro ? "text-gray-600" : isPremium ? "text-white/75" : "text-white/50"}`}>
-                          {feature}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {plan.excluded.length > 0 && (
-                  <div className="mt-6 pt-5 border-t border-white/[0.06]">
-                    <p className="flex items-center gap-2 text-sm font-semibold text-white/40 mb-3">
-                      <X className="w-4 h-4 text-red-400/50" />
-                      Não inclui
+                  <div className="mb-5">
+                    <h3 className={`font-heading text-lg font-bold mb-1 ${isPro ? "text-gray-900" : isPremium ? "text-white" : "text-white/80"}`}>
+                      {plan.name}
+                    </h3>
+                    <p className={`text-sm ${isPro ? "text-gray-500" : isPremium ? "text-white/60" : "text-white/40"}`}>
+                      {plan.description}
                     </p>
-                    <div className="space-y-2.5">
-                      {plan.excluded.map((item) => (
-                        <div key={item} className="flex items-center gap-3">
-                          <span className="w-1.5 h-1.5 rounded-full bg-white/15 flex-shrink-0" />
-                          <span className="text-sm text-white/30">{item}</span>
-                        </div>
-                      ))}
+                    <p className={`text-xs mt-2 rounded-lg px-3 py-1.5 inline-block ${isPro ? "text-gray-600 bg-gray-100" : isPremium ? "text-white/80 bg-white/10" : "text-white/50 bg-white/[0.05]"
+                      }`}>
+                      {plan.tagline}
+                    </p>
+                  </div>
+
+                  <div className="mb-6">
+                    <div className="flex items-baseline gap-1">
+                      <span className={`text-sm font-medium ${isPro ? "text-gray-500" : isPremium ? "text-white/60" : "text-white/40"}`}>
+                        R$
+                      </span>
+                      <span className={`font-heading font-bold tracking-tight ${isPro ? "text-[2.75rem] sm:text-5xl text-gray-900" : isPremium ? "text-4xl text-white" : "text-3xl text-white/70"
+                        }`}>
+                        {plan.price}
+                      </span>
+                      <span className={`text-sm font-medium ${isPro ? "text-gray-500" : isPremium ? "text-white/60" : "text-white/40"}`}>
+                        /mês
+                      </span>
                     </div>
                   </div>
-                )}
-              </div>
-            </AnimatedSection>
+
+                  <Link
+                    href="/signup"
+                    className={`group w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full font-semibold text-sm transition-all duration-200 cursor-pointer mb-6 ${isPro
+                        ? "bg-brand-500 hover:bg-brand-600 text-white shadow-lg shadow-brand-500/30 hover:shadow-brand-500/50 hover:-translate-y-1"
+                        : isPremium
+                          ? "bg-white/20 hover:bg-white/30 text-white border border-brand-400/30 hover:border-brand-400/50 hover:-translate-y-0.5 shadow-md"
+                          : "bg-white/10 hover:bg-white/15 text-white/70 border border-white/10 hover:-translate-y-0.5"
+                      }`}
+                  >
+                    {plan.cta}
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                  </Link>
+
+                  <div className="space-y-3 flex-1">
+                    {plan.features.map((feature) => {
+                      const isTitle = feature.startsWith("Tudo do ");
+                      return isTitle ? (
+                        <p key={feature} className={`text-sm font-bold uppercase tracking-wide pb-1 border-b ${isPro ? "text-brand-700 border-brand-200" : isPremium ? "text-brand-300 border-brand-400/20" : "text-white/50 border-white/10"
+                          }`}>
+                          {feature}
+                        </p>
+                      ) : (
+                        <div key={feature} className="flex items-start gap-2">
+                          <span className={`text-sm font-bold flex-shrink-0 ${isPro ? "text-brand-600" : isPremium ? "text-brand-400" : "text-white/25"}`}>•</span>
+                          <span className={`text-sm leading-snug ${isPro ? "text-gray-600" : isPremium ? "text-white/75" : "text-white/50"}`}>
+                            {feature}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {plan.excluded.length > 0 && (
+                    <div className="mt-6 pt-5 border-t border-white/[0.06]">
+                      <p className="flex items-center gap-2 text-sm font-semibold text-white/40 mb-3">
+                        <X className="w-4 h-4 text-red-400/50" />
+                        Não inclui
+                      </p>
+                      <div className="space-y-2.5">
+                        {plan.excluded.map((item) => (
+                          <div key={item} className="flex items-center gap-3">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white/15 flex-shrink-0" />
+                            <span className="text-sm text-white/30">{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </AnimatedSection>
             );
           })}
         </div>
@@ -546,11 +535,10 @@ export default function LandingPage() {
 
       {/* ── Navbar ── */}
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-xl ${
-          scrolled
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-xl ${scrolled
             ? "bg-white/60 shadow-lg shadow-black/[0.04] border-b border-white/40"
             : "bg-white/10 border-b border-white/10"
-        }`}
+          }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-18 flex items-center justify-between">
           <div className="flex items-center gap-8">
@@ -568,11 +556,10 @@ export default function LandingPage() {
                 <a
                   key={link.label}
                   href={link.href}
-                  className={`text-sm font-medium px-4 py-2 rounded-full transition-all duration-200 cursor-pointer ${
-                    scrolled
+                  className={`text-sm font-medium px-4 py-2 rounded-full transition-all duration-200 cursor-pointer ${scrolled
                       ? "text-gray-600 hover:text-gray-900 hover:bg-white/50"
                       : "text-white/80 hover:text-white hover:bg-white/10"
-                  }`}
+                    }`}
                 >
                   {link.label}
                 </a>
@@ -643,7 +630,7 @@ export default function LandingPage() {
         <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-brand-300/15 rounded-full blur-3xl" />
 
         <div className="relative z-10 max-w-5xl mx-auto text-center px-4 sm:px-6 pt-20 pb-24">
-<h1
+          <h1
             className="font-heading text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white tracking-tight mb-8 animate-fade-up"
             style={{ animationDelay: "100ms" }}
           >

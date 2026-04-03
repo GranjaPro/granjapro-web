@@ -10,7 +10,9 @@ barns
 flocks
 egg_production
 feed_consumption
+feed_inventory
 mortality
+health_records
 financial_transactions
 customers
 sales
@@ -37,8 +39,14 @@ Daily egg production data.
 feed_consumption
 Feed usage tracking.
 
+feed_inventory
+Feed inventory tracking.
+
 mortality
 Bird mortality records.
+
+health_records
+Health records for vaccinations, treatments, and inspections. Also serves as vaccine schedule (type='vaccination' with status='scheduled'/'upcoming').
 
 financial_transactions
 Income and expenses.

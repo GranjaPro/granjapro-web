@@ -19,28 +19,20 @@ import {
   Sparkles,
   Lightbulb,
   TrendingUp,
-  TrendingDown,
   ArrowUpRight,
   ArrowDownRight,
-  HelpCircle,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
   FileText,
   Pencil,
   Trash2,
   Activity,
   Bug,
-  Thermometer,
-  Eye,
   Shield,
-  Users,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
   ComposedChart,
-  BarChart,
   Bar,
   Line,
   XAxis,
@@ -51,6 +43,9 @@ import {
   AreaChart,
   Area,
 } from "recharts";
+import { useAuth } from "@/components/auth/auth-provider";
+import { createClient } from "@/lib/supabase/client";
+import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 
 /* ── Types ── */
 type RegistroTipo = "Vacinação" | "Tratamento" | "Inspeção";
@@ -58,10 +53,11 @@ type RegistroStatus = "Concluído" | "Em andamento";
 type AgendaStatus = "Próximo" | "Agendado";
 
 interface RegistroSaude {
-  id: number;
+  id: string;
   titulo: string;
   data: string;
   lote: string;
+  loteId: string | null;
   tipo: RegistroTipo;
   status: RegistroStatus;
   observacao?: string;
@@ -69,11 +65,17 @@ interface RegistroSaude {
 }
 
 interface AgendaVacina {
-  id: number;
+  id: string;
   vacina: string;
   lote: string;
   dataVencimento: string;
   status: AgendaStatus;
+}
+
+interface Lote {
+  id: string;
+  codigo: string;
+  aves: number;
 }
 
 const statusRegistroConfig: Record<RegistroStatus, { bg: string; text: string }> = {
@@ -98,52 +100,41 @@ const tipoColor: Record<RegistroTipo, { bg: string; text: string; badge: string 
   "Inspeção": { bg: "bg-sky-50", text: "text-sky-600", badge: "text-sky-800 bg-sky-100" },
 };
 
-/* ── Mock Data ── */
-const initialRegistros: RegistroSaude[] = [
-  { id: 1, titulo: "Newcastle — Reforço", data: "2024-03-12", lote: "L-2024-01", tipo: "Vacinação", status: "Concluído", responsavel: "Dr. Silva", observacao: "Aplicação sem intercorrências" },
-  { id: 2, titulo: "Sintomas respiratórios — Antibióticos", data: "2024-03-10", lote: "L-2024-02", tipo: "Tratamento", status: "Em andamento", responsavel: "Dr. Costa", observacao: "Monitorar por 5 dias" },
-  { id: 3, titulo: "Inspeção sanitária de rotina", data: "2024-03-08", lote: "L-2024-04", tipo: "Inspeção", status: "Concluído", responsavel: "Eq. Interna" },
-  { id: 4, titulo: "Bronquite Infecciosa", data: "2024-03-05", lote: "L-2024-01", tipo: "Vacinação", status: "Concluído", responsavel: "Dr. Silva" },
-  { id: 5, titulo: "Desverminização preventiva", data: "2024-03-02", lote: "L-2024-03", tipo: "Tratamento", status: "Concluído", responsavel: "Dr. Costa" },
-  { id: 6, titulo: "Gumboro — 2ª dose", data: "2024-02-28", lote: "L-2024-03", tipo: "Vacinação", status: "Concluído", responsavel: "Dr. Silva" },
-  { id: 7, titulo: "Coleta de amostras para exame", data: "2024-02-25", lote: "L-2024-02", tipo: "Inspeção", status: "Concluído", responsavel: "Lab. AviSaúde" },
-  { id: 8, titulo: "Marek — 1ª dose", data: "2024-02-20", lote: "L-2024-01", tipo: "Vacinação", status: "Concluído", responsavel: "Dr. Silva" },
-];
+const typeMap: Record<string, RegistroTipo> = {
+  vaccination: "Vacinação",
+  treatment: "Tratamento",
+  inspection: "Inspeção",
+};
 
-const initialAgenda: AgendaVacina[] = [
-  { id: 1, vacina: "Marek — Reforço", lote: "L-2024-03", dataVencimento: "2024-03-20", status: "Próximo" },
-  { id: 2, vacina: "Influenza Aviária", lote: "Todos", dataVencimento: "2024-03-25", status: "Próximo" },
-  { id: 3, vacina: "Newcastle Reforço", lote: "L-2024-02", dataVencimento: "2024-04-02", status: "Agendado" },
-  { id: 4, vacina: "Bronquite Reforço", lote: "L-2024-01", dataVencimento: "2024-04-10", status: "Agendado" },
-  { id: 5, vacina: "Gumboro — 3ª dose", lote: "L-2024-03", dataVencimento: "2024-04-18", status: "Agendado" },
-];
+const typeMapReverse: Record<RegistroTipo, string> = {
+  "Vacinação": "vaccination",
+  "Tratamento": "treatment",
+  "Inspeção": "inspection",
+};
 
-const mortalidadeSemanal = [
-  { dia: "06/03", mortes: 2, taxa: 0.05 },
-  { dia: "07/03", mortes: 1, taxa: 0.03 },
-  { dia: "08/03", mortes: 3, taxa: 0.08 },
-  { dia: "09/03", mortes: 0, taxa: 0.00 },
-  { dia: "10/03", mortes: 1, taxa: 0.03 },
-  { dia: "11/03", mortes: 2, taxa: 0.05 },
-  { dia: "12/03", mortes: 1, taxa: 0.03 },
-];
-
-const coberturaMensal = [
-  { mes: "Jan", cobertura: 92 },
-  { mes: "Fev", cobertura: 88 },
-  { mes: "Mar", cobertura: 95 },
-  { mes: "Abr", cobertura: 78 },
-  { mes: "Mai", cobertura: 90 },
-  { mes: "Jun", cobertura: 94 },
-];
+const statusMapReverse: Record<RegistroStatus, string> = {
+  "Concluído": "completed",
+  "Em andamento": "in_progress",
+};
 
 export default function SaudePage() {
   const searchParams = useSearchParams();
-  const [registros, setRegistros] = useState(initialRegistros);
-  const [agenda] = useState(initialAgenda);
+  const { farm, loading: authLoading } = useAuth();
+
+  const [registros, setRegistros] = useState<RegistroSaude[]>([]);
+  const [agenda, setAgenda] = useState<AgendaVacina[]>([]);
+  const [lotes, setLotes] = useState<Lote[]>([]);
+  const [mortalidadeData, setMortalidadeData] = useState<{ dia: string; mortes: number; taxa: number }[]>([]);
+  const [coberturaMensal, setCoberturaMensal] = useState<{ mes: string; cobertura: number }[]>([]);
+  const [totalAves, setTotalAves] = useState(0);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
   const [showModal, setShowModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [editing, setEditing] = useState<RegistroSaude | null>(null);
 
   useEffect(() => {
@@ -153,93 +144,181 @@ export default function SaudePage() {
   const [form, setForm] = useState({
     titulo: "",
     data: "",
-    lote: "",
+    loteId: "",
     tipo: "Vacinação" as RegistroTipo,
     status: "Concluído" as RegistroStatus,
     observacao: "",
     responsavel: "",
   });
 
-  // Calendar
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [filterMode, setFilterMode] = useState<"intervalo" | "mes">("intervalo");
-  const [rangeStart, setRangeStart] = useState<Date | null>(new Date());
-  const [rangeEnd, setRangeEnd] = useState<Date | null>(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [calendarMonth, setCalendarMonth] = useState(new Date());
-  const calendarRef = useRef<HTMLDivElement>(null);
+  const { dateRange } = useDateFilter();
+
+  const farmRef = useRef(farm);
+  farmRef.current = farm;
+
+  /* ── Data Fetching ── */
+  const fetchData = useCallback(async () => {
+    const currentFarm = farmRef.current;
+    if (!currentFarm) { setLoading(false); return; }
+    setLoading(true);
+    const supabase = createClient();
+
+    try {
+      const { startDate, endDate } = dateRange;
+
+      const [healthRes, scheduleRes, flocksRes, mortalityRes] = await Promise.all([
+        supabase
+          .from("health_records")
+          .select("*, flocks(code)")
+          .eq("farm_id", currentFarm.id)
+          .in("status", ["completed", "in_progress"])
+          .gte("date", startDate)
+          .lte("date", endDate)
+          .order("date", { ascending: false }),
+        supabase
+          .from("health_records")
+          .select("*, flocks(code)")
+          .eq("farm_id", currentFarm.id)
+          .eq("type", "vaccination")
+          .in("status", ["scheduled", "upcoming"])
+          .order("date", { ascending: true }),
+        supabase
+          .from("flocks")
+          .select("id, code, bird_count, status")
+          .eq("farm_id", currentFarm.id)
+          .order("code"),
+        supabase
+          .from("mortality")
+          .select("*")
+          .eq("farm_id", currentFarm.id)
+          .gte("date", startDate)
+          .lte("date", endDate)
+          .order("date", { ascending: true }),
+      ]);
+
+      if (healthRes.error) throw healthRes.error;
+      if (scheduleRes.error) throw scheduleRes.error;
+      if (flocksRes.error) throw flocksRes.error;
+      if (mortalityRes.error) throw mortalityRes.error;
+
+      const flocksData = flocksRes.data || [];
+      const healthData = healthRes.data || [];
+      const scheduleData = scheduleRes.data || [];
+      const mortalityData = mortalityRes.data || [];
+
+      // Map flocks
+      const mappedLotes: Lote[] = flocksData.map((f: any) => ({
+        id: f.id,
+        codigo: f.code,
+        aves: f.bird_count,
+      }));
+      setLotes(mappedLotes);
+      setTotalAves(mappedLotes.reduce((s, l) => s + l.aves, 0));
+
+      // Map health records
+      setRegistros(healthData.map((r: any) => ({
+        id: r.id,
+        titulo: r.title,
+        data: r.date,
+        lote: r.flocks?.code || "Todos",
+        loteId: r.flock_id,
+        tipo: typeMap[r.type] || "Inspeção",
+        status: r.status === "completed" ? "Concluído" : "Em andamento",
+        observacao: r.notes || "",
+        responsavel: r.responsible || "",
+      })));
+
+      // Map vaccine schedule
+      setAgenda(scheduleData.map((r: any) => ({
+        id: r.id,
+        vacina: r.title,
+        lote: r.flocks?.code || "Todos",
+        dataVencimento: r.date,
+        status: r.status === "upcoming" ? "Próximo" : "Agendado",
+      })));
+
+      // Map mortality data by day
+      const mortalityByDay = new Map<string, number>();
+      for (const m of mortalityData) {
+        const key = m.date;
+        mortalityByDay.set(key, (mortalityByDay.get(key) || 0) + m.dead_birds);
+      }
+      const totalBirds = mappedLotes.reduce((s, l) => s + l.aves, 0) || 1;
+      const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+      setMortalidadeData(
+        Array.from(mortalityByDay.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, mortes]) => {
+            const d = new Date(date + "T00:00:00");
+            return {
+              dia: `${String(d.getDate()).padStart(2, "0")}/${months[d.getMonth()]}`,
+              mortes,
+              taxa: mortes / totalBirds,
+            };
+          })
+      );
+
+      // Vaccination coverage by month
+      const allVaccinations = [...healthData, ...scheduleData].filter((r: any) => r.type === "vaccination");
+      const monthlyVaccinations = new Map<string, { total: number; completed: number }>();
+      for (const v of allVaccinations) {
+        const d = new Date(v.date + "T00:00:00");
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const entry = monthlyVaccinations.get(key) || { total: 0, completed: 0 };
+        entry.total++;
+        if (v.status === "completed") entry.completed++;
+        monthlyVaccinations.set(key, entry);
+      }
+      setCoberturaMensal(
+        Array.from(monthlyVaccinations.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .slice(-6)
+          .map(([key, val]) => ({
+            mes: months[parseInt(key.split("-")[1]) - 1],
+            cobertura: val.total > 0 ? Math.round((val.completed / val.total) * 100) : 0,
+          }))
+      );
+    } catch (err: any) {
+      console.error("Erro ao carregar dados de saúde:", err);
+      setError("Erro ao carregar dados de saúde.");
+    }
+    setLoading(false);
+  }, [dateRange]);
 
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) setCalendarOpen(false);
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const sameDay = (a: Date, b: Date) => a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
-
-  const calendarLabel = useMemo(() => {
-    const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    if (filterMode === "intervalo") {
-      if (rangeStart && rangeEnd) {
-        if (sameDay(rangeStart, rangeEnd)) {
-          const today = new Date();
-          if (sameDay(rangeStart, today)) return `Hoje, ${rangeStart.getDate()} ${months[rangeStart.getMonth()]}`;
-          return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]}, ${rangeStart.getFullYear()}`;
-        }
-        return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]} — ${rangeEnd.getDate()} ${months[rangeEnd.getMonth()]}`;
-      }
-      if (rangeStart) return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]} — ...`;
-      return "Selecionar período";
-    }
-    return `${months[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
-  }, [selectedDate, filterMode, rangeStart, rangeEnd]);
-
-  const calendarDays = useMemo(() => {
-    const year = calendarMonth.getFullYear();
-    const month = calendarMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
-    const days: (Date | null)[] = [];
-    for (let i = 0; i < startDay; i++) days.push(null);
-    for (let i = 1; i <= lastDay.getDate(); i++) days.push(new Date(year, month, i));
-    return days;
-  }, [calendarMonth]);
-
-  const isInRange = useCallback((day: Date) => {
-    if (filterMode !== "intervalo" || !rangeStart) return false;
-    if (!rangeEnd) return sameDay(day, rangeStart);
-    const t = day.getTime();
-    const s = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime();
-    const e = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime();
-    return t >= s && t <= e;
-  }, [filterMode, rangeStart, rangeEnd]);
-
-  const isRangeStart = useCallback((day: Date) => filterMode === "intervalo" && rangeStart && sameDay(day, rangeStart), [filterMode, rangeStart]);
-  const isRangeEnd = useCallback((day: Date) => filterMode === "intervalo" && rangeEnd && sameDay(day, rangeEnd), [filterMode, rangeEnd]);
-
-  const handleCalDayClick = useCallback((day: Date) => {
-    if (filterMode === "intervalo") {
-      if (!rangeStart || (rangeStart && rangeEnd)) { setRangeStart(day); setRangeEnd(null); }
-      else {
-        if (day.getTime() < rangeStart.getTime()) { setRangeEnd(rangeStart); setRangeStart(day); }
-        else setRangeEnd(day);
-        setCalendarOpen(false);
-      }
-    } else { setSelectedDate(new Date(day.getFullYear(), day.getMonth(), 1)); setCalendarOpen(false); }
-  }, [filterMode, rangeStart, rangeEnd]);
+    if (authLoading || !farm) return;
+    fetchData();
+  }, [authLoading, farm, fetchData]);
 
   /* ── Computed ── */
-  const healthScore = 94;
   const vacinasPendentes = agenda.filter((a) => a.status === "Próximo").length;
   const tratamentosAtivos = registros.filter((r) => r.status === "Em andamento").length;
   const ultimaInspecao = registros.find((r) => r.tipo === "Inspeção");
   const diasUltimaInspecao = ultimaInspecao ? Math.floor((new Date().getTime() - new Date(ultimaInspecao.data + "T00:00:00").getTime()) / (1000 * 60 * 60 * 24)) : 0;
-  const totalMortesSemana = mortalidadeSemanal.reduce((s, d) => s + d.mortes, 0);
-  const taxaMortalidade = 0.03;
-  const coberturaVacinal = 95;
+  const totalMortesSemana = mortalidadeData.reduce((s, d) => s + d.mortes, 0);
+
+  const taxaMortalidade = useMemo(() => {
+    if (totalAves === 0 || mortalidadeData.length === 0) return 0;
+    return totalMortesSemana / totalAves;
+  }, [totalMortesSemana, totalAves, mortalidadeData]);
+
+  const coberturaVacinal = useMemo(() => {
+    const totalVac = registros.filter(r => r.tipo === "Vacinação").length;
+    const totalScheduled = agenda.length + totalVac;
+    if (totalScheduled === 0) return 100;
+    return Math.round((totalVac / totalScheduled) * 100);
+  }, [registros, agenda]);
+
+  const healthScore = useMemo(() => {
+    if (registros.length === 0 && mortalidadeData.length === 0 && agenda.length === 0) return 0;
+    // Mortality score (40% weight): 100 if rate <= 0.02, 0 if rate >= 0.10
+    const mortScore = Math.max(0, Math.min(100, (1 - (taxaMortalidade - 0.02) / 0.08) * 100));
+    // Vaccination score (35% weight)
+    const vacScore = coberturaVacinal;
+    // Inspection recency score (25% weight): 100 if <=7 days, 0 if >=30 days
+    const inspScore = ultimaInspecao ? Math.max(0, Math.min(100, (1 - (diasUltimaInspecao - 7) / 23) * 100)) : 50;
+    return Math.round(mortScore * 0.4 + vacScore * 0.35 + inspScore * 0.25);
+  }, [taxaMortalidade, coberturaVacinal, diasUltimaInspecao, ultimaInspecao, registros, mortalidadeData, agenda]);
 
   const scoreColor = healthScore >= 90 ? "#10b981" : healthScore >= 70 ? "#f59e0b" : "#ef4444";
   const statusText = healthScore >= 90 ? "Saudável" : healthScore >= 70 ? "Atenção" : "Crítico";
@@ -249,10 +328,10 @@ export default function SaudePage() {
 
   /* ── KPIs ── */
   const kpis = [
-    { title: "Mortalidade Semanal", value: `${totalMortesSemana} aves`, icon: Bug, iconBg: "bg-red-50", iconColor: "text-red-500", actual: totalMortesSemana, expectedVal: 5, expectedLabel: "5 aves", diff: ((totalMortesSemana / 5) * 100) - 100, progressColor: totalMortesSemana <= 5 ? "bg-emerald-500" : totalMortesSemana <= 8 ? "bg-amber-500" : "bg-red-500" },
-    { title: "Taxa Mortalidade", value: `${(taxaMortalidade * 100).toFixed(1)}%`, icon: Activity, iconBg: "bg-amber-50", iconColor: "text-amber-600", actual: taxaMortalidade * 100, expectedVal: 2, expectedLabel: "2%", diff: ((taxaMortalidade * 100) / 2) * 100 - 100, progressColor: taxaMortalidade * 100 <= 2 ? "bg-emerald-500" : taxaMortalidade * 100 <= 5 ? "bg-amber-500" : "bg-red-500" },
+    { title: "Mortalidade Semanal", value: `${totalMortesSemana} aves`, icon: Bug, iconBg: "bg-red-50", iconColor: "text-red-500", actual: totalMortesSemana, expectedVal: 5, expectedLabel: "5 aves", diff: totalMortesSemana > 0 ? ((totalMortesSemana / 5) * 100) - 100 : -100, progressColor: totalMortesSemana <= 5 ? "bg-emerald-500" : totalMortesSemana <= 8 ? "bg-amber-500" : "bg-red-500" },
+    { title: "Taxa Mortalidade", value: `${(taxaMortalidade * 100).toFixed(1)}%`, icon: Activity, iconBg: "bg-amber-50", iconColor: "text-amber-600", actual: taxaMortalidade * 100, expectedVal: 2, expectedLabel: "2%", diff: taxaMortalidade > 0 ? ((taxaMortalidade * 100) / 2) * 100 - 100 : -100, progressColor: taxaMortalidade * 100 <= 2 ? "bg-emerald-500" : taxaMortalidade * 100 <= 5 ? "bg-amber-500" : "bg-red-500" },
     { title: "Cobertura Vacinal", value: `${coberturaVacinal}%`, icon: Shield, iconBg: "bg-brand-50", iconColor: "text-brand-600", actual: coberturaVacinal, expectedVal: 100, expectedLabel: "100%", diff: ((coberturaVacinal / 100) * 100) - 100, progressColor: coberturaVacinal >= 90 ? "bg-emerald-500" : coberturaVacinal >= 75 ? "bg-amber-500" : "bg-red-500" },
-    { title: "Última Inspeção", value: `${diasUltimaInspecao} dias`, icon: Stethoscope, iconBg: "bg-sky-50", iconColor: "text-sky-600", actual: diasUltimaInspecao, expectedVal: 7, expectedLabel: "7 dias", diff: ((diasUltimaInspecao / 7) * 100) - 100, progressColor: diasUltimaInspecao <= 7 ? "bg-emerald-500" : diasUltimaInspecao <= 14 ? "bg-amber-500" : "bg-red-500" },
+    { title: "Última Inspeção", value: ultimaInspecao ? `${diasUltimaInspecao} dias` : "—", icon: Stethoscope, iconBg: "bg-sky-50", iconColor: "text-sky-600", actual: diasUltimaInspecao, expectedVal: 7, expectedLabel: "7 dias", diff: ultimaInspecao ? ((diasUltimaInspecao / 7) * 100) - 100 : 0, progressColor: diasUltimaInspecao <= 7 ? "bg-emerald-500" : diasUltimaInspecao <= 14 ? "bg-amber-500" : "bg-red-500" },
   ];
 
   /* ── Insights ── */
@@ -261,11 +340,12 @@ export default function SaudePage() {
     if (vacinasPendentes > 0) arr.push({ type: "warning", title: `${vacinasPendentes} vacinas pendentes próximas`, action: `Agendar: ${agenda.filter(a => a.status === "Próximo").map(a => a.vacina).join(", ")}` });
     if (tratamentosAtivos > 0) arr.push({ type: "warning", title: `${tratamentosAtivos} tratamento${tratamentosAtivos > 1 ? "s" : ""} em andamento`, action: "Monitorar evolução e ajustar medicação se necessário" });
     if (taxaMortalidade <= 0.03) arr.push({ type: "success", title: "Taxa de mortalidade dentro do esperado", action: "Manter protocolos sanitários atuais" });
-    else arr.push({ type: "warning", title: "Taxa de mortalidade acima do ideal", action: "Investigar causas e reforçar biossegurança" });
+    else if (taxaMortalidade > 0) arr.push({ type: "warning", title: "Taxa de mortalidade acima do ideal", action: "Investigar causas e reforçar biossegurança" });
     if (coberturaVacinal >= 90) arr.push({ type: "success", title: `Cobertura vacinal em ${coberturaVacinal}%`, action: "Excelente — continuar com o calendário" });
-    arr.push({ type: "info", title: "Período de calor aumenta risco de estresse térmico", action: "Reforçar ventilação e monitorar consumo de água" });
+    if (registros.length === 0 && agenda.length === 0) arr.push({ type: "info", title: "Nenhum registro de saúde encontrado", action: "Adicione registros para monitorar a saúde do plantel" });
+    else arr.push({ type: "info", title: "Período de calor aumenta risco de estresse térmico", action: "Reforçar ventilação e monitorar consumo de água" });
     return arr;
-  }, [vacinasPendentes, tratamentosAtivos, taxaMortalidade, coberturaVacinal, agenda]);
+  }, [vacinasPendentes, tratamentosAtivos, taxaMortalidade, coberturaVacinal, agenda, registros]);
 
   const filteredRegistros = useMemo(() => {
     if (!searchQuery.trim()) return registros;
@@ -282,30 +362,83 @@ export default function SaudePage() {
   }
 
   function openAdd() {
-    setForm({ titulo: "", data: "", lote: "", tipo: "Vacinação", status: "Concluído", observacao: "", responsavel: "" });
+    setForm({ titulo: "", data: "", loteId: "", tipo: "Vacinação", status: "Concluído", observacao: "", responsavel: "" });
     setEditing(null);
+    setError("");
     setShowModal(true);
   }
 
   function openEdit(r: RegistroSaude) {
-    setForm({ titulo: r.titulo, data: r.data, lote: r.lote, tipo: r.tipo, status: r.status, observacao: r.observacao || "", responsavel: r.responsavel || "" });
+    setForm({ titulo: r.titulo, data: r.data, loteId: r.loteId || "", tipo: r.tipo, status: r.status, observacao: r.observacao || "", responsavel: r.responsavel || "" });
     setEditing(r);
+    setError("");
     setShowModal(true);
   }
 
-  function handleSave() {
-    if (!form.titulo || !form.data || !form.lote) return;
-    const registro: RegistroSaude = { id: editing?.id || Date.now(), ...form };
-    if (editing) setRegistros(prev => prev.map(r => r.id === editing.id ? registro : r));
-    else setRegistros(prev => [registro, ...prev]);
-    setForm({ titulo: "", data: "", lote: "", tipo: "Vacinação", status: "Concluído", observacao: "", responsavel: "" });
-    setShowModal(false);
-    setEditing(null);
+  async function handleSave() {
+    if (!farm || !form.titulo || !form.data) return;
+    setSaving(true);
+    setError("");
+
+    const record = {
+      farm_id: farm.id,
+      flock_id: form.loteId || null,
+      title: form.titulo,
+      date: form.data,
+      type: typeMapReverse[form.tipo],
+      status: statusMapReverse[form.status],
+      responsible: form.responsavel || null,
+      notes: form.observacao || null,
+    };
+
+    const supabase = createClient();
+    try {
+      if (editing) {
+        const { error: updateErr } = await supabase.from("health_records").update(record).eq("id", editing.id);
+        if (updateErr) throw updateErr;
+      } else {
+        const { error: insertErr } = await supabase.from("health_records").insert(record);
+        if (insertErr) throw insertErr;
+      }
+      setShowModal(false);
+      setEditing(null);
+      await fetchData();
+    } catch (err: any) {
+      setError(err.message || "Erro ao salvar registro.");
+    }
+    setSaving(false);
   }
 
-  function deleteRegistro(id: number) {
-    setRegistros(prev => prev.filter(r => r.id !== id));
-    setDeleteConfirm(null);
+  async function deleteRegistro(id: string) {
+    const supabase = createClient();
+    try {
+      const { error: delErr } = await supabase.from("health_records").delete().eq("id", id);
+      if (delErr) throw delErr;
+      setDeleteConfirm(null);
+      await fetchData();
+    } catch (err: any) {
+      console.error("Erro ao excluir registro:", err);
+    }
+  }
+
+  /* ── Loading State ── */
+  if (authLoading || loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-gray-100 animate-pulse" />
+          <div className="space-y-2">
+            <div className="h-6 w-48 bg-gray-100 rounded-lg animate-pulse" />
+            <div className="h-4 w-72 bg-gray-100 rounded-lg animate-pulse" />
+          </div>
+        </div>
+        <div className="h-24 bg-gray-100 rounded-2xl animate-pulse" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-40 bg-gray-100 rounded-2xl animate-pulse" />)}
+        </div>
+        <div className="h-64 bg-gray-100 rounded-2xl animate-pulse" />
+      </div>
+    );
   }
 
   return (
@@ -322,51 +455,7 @@ export default function SaudePage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* Calendar Filter */}
-          <div className="relative" ref={calendarRef}>
-            <button onClick={() => setCalendarOpen(!calendarOpen)} className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 bg-white border border-gray-200 rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer shadow-sm">
-              <CalendarDays className="w-4 h-4" />{calendarLabel}
-            </button>
-            {calendarOpen && (
-              <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-gray-200 shadow-2xl p-4 z-50 w-[320px] animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 mb-4">
-                  {([{ key: "intervalo" as const, label: "Intervalo" }, { key: "mes" as const, label: "Mês" }]).map(p => (
-                    <button key={p.key} onClick={() => setFilterMode(p.key)} className={cn("flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer", filterMode === p.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>{p.label}</button>
-                  ))}
-                </div>
-                {filterMode === "intervalo" && <p className="text-[10px] text-gray-400 font-medium mb-2 text-center">{!rangeStart || (rangeStart && rangeEnd) ? "Clique no dia inicial" : "Clique no dia final"}</p>}
-                <div className="flex items-center justify-between mb-3">
-                  <button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-gray-500" /></button>
-                  <span className="text-sm font-semibold text-gray-900">{["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][calendarMonth.getMonth()]} {calendarMonth.getFullYear()}</span>
-                  <button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-gray-500" /></button>
-                </div>
-                {filterMode === "mes" ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map((m, i) => (
-                      <button key={m} onClick={() => { setSelectedDate(new Date(calendarMonth.getFullYear(), i, 1)); setCalendarOpen(false); }} className={cn("py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer", selectedDate.getMonth() === i && selectedDate.getFullYear() === calendarMonth.getFullYear() ? "bg-brand-600 text-white shadow-sm" : "text-gray-700 hover:bg-gray-100")}>{m}</button>
-                    ))}
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-7 gap-0 mb-1">{["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"].map(d => <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>)}</div>
-                    <div className="grid grid-cols-7 gap-0">
-                      {calendarDays.map((day, i) => {
-                        if (!day) return <div key={`e-${i}`} className="h-9" />;
-                        const today = new Date(); const isToday = sameDay(day, today);
-                        const inRange = isInRange(day); const isStart = isRangeStart(day); const isEnd = isRangeEnd(day); const isSingle = isStart && isEnd;
-                        return (
-                          <button key={i} onClick={() => handleCalDayClick(day)} className={cn("h-9 text-sm font-medium transition-all duration-150 cursor-pointer relative flex items-center justify-center", inRange && !isStart && !isEnd && "bg-brand-50 text-brand-700", isStart && !isSingle && "bg-brand-600 text-white rounded-l-xl", isEnd && !isSingle && "bg-brand-600 text-white rounded-r-xl", isSingle && "bg-brand-600 text-white rounded-xl shadow-sm", !inRange && "hover:bg-gray-100 rounded-xl")}>
-                            <span className={cn(isToday && !inRange && "w-7 h-7 rounded-full border-2 border-brand-500 flex items-center justify-center")}>{day.getDate()}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-                <button onClick={() => { const t = new Date(); setRangeStart(t); setRangeEnd(t); setSelectedDate(t); setCalendarMonth(t); setFilterMode("intervalo"); setCalendarOpen(false); }} className="w-full mt-3 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-50 rounded-xl transition-colors cursor-pointer">Hoje</button>
-              </div>
-            )}
-          </div>
+          <CalendarFilter />
           <button onClick={openAdd} className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20">
             <Plus className="w-4 h-4" />Adicionar Registro
           </button>
@@ -392,7 +481,7 @@ export default function SaudePage() {
                 <span className="text-sm font-bold text-gray-900">Saúde do Plantel</span>
               </div>
               <p className={cn("text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Mortalidade: {totalMortesSemana} aves/sem | Vacinas: {vacinasPendentes} pendentes</p>
+              <p className="text-xs text-gray-500 mt-0.5">Mortalidade: {totalMortesSemana} aves | Vacinas: {vacinasPendentes} pendentes</p>
             </div>
           </div>
           <div className="hidden lg:block w-px h-14 bg-gray-200" />
@@ -420,7 +509,7 @@ export default function SaudePage() {
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {kpis.map((kpi) => {
-          const maxVal = Math.max(kpi.actual, kpi.expectedVal) * 1.15;
+          const maxVal = Math.max(kpi.actual, kpi.expectedVal) * 1.15 || 1;
           const fillPct = Math.min((kpi.actual / maxVal) * 100, 100);
           const markerPct = Math.min((kpi.expectedVal / maxVal) * 100, 100);
           const diffLabel = `${kpi.diff > 0 ? "+" : ""}${kpi.diff.toFixed(1)}%`;
@@ -467,7 +556,7 @@ export default function SaudePage() {
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm"><Zap className="w-5 h-5 text-white" /></div>
               <div>
                 <h3 className="text-sm font-bold text-gray-900">Assistente Sanitário</h3>
-                <p className="text-[11px] text-gray-400 font-medium">Baseado nos últimos 7 dias</p>
+                <p className="text-[11px] text-gray-400 font-medium">Baseado nos dados do período</p>
               </div>
             </div>
             <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
@@ -499,6 +588,9 @@ export default function SaudePage() {
             <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">{vacinasPendentes} próximas</span>
           </div>
           <div className="space-y-0 max-h-[280px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
+            {agenda.length === 0 && (
+              <div className="text-center py-10 text-gray-400 text-sm">Nenhuma vacinação agendada.</div>
+            )}
             {agenda.map((a, i) => {
               const sColor = statusAgendaConfig[a.status];
               const isUrgent = a.status === "Próximo";
@@ -526,12 +618,12 @@ export default function SaudePage() {
 
       {/* ── Charts Row — 2/3 + 1/3 ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Mortalidade Semanal */}
+        {/* Mortalidade */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Mortalidade x Taxa</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Últimos 7 dias</p>
+              <p className="text-xs text-gray-400 mt-0.5">Período selecionado</p>
             </div>
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30"><Sparkles className="w-3 h-3" />Pro</span>
@@ -541,32 +633,35 @@ export default function SaudePage() {
               </div>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={mortalidadeSemanal} margin={{ top: 10, right: 50, left: -10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="gradMortesBar" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
-                  <stop offset="100%" stopColor="#ef4444" stopOpacity={0.6} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-              <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12, fontWeight: 500 }} dy={10} />
-              <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} domain={[0, 5]} />
-              <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 11, fontWeight: 600 }} dx={4} domain={[0, 0.12]} tickFormatter={(v: number) => (v * 100).toFixed(1) + "%"} />
-              <Tooltip
-                contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
-                labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px" }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={((value: any, name: any) => {
-                  if (name === "mortes") return [Number(value) + " aves", "Mortes"];
-                  if (name === "taxa") return [(Number(value) * 100).toFixed(2) + "%", "Taxa"];
-                  return [String(value), name];
-                }) as any}
-              />
-              <Bar yAxisId="left" dataKey="mortes" fill="url(#gradMortesBar)" radius={[6, 6, 0, 0]} barSize={24} name="mortes" />
-              <Line yAxisId="right" type="monotone" dataKey="taxa" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="taxa" />
-            </ComposedChart>
-          </ResponsiveContainer>
+          {mortalidadeData.length === 0 ? (
+            <div className="flex items-center justify-center h-[300px] text-gray-400 text-sm">Nenhum dado de mortalidade no período.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={mortalidadeData} margin={{ top: 10, right: 50, left: -10, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gradMortesBar" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
+                    <stop offset="100%" stopColor="#ef4444" stopOpacity={0.6} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12, fontWeight: 500 }} dy={10} />
+                <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} domain={[0, "auto"]} />
+                <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 11, fontWeight: 600 }} dx={4} domain={[0, "auto"]} tickFormatter={(v: number) => (v * 100).toFixed(1) + "%"} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
+                  labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px" }}
+                  formatter={((value: any, name: any) => {
+                    if (name === "mortes") return [Number(value) + " aves", "Mortes"];
+                    if (name === "taxa") return [(Number(value) * 100).toFixed(2) + "%", "Taxa"];
+                    return [String(value), name];
+                  }) as any}
+                />
+                <Bar yAxisId="left" dataKey="mortes" fill="url(#gradMortesBar)" radius={[6, 6, 0, 0]} barSize={24} name="mortes" />
+                <Line yAxisId="right" type="monotone" dataKey="taxa" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="taxa" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Cobertura Vacinal Mensal */}
@@ -576,24 +671,28 @@ export default function SaudePage() {
             <p className="text-xs text-gray-400 mt-0.5">% do plantel vacinado por mês</p>
           </div>
           <div className="flex-1" style={{ minHeight: 280 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={coberturaMensal} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gradCobertura" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#2d7a4f" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#2d7a4f" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={8} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dx={-4} domain={[60, 100]} tickFormatter={(v) => v + "%"} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                  formatter={(value: unknown) => [Number(value) + "%", "Cobertura"]}
-                />
-                <Area type="monotone" dataKey="cobertura" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#gradCobertura)" dot={{ r: 4, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 }} activeDot={{ r: 6, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} />
-              </AreaChart>
-            </ResponsiveContainer>
+            {coberturaMensal.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-gray-400 text-sm">Nenhum dado de vacinação.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={coberturaMensal} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="gradCobertura" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#2d7a4f" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#2d7a4f" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={8} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dx={-4} domain={[0, 100]} tickFormatter={(v) => v + "%"} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
+                    formatter={(value: unknown) => [Number(value) + "%", "Cobertura"]}
+                  />
+                  <Area type="monotone" dataKey="cobertura" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#gradCobertura)" dot={{ r: 4, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 }} activeDot={{ r: 6, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>
@@ -620,7 +719,6 @@ export default function SaudePage() {
                 <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Lote</th>
                 <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Responsável</th>
                 <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Status</th>
-                <th className="text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider px-3 py-3">Detalhes</th>
                 <th className="text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider px-3 py-3 pr-6">Ações</th>
               </tr>
             </thead>
@@ -636,9 +734,6 @@ export default function SaudePage() {
                     <td className="px-6 py-4 text-sm text-gray-700">{r.lote}</td>
                     <td className="px-6 py-4 text-sm text-gray-500">{r.responsavel || "—"}</td>
                     <td className="px-6 py-4"><span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", sColor.bg, sColor.text)}>{r.status}</span></td>
-                    <td className="px-3 py-4 text-center">
-                      <Link href={`/dashboard/health/${r.id}`} className="inline-flex items-center justify-center p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer"><FileText className="w-4 h-4" /></Link>
-                    </td>
                     <td className="px-3 pr-6 py-4">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
@@ -648,7 +743,7 @@ export default function SaudePage() {
                   </tr>
                 );
               })}
-              {filteredRegistros.length === 0 && <tr><td colSpan={8} className="text-center py-16 text-gray-400 text-sm">Nenhum registro encontrado.</td></tr>}
+              {filteredRegistros.length === 0 && <tr><td colSpan={7} className="text-center py-16 text-gray-400 text-sm">Nenhum registro encontrado.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -663,6 +758,7 @@ export default function SaudePage() {
               <h2 className="text-lg font-bold text-gray-900">{editing ? "Editar Registro" : "Novo Registro de Saúde"}</h2>
               <button onClick={() => { setShowModal(false); setEditing(null); }} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
+            {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Título</label>
@@ -675,13 +771,9 @@ export default function SaudePage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Lote</label>
-                  <select value={form.lote} onChange={(e) => setForm({ ...form, lote: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
-                    <option value="">Selecionar...</option>
-                    <option value="L-2024-01">L-2024-01</option>
-                    <option value="L-2024-02">L-2024-02</option>
-                    <option value="L-2024-03">L-2024-03</option>
-                    <option value="L-2024-04">L-2024-04</option>
-                    <option value="Todos">Todos os lotes</option>
+                  <select value={form.loteId} onChange={(e) => setForm({ ...form, loteId: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
+                    <option value="">Todos os lotes</option>
+                    {lotes.map(l => <option key={l.id} value={l.id}>{l.codigo}</option>)}
                   </select>
                 </div>
               </div>
@@ -715,8 +807,8 @@ export default function SaudePage() {
             </div>
             <div className="flex items-center justify-end gap-2 pt-2">
               <button onClick={() => { setShowModal(false); setEditing(null); }} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
-              <button onClick={handleSave} disabled={!form.titulo || !form.data || !form.lote} className={cn("inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold rounded-xl transition-colors cursor-pointer shadow-sm", form.titulo && form.data && form.lote ? "text-white bg-brand-600 hover:bg-brand-700" : "text-gray-400 bg-gray-200 cursor-not-allowed")}>
-                <Check className="w-4 h-4" />Salvar
+              <button onClick={handleSave} disabled={saving || !form.titulo || !form.data} className={cn("inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold rounded-xl transition-colors cursor-pointer shadow-sm", form.titulo && form.data && !saving ? "text-white bg-brand-600 hover:bg-brand-700" : "text-gray-400 bg-gray-200 cursor-not-allowed")}>
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}Salvar
               </button>
             </div>
           </div>
