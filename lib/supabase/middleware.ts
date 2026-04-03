@@ -46,39 +46,11 @@ export async function updateSession(request: NextRequest) {
   const isAuthRoute = authRoutes.some(
     (route) => request.nextUrl.pathname === route
   );
-  const isDashboard = request.nextUrl.pathname.startsWith("/dashboard");
-  const isOnboarding = request.nextUrl.pathname === "/dashboard/onboarding";
-
-  // Check farm for: auth routes (to decide where to send) OR dashboard pages (to enforce onboarding)
-  if (user && (isAuthRoute || (isDashboard && !isOnboarding))) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("farm_id")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    let hasFarm = !!profile?.farm_id;
-    if (!hasFarm) {
-      const { data: farm } = await supabase
-        .from("farms")
-        .select("id")
-        .eq("owner_id", user.id)
-        .limit(1)
-        .maybeSingle();
-      hasFarm = !!farm;
-    }
-
-    if (!hasFarm) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/dashboard/onboarding";
-      return NextResponse.redirect(url);
-    }
-
-    if (isAuthRoute) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
-      return NextResponse.redirect(url);
-    }
+  // Redirect authenticated users from auth pages to dashboard
+  if (user && isAuthRoute) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    return NextResponse.redirect(url);
   }
 
   return supabaseResponse;

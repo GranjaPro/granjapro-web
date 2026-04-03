@@ -265,6 +265,21 @@ export default function LotesPage() {
           .eq("id", editing.id);
         if (updateErr) throw updateErr;
       }
+
+      // Sync current_birds on affected barns
+      const affectedBarnIds = new Set<string>();
+      if (form.barn_id) affectedBarnIds.add(form.barn_id);
+      if (editing?.barn_id && editing.barn_id !== form.barn_id) affectedBarnIds.add(editing.barn_id);
+
+      for (const barnId of affectedBarnIds) {
+        const { data: barnFlocks } = await supabase
+          .from("flocks")
+          .select("bird_count")
+          .eq("barn_id", barnId);
+        const total = (barnFlocks ?? []).reduce((s, f) => s + (f.bird_count ?? 0), 0);
+        await supabase.from("barns").update({ current_birds: total }).eq("id", barnId);
+      }
+
       setModal(null);
       await fetchData();
     } catch (err: any) {
@@ -276,11 +291,24 @@ export default function LotesPage() {
   async function deleteLote(id: string) {
     const supabase = createClient();
     try {
+      // Get flock's barn before deleting
+      const flock = lotes.find((f) => f.id === id);
       const { error: delErr } = await supabase
         .from("flocks")
         .delete()
         .eq("id", id);
       if (delErr) throw delErr;
+
+      // Sync current_birds on barn
+      if (flock?.barn_id) {
+        const { data: barnFlocks } = await supabase
+          .from("flocks")
+          .select("bird_count")
+          .eq("barn_id", flock.barn_id);
+        const total = (barnFlocks ?? []).reduce((s, f) => s + (f.bird_count ?? 0), 0);
+        await supabase.from("barns").update({ current_birds: total }).eq("id", flock.barn_id);
+      }
+
       setDeleteConfirm(null);
       await fetchData();
     } catch (err: any) {

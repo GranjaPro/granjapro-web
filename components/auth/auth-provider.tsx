@@ -86,12 +86,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return foundFarm;
   }, []);
 
-  const checkOnboarding = useCallback((foundFarm: boolean) => {
-    const p = pathnameRef.current;
-    if (!foundFarm && p?.startsWith("/dashboard") && p !== "/dashboard/onboarding") {
-      router.replace("/dashboard/onboarding");
-    }
-  }, [router]);
+  // Onboarding is now rendered as an overlay in the dashboard layout
+  // No redirect needed — layout checks `farm` state directly
+  const checkOnboarding = useCallback((_foundFarm: boolean) => {}, []);
 
   useEffect(() => {
     let active = true;

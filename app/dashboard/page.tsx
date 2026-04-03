@@ -32,13 +32,6 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { createClient } from "@/lib/supabase/client";
-import {
-  mockFarm,
-  mockTodayProduction,
-  mockTodayFeed,
-  mockMonthFinancial,
-  mockBarns,
-} from "@/lib/mock-data";
 import { formatNumber, formatCurrency } from "@/lib/utils";
 import {
   AreaChart,
@@ -59,61 +52,6 @@ import ModalPortal from "@/components/ui/modal-portal";
 import { X, Pencil, Trash2 } from "lucide-react";
 
 /* ── KPI Data ── */
-const kpis = [
-  {
-    title: "Ovos",
-    value: formatNumber(mockTodayProduction.eggsProduced),
-    badge: "+3.2%",
-    badgeDir: "up" as "up" | "down" | "neutral",
-    subtitle: `Meta: 15.000 · ${((mockTodayProduction.eggsProduced / 15000) * 100).toFixed(0)}% atingido`,
-    icon: Egg,
-    color: "brand",
-    gradient: "from-brand-500 to-brand-600",
-    lightBg: "bg-brand-50",
-    lightIcon: "text-brand-600",
-    progress: (mockTodayProduction.eggsProduced / 15000) * 100,
-  },
-  {
-    title: "Taxa de Postura",
-    value: `${mockTodayProduction.layingRate}%`,
-    badge: "+1.2%",
-    badgeDir: "up" as "up" | "down" | "neutral",
-    subtitle: "Meta: 90% · Padrão: 85-92%",
-    icon: Target,
-    color: "violet",
-    gradient: "from-violet-500 to-violet-600",
-    lightBg: "bg-violet-50",
-    lightIcon: "text-violet-600",
-    progress: (mockTodayProduction.layingRate / 92) * 100,
-  },
-  {
-    title: "Custo por Ovo",
-    value: `R$ ${mockTodayFeed.costPerEgg.toFixed(3)}`,
-    badge: "-2.1%",
-    badgeDir: "up" as "up" | "down" | "neutral",
-    subtitle: `Ração: R$ ${formatNumber(mockTodayFeed.cost)} · ${formatNumber(mockTodayFeed.quantity)}kg`,
-    icon: Wheat,
-    color: "amber",
-    gradient: "from-amber-500 to-amber-600",
-    lightBg: "bg-amber-50",
-    lightIcon: "text-amber-600",
-    progress: 72,
-  },
-  {
-    title: "Lucro",
-    value: formatCurrency(mockMonthFinancial.profit),
-    badge: "+8.5%",
-    badgeDir: "up" as "up" | "down" | "neutral",
-    subtitle: `Receita: ${formatCurrency(mockMonthFinancial.revenue)}`,
-    icon: DollarSign,
-    color: "emerald",
-    gradient: "from-emerald-500 to-emerald-600",
-    lightBg: "bg-emerald-50",
-    lightIcon: "text-emerald-600",
-    progress: (mockMonthFinancial.profit / mockMonthFinancial.revenue) * 100,
-  },
-];
-
 /* ── Quick Actions ── */
 const quickActions = [
   { label: "Registrar Produção", icon: Egg, href: "/dashboard/production?register=true", color: "bg-brand-500 hover:bg-brand-600" },
@@ -122,67 +60,57 @@ const quickActions = [
   { label: "Registrar Venda", icon: DollarSign, href: "/dashboard/sales?register=true", color: "bg-emerald-500 hover:bg-emerald-600" },
 ];
 
-/* ── Chart Data ── */
-const weeklyData = [
-  { day: "Seg", ovos: 12800, meta: 13500, postura: 85.3 },
-  { day: "Ter", ovos: 13100, meta: 13500, postura: 87.3 },
-  { day: "Qua", ovos: 13350, meta: 13500, postura: 89.0 },
-  { day: "Qui", ovos: 13200, meta: 13500, postura: 88.0 },
-  { day: "Sex", ovos: 13050, meta: 13500, postura: 87.0 },
-  { day: "Sáb", ovos: 13400, meta: 13500, postura: 89.3 },
-  { day: "Hoje", ovos: 13200, meta: 13500, postura: 88.0 },
-];
-
-const revenueData = [
-  { month: "Jan", receita: 12500, despesas: 8500 },
-  { month: "Fev", receita: 13000, despesas: 9200 },
-  { month: "Mar", receita: 13500, despesas: 9000 },
-  { month: "Abr", receita: 14000, despesas: 9800 },
-  { month: "Mai", receita: 13200, despesas: 10200 },
-  { month: "Jun", receita: 14500, despesas: 9500 },
-];
-
-const expenseBreakdown = [
-  { name: "Ração", value: mockMonthFinancial.feedCost, color: "#f59e0b" },
-  { name: "Mão de obra", value: mockMonthFinancial.laborCost, color: "#8b5cf6" },
-  { name: "Outros", value: mockMonthFinancial.otherExpenses, color: "#94a3b8" },
-];
-
-const alerts = [
-  { id: 1, type: "danger" as const, msg: "Estoque de ração baixo — 3 dias restantes", time: "2h atrás", action: "Comprar ração", risk: "Sem ração, as aves param de produzir e podem morrer em dias." },
-  { id: 2, type: "warning" as const, msg: "Mortalidade acima do normal no Galpão 2 (+2.3%)", time: "4h atrás", action: "Inspecionar", risk: "Pode ser início de doença. Sem ação, você pode perder centenas de aves." },
-  { id: 3, type: "info" as const, msg: "Lote #F-2024-03 atingindo pico de produção", time: "1d atrás", action: "Ver lote", risk: "Sem acompanhamento, você perde a chance de maximizar o lucro nesse período." },
-];
+/* ── Chart Data Type ── */
+type WeeklyDataPoint = { day: string; ovos: number; meta: number; postura: number };
 
 const todayStr = new Date().toISOString().split("T")[0];
 const yesterdayStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0]; })();
 
-const tasks = [
-  { id: 1, title: "Coletar ovos — Galpão A1", status: "done" as const, time: "06:00", date: todayStr },
-  { id: 2, title: "Alimentar aves — Todos", status: "done" as const, time: "06:30", date: todayStr },
-  { id: 3, title: "Vacinar Lote #F-2024-05", status: "progress" as const, time: "08:00", date: todayStr },
-  { id: 4, title: "Inspeção de entrega de ração", status: "pending" as const, time: "10:00", date: todayStr },
-  { id: 5, title: "Limpeza Galpão B3", status: "pending" as const, time: "14:00", date: todayStr },
-  { id: 6, title: "Verificar bebedouros — Galpão A2", status: "pending" as const, time: "09:00", date: yesterdayStr },
+/* ── Setup alerts for first-time users ── */
+const setupAlerts = [
+  { id: "setup-1", type: "info" as const, msg: "Registre a produção pela primeira vez", time: "Configuração", action: "Registrar", risk: "Sem dados de produção, o dashboard não poderá exibir suas métricas.", href: "/dashboard/production?register=true" },
+  { id: "setup-2", type: "info" as const, msg: "Registre a ração pela primeira vez", time: "Configuração", action: "Registrar", risk: "Sem controle de ração, você não saberá o custo real por ovo.", href: "/dashboard/racao?register=true" },
+  { id: "setup-3", type: "info" as const, msg: "Registre seus ganhos e gastos", time: "Configuração", action: "Registrar", risk: "Sem dados financeiros, não é possível calcular seu lucro.", href: "/dashboard/finances" },
+  { id: "setup-4", type: "info" as const, msg: "Cadastre seus clientes", time: "Configuração", action: "Cadastrar", risk: "Sem clientes cadastrados, você não poderá registrar vendas.", href: "/dashboard/customers" },
+  { id: "setup-5", type: "info" as const, msg: "Registre suas vendas", time: "Configuração", action: "Registrar", risk: "Sem vendas registradas, a receita não aparecerá no dashboard.", href: "/dashboard/sales" },
+  { id: "setup-6", type: "info" as const, msg: "Registre seus estoques", time: "Configuração", action: "Registrar", risk: "Sem controle de estoque, você pode ficar sem insumos.", href: "/dashboard/inventory" },
 ];
 
 export default function DashboardPage() {
   const { profile, farm } = useAuth();
   const supabase = createClient();
 
-  // Real data state
-  const [farmData, setFarmData] = useState(mockFarm);
-  const [productionData, setProductionData] = useState(mockTodayProduction);
-  const [feedData, setFeedData] = useState(mockTodayFeed);
-  const [financialData, setFinancialData] = useState(mockMonthFinancial);
-  const [barnsData, setBarnsData] = useState(mockBarns);
-  const [dbTasks, setDbTasks] = useState(tasks);
-  const [dbAlerts, setDbAlerts] = useState(alerts);
+  // Real data state — start empty, filled by Supabase fetch
+  const [farmData, setFarmData] = useState({
+    name: "", producer: "", totalBirds: 0, activeBirds: 0, barns: 0, breed: "", productionSystem: "",
+  });
+  const [productionData, setProductionData] = useState({
+    date: "", eggsProduced: 0, brokenEggs: 0, dirtyEggs: 0, discardedEggs: 0, eggsSold: 0, eggPrice: 0, layingRate: 0, eggsPerBird: 0,
+  });
+  const [feedData, setFeedData] = useState({
+    quantity: 0, cost: 0, type: "", costPerEgg: 0,
+  });
+  const [financialData, setFinancialData] = useState({
+    revenue: 0, expenses: 0, profit: 0, feedCost: 0, laborCost: 0, otherExpenses: 0, revenueGoal: 0,
+  });
+  const [barnsData, setBarnsData] = useState<{ id: number; name: string; birds: number; layingRate: number; status: "ok" | "warning"; createdAt: string }[]>([]);
+  const [dbTasks, setDbTasks] = useState<{ id: any; title: string; status: "done" | "progress" | "pending"; time: string; date: string }[]>([]);
+  const [dbAlerts, setDbAlerts] = useState<{ id: any; type: "danger" | "warning" | "info"; msg: string; time: string; action: string; risk: string; href?: string }[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   // Chart production data
-  const [chartProductionData, setChartProductionData] = useState(weeklyData);
+  const [chartProductionData, setChartProductionData] = useState<WeeklyDataPoint[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
+
+  // KPI Goals (editable)
+  const [kpiGoals, setKpiGoals] = useState({
+    eggs: 15000,
+    layingRate: 92,
+    costPerEgg: 0.12,
+    profit: 0,
+  });
+  const [editingGoalKey, setEditingGoalKey] = useState<string | null>(null);
+  const [editingGoalValue, setEditingGoalValue] = useState("");
 
   // Shared calendar filter
   const { dateRange, filterMode, rangeStart, rangeEnd, selectedDate } = useDateFilter();
@@ -284,6 +212,7 @@ export default function DashboardPage() {
             birds: b.current_birds,
             layingRate: 0,
             status: (b.status === "active" ? "ok" : "warning") as "ok" | "warning",
+            createdAt: b.created_at,
           })));
         }
 
@@ -298,17 +227,41 @@ export default function DashboardPage() {
           })));
         }
 
-        // Alerts (not strictly date-bound in most cases)
-        if (alertsRes.data) {
-          setDbAlerts(alertsRes.data.map((a) => ({
-            id: a.id as any,
-            type: (a.type === "error" ? "danger" : a.type) as "danger" | "warning" | "info",
-            msg: a.message,
-            time: new Date(a.created_at).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
-            action: "Ver",
-            risk: "",
-          })));
-        }
+        // Alerts — show setup alerts for first-time users, real alerts otherwise
+        const realAlerts = (alertsRes.data ?? []).map((a) => ({
+          id: a.id as any,
+          type: (a.type === "error" ? "danger" : a.type) as "danger" | "warning" | "info",
+          msg: a.message,
+          time: new Date(a.created_at).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+          action: "Ver",
+          risk: "",
+        }));
+
+        const hasProduction = (prodRes.data?.length ?? 0) > 0;
+        const hasFeed = (feedRes.data?.length ?? 0) > 0;
+        const hasFinance = (finRes.data?.length ?? 0) > 0;
+
+        // Check customers & sales & inventory
+        const [custRes, salesRes, invRes] = await Promise.all([
+          supabase.from("customers").select("id", { count: "exact", head: true }).eq("farm_id", farmId),
+          supabase.from("sales").select("id", { count: "exact", head: true }).eq("farm_id", farmId),
+          supabase.from("feed_inventory").select("id", { count: "exact", head: true }).eq("farm_id", farmId),
+        ]);
+        const hasCustomers = (custRes.count ?? 0) > 0;
+        const hasSales = (salesRes.count ?? 0) > 0;
+        const hasInventory = (invRes.count ?? 0) > 0;
+
+        const pending = setupAlerts.filter((s) => {
+          if (s.id === "setup-1" && hasProduction) return false;
+          if (s.id === "setup-2" && hasFeed) return false;
+          if (s.id === "setup-3" && hasFinance) return false;
+          if (s.id === "setup-4" && hasCustomers) return false;
+          if (s.id === "setup-5" && hasSales) return false;
+          if (s.id === "setup-6" && hasInventory) return false;
+          return true;
+        });
+
+        setDbAlerts([...realAlerts, ...pending]);
 
         // Financial summary for selected period
         if (finRes.data) {
@@ -323,7 +276,7 @@ export default function DashboardPage() {
             feedCost,
             laborCost,
             otherExpenses: expenses - feedCost - laborCost,
-            revenueGoal: mockMonthFinancial.revenueGoal,
+            revenueGoal: 0,
           });
         }
 
@@ -446,7 +399,7 @@ export default function DashboardPage() {
           setChartProductionData(chartData);
         }
       } catch {
-        setChartProductionData(weeklyData);
+        setChartProductionData([]);
       }
       setChartLoading(false);
     }
@@ -505,17 +458,30 @@ export default function DashboardPage() {
   }, [dbTasks]);
 
   const [openDropdown, setOpenDropdown] = useState<number | string | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpenDropdown(null);
+        setDropdownPos(null);
+      }
+    }
+    function handleScroll() {
+      if (openDropdown !== null) {
+        setOpenDropdown(null);
+        setDropdownPos(null);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    const scrollEl = document.querySelector(".dashboard-scroll");
+    scrollEl?.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      scrollEl?.removeEventListener("scroll", handleScroll);
+    };
+  }, [openDropdown]);
 
   const completedTasks = Object.values(taskStatuses).filter((s) => s === "done").length;
 
@@ -581,12 +547,14 @@ export default function DashboardPage() {
   }, [filterMode, rangeStart, rangeEnd, selectedDate]);
 
   // Recompute KPI data from real state
+  const profitGoal = kpiGoals.profit > 0 ? kpiGoals.profit : financialData.revenue;
   const currentKpis = useMemo(() => {
     const { isMultiDay, days } = periodInfo;
     const avgPerDay = isMultiDay && days > 0 ? productionData.eggsProduced / days : 0;
 
     return [
       {
+        key: "eggs",
         title: "Ovos",
         value: formatNumber(productionData.eggsProduced),
         periodDetail: isMultiDay
@@ -594,43 +562,58 @@ export default function DashboardPage() {
           : undefined,
         badge: "+3.2%",
         badgeDir: "up" as "up" | "down" | "neutral",
-        subtitle: `Meta: 15.000 · ${((productionData.eggsProduced / 15000) * 100).toFixed(0)}% atingido`,
         icon: Egg,
         color: "brand",
         gradient: "from-brand-500 to-brand-600",
         lightBg: "bg-brand-50",
         lightIcon: "text-brand-600",
-        progress: (productionData.eggsProduced / 15000) * 100,
+        progress: kpiGoals.eggs > 0 ? (productionData.eggsProduced / kpiGoals.eggs) * 100 : 0,
+        reached: formatNumber(productionData.eggsProduced),
+        goal: formatNumber(kpiGoals.eggs),
+        goalRaw: kpiGoals.eggs,
+        inputUnit: "ovos",
+        unitPos: "after" as const,
       },
       {
+        key: "layingRate",
         title: "Taxa de Postura",
         value: `${productionData.layingRate.toFixed(1)}%`,
         periodDetail: isMultiDay ? "Média do período" : undefined,
         badge: "+1.2%",
         badgeDir: "up" as "up" | "down" | "neutral",
-        subtitle: "Meta: 90% · Padrão: 85-92%",
         icon: Target,
         color: "violet",
         gradient: "from-violet-500 to-violet-600",
         lightBg: "bg-violet-50",
         lightIcon: "text-violet-600",
-        progress: (productionData.layingRate / 92) * 100,
+        progress: kpiGoals.layingRate > 0 ? (productionData.layingRate / kpiGoals.layingRate) * 100 : 0,
+        reached: `${productionData.layingRate.toFixed(1)}%`,
+        goal: `${kpiGoals.layingRate}%`,
+        goalRaw: kpiGoals.layingRate,
+        inputUnit: "%",
+        unitPos: "after" as const,
       },
       {
+        key: "costPerEgg",
         title: "Custo por Ovo",
         value: `R$ ${feedData.costPerEgg.toFixed(3)}`,
         periodDetail: isMultiDay ? "Média do período" : undefined,
         badge: "-2.1%",
         badgeDir: "up" as "up" | "down" | "neutral",
-        subtitle: `Ração: R$ ${formatNumber(feedData.cost)} · ${formatNumber(feedData.quantity)}kg`,
         icon: Wheat,
         color: "amber",
         gradient: "from-amber-500 to-amber-600",
         lightBg: "bg-amber-50",
         lightIcon: "text-amber-600",
-        progress: 72,
+        progress: feedData.costPerEgg > 0 ? Math.min((kpiGoals.costPerEgg / feedData.costPerEgg) * 100, 100) : 0,
+        reached: `R$ ${feedData.costPerEgg.toFixed(3)}`,
+        goal: `R$ ${kpiGoals.costPerEgg.toFixed(3).replace(".", ",")}`,
+        goalRaw: kpiGoals.costPerEgg,
+        inputUnit: "R$",
+        unitPos: "before" as const,
       },
       {
+        key: "profit",
         title: isMultiDay ? `Lucro · ${days} dias` : "Lucro",
         value: formatCurrency(financialData.profit),
         periodDetail: isMultiDay
@@ -638,22 +621,34 @@ export default function DashboardPage() {
           : undefined,
         badge: "+8.5%",
         badgeDir: "up" as "up" | "down" | "neutral",
-        subtitle: `Receita: ${formatCurrency(financialData.revenue)}`,
         icon: DollarSign,
         color: "emerald",
         gradient: "from-emerald-500 to-emerald-600",
         lightBg: "bg-emerald-50",
         lightIcon: "text-emerald-600",
-        progress: financialData.revenue > 0 ? (financialData.profit / financialData.revenue) * 100 : 0,
+        progress: profitGoal > 0 ? (financialData.profit / profitGoal) * 100 : 0,
+        reached: formatCurrency(financialData.profit),
+        goal: formatCurrency(profitGoal),
+        goalRaw: profitGoal,
+        inputUnit: "R$",
+        unitPos: "before" as const,
       },
     ];
-  }, [productionData, feedData, financialData, periodInfo]);
+  }, [productionData, feedData, financialData, periodInfo, kpiGoals, profitGoal]);
 
   const currentExpenseBreakdown = useMemo(() => [
     { name: "Ração", value: financialData.feedCost, color: "#f59e0b" },
     { name: "Mão de obra", value: financialData.laborCost, color: "#8b5cf6" },
     { name: "Outros", value: financialData.otherExpenses, color: "#94a3b8" },
   ], [financialData]);
+
+  if (!dataLoaded) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -693,7 +688,11 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {currentKpis.map((kpi) => (
           <div
-            key={kpi.title}
+            key={kpi.key}
+            onClick={() => {
+              setEditingGoalKey(kpi.key);
+              setEditingGoalValue(String(kpi.goalRaw));
+            }}
             className="group relative bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200/80 transition-all duration-300 cursor-pointer overflow-hidden"
           >
             <div className={cn("absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r opacity-0 group-hover:opacity-100 transition-opacity", kpi.gradient)} />
@@ -716,13 +715,17 @@ export default function DashboardPage() {
               </span>
             </div>
             <p className="text-2xl font-bold text-gray-900 tracking-tight">{kpi.value}</p>
-            <p className="text-[10px] text-gray-400 mt-0.5 font-medium">
+            <p className="text-[12px] text-gray-500 mt-1 font-medium">
               {periodInfo.label}
               {kpi.periodDetail && <span className="ml-1">· {kpi.periodDetail}</span>}
             </p>
-            <p className="text-[11px] text-gray-400 mt-1.5">{kpi.subtitle}</p>
-            {/* Mini progress bar */}
-            <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
+            {/* Goal indicator */}
+            <div className="flex items-center justify-between mt-3 mb-1">
+              <span className="text-[11px] font-semibold text-gray-700">{kpi.reached}</span>
+              <span className="text-[11px] text-gray-400 font-medium">Meta: {kpi.goal}</span>
+            </div>
+            {/* Progress bar */}
+            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className={cn("h-full rounded-full transition-all duration-500", `bg-gradient-to-r ${kpi.gradient}`)}
                 style={{ width: `${Math.min(kpi.progress, 100)}%` }}
@@ -732,11 +735,134 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {/* ── Goal Editor Modal ── */}
+      {editingGoalKey && (() => {
+        const kpi = currentKpis.find((k) => k.key === editingGoalKey);
+        if (!kpi) return null;
+        const goalLabels: Record<string, string> = {
+          eggs: "Meta de Ovos",
+          layingRate: "Meta de Taxa de Postura",
+          costPerEgg: "Meta de Custo por Ovo",
+          profit: "Meta de Lucro",
+        };
+        const goalHints: Record<string, string> = {
+          eggs: "Quantidade de ovos desejada",
+          layingRate: "Porcentagem desejada (ex: 92)",
+          costPerEgg: "Valor em reais (ex: 0.12)",
+          profit: "Valor em reais (ex: 30000)",
+        };
+        return (
+          <ModalPortal>
+            <div
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
+              onClick={() => setEditingGoalKey(null)}
+            >
+              <div
+                className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-[340px] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className={cn("flex items-center gap-3 px-5 py-4 border-b border-gray-100")}>
+                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", kpi.lightBg)}>
+                    <kpi.icon className={cn("w-[18px] h-[18px]", kpi.lightIcon)} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{goalLabels[editingGoalKey]}</p>
+                    <p className="text-[11px] text-gray-400">Clique em salvar para atualizar</p>
+                  </div>
+                  <button
+                    onClick={() => setEditingGoalKey(null)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="px-5 py-4 space-y-3">
+                  {/* Current progress */}
+                  <div className="flex items-center justify-between text-[12px]">
+                    <span className="text-gray-500">Atual</span>
+                    <span className="font-semibold text-gray-800">{kpi.reached}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[12px]">
+                    <span className="text-gray-500">Progresso</span>
+                    <span className="font-semibold text-gray-800">{Math.min(kpi.progress, 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={cn("h-full rounded-full transition-all duration-500", `bg-gradient-to-r ${kpi.gradient}`)}
+                      style={{ width: `${Math.min(kpi.progress, 100)}%` }}
+                    />
+                  </div>
+
+                  {/* Input */}
+                  <div className="pt-2">
+                    <label className="block text-[12px] font-medium text-gray-600 mb-1.5">Nova meta</label>
+                    <div className="flex items-center gap-2">
+                      {kpi.unitPos === "before" && (
+                        <span className="text-[13px] font-medium text-gray-400 flex-shrink-0">{kpi.inputUnit}</span>
+                      )}
+                      <input
+                        type="number"
+                        step="any"
+                        value={editingGoalValue}
+                        onChange={(e) => setEditingGoalValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const val = parseFloat(editingGoalValue);
+                            if (!isNaN(val) && val > 0) {
+                              setKpiGoals((prev) => ({ ...prev, [editingGoalKey]: val }));
+                              setEditingGoalKey(null);
+                            }
+                          }
+                        }}
+                        className="flex-1 h-10 rounded-xl border border-gray-200 bg-gray-50/50 px-3 text-sm text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 transition-all"
+                        placeholder={goalHints[editingGoalKey]}
+                        autoFocus
+                      />
+                      {kpi.unitPos === "after" && (
+                        <span className="text-[13px] font-medium text-gray-400 flex-shrink-0">{kpi.inputUnit}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center gap-2 px-5 py-3 border-t border-gray-100 bg-gray-50/50">
+                  <button
+                    onClick={() => setEditingGoalKey(null)}
+                    className="flex-1 h-9 rounded-xl text-[13px] font-medium text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => {
+                      const val = parseFloat(editingGoalValue);
+                      if (!isNaN(val) && val > 0) {
+                        setKpiGoals((prev) => ({ ...prev, [editingGoalKey]: val }));
+                        setEditingGoalKey(null);
+                      }
+                    }}
+                    className={cn(
+                      "flex-1 h-9 rounded-xl text-[13px] font-semibold text-white transition-all cursor-pointer",
+                      `bg-gradient-to-r ${kpi.gradient} hover:opacity-90`
+                    )}
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </ModalPortal>
+        );
+      })()}
+
       {/* ── PRIORITY BLOCK: Alerts + Tasks (2 columns) ── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {/* Alertas Ativos */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-5">
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px]">
+          <div className="flex items-center justify-between mb-5 flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-red-500 flex items-center justify-center shadow-sm">
                 <AlertTriangle className="w-5 h-5 text-white" />
@@ -756,7 +882,7 @@ export default function DashboardPage() {
               <span className="text-[11px] font-bold text-white bg-red-500 px-2.5 py-1 rounded-lg">{dbAlerts.length}</span>
             </div>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-3 overflow-y-auto flex-1 dashboard-scroll pr-1 -mr-1 py-1">
             {dbAlerts.map((a) => (
               <div
                 key={a.id}
@@ -795,14 +921,25 @@ export default function DashboardPage() {
                     </p>
                     <div className="flex items-center justify-between mt-2.5">
                       <p className="text-[11px] text-gray-400">{a.time}</p>
-                      <button className={cn(
-                        "text-[11px] font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-colors",
-                        a.type === "danger" && "text-white bg-red-500 hover:bg-red-600",
-                        a.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300",
-                        a.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300"
-                      )}>
-                        {a.action}
-                      </button>
+                      {a.href ? (
+                        <Link href={a.href} className={cn(
+                          "text-[11px] font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-colors",
+                          a.type === "danger" && "text-white bg-red-500 hover:bg-red-600",
+                          a.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300",
+                          a.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300"
+                        )}>
+                          {a.action}
+                        </Link>
+                      ) : (
+                        <button className={cn(
+                          "text-[11px] font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-colors",
+                          a.type === "danger" && "text-white bg-red-500 hover:bg-red-600",
+                          a.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300",
+                          a.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300"
+                        )}>
+                          {a.action}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -812,8 +949,8 @@ export default function DashboardPage() {
         </div>
 
         {/* Tarefas do Dia */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-5">
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px]">
+          <div className="flex items-center justify-between mb-5 flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-sm">
                 <CheckCircle2 className="w-5 h-5 text-white" />
@@ -851,7 +988,7 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-          <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 scrollbar-visible">
+          <div className="space-y-2 overflow-y-auto flex-1 dashboard-scroll pr-1 -mr-1 py-1">
             {dbTasks.map((t) => {
               const status = taskStatuses[t.id] ?? "pending";
               const isDelayed = status !== "done" && t.date < todayStr;
@@ -872,51 +1009,31 @@ export default function DashboardPage() {
                     !isDelayed && status === "pending" && "bg-gray-50/50 border-gray-100"
                   )}
                 >
-                  {/* Clickable square checkbox with dropdown */}
-                  <div className="relative" ref={openDropdown === t.id ? dropdownRef : undefined}>
-                    <button
-                      onClick={() => setOpenDropdown(openDropdown === t.id ? null : t.id)}
-                      className="w-[18px] h-[18px] rounded flex items-center justify-center cursor-pointer transition-colors border flex-shrink-0"
-                      style={{
-                        borderColor: isDelayed ? "#ef4444" : status === "done" ? "#10b981" : status === "progress" ? "#f59e0b" : "#d1d5db",
-                        backgroundColor: isDelayed ? "#ef4444" : status === "done" ? "#10b981" : status === "progress" ? "#f59e0b" : "transparent",
-                      }}
-                    >
-                      {status === "done" && <CheckSquare className="w-3.5 h-3.5 text-white" />}
-                      {status === "progress" && !isDelayed && <Minus className="w-3.5 h-3.5 text-white" />}
-                      {isDelayed && <AlertTriangle className="w-3 h-3 text-white" />}
-                    </button>
-
-                    {/* Status dropdown */}
-                    {openDropdown === t.id && (
-                      <div className="absolute left-0 top-7 z-50 bg-white rounded-xl border border-gray-200 shadow-xl py-1.5 w-44 animate-in fade-in slide-in-from-top-1 duration-150">
-                        {[
-                          { value: "done" as const, label: "Concluído", icon: CheckSquare, color: "text-emerald-600", bg: "hover:bg-emerald-50" },
-                          { value: "progress" as const, label: "Em Andamento", icon: Clock, color: "text-amber-600", bg: "hover:bg-amber-50" },
-                          { value: "pending" as const, label: "Pendente", icon: Square, color: "text-gray-400", bg: "hover:bg-gray-50" },
-                        ].map((opt) => (
-                          <button
-                            key={opt.value}
-                            onClick={() => {
-                              setTaskStatuses((prev) => ({ ...prev, [t.id]: opt.value }));
-                              setOpenDropdown(null);
-                            }}
-                            className={cn(
-                              "flex items-center gap-2.5 w-full px-3 py-2 text-left text-[13px] font-medium transition-colors cursor-pointer",
-                              opt.bg,
-                              status === opt.value ? "bg-gray-50 font-bold" : "text-gray-700"
-                            )}
-                          >
-                            <opt.icon className={cn("w-4 h-4", opt.color)} />
-                            {opt.label}
-                            {status === opt.value && (
-                              <span className="ml-auto text-[10px] text-gray-400 font-normal">atual</span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  {/* Clickable square checkbox */}
+                  <button
+                    onClick={(e) => {
+                      if (openDropdown === t.id) {
+                        setOpenDropdown(null);
+                        setDropdownPos(null);
+                      } else {
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        const dropdownHeight = 120;
+                        const spaceBelow = window.innerHeight - rect.bottom;
+                        const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight - 4 : rect.bottom + 4;
+                        setDropdownPos({ top, left: rect.left });
+                        setOpenDropdown(t.id);
+                      }
+                    }}
+                    className="w-[18px] h-[18px] rounded flex items-center justify-center cursor-pointer transition-colors border flex-shrink-0"
+                    style={{
+                      borderColor: isDelayed ? "#ef4444" : status === "done" ? "#10b981" : status === "progress" ? "#f59e0b" : "#d1d5db",
+                      backgroundColor: isDelayed ? "#ef4444" : status === "done" ? "#10b981" : status === "progress" ? "#f59e0b" : "transparent",
+                    }}
+                  >
+                    {status === "done" && <CheckSquare className="w-3.5 h-3.5 text-white" />}
+                    {status === "progress" && !isDelayed && <Minus className="w-3.5 h-3.5 text-white" />}
+                    {isDelayed && <AlertTriangle className="w-3 h-3 text-white" />}
+                  </button>
 
                   <div
                     className="flex-1 min-w-0 cursor-pointer"
@@ -950,6 +1067,46 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Task Status Dropdown (portal) */}
+      {openDropdown !== null && dropdownPos && (
+        <ModalPortal>
+          <div
+            ref={dropdownRef}
+            className="fixed z-[9999] bg-white rounded-xl border border-gray-200 shadow-xl py-1.5 w-44 animate-in fade-in slide-in-from-top-1 duration-150"
+            style={{ top: dropdownPos.top, left: dropdownPos.left }}
+          >
+            {[
+              { value: "done" as const, label: "Concluído", icon: CheckSquare, color: "text-emerald-600", bg: "hover:bg-emerald-50" },
+              { value: "progress" as const, label: "Em Andamento", icon: Clock, color: "text-amber-600", bg: "hover:bg-amber-50" },
+              { value: "pending" as const, label: "Pendente", icon: Square, color: "text-gray-400", bg: "hover:bg-gray-50" },
+            ].map((opt) => {
+              const currentStatus = taskStatuses[openDropdown] ?? "pending";
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => {
+                    setTaskStatuses((prev) => ({ ...prev, [openDropdown]: opt.value }));
+                    setOpenDropdown(null);
+                    setDropdownPos(null);
+                  }}
+                  className={cn(
+                    "flex items-center gap-2.5 w-full px-3 py-2 text-left text-[13px] font-medium transition-colors cursor-pointer",
+                    opt.bg,
+                    currentStatus === opt.value ? "bg-gray-50 font-bold" : "text-gray-700"
+                  )}
+                >
+                  <opt.icon className={cn("w-4 h-4", opt.color)} />
+                  {opt.label}
+                  {currentStatus === opt.value && (
+                    <span className="ml-auto text-[10px] text-gray-400 font-normal">atual</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </ModalPortal>
+      )}
 
       {/* New Task Modal */}
       {showNewTask && (
@@ -1235,27 +1392,39 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-              {barn.layingRate >= 90 ? (
-                <div className="mt-2 flex items-center gap-1.5 text-emerald-700 bg-emerald-100/80 rounded-lg px-2.5 py-1.5">
-                  <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
-                  <span className="text-[11px] font-medium">Desempenho excelente</span>
-                </div>
-              ) : barn.layingRate >= 88 ? (
-                <div className="mt-2 flex items-center gap-1.5 text-brand-700 bg-brand-100/80 rounded-lg px-2.5 py-1.5">
-                  <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
-                  <span className="text-[11px] font-medium">Postura dentro da meta</span>
-                </div>
-              ) : barn.layingRate >= 85 ? (
-                <div className="mt-2 flex items-center gap-1.5 text-amber-700 bg-amber-100/80 rounded-lg px-2.5 py-1.5">
-                  <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                  <span className="text-[11px] font-medium">Postura abaixo da meta</span>
-                </div>
-              ) : (
-                <div className="mt-2 flex items-center gap-1.5 text-red-700 bg-red-100/80 rounded-lg px-2.5 py-1.5">
-                  <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                  <span className="text-[11px] font-medium">Postura crítica</span>
-                </div>
-              )}
+              {(() => {
+                const isNew = barn.createdAt && (Date.now() - new Date(barn.createdAt).getTime()) < 5 * 24 * 60 * 60 * 1000;
+                if (barn.layingRate >= 90) return (
+                  <div className="mt-2 flex items-center gap-1.5 text-emerald-700 bg-emerald-100/80 rounded-lg px-2.5 py-1.5">
+                    <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
+                    <span className="text-[11px] font-medium">Desempenho excelente</span>
+                  </div>
+                );
+                if (barn.layingRate >= 88) return (
+                  <div className="mt-2 flex items-center gap-1.5 text-brand-700 bg-brand-100/80 rounded-lg px-2.5 py-1.5">
+                    <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
+                    <span className="text-[11px] font-medium">Postura dentro da meta</span>
+                  </div>
+                );
+                if (isNew) return (
+                  <div className="mt-2 flex items-center gap-1.5 text-gray-500 bg-gray-100/80 rounded-lg px-2.5 py-1.5">
+                    <Clock className="w-3 h-3 flex-shrink-0" />
+                    <span className="text-[11px] font-medium">Aguardando dados</span>
+                  </div>
+                );
+                if (barn.layingRate >= 85) return (
+                  <div className="mt-2 flex items-center gap-1.5 text-amber-700 bg-amber-100/80 rounded-lg px-2.5 py-1.5">
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                    <span className="text-[11px] font-medium">Postura abaixo da meta</span>
+                  </div>
+                );
+                return (
+                  <div className="mt-2 flex items-center gap-1.5 text-red-700 bg-red-100/80 rounded-lg px-2.5 py-1.5">
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                    <span className="text-[11px] font-medium">Postura crítica</span>
+                  </div>
+                );
+              })()}
             </div>
           ))}
         </div>
@@ -1408,7 +1577,7 @@ export default function DashboardPage() {
           <p className="text-[11px] text-gray-400 mb-5">Últimos 6 meses</p>
           <div className="flex-1 min-h-0">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={revenueData} margin={{ top: 5, right: 5, left: -15, bottom: 0 }} barGap={3}>
+            <BarChart data={[]} margin={{ top: 5, right: 5, left: -15, bottom: 0 }} barGap={3}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
               <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dy={8} />
               <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
@@ -1431,7 +1600,7 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height={160}>
               <PieChart>
                 <Pie
-                  data={expenseBreakdown}
+                  data={currentExpenseBreakdown}
                   cx="50%"
                   cy="50%"
                   innerRadius={45}
