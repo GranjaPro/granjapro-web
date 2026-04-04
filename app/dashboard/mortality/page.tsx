@@ -19,8 +19,6 @@ import {
   Search,
   Minus,
   Eye,
-  ChevronLeft,
-  ChevronRight,
   Sparkles,
   Zap,
   AlertTriangle,
@@ -29,7 +27,6 @@ import {
   Lightbulb,
   Shield,
   Bug,
-  CalendarDays,
   Thermometer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -50,6 +47,7 @@ import {
 } from "recharts";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
+import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 
 interface RegistroMortalidade {
   id: string;
@@ -111,118 +109,11 @@ export default function MortalidadePage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  /* ── Calendar ── */
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [filterMode, setFilterMode] = useState<"intervalo" | "mes">("intervalo");
-  
-  const [rangeStart, setRangeStart] = useState<Date | null>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d;
-  });
-  const [rangeEnd, setRangeEnd] = useState<Date | null>(new Date());
-  
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [calendarMonth, setCalendarMonth] = useState(new Date());
-  const calendarRef = useRef<HTMLDivElement>(null);
+  const { dateRange } = useDateFilter();
 
   useEffect(() => {
     if (searchParams.get("register") === "true") setModal("add");
   }, [searchParams]);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) setCalendarOpen(false);
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const sameDay = (a: Date, b: Date) => a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
-
-  const calendarLabel = useMemo(() => {
-    const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    if (filterMode === "intervalo") {
-      if (rangeStart && rangeEnd) {
-        if (sameDay(rangeStart, rangeEnd)) {
-          const today = new Date();
-          if (sameDay(rangeStart, today)) return `Hoje, ${rangeStart.getDate()} ${months[rangeStart.getMonth()]}`;
-          return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]}, ${rangeStart.getFullYear()}`;
-        }
-        return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]} — ${rangeEnd.getDate()} ${months[rangeEnd.getMonth()]}`;
-      }
-      if (rangeStart) return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]} — ...`;
-      return "Selecionar período";
-    }
-    return `${months[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
-  }, [selectedDate, filterMode, rangeStart, rangeEnd]);
-
-  const calendarDays = useMemo(() => {
-    const year = calendarMonth.getFullYear();
-    const month = calendarMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
-    const days: (Date | null)[] = [];
-    for (let i = 0; i < startDay; i++) days.push(null);
-    for (let i = 1; i <= lastDay.getDate(); i++) days.push(new Date(year, month, i));
-    return days;
-  }, [calendarMonth]);
-
-  const isInRange = useCallback((day: Date) => {
-    if (filterMode !== "intervalo" || !rangeStart) return false;
-    if (!rangeEnd) return sameDay(day, rangeStart);
-    const t = day.getTime();
-    const s = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime();
-    const e = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime();
-    return t >= s && t <= e;
-  }, [filterMode, rangeStart, rangeEnd]);
-
-  const isRangeStart = useCallback((day: Date) => filterMode === "intervalo" && rangeStart && sameDay(day, rangeStart), [filterMode, rangeStart]);
-  const isRangeEnd = useCallback((day: Date) => filterMode === "intervalo" && rangeEnd && sameDay(day, rangeEnd), [filterMode, rangeEnd]);
-
-  const handleCalDayClick = useCallback((day: Date) => {
-    if (filterMode === "intervalo") {
-      if (!rangeStart || (rangeStart && rangeEnd)) { setRangeStart(day); setRangeEnd(null); }
-      else {
-        if (day.getTime() < rangeStart.getTime()) { setRangeEnd(rangeStart); setRangeStart(day); }
-        else setRangeEnd(day);
-        setCalendarOpen(false);
-      }
-    } else { setSelectedDate(new Date(day.getFullYear(), day.getMonth(), 1)); setCalendarOpen(false); }
-  }, [filterMode, rangeStart, rangeEnd]);
-
-  // Derived date bounds for filtering
-  const { filterStartDate, filterEndDate } = useMemo(() => {
-    let start: Date;
-    let end: Date;
-    if (filterMode === "intervalo" && rangeStart && rangeEnd) {
-      start = rangeStart;
-      end = rangeEnd;
-    } else if (filterMode === "mes") {
-      start = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-      end = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
-    } else {
-      // Default to somewhat safe bounds if incomplete
-      start = new Date();
-      start.setDate(start.getDate() - 30);
-      end = new Date();
-    }
-    
-    // adjust timezone issues for querying
-    const yyyy1 = start.getFullYear();
-    const mm1 = String(start.getMonth() + 1).padStart(2, '0');
-    const dd1 = String(start.getDate()).padStart(2, '0');
-    
-    const yyyy2 = end.getFullYear();
-    const mm2 = String(end.getMonth() + 1).padStart(2, '0');
-    const dd2 = String(end.getDate()).padStart(2, '0');
-
-    return { 
-      filterStartDate: `${yyyy1}-${mm1}-${dd1}`, 
-      filterEndDate: `${yyyy2}-${mm2}-${dd2}` 
-    };
-  }, [filterMode, rangeStart, rangeEnd, selectedDate]);
 
   const fetchData = useCallback(async () => {
     const currentFarm = farmRef.current;
@@ -231,14 +122,16 @@ export default function MortalidadePage() {
 
     const supabase = createClient();
     try {
+      const { startDate, endDate } = dateRange;
+
       const [flocksRes, barnsRes, mortalityRes] = await Promise.all([
         supabase.from("flocks").select("id, code, bird_count").eq("farm_id", currentFarm.id),
         supabase.from("barns").select("id, name").eq("farm_id", currentFarm.id),
         supabase.from("mortality")
           .select("*, flocks(code), barns(name)")
           .eq("farm_id", currentFarm.id)
-          .gte("date", filterStartDate)
-          .lte("date", filterEndDate)
+          .gte("date", startDate)
+          .lte("date", endDate)
           .order("date", { ascending: false })
       ]);
 
@@ -263,7 +156,7 @@ export default function MortalidadePage() {
     } finally {
       setLoading(false);
     }
-  }, [filterStartDate, filterEndDate]);
+  }, [dateRange]);
 
   useEffect(() => {
     fetchData();
@@ -507,51 +400,7 @@ export default function MortalidadePage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* Calendar Filter */}
-          <div className="relative" ref={calendarRef}>
-            <button onClick={() => setCalendarOpen(!calendarOpen)} className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 bg-white border border-gray-200 rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer shadow-sm">
-              <CalendarDays className="w-4 h-4" />{calendarLabel}
-            </button>
-            {calendarOpen && (
-              <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-gray-200 shadow-2xl p-4 z-50 w-[320px] animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 mb-4">
-                  {([{ key: "intervalo" as const, label: "Intervalo" }, { key: "mes" as const, label: "Mês" }]).map(p => (
-                    <button key={p.key} onClick={() => setFilterMode(p.key)} className={cn("flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer", filterMode === p.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>{p.label}</button>
-                  ))}
-                </div>
-                {filterMode === "intervalo" && <p className="text-[10px] text-gray-400 font-medium mb-2 text-center">{!rangeStart || (rangeStart && rangeEnd) ? "Clique no dia inicial" : "Clique no dia final"}</p>}
-                <div className="flex items-center justify-between mb-3">
-                  <button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-gray-500" /></button>
-                  <span className="text-sm font-semibold text-gray-900">{["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][calendarMonth.getMonth()]} {calendarMonth.getFullYear()}</span>
-                  <button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-gray-500" /></button>
-                </div>
-                {filterMode === "mes" ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map((m, i) => (
-                      <button key={m} onClick={() => { setSelectedDate(new Date(calendarMonth.getFullYear(), i, 1)); setCalendarOpen(false); }} className={cn("py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer", selectedDate.getMonth() === i && selectedDate.getFullYear() === calendarMonth.getFullYear() ? "bg-red-500 text-white shadow-sm" : "text-gray-700 hover:bg-gray-100")}>{m}</button>
-                    ))}
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-7 gap-0 mb-1">{["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"].map(d => <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>)}</div>
-                    <div className="grid grid-cols-7 gap-0">
-                      {calendarDays.map((day, i) => {
-                        if (!day) return <div key={`e-${i}`} className="h-9" />;
-                        const today = new Date(); const isToday = sameDay(day, today);
-                        const inRange = isInRange(day); const isStart = isRangeStart(day); const isEnd = isRangeEnd(day); const isSingle = isStart && isEnd;
-                        return (
-                          <button key={i} onClick={() => handleCalDayClick(day)} className={cn("h-9 text-sm font-medium transition-all duration-150 cursor-pointer relative flex items-center justify-center", inRange && !isStart && !isEnd && "bg-red-50 text-red-700", isStart && !isSingle && "bg-red-500 text-white rounded-l-xl", isEnd && !isSingle && "bg-red-500 text-white rounded-r-xl", isSingle && "bg-red-500 text-white rounded-xl shadow-sm", !inRange && "hover:bg-gray-100 rounded-xl")}>
-                            <span className={cn(isToday && !inRange && "w-7 h-7 rounded-full border-2 border-red-400 flex items-center justify-center")}>{day.getDate()}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-                <button onClick={() => { const t = new Date(); setRangeStart(t); setRangeEnd(t); setSelectedDate(t); setCalendarMonth(t); setFilterMode("intervalo"); setCalendarOpen(false); }} className="w-full mt-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-xl transition-colors cursor-pointer">Hoje</button>
-              </div>
-            )}
-          </div>
+          <CalendarFilter />
           <button
             onClick={openAdd}
             className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-red-500/20"
@@ -581,7 +430,7 @@ export default function MortalidadePage() {
                 <span className="text-sm font-bold text-gray-900">Status da Mortalidade</span>
               </div>
               <p className={cn("text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Semana: {mortesSemana} mortes | Mês: {mortesMes} mortes | Total: {totalMortes}</p>
+              <p className="text-xs text-gray-500 mt-0.5">Semana: {mortesSemana} | Mês: {mortesMes} | Total: {totalMortes}</p>
             </div>
           </div>
           <div className="hidden lg:block w-px h-14 bg-gray-200" />
