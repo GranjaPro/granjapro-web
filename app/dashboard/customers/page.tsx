@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import ModalPortal from "@/components/ui/modal-portal";
 import {
   Users,
@@ -44,23 +44,28 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth/auth-provider";
+import { createClient } from "@/lib/supabase/client";
+import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 
 /* ══════════════════════════════════════════════
-   TYPES & MOCK DATA
+   TYPES
    ══════════════════════════════════════════════ */
 
 type ClienteStatus = "pago" | "a_receber" | "atrasado" | "inadimplente" | "inativo";
-type ClienteTipo = "mercado" | "restaurante" | "distribuidor" | "direto";
+type ClienteTipo = "market" | "restaurant" | "distributor" | "direct";
 
 interface Cliente {
-  id: number;
+  id: string;
   nome: string;
   telefone: string;
+  email: string;
   localizacao: string;
   tipo: ClienteTipo;
   observacoes: string;
+  payment_terms: string;
   status: ClienteStatus;
-  ultimaCompra: string;
+  ultimaCompra: string | null;
   frequencia: number; // purchases per month
   frequenciaTrend: number; // % change vs last month
   receitaMensal: number;
@@ -69,17 +74,17 @@ interface Cliente {
 }
 
 const tipoLabels: Record<ClienteTipo, string> = {
-  mercado: "Mercado",
-  restaurante: "Restaurante",
-  distribuidor: "Distribuidor",
-  direto: "Venda Direta",
+  market: "Mercado",
+  restaurant: "Restaurante",
+  distributor: "Distribuidor",
+  direct: "Venda Direta",
 };
 
 const tipoIcons: Record<ClienteTipo, typeof Store> = {
-  mercado: Store,
-  restaurante: UtensilsCrossed,
-  distribuidor: Truck,
-  direto: UserCircle,
+  market: Store,
+  restaurant: UtensilsCrossed,
+  distributor: Truck,
+  direct: UserCircle,
 };
 
 const statusConfig: Record<ClienteStatus, { label: string; color: string; bg: string; border: string; icon: typeof CheckCircle2 }> = {
@@ -90,34 +95,118 @@ const statusConfig: Record<ClienteStatus, { label: string; color: string; bg: st
   inativo: { label: "Inativo", color: "text-gray-500", bg: "bg-gray-50", border: "border-gray-200", icon: XCircle },
 };
 
-const initialClientes: Cliente[] = [
-  { id: 1, nome: "Mercado Central", telefone: "(31) 3333-1111", localizacao: "Belo Horizonte, MG", tipo: "mercado", observacoes: "Cliente desde 2022. Compra toda semana. Prefere ovos brancos.", status: "pago", ultimaCompra: "2024-04-17", frequencia: 4.2, frequenciaTrend: 11, receitaMensal: 6200, ticketMedio: 1475, totalCompras: 48 },
-  { id: 2, nome: "Supermercado BH", telefone: "(31) 3333-2222", localizacao: "Contagem, MG", tipo: "mercado", observacoes: "Pagamento a prazo (15 dias). Volume alto.", status: "a_receber", ultimaCompra: "2024-04-15", frequencia: 3.5, frequenciaTrend: -13, receitaMensal: 4100, ticketMedio: 1171, totalCompras: 36 },
-  { id: 3, nome: "Restaurante Sabor", telefone: "(31) 9999-3333", localizacao: "Belo Horizonte, MG", tipo: "restaurante", observacoes: "Aceita ovos caipira. Compra às terças e sextas.", status: "pago", ultimaCompra: "2024-04-16", frequencia: 8.0, frequenciaTrend: 0, receitaMensal: 2850, ticketMedio: 356, totalCompras: 72 },
-  { id: 4, nome: "Padaria Boa Mesa", telefone: "(31) 9999-4444", localizacao: "Betim, MG", tipo: "restaurante", observacoes: "Compra pequena mas constante. Potencial para aumentar.", status: "a_receber", ultimaCompra: "2024-04-14", frequencia: 5.0, frequenciaTrend: 0, receitaMensal: 1680, ticketMedio: 336, totalCompras: 55 },
-  { id: 5, nome: "Feira Livre Municipal", telefone: "(31) 9999-5555", localizacao: "Santa Luzia, MG", tipo: "direto", observacoes: "Sábados de manhã. Negocia muito preço.", status: "atrasado", ultimaCompra: "2024-03-30", frequencia: 1.2, frequenciaTrend: -52, receitaMensal: 865, ticketMedio: 721, totalCompras: 12 },
-  { id: 6, nome: "Distribuidora Minas Ovos", telefone: "(31) 3333-6666", localizacao: "Ribeirão das Neves, MG", tipo: "distribuidor", observacoes: "Comprava em volume. Parou há 2 meses. Ligar para reativar.", status: "inativo", ultimaCompra: "2024-02-10", frequencia: 0, frequenciaTrend: -100, receitaMensal: 0, ticketMedio: 2800, totalCompras: 18 },
-  { id: 7, nome: "Hotel Fazenda Sol", telefone: "(31) 9999-7777", localizacao: "Nova Lima, MG", tipo: "restaurante", observacoes: "Pedidos esporádicos. Último pedido atrasou pagamento.", status: "inadimplente", ultimaCompra: "2024-04-01", frequencia: 0.8, frequenciaTrend: -47, receitaMensal: 420, ticketMedio: 525, totalCompras: 8 },
-  { id: 8, nome: "Mercearia do Zé", telefone: "(31) 9999-8888", localizacao: "Ibirité, MG", tipo: "mercado", observacoes: "Pequeno volume mas sempre paga em dia.", status: "pago", ultimaCompra: "2024-04-12", frequencia: 2.0, frequenciaTrend: 33, receitaMensal: 540, ticketMedio: 270, totalCompras: 22 },
-];
-
-const tipoOptions: ClienteTipo[] = ["mercado", "restaurante", "distribuidor", "direto"];
+const tipoOptions: ClienteTipo[] = ["market", "restaurant", "distributor", "direct"];
 
 /* ══════════════════════════════════════════════
    COMPONENT
    ══════════════════════════════════════════════ */
 
 export default function ClientesPage() {
-  const [clientes, setClientes] = useState(initialClientes);
+  const { farm } = useAuth();
+  const farmRef = useRef(farm);
+  farmRef.current = farm;
+  
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
   const [editing, setEditing] = useState<Cliente | null>(null);
-  const [form, setForm] = useState({ nome: "", telefone: "", localizacao: "", tipo: "" as ClienteTipo | "", observacoes: "" });
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [form, setForm] = useState({ nome: "", telefone: "", localizacao: "", tipo: "" as ClienteTipo | "", observacoes: "", email: "", payment_terms: "" });
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<ClienteStatus | "todos">("todos");
   const [filterTipo, setFilterTipo] = useState<ClienteTipo | "todos">("todos");
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [cobrancaModal, setCobrancaModal] = useState<"atrasado" | "inadimplente" | null>(null);
+
+  /* ── Fetch Data ── */
+  const fetchData = useCallback(async () => {
+    const currentFarm = farmRef.current;
+    if (!currentFarm) return;
+    setLoading(true);
+
+    const supabase = createClient();
+    try {
+      const [customersRes, salesRes] = await Promise.all([
+        supabase.from("customers").select("*").eq("farm_id", currentFarm.id).order("name"),
+        supabase.from("sales").select("*").eq("farm_id", currentFarm.id)
+      ]);
+
+      if (customersRes.error) throw customersRes.error;
+      if (salesRes.error) throw salesRes.error;
+
+      const customersData = customersRes.data || [];
+      const salesData = salesRes.data || [];
+
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
+
+      const mappedClientes: Cliente[] = customersData.map((c: any) => {
+        const customerSales = salesData.filter((s: any) => s.customer_id === c.id);
+        const totalCompras = customerSales.length;
+        
+        let status: ClienteStatus = "inativo";
+        let receitaMensal = 0;
+        let ticketMedio = 0;
+        let ultimaCompra: string | null = null;
+        let frequencia = 0;
+
+        if (totalCompras > 0) {
+          customerSales.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          ultimaCompra = customerSales[0].date;
+          
+          const totalRevenue = customerSales.reduce((acc: number, s: any) => acc + s.total, 0);
+          ticketMedio = totalRevenue / totalCompras;
+          
+          const recentSales = customerSales.filter((s: any) => s.date >= thirtyDaysAgoStr);
+          receitaMensal = recentSales.reduce((acc: number, s: any) => acc + s.total, 0);
+          
+          // Frequência aproximada
+          const firstSaleDate = new Date(customerSales[customerSales.length - 1].date);
+          const today = new Date();
+          const monthsDiff = Math.max(1, (today.getTime() - firstSaleDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
+          frequencia = totalCompras / monthsDiff;
+
+          // Status calculation based on pending/overdue sales
+          const hasOverdue = customerSales.some((s: any) => s.payment_status === "overdue");
+          const hasPending = customerSales.some((s: any) => s.payment_status === "pending");
+          
+          if (hasOverdue) status = "atrasado";
+          else if (hasPending) status = "a_receber";
+          else status = "pago";
+        }
+
+        return {
+          id: c.id,
+          nome: c.name,
+          telefone: c.phone || "",
+          email: c.email || "",
+          localizacao: c.location || "",
+          tipo: c.type as ClienteTipo || "market",
+          observacoes: c.notes || "",
+          payment_terms: c.payment_terms || "",
+          status,
+          ultimaCompra,
+          frequencia,
+          frequenciaTrend: 0, // placeholder, hard to calculate accurately without complex aggregation
+          receitaMensal,
+          ticketMedio,
+          totalCompras,
+        };
+      });
+
+      setClientes(mappedClientes);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   /* ── Derived data ── */
   const filteredClientes = useMemo(() => {
@@ -179,52 +268,71 @@ export default function ClientesPage() {
     const inativos = clientes.filter((c) => c.status === "inativo").length;
     if (inativos > 0) arr.push({ type: "info", title: `${inativos} cliente${inativos > 1 ? "s" : ""} inativo${inativos > 1 ? "s" : ""}`, action: "Contatar para reativação — potencial de receita perdida" });
     if (pctRecebida >= 80) arr.push({ type: "success", title: `${pctRecebida.toFixed(0)}% da receita já recebida`, action: "Ótimo desempenho de recebimento este mês" });
-    else arr.push({ type: "warning", title: `Apenas ${pctRecebida.toFixed(0)}% da receita recebida`, action: "Intensificar cobranças para melhorar fluxo de caixa" });
+    else if (pctRecebida > 0) arr.push({ type: "warning", title: `Apenas ${pctRecebida.toFixed(0)}% da receita recebida`, action: "Intensificar cobranças para melhorar fluxo de caixa" });
+    else if (receitaPotencial === 0) arr.push({ type: "info", title: `Nenhuma receita potencial`, action: "Cadastre novas vendas para visualizar as métricas" });
     return arr;
-  }, [clientesInadimplentes, clientesAtrasados, clientesAReceber, dividaInadimplentes, dividaAtrasados, valorAReceber, top5Pct, pctRecebida, clientes]);
+  }, [clientesInadimplentes, clientesAtrasados, clientesAReceber, dividaInadimplentes, dividaAtrasados, valorAReceber, top5Pct, pctRecebida, clientes, receitaPotencial]);
 
   /* ── CRUD ── */
   function openAdd() {
-    setForm({ nome: "", telefone: "", localizacao: "", tipo: "", observacoes: "" });
+    setForm({ nome: "", telefone: "", email: "", payment_terms: "", localizacao: "", tipo: "", observacoes: "" });
     setEditing(null);
     setModal("add");
   }
 
   function openEdit(c: Cliente) {
-    setForm({ nome: c.nome, telefone: c.telefone, localizacao: c.localizacao, tipo: c.tipo, observacoes: c.observacoes });
+    setForm({ nome: c.nome, telefone: c.telefone, email: c.email, payment_terms: c.payment_terms, localizacao: c.localizacao, tipo: c.tipo, observacoes: c.observacoes });
     setEditing(c);
     setModal("edit");
   }
 
-  function save() {
+  async function save() {
     if (!form.nome.trim() || !form.tipo) return;
-    const cliente: Cliente = {
-      id: editing?.id || Date.now(),
-      nome: form.nome,
-      telefone: form.telefone,
-      localizacao: form.localizacao,
-      tipo: form.tipo as ClienteTipo,
-      observacoes: form.observacoes,
-      status: editing?.status || "pago",
-      ultimaCompra: editing?.ultimaCompra || new Date().toISOString().split("T")[0],
-      frequencia: editing?.frequencia || 0,
-      frequenciaTrend: editing?.frequenciaTrend || 0,
-      receitaMensal: editing?.receitaMensal || 0,
-      ticketMedio: editing?.ticketMedio || 0,
-      totalCompras: editing?.totalCompras || 0,
+    const currentFarm = farmRef.current;
+    if (!currentFarm) return;
+
+    const record = {
+      farm_id: currentFarm.id,
+      name: form.nome,
+      type: form.tipo,
+      phone: form.telefone || null,
+      email: form.email || null,
+      location: form.localizacao || null,
+      payment_terms: form.payment_terms || null,
+      notes: form.observacoes || null
     };
-    if (modal === "add") setClientes((prev) => [cliente, ...prev]);
-    else if (editing) setClientes((prev) => prev.map((c) => (c.id === editing.id ? { ...c, ...cliente } : c)));
-    setModal(null);
+
+    const supabase = createClient();
+    try {
+      if (modal === "add") {
+        await supabase.from("customers").insert(record);
+      } else if (editing) {
+        await supabase.from("customers").update(record).eq("id", editing.id);
+      }
+      setModal(null);
+      fetchData();
+      if (editing && selectedCliente?.id === editing.id) {
+        setSelectedCliente(prev => prev ? { ...prev, ...form, nome: form.nome, tipo: form.tipo as ClienteTipo, telefone: form.telefone, email: form.email, localizacao: form.localizacao, payment_terms: form.payment_terms, observacoes: form.observacoes } : null);
+      }
+    } catch (e) {
+      console.error(e);
+    }
   }
 
-  function deleteCliente(id: number) {
-    setClientes((prev) => prev.filter((c) => c.id !== id));
-    setDeleteConfirm(null);
-    if (selectedCliente?.id === id) setSelectedCliente(null);
+  async function deleteCliente(id: string) {
+    const supabase = createClient();
+    try {
+      await supabase.from("customers").delete().eq("id", id);
+      setDeleteConfirm(null);
+      if (selectedCliente?.id === id) setSelectedCliente(null);
+      fetchData();
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   function formatDate(dateStr: string) {
+    if (!dateStr) return "Nunca comprou";
     try {
       const d = new Date(dateStr + "T00:00:00");
       return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -237,9 +345,10 @@ export default function ClientesPage() {
     return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   }
 
-  function daysSince(dateStr: string) {
+  function daysSince(dateStr: string | null) {
+    if (!dateStr) return -1;
     const d = new Date(dateStr + "T00:00:00");
-    const now = new Date("2024-04-17T00:00:00");
+    const now = new Date();
     return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
   }
 
@@ -282,11 +391,11 @@ export default function ClientesPage() {
                 <div className="flex items-center gap-4 mt-2 flex-wrap">
                   <span className="inline-flex items-center gap-1.5 text-sm text-gray-500">
                     <Phone className="w-3.5 h-3.5" />
-                    {c.telefone}
+                    {c.telefone || "Não informado"}
                   </span>
                   <span className="inline-flex items-center gap-1.5 text-sm text-gray-500">
                     <MapPin className="w-3.5 h-3.5" />
-                    {c.localizacao}
+                    {c.localizacao || "Não informado"}
                   </span>
                   <span className="inline-flex items-center gap-1.5 text-sm text-gray-500">
                     <TipoIcon className="w-3.5 h-3.5" />
@@ -374,13 +483,15 @@ export default function ClientesPage() {
               <div className="flex items-center justify-between py-2 border-b border-gray-50">
                 <span className="text-sm text-gray-500">Última Compra</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-900">{formatDate(c.ultimaCompra)}</span>
-                  <span className={cn(
-                    "text-xs font-medium px-2 py-0.5 rounded-md",
-                    days <= 7 ? "text-emerald-700 bg-emerald-50" : days <= 21 ? "text-amber-700 bg-amber-50" : "text-red-600 bg-red-50"
-                  )}>
-                    {days === 0 ? "Hoje" : `${days}d atrás`}
-                  </span>
+                  <span className="text-sm font-medium text-gray-900">{formatDate(c.ultimaCompra || "")}</span>
+                  {days !== -1 && (
+                    <span className={cn(
+                      "text-xs font-medium px-2 py-0.5 rounded-md",
+                      days <= 7 ? "text-emerald-700 bg-emerald-50" : days <= 21 ? "text-amber-700 bg-amber-50" : "text-red-600 bg-red-50"
+                    )}>
+                      {days === 0 ? "Hoje" : `${days}d atrás`}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="flex items-center justify-between py-2 border-b border-gray-50">
@@ -396,7 +507,7 @@ export default function ClientesPage() {
               </div>
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-gray-500">Telefone</span>
-                <span className="text-sm font-medium text-gray-900">{c.telefone}</span>
+                <span className="text-sm font-medium text-gray-900">{c.telefone || "—"}</span>
               </div>
             </div>
           </div>
@@ -459,7 +570,7 @@ export default function ClientesPage() {
           <p className="text-xs text-emerald-600 font-semibold mt-2">Potencial: {formatCurrency(receitaPotencial)}</p>
           <div className="mt-auto pt-3 relative">
             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-700 bg-emerald-500" style={{ width: `${(clientesPagos / totalClientes) * 100}%` }} />
+              <div className="h-full rounded-full transition-all duration-700 bg-emerald-500" style={{ width: `${totalClientes > 0 ? (clientesPagos / totalClientes) * 100 : 0}%` }} />
             </div>
           </div>
           <div className="flex items-center justify-between mt-2">
@@ -488,7 +599,7 @@ export default function ClientesPage() {
           <p className="text-xs text-blue-600 font-semibold mt-2">Dentro do prazo</p>
           <div className="mt-auto pt-3 relative">
             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-700 bg-blue-500" style={{ width: `${(clientesAReceber / totalClientes) * 100}%` }} />
+              <div className="h-full rounded-full transition-all duration-700 bg-blue-500" style={{ width: `${totalClientes > 0 ? (clientesAReceber / totalClientes) * 100 : 0}%` }} />
             </div>
           </div>
           <div className="flex items-center justify-between mt-2">
@@ -517,7 +628,7 @@ export default function ClientesPage() {
           <p className="text-xs text-amber-600 font-semibold mt-2">Falta Receber: {formatCurrency(receitaPotencial - receitaRecebida)}</p>
           <div className="mt-auto pt-3 relative">
             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-700 bg-blue-500" style={{ width: `${((totalClientes - clientes.filter(c => c.status === "inativo").length) / totalClientes) * 100}%` }} />
+              <div className="h-full rounded-full transition-all duration-700 bg-blue-500" style={{ width: `${totalClientes > 0 ? ((totalClientes - clientes.filter(c => c.status === "inativo").length) / totalClientes) * 100 : 0}%` }} />
             </div>
           </div>
           <div className="flex items-center justify-between mt-2">
@@ -544,13 +655,13 @@ export default function ClientesPage() {
             </span>
           </div>
           {dividaAtrasados > 0 && (
-            <button onClick={() => setCobrancaModal("atrasado")} className="mt-3 self-start px-3 py-1 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-700 text-[11px] font-bold transition-colors duration-200">
+            <button onClick={() => setCobrancaModal("atrasado")} className="mt-3 self-start px-3 py-1 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-700 text-[11px] font-bold transition-colors duration-200 cursor-pointer">
               Cobrar agora
             </button>
           )}
           <div className="mt-auto pt-4 relative">
             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-700 bg-amber-500" style={{ width: `${(clientesAtrasados / totalClientes) * 100}%` }} />
+              <div className="h-full rounded-full transition-all duration-700 bg-amber-500" style={{ width: `${totalClientes > 0 ? (clientesAtrasados / totalClientes) * 100 : 0}%` }} />
             </div>
           </div>
           <div className="flex items-center justify-between mt-2">
@@ -577,13 +688,13 @@ export default function ClientesPage() {
             </span>
           </div>
           {dividaInadimplentes > 0 && (
-            <button onClick={() => setCobrancaModal("inadimplente")} className="mt-3 self-start px-3 py-1 rounded-md bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-bold transition-colors duration-200">
+            <button onClick={() => setCobrancaModal("inadimplente")} className="mt-3 self-start px-3 py-1 rounded-md bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-bold transition-colors duration-200 cursor-pointer">
               Cobrar agora
             </button>
           )}
           <div className="mt-auto pt-4 relative">
             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-700 bg-red-500" style={{ width: `${(clientesInadimplentes / totalClientes) * 100}%` }} />
+              <div className="h-full rounded-full transition-all duration-700 bg-red-500" style={{ width: `${totalClientes > 0 ? (clientesInadimplentes / totalClientes) * 100 : 0}%` }} />
             </div>
           </div>
           <div className="flex items-center justify-between mt-2">
@@ -611,7 +722,7 @@ export default function ClientesPage() {
           </div>
           <div className="mt-auto pt-4 relative">
             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-700 bg-gray-400" style={{ width: `${(clientes.filter(c => c.status === "inativo").length / totalClientes) * 100}%` }} />
+              <div className="h-full rounded-full transition-all duration-700 bg-gray-400" style={{ width: `${totalClientes > 0 ? (clientes.filter(c => c.status === "inativo").length / totalClientes) * 100 : 0}%` }} />
             </div>
           </div>
           <div className="flex items-center justify-between mt-2">
@@ -639,7 +750,7 @@ export default function ClientesPage() {
             <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
           </div>
           <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-            {insightsComerciais.map((ins, i) => (
+            {insightsComerciais.length > 0 ? insightsComerciais.map((ins, i) => (
               <div key={i} className={cn("p-3.5 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
                 <div className="flex items-center gap-2 mb-1">
                   <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
@@ -651,7 +762,12 @@ export default function ClientesPage() {
                 </div>
                 <p className={cn("text-xs font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
               </div>
-            ))}
+            )) : (
+              <div className="text-center py-8">
+                <Lightbulb className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">Sem dados suficientes para insights.</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -665,7 +781,7 @@ export default function ClientesPage() {
             <span className="text-xs font-semibold text-gray-400">{formatCurrency(top5Revenue)}</span>
           </div>
           <div className="space-y-2.5 flex-1">
-            {top5.map((c, i) => {
+            {top5.length > 0 ? top5.map((c, i) => {
               const pct = receitaPotencial > 0 ? (c.receitaMensal / receitaPotencial) * 100 : 0;
               return (
                 <div key={c.id} className="group cursor-pointer">
@@ -686,7 +802,12 @@ export default function ClientesPage() {
                   </div>
                 </div>
               );
-            })}
+            }) : (
+              <div className="text-center py-8">
+                <Store className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">Sem clientes ativos no período.</p>
+              </div>
+            )}
           </div>
           <div className="mt-4 pt-3 border-t border-gray-100">
             <div className="flex items-center justify-between">
@@ -702,7 +823,7 @@ export default function ClientesPage() {
 
       {/* Filters & Search */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto scrollbar-none">
           {([
             { key: "todos" as const, label: "Todos" },
             { key: "pago" as const, label: "Pagos" },
@@ -715,7 +836,7 @@ export default function ClientesPage() {
               key={s.key}
               onClick={() => setFilterStatus(s.key)}
               className={cn(
-                "px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
+                "px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer whitespace-nowrap",
                 filterStatus === s.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
               )}
             >
@@ -724,19 +845,19 @@ export default function ClientesPage() {
           ))}
         </div>
 
-        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto scrollbar-none">
           {([
             { key: "todos" as const, label: "Todos" },
-            { key: "mercado" as const, label: "Mercado" },
-            { key: "restaurante" as const, label: "Restaurante" },
-            { key: "distribuidor" as const, label: "Distribuidor" },
-            { key: "direto" as const, label: "Direto" },
+            { key: "market" as const, label: "Mercado" },
+            { key: "restaurant" as const, label: "Restaurante" },
+            { key: "distributor" as const, label: "Distribuidor" },
+            { key: "direct" as const, label: "Direto" },
           ]).map((t) => (
             <button
               key={t.key}
               onClick={() => setFilterTipo(t.key)}
               className={cn(
-                "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
+                "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer whitespace-nowrap",
                 filterTipo === t.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
               )}
             >
@@ -766,137 +887,136 @@ export default function ClientesPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto overflow-y-visible">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Cliente</th>
-                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Tipo</th>
-                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Pagamento</th>
-                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Última Compra</th>
-                <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  <span className="inline-flex items-center gap-1">
-                    Frequência
-                    <span className="relative group">
-                      <HelpCircle className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 transition-colors cursor-help" />
-                      <span className="absolute top-full right-1/2 translate-x-1/2 mt-2 w-48 px-3 py-2.5 text-xs text-center font-normal normal-case tracking-normal text-gray-700 bg-white border border-gray-200 rounded-xl shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-200 z-50">
-                        Média de compras por mês deste cliente
-                      </span>
-                    </span>
-                  </span>
-                </th>
-                <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Receita/Mês</th>
-                <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  <span className="inline-flex items-center gap-1">
-                    Ticket Médio
-                    <span className="relative group">
-                      <HelpCircle className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 transition-colors cursor-help" />
-                      <span className="absolute top-full right-1/2 translate-x-1/2 mt-2 w-48 px-3 py-2.5 text-xs text-center font-normal normal-case tracking-normal text-gray-700 bg-white border border-gray-200 rounded-xl shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-200 z-50">
-                        Valor médio por compra deste cliente
-                      </span>
-                    </span>
-                  </span>
-                </th>
-                <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredClientes.map((c) => {
-                const sc = statusConfig[c.status];
-                const TipoIcon = tipoIcons[c.tipo];
-                const days = daysSince(c.ultimaCompra);
-                return (
-                  <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0">
-                          <TipoIcon className="w-4 h-4 text-brand-600" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{c.nome}</p>
-                          <p className="text-xs text-gray-400 truncate">{c.localizacao}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="text-xs font-medium text-gray-600 bg-gray-50 px-2 py-0.5 rounded-md">{tipoLabels[c.tipo]}</span>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className={cn("inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border", sc.color, sc.bg, sc.border)}>
-                        <sc.icon className="w-3 h-3" />
-                        {sc.label}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3">
-                      <div>
-                        <p className="text-sm text-gray-600">{formatDate(c.ultimaCompra)}</p>
-                        <p className={cn(
-                          "text-xs font-medium",
-                          days <= 7 ? "text-emerald-600" : days <= 21 ? "text-amber-600" : "text-red-500"
-                        )}>
-                          {days === 0 ? "Hoje" : `${days}d atrás`}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full",
-                          c.frequencia >= 4 ? "bg-emerald-50 text-emerald-700" :
-                          c.frequencia >= 2 ? "bg-blue-50 text-blue-700" :
-                          c.frequencia > 0 ? "bg-amber-50 text-amber-700" :
-                          "bg-gray-50 text-gray-400"
-                        )}>
-                          {c.frequencia >= 4 ? "Compra frequente" : c.frequencia >= 2 ? "Compra semanal" : c.frequencia > 0 ? "Compra irregular" : "Inativo"}
-                          {c.frequenciaTrend > 0 ? (
-                            <ArrowUpRight className="w-3 h-3 text-emerald-500" />
-                          ) : c.frequenciaTrend < 0 ? (
-                            <ArrowDownRight className="w-3 h-3 text-red-500" />
-                          ) : c.frequencia > 0 ? (
-                            <Minus className="w-3 h-3 text-gray-400" />
-                          ) : null}
+        <div className="overflow-x-auto overflow-y-visible min-h-[300px]">
+          {loading ? (
+             <div className="flex items-center justify-center h-full py-16 text-gray-400 text-sm">Carregando dados...</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Cliente</th>
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Tipo</th>
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Pagamento</th>
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Última Compra</th>
+                  <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    <span className="inline-flex items-center gap-1">
+                      Frequência
+                      <span className="relative group">
+                        <HelpCircle className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 transition-colors cursor-help" />
+                        <span className="absolute top-full right-1/2 translate-x-1/2 mt-2 w-48 px-3 py-2.5 text-xs text-center font-normal normal-case tracking-normal text-gray-700 bg-white border border-gray-200 rounded-xl shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-200 z-50">
+                          Média de compras por mês deste cliente
                         </span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-right font-medium text-gray-900">{c.receitaMensal > 0 ? formatCurrency(c.receitaMensal) : "—"}</td>
-                    <td className="py-3 px-3 text-right font-medium text-gray-900">{c.ticketMedio > 0 ? formatCurrency(c.ticketMedio) : "—"}</td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center justify-end gap-1">
-                        {deleteConfirm === c.id ? (
-                          <>
-                            <button onClick={() => deleteCliente(c.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Confirmar">
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => setDeleteConfirm(null)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="Cancelar">
-                              <X className="w-4 h-4" />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button onClick={() => setSelectedCliente(c)} className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer" title="Ver perfil">
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => openEdit(c)} className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer" title="Editar">
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => setDeleteConfirm(c.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Excluir">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
+                      </span>
+                    </span>
+                  </th>
+                  <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Receita/Mês</th>
+                  <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    <span className="inline-flex items-center gap-1">
+                      Ticket Médio
+                      <span className="relative group">
+                        <HelpCircle className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 transition-colors cursor-help" />
+                        <span className="absolute top-full right-1/2 translate-x-1/2 mt-2 w-48 px-3 py-2.5 text-xs text-center font-normal normal-case tracking-normal text-gray-700 bg-white border border-gray-200 rounded-xl shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-200 z-50">
+                          Valor médio por compra deste cliente
+                        </span>
+                      </span>
+                    </span>
+                  </th>
+                  <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredClientes.map((c) => {
+                  const sc = statusConfig[c.status];
+                  const TipoIcon = tipoIcons[c.tipo];
+                  const days = daysSince(c.ultimaCompra);
+                  return (
+                    <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0">
+                            <TipoIcon className="w-4 h-4 text-brand-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{c.nome}</p>
+                            <p className="text-xs text-gray-400 truncate">{c.localizacao}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="text-xs font-medium text-gray-600 bg-gray-50 px-2 py-0.5 rounded-md">{tipoLabels[c.tipo]}</span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={cn("inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border", sc.color, sc.bg, sc.border)}>
+                          <sc.icon className="w-3 h-3" />
+                          {sc.label}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div>
+                          <p className="text-sm text-gray-600">{formatDate(c.ultimaCompra || "")}</p>
+                          {days !== -1 && (
+                            <p className={cn(
+                              "text-xs font-medium",
+                              days <= 7 ? "text-emerald-600" : days <= 21 ? "text-amber-600" : "text-red-500"
+                            )}>
+                              {days === 0 ? "Hoje" : `${days}d atrás`}
+                            </p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full",
+                            c.frequencia >= 4 ? "bg-emerald-50 text-emerald-700" :
+                            c.frequencia >= 2 ? "bg-blue-50 text-blue-700" :
+                            c.frequencia > 0 ? "bg-amber-50 text-amber-700" :
+                            "bg-gray-50 text-gray-400"
+                          )}>
+                            {c.frequencia >= 4 ? "Compra frequente" : c.frequencia >= 2 ? "Compra semanal" : c.frequencia > 0 ? "Compra irregular" : "Inativo"}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right font-medium text-gray-900">{c.receitaMensal > 0 ? formatCurrency(c.receitaMensal) : "—"}</td>
+                      <td className="py-3 px-3 text-right font-medium text-gray-900">{c.ticketMedio > 0 ? formatCurrency(c.ticketMedio) : "—"}</td>
+                      <td className="py-3 px-3">
+                        <div className="flex items-center justify-end gap-1">
+                          {deleteConfirm === c.id ? (
+                            <>
+                              <button onClick={() => deleteCliente(c.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Confirmar">
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => setDeleteConfirm(null)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="Cancelar">
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button onClick={() => setSelectedCliente(c)} className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer" title="Ver perfil">
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => openEdit(c)} className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer" title="Editar">
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => setDeleteConfirm(c.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Excluir">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredClientes.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="text-center py-12 text-gray-400">
+                      Nenhum cliente encontrado
                     </td>
                   </tr>
-                );
-              })}
-              {filteredClientes.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="text-center py-12 text-gray-400">
-                    Nenhum cliente encontrado
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -951,6 +1071,29 @@ export default function ClientesPage() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">E-mail</label>
+                  <input
+                    type="email"
+                    placeholder="email@exemplo.com"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Termos Pagamento</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 15 dias"
+                    value={form.payment_terms}
+                    onChange={(e) => setForm({ ...form, payment_terms: e.target.value })}
+                    className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Localização</label>
                 <input
@@ -1002,7 +1145,7 @@ export default function ClientesPage() {
                   <p className="text-[11px] text-gray-500">Contate os clientes abaixo</p>
                 </div>
               </div>
-              <button onClick={() => setCobrancaModal(null)} className="w-8 h-8 rounded-lg hover:bg-white/60 flex items-center justify-center transition-colors"><X className="w-4 h-4 text-gray-500" /></button>
+              <button onClick={() => setCobrancaModal(null)} className="w-8 h-8 rounded-lg hover:bg-white/60 flex items-center justify-center transition-colors cursor-pointer"><X className="w-4 h-4 text-gray-500" /></button>
             </div>
             <div className="px-6 py-4 max-h-[60vh] overflow-y-auto space-y-2" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
               {clientes.filter((c) => c.status === cobrancaModal).map((c) => (
