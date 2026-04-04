@@ -30,7 +30,6 @@ import {
   Shield,
   Bug,
   CalendarDays,
-  FileText,
   Thermometer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -38,7 +37,6 @@ import {
   ComposedChart,
   AreaChart,
   Area,
-  BarChart,
   Bar,
   Line,
   XAxis,
@@ -50,67 +48,32 @@ import {
   Pie,
   Cell,
 } from "recharts";
-
-/* ── Mock Data ── */
+import { useAuth } from "@/components/auth/auth-provider";
+import { createClient } from "@/lib/supabase/client";
 
 interface RegistroMortalidade {
-  id: number;
+  id: string;
   data: string;
   quantidade: number;
   causa: string;
+  loteId: string | null;
+  galpaoId: string | null;
   lote: string;
   galpao: string;
   observacao: string;
 }
 
-const initialRegistros: RegistroMortalidade[] = [
-  { id: 1, data: "2024-04-17", quantidade: 2, causa: "Natural", lote: "L-2024-04", galpao: "Galpão D1", observacao: "Aves encontradas sem sinais externos" },
-  { id: 2, data: "2024-04-16", quantidade: 1, causa: "Respiratório", lote: "L-2024-02", galpao: "Galpão B1", observacao: "Coriza infecciosa" },
-  { id: 3, data: "2024-04-15", quantidade: 1, causa: "Natural", lote: "L-2024-01", galpao: "Galpão A1", observacao: "Ave encontrada sem sinais de doença" },
-  { id: 4, data: "2024-04-14", quantidade: 1, causa: "Doença", lote: "L-2024-04", galpao: "Galpão D2", observacao: "Investigar contágio" },
-  { id: 5, data: "2024-04-12", quantidade: 1, causa: "Natural", lote: "L-2024-02", galpao: "Galpão B1", observacao: "" },
-  { id: 6, data: "2024-04-10", quantidade: 1, causa: "Predadores", lote: "L-2024-01", galpao: "Galpão A1", observacao: "Possível ataque noturno" },
-  { id: 7, data: "2024-04-10", quantidade: 1, causa: "Natural", lote: "L-2024-04", galpao: "Galpão D1", observacao: "" },
-  { id: 8, data: "2024-04-05", quantidade: 1, causa: "Respiratório", lote: "L-2024-02", galpao: "Galpão B2", observacao: "Espirros frequentes" },
-  { id: 9, data: "2024-03-28", quantidade: 1, causa: "Natural", lote: "L-2024-01", galpao: "Galpão A2", observacao: "" },
-  { id: 10, data: "2024-03-20", quantidade: 1, causa: "Doença", lote: "L-2024-01", galpao: "Galpão A1", observacao: "Sintomas respiratórios detectados" },
-  { id: 11, data: "2024-03-18", quantidade: 1, causa: "Estresse", lote: "L-2024-03", galpao: "Galpão C1", observacao: "Calor excessivo" },
-  { id: 12, data: "2024-03-12", quantidade: 2, causa: "Doença", lote: "L-2024-01", galpao: "Galpão A2", observacao: "Isolamento tardio" },
-];
+interface Lote {
+  id: string;
+  code: string;
+  bird_count: number;
+}
 
-const mortalidadeSemanal = [
-  { dia: "11/04", mortes: 1, taxa: 0.04 },
-  { dia: "12/04", mortes: 1, taxa: 0.04 },
-  { dia: "13/04", mortes: 0, taxa: 0.0 },
-  { dia: "14/04", mortes: 1, taxa: 0.04 },
-  { dia: "15/04", mortes: 1, taxa: 0.04 },
-  { dia: "16/04", mortes: 1, taxa: 0.04 },
-  { dia: "17/04", mortes: 2, taxa: 0.07 },
-];
+interface Barn {
+  id: string;
+  name: string;
+}
 
-const causas = [
-  { causa: "Natural", quantidade: 28, porcentagem: 57, color: "#94a3b8" },
-  { causa: "Doença", quantidade: 10, porcentagem: 20, color: "#ef4444" },
-  { causa: "Respiratório", quantidade: 6, porcentagem: 12, color: "#f97316" },
-  { causa: "Predadores", quantidade: 3, porcentagem: 6, color: "#f59e0b" },
-  { causa: "Estresse", quantidade: 2, porcentagem: 4, color: "#a78bfa" },
-];
-
-const mensal = [
-  { mes: "Jan", mortes: 11, taxa: 0.48 },
-  { mes: "Fev", mortes: 9, taxa: 0.39 },
-  { mes: "Mar", mortes: 10, taxa: 0.43 },
-  { mes: "Abr", mortes: 9, taxa: 0.39 },
-];
-
-const porLote = [
-  { lote: "L-2024-01", codigo: "L-2024-01", mortes: 12, taxa: 0.3, tendencia: "stable" as const, loteId: "1" },
-  { lote: "L-2024-02", codigo: "L-2024-02", mortes: 9, taxa: 0.5, tendencia: "up" as const, loteId: "2" },
-  { lote: "L-2024-03", codigo: "L-2024-03", mortes: 4, taxa: 0.2, tendencia: "down" as const, loteId: "3" },
-  { lote: "L-2024-04", codigo: "L-2024-04", mortes: 24, taxa: 0.8, tendencia: "up" as const, loteId: "4" },
-];
-
-const loteOptions = ["L-2024-01", "L-2024-02", "L-2024-03", "L-2024-04"];
 const causaOptions = ["Natural", "Doença", "Respiratório", "Predadores", "Estresse", "Desconhecido"];
 
 const causaColor: Record<string, { badge: string }> = {
@@ -122,27 +85,50 @@ const causaColor: Record<string, { badge: string }> = {
   "Desconhecido": { badge: "bg-gray-100 text-gray-500" },
 };
 
+const causaHexColors: Record<string, string> = {
+  "Natural": "#94a3b8",
+  "Doença": "#ef4444",
+  "Respiratório": "#f97316",
+  "Predadores": "#f59e0b",
+  "Estresse": "#a78bfa",
+  "Desconhecido": "#cbd5e1"
+};
+
 export default function MortalidadePage() {
   const searchParams = useSearchParams();
-  const [registros, setRegistros] = useState(initialRegistros);
-  const [modal, setModal] = useState<"add" | "edit" | null>(null);
+  const { farm } = useAuth();
+  const farmRef = useRef(farm);
+  farmRef.current = farm;
 
-  useEffect(() => {
-    if (searchParams.get("register") === "true") setModal("add");
-  }, [searchParams]);
+  const [registros, setRegistros] = useState<RegistroMortalidade[]>([]);
+  const [lotes, setLotes] = useState<Lote[]>([]);
+  const [barns, setBarns] = useState<Barn[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [modal, setModal] = useState<"add" | "edit" | null>(null);
   const [editing, setEditing] = useState<RegistroMortalidade | null>(null);
-  const [form, setForm] = useState({ data: "", quantidade: "1", causa: "", lote: "", galpao: "", observacao: "" });
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [form, setForm] = useState({ data: new Date().toISOString().split('T')[0], quantidade: "1", causa: "", loteId: "", galpaoId: "", observacao: "" });
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   /* ── Calendar ── */
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [filterMode, setFilterMode] = useState<"intervalo" | "mes">("intervalo");
-  const [rangeStart, setRangeStart] = useState<Date | null>(new Date());
+  
+  const [rangeStart, setRangeStart] = useState<Date | null>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d;
+  });
   const [rangeEnd, setRangeEnd] = useState<Date | null>(new Date());
+  
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const calendarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (searchParams.get("register") === "true") setModal("add");
+  }, [searchParams]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -206,11 +192,100 @@ export default function MortalidadePage() {
     } else { setSelectedDate(new Date(day.getFullYear(), day.getMonth(), 1)); setCalendarOpen(false); }
   }, [filterMode, rangeStart, rangeEnd]);
 
+  // Derived date bounds for filtering
+  const { filterStartDate, filterEndDate } = useMemo(() => {
+    let start: Date;
+    let end: Date;
+    if (filterMode === "intervalo" && rangeStart && rangeEnd) {
+      start = rangeStart;
+      end = rangeEnd;
+    } else if (filterMode === "mes") {
+      start = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+      end = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
+    } else {
+      // Default to somewhat safe bounds if incomplete
+      start = new Date();
+      start.setDate(start.getDate() - 30);
+      end = new Date();
+    }
+    
+    // adjust timezone issues for querying
+    const yyyy1 = start.getFullYear();
+    const mm1 = String(start.getMonth() + 1).padStart(2, '0');
+    const dd1 = String(start.getDate()).padStart(2, '0');
+    
+    const yyyy2 = end.getFullYear();
+    const mm2 = String(end.getMonth() + 1).padStart(2, '0');
+    const dd2 = String(end.getDate()).padStart(2, '0');
+
+    return { 
+      filterStartDate: `${yyyy1}-${mm1}-${dd1}`, 
+      filterEndDate: `${yyyy2}-${mm2}-${dd2}` 
+    };
+  }, [filterMode, rangeStart, rangeEnd, selectedDate]);
+
+  const fetchData = useCallback(async () => {
+    const currentFarm = farmRef.current;
+    if (!currentFarm) return;
+    setLoading(true);
+
+    const supabase = createClient();
+    try {
+      const [flocksRes, barnsRes, mortalityRes] = await Promise.all([
+        supabase.from("flocks").select("id, code, bird_count").eq("farm_id", currentFarm.id),
+        supabase.from("barns").select("id, name").eq("farm_id", currentFarm.id),
+        supabase.from("mortality")
+          .select("*, flocks(code), barns(name)")
+          .eq("farm_id", currentFarm.id)
+          .gte("date", filterStartDate)
+          .lte("date", filterEndDate)
+          .order("date", { ascending: false })
+      ]);
+
+      if (flocksRes.data) setLotes(flocksRes.data);
+      if (barnsRes.data) setBarns(barnsRes.data);
+
+      if (mortalityRes.data) {
+        setRegistros(mortalityRes.data.map((m: any) => ({
+          id: m.id,
+          data: m.date,
+          quantidade: m.dead_birds,
+          causa: m.cause,
+          loteId: m.flock_id,
+          galpaoId: m.barn_id,
+          lote: m.flocks?.code || "—",
+          galpao: m.barns?.name || "—",
+          observacao: m.notes || ""
+        })));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [filterStartDate, filterEndDate]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+
   /* ── Computed ── */
   const totalMortes = registros.reduce((s, r) => s + r.quantidade, 0);
-  const mortesSemana = registros.filter((r) => r.data >= "2024-04-11").reduce((s, r) => s + r.quantidade, 0);
-  const mortesMes = registros.filter((r) => r.data >= "2024-04-01").reduce((s, r) => s + r.quantidade, 0);
-  const totalAves = 2851;
+  
+  const today = new Date();
+  const weekAgo = new Date();
+  weekAgo.setDate(today.getDate() - 7);
+  const weekAgoStr = weekAgo.toISOString().split('T')[0];
+
+  const monthAgo = new Date();
+  monthAgo.setDate(today.getDate() - 30);
+  const monthAgoStr = monthAgo.toISOString().split('T')[0];
+
+  const mortesSemana = registros.filter((r) => r.data >= weekAgoStr).reduce((s, r) => s + r.quantidade, 0);
+  const mortesMes = registros.filter((r) => r.data >= monthAgoStr).reduce((s, r) => s + r.quantidade, 0);
+  
+  const totalAves = lotes.reduce((s, l) => s + (l.bird_count || 0), 0) || 1; // avoid division by zero
   const taxaMensal = ((mortesMes / totalAves) * 100);
   const taxaSemanal = ((mortesSemana / totalAves) * 100);
 
@@ -222,16 +297,107 @@ export default function MortalidadePage() {
   const bannerGradient = mortalityScore >= 80 ? "from-emerald-50 via-emerald-50/50 to-white" : mortalityScore >= 60 ? "from-amber-50 via-amber-50/50 to-white" : "from-red-50 via-red-50/50 to-white";
   const bannerBorder = mortalityScore >= 80 ? "border-emerald-200/60" : mortalityScore >= 60 ? "border-amber-200/60" : "border-red-200/60";
 
-  /* ── Top causa ── */
-  const topCausa = causas[0];
-  const causasCriticas = causas.filter(c => c.causa === "Doença" || c.causa === "Respiratório").reduce((s, c) => s + c.quantidade, 0);
+  /* ── Causas Aggregate ── */
+  const causasAgg = useMemo(() => {
+    const map: Record<string, number> = {};
+    let total = 0;
+    registros.forEach(r => {
+      const c = r.causa || "Desconhecido";
+      map[c] = (map[c] || 0) + r.quantidade;
+      total += r.quantidade;
+    });
+    
+    return Object.entries(map).map(([causa, quantidade]) => ({
+      causa,
+      quantidade,
+      porcentagem: total > 0 ? Math.round((quantidade / total) * 100) : 0,
+      color: causaHexColors[causa] || "#cbd5e1"
+    })).sort((a,b) => b.quantidade - a.quantidade);
+  }, [registros]);
+
+  const topCausa = causasAgg[0];
+  const causasCriticas = causasAgg.filter(c => c.causa === "Doença" || c.causa === "Respiratório").reduce((s, c) => s + c.quantidade, 0);
+
+  /* ── Lotes KPIs Aggregate ── */
+  const porLote = useMemo(() => {
+    const map: Record<string, { mortes: number; codigo: string, bird_count: number }> = {};
+    lotes.forEach(l => {
+      map[l.id] = { mortes: 0, codigo: l.code, bird_count: l.bird_count || 1 };
+    });
+    registros.forEach(r => {
+      if (r.loteId && map[r.loteId]) {
+        map[r.loteId].mortes += r.quantidade;
+      }
+    });
+
+    return Object.entries(map).map(([loteId, data]) => {
+      const taxa = (data.mortes / data.bird_count) * 100;
+      let tendencia: "up" | "down" | "stable" = "stable";
+      if (taxa > 0.5) tendencia = "up";
+      else if (taxa < 0.2) tendencia = "down";
+
+      return {
+        loteId,
+        codigo: data.codigo,
+        mortes: data.mortes,
+        taxa,
+        tendencia
+      };
+    }).sort((a, b) => b.mortes - a.mortes).filter(l => l.mortes > 0);
+  }, [registros, lotes]);
+
+  /* ── Chart Data: Semanal ── */
+  const mortalidadeSemanal = useMemo(() => {
+    // Generate last 7 days
+    const arr: { dateFull: string; dia: string; mortes: number; taxa: number }[] = [];
+    const t = new Date();
+    for(let i=6; i>=0; i--) {
+      const d = new Date(t);
+      d.setDate(d.getDate() - i);
+      const diaStr = d.toISOString().split('T')[0];
+      const diaDisplay = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      arr.push({ dateFull: diaStr, dia: diaDisplay, mortes: 0, taxa: 0 });
+    }
+    
+    registros.forEach(r => {
+      const match = arr.find(a => a.dateFull === r.data);
+      if (match) match.mortes += r.quantidade;
+    });
+
+    arr.forEach(a => {
+      a.taxa = totalAves > 0 ? (a.mortes / totalAves) * 100 : 0;
+    });
+
+    return arr;
+  }, [registros, totalAves]);
+
+  /* ── Chart Data: Mensal ── */
+  const mensal = useMemo(() => {
+    // Group by YYYY-MM
+    const map: Record<string, number> = {};
+    registros.forEach(r => {
+      const ym = r.data.substring(0, 7); // "2024-04"
+      map[ym] = (map[ym] || 0) + r.quantidade;
+    });
+
+    const monthsMap = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    
+    return Object.entries(map).sort().map(([ym, mortes]) => {
+      const [, m] = ym.split('-');
+      return {
+        mes: monthsMap[parseInt(m, 10) - 1],
+        mortes,
+        taxa: totalAves > 0 ? (mortes / totalAves) * 100 : 0
+      };
+    }).slice(-6); // show last 6 months
+  }, [registros, totalAves]);
 
   /* ── KPIs ── */
   const kpis = [
-    { title: "Mortalidade Semanal", value: `${mortesSemana} aves`, icon: Bug, iconBg: "bg-red-50", iconColor: "text-red-500", actual: mortesSemana, expectedVal: 5, expectedLabel: "5 aves", diff: ((mortesSemana / 5) * 100) - 100, progressColor: mortesSemana <= 5 ? "bg-emerald-500" : mortesSemana <= 8 ? "bg-amber-500" : "bg-red-500" },
+    { title: "Mortalidade Semanal", value: `${mortesSemana} aves`, icon: Bug, iconBg: "bg-red-50", iconColor: "text-red-500", actual: mortesSemana, expectedVal: Math.ceil(totalAves * 0.005), expectedLabel: `${Math.ceil(totalAves * 0.005)} aves`, diff: mortesSemana > 0 ? ((mortesSemana / Math.max(1, Math.ceil(totalAves * 0.005))) * 100) - 100 : 0, progressColor: mortesSemana <= Math.ceil(totalAves * 0.005) ? "bg-emerald-500" : "bg-red-500" },
     { title: "Taxa Mensal", value: `${taxaMensal.toFixed(1).replace(".", ",")}%`, icon: Activity, iconBg: "bg-amber-50", iconColor: "text-amber-600", actual: taxaMensal, expectedVal: 2, expectedLabel: "2%", diff: ((taxaMensal / 2) * 100) - 100, progressColor: taxaMensal <= 2 ? "bg-emerald-500" : taxaMensal <= 5 ? "bg-amber-500" : "bg-red-500" },
-    { title: "Total Acumulado", value: String(totalMortes), icon: Calendar, iconBg: "bg-orange-50", iconColor: "text-orange-600", actual: totalMortes, expectedVal: 15, expectedLabel: "15 aves", diff: ((totalMortes / 15) * 100) - 100, progressColor: totalMortes <= 15 ? "bg-emerald-500" : totalMortes <= 25 ? "bg-amber-500" : "bg-red-500" },
-    { title: "Aves Vivas", value: "2.851", icon: Heart, iconBg: "bg-brand-50", iconColor: "text-brand-600", actual: totalAves - totalMortes, expectedVal: totalAves, expectedLabel: `${totalAves}`, diff: (((totalAves - totalMortes) / totalAves) * 100) - 100, progressColor: "bg-emerald-500" },
+    { title: "Total Acumulado", value: String(totalMortes), icon: Calendar, iconBg: "bg-orange-50", iconColor: "text-orange-600", actual: totalMortes, expectedVal: Math.ceil(totalAves * 0.02), expectedLabel: `${Math.ceil(totalAves * 0.02)} aves`, diff: totalMortes > 0 ? ((totalMortes / Math.max(1, Math.ceil(totalAves * 0.02))) * 100) - 100 : 0, progressColor: totalMortes <= Math.ceil(totalAves * 0.02) ? "bg-emerald-500" : "bg-red-500" },
+    { title: "Aves Vivas", value: totalAves > 1 ? (totalAves - totalMortes).toLocaleString('pt-BR') : "—", icon: Heart, iconBg: "bg-brand-50", iconColor: "text-brand-600", actual: totalAves - totalMortes, expectedVal: totalAves, expectedLabel: `${totalAves}`, diff: totalAves > 1 ? (((totalAves - totalMortes) / totalAves) * 100) - 100 : 0, progressColor: "bg-emerald-500" },
   ];
 
   /* ── Insights ── */
@@ -243,9 +409,9 @@ export default function MortalidadePage() {
     const lotesCriticos = porLote.filter(l => l.tendencia === "up");
     if (lotesCriticos.length > 0) arr.push({ type: "warning", title: `${lotesCriticos.length} lote${lotesCriticos.length > 1 ? "s" : ""} com tendência de alta`, action: `Monitorar: ${lotesCriticos.map(l => l.codigo).join(", ")}` });
     if (topCausa) arr.push({ type: "info", title: `Causa mais frequente: ${topCausa.causa} (${topCausa.porcentagem}%)`, action: "Mortalidade natural é esperada — manter vigilância" });
-    if (mortesSemana <= 5) arr.push({ type: "success", title: `${mortesSemana} mortes nesta semana — dentro do limite`, action: "Continuar monitoramento regular" });
+    if (mortesSemana <= Math.ceil(totalAves * 0.005)) arr.push({ type: "success", title: `${mortesSemana} mortes nesta semana — dentro do limite`, action: "Continuar monitoramento regular" });
     return arr;
-  }, [taxaMensal, causasCriticas, mortesSemana]);
+  }, [taxaMensal, causasCriticas, mortesSemana, porLote, topCausa, totalAves]);
 
   const filteredRegistros = useMemo(() => {
     if (!searchQuery.trim()) return registros;
@@ -260,7 +426,7 @@ export default function MortalidadePage() {
   }, [registros, searchQuery]);
 
   function openAdd() {
-    setForm({ data: "", quantidade: "1", causa: "", lote: "", galpao: "", observacao: "" });
+    setForm({ data: new Date().toISOString().split('T')[0], quantidade: "1", causa: "", loteId: "", galpaoId: "", observacao: "" });
     setEditing(null);
     setModal("add");
   }
@@ -270,39 +436,52 @@ export default function MortalidadePage() {
       data: r.data,
       quantidade: String(r.quantidade),
       causa: r.causa,
-      lote: r.lote,
-      galpao: r.galpao,
+      loteId: r.loteId || "",
+      galpaoId: r.galpaoId || "",
       observacao: r.observacao,
     });
     setEditing(r);
     setModal("edit");
   }
 
-  function save() {
-    if (!form.data.trim() || !form.causa.trim() || !form.lote.trim() || !form.galpao.trim()) return;
+  async function save() {
+    if (!form.data.trim() || !form.causa.trim() || !form.loteId.trim()) return;
+    const currentFarm = farmRef.current;
+    if (!currentFarm) return;
 
-    const registro: RegistroMortalidade = {
-      id: editing?.id || Date.now(),
-      data: form.data,
-      quantidade: Number(form.quantidade) || 1,
-      causa: form.causa,
-      lote: form.lote,
-      galpao: form.galpao,
-      observacao: form.observacao,
+    const record = {
+      farm_id: currentFarm.id,
+      barn_id: form.galpaoId || null,
+      flock_id: form.loteId,
+      date: form.data,
+      dead_birds: Number(form.quantidade) || 1,
+      cause: form.causa,
+      notes: form.observacao
     };
 
-    if (modal === "add") {
-      setRegistros((prev) => [registro, ...prev]);
-    } else if (editing) {
-      setRegistros((prev) => prev.map((r) => (r.id === editing.id ? registro : r)));
+    const supabase = createClient();
+    try {
+      if (modal === "add") {
+        await supabase.from("mortality").insert(record);
+      } else if (editing) {
+        await supabase.from("mortality").update(record).eq("id", editing.id);
+      }
+      setModal(null);
+      fetchData();
+    } catch (e) {
+      console.error(e);
     }
-
-    setModal(null);
   }
 
-  function deleteRegistro(id: number) {
-    setRegistros((prev) => prev.filter((r) => r.id !== id));
-    setDeleteConfirm(null);
+  async function deleteRegistro(id: string) {
+    const supabase = createClient();
+    try {
+      await supabase.from("mortality").delete().eq("id", id);
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   function formatDate(dateStr: string) {
@@ -312,10 +491,6 @@ export default function MortalidadePage() {
     } catch {
       return dateStr;
     }
-  }
-
-  function formatDateShort(dateStr: string) {
-    try { return new Date(dateStr + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", ""); } catch { return dateStr; }
   }
 
   return (
@@ -431,7 +606,7 @@ export default function MortalidadePage() {
             )}
             <div className="flex items-center gap-2.5">
               <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><Heart className="w-3.5 h-3.5 text-emerald-600" /></div>
-              <p className="text-sm text-gray-700">{(totalAves - totalMortes).toLocaleString("pt-BR")} aves vivas em 4 lotes ativos</p>
+              <p className="text-sm text-gray-700">{totalAves > 1 ? (totalAves - totalMortes).toLocaleString("pt-BR") : "—"} aves vivas em {lotes.length} lotes ativos</p>
             </div>
           </div>
         </div>
@@ -441,7 +616,7 @@ export default function MortalidadePage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {kpis.map((kpi) => {
           const isInverse = kpi.title !== "Aves Vivas";
-          const maxVal = Math.max(kpi.actual, kpi.expectedVal) * 1.15;
+          const maxVal = Math.max(kpi.actual, kpi.expectedVal) * 1.15 || 1;
           const fillPct = Math.min((kpi.actual / maxVal) * 100, 100);
           const markerPct = Math.min((kpi.expectedVal / maxVal) * 100, 100);
           const diffLabel = `${kpi.diff > 0 ? "+" : ""}${kpi.diff.toFixed(1)}%`;
@@ -487,7 +662,7 @@ export default function MortalidadePage() {
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center shadow-sm"><Zap className="w-5 h-5 text-white" /></div>
               <div>
                 <h3 className="text-sm font-bold text-gray-900">Análise de Mortalidade</h3>
-                <p className="text-[11px] text-gray-400 font-medium">Baseado nos últimos 30 dias</p>
+                <p className="text-[11px] text-gray-400 font-medium">Baseado no período</p>
               </div>
             </div>
             <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
@@ -518,35 +693,39 @@ export default function MortalidadePage() {
             </div>
             <span className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-md">{totalMortes} total</span>
           </div>
-          <div className="flex flex-col items-center">
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie data={causas} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="quantidade" nameKey="causa" paddingAngle={3} strokeWidth={0}>
-                  {causas.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
-                  formatter={((value: any, name: any) => [`${Number(value)} mortes`, String(name)]) as any}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="w-full space-y-2.5 mt-2">
-              {causas.map((c) => (
-                <div key={c.causa} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.color }} />
-                    <span className="text-sm text-gray-600">{c.causa}</span>
+          {causasAgg.length > 0 ? (
+            <div className="flex flex-col items-center">
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={causasAgg} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="quantidade" nameKey="causa" paddingAngle={3} strokeWidth={0}>
+                    {causasAgg.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
+                    formatter={((value: any, name: any) => [`${Number(value)} mortes`, String(name)]) as any}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="w-full space-y-2.5 mt-2">
+                {causasAgg.map((c) => (
+                  <div key={c.causa} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.color }} />
+                      <span className="text-sm text-gray-600">{c.causa}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400">{c.quantidade}</span>
+                      <span className="text-sm font-bold text-gray-900">{c.porcentagem}%</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400">{c.quantidade}</span>
-                    <span className="text-sm font-bold text-gray-900">{c.porcentagem}%</span>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center justify-center h-[280px] text-sm text-gray-400">Nenhum dado de causa no período.</div>
+          )}
         </div>
       </div>
 
@@ -577,15 +756,15 @@ export default function MortalidadePage() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
               <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12, fontWeight: 500 }} dy={10} />
-              <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} domain={[0, 5]} />
-              <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 11, fontWeight: 600 }} dx={4} domain={[0, 0.12]} tickFormatter={(v: number) => (v * 100).toFixed(1) + "%"} />
+              <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} domain={[0, 'auto']} />
+              <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 11, fontWeight: 600 }} dx={4} domain={[0, 'auto']} tickFormatter={(v: number) => (v).toFixed(1) + "%"} />
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
                 labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px" }}
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 formatter={((value: any, name: any) => {
                   if (name === "mortes") return [Number(value) + " aves", "Mortes"];
-                  if (name === "taxa") return [(Number(value) * 100).toFixed(2) + "%", "Taxa"];
+                  if (name === "taxa") return [(Number(value)).toFixed(2) + "%", "Taxa"];
                   return [String(value), name];
                 }) as any}
               />
@@ -630,46 +809,50 @@ export default function MortalidadePage() {
           <h3 className="text-sm font-bold text-gray-900">Mortalidade por Lote</h3>
           <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-lg">{porLote.length} lotes</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {porLote.map((l) => (
-            <div key={l.lote} className="flex items-center justify-between p-4 rounded-xl bg-gray-50/80 hover:bg-gray-100/80 transition-all duration-200 group">
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "w-10 h-10 rounded-xl flex items-center justify-center border",
-                  l.tendencia === "up" ? "bg-red-50 border-red-200" : l.tendencia === "down" ? "bg-emerald-50 border-emerald-200" : "bg-white border-gray-200"
-                )}>
-                  <Skull className={cn("w-4 h-4", l.tendencia === "up" ? "text-red-500" : l.tendencia === "down" ? "text-emerald-500" : "text-gray-400")} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{l.codigo}</p>
-                  <p className="text-xs text-gray-400">{l.mortes} mortes total</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <p className={cn("text-sm font-bold", l.taxa <= 0.3 ? "text-emerald-600" : l.taxa <= 0.5 ? "text-amber-600" : "text-red-500")}>
-                    {l.taxa.toFixed(1).replace(".", ",")}%
-                  </p>
-                  <span className={cn(
-                    "inline-flex items-center gap-0.5 text-[10px] font-semibold",
-                    l.tendencia === "up" ? "text-red-500" : l.tendencia === "down" ? "text-emerald-600" : "text-gray-400"
+        {porLote.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {porLote.map((l) => (
+              <div key={l.loteId} className="flex items-center justify-between p-4 rounded-xl bg-gray-50/80 hover:bg-gray-100/80 transition-all duration-200 group">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center border",
+                    l.tendencia === "up" ? "bg-red-50 border-red-200" : l.tendencia === "down" ? "bg-emerald-50 border-emerald-200" : "bg-white border-gray-200"
                   )}>
-                    {l.tendencia === "up" && <ArrowUpRight className="w-3 h-3" />}
-                    {l.tendencia === "down" && <ArrowDownRight className="w-3 h-3" />}
-                    {l.tendencia === "stable" && <Minus className="w-3 h-3" />}
-                    {l.tendencia === "up" ? "Subindo" : l.tendencia === "down" ? "Caindo" : "Estável"}
-                  </span>
+                    <Skull className={cn("w-4 h-4", l.tendencia === "up" ? "text-red-500" : l.tendencia === "down" ? "text-emerald-500" : "text-gray-400")} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{l.codigo}</p>
+                    <p className="text-xs text-gray-400">{l.mortes} mortes total</p>
+                  </div>
                 </div>
-                <Link
-                  href={`/dashboard/flocks/detalhes/${l.loteId}/mortalidade`}
-                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                >
-                  <Eye className="w-4 h-4" />
-                </Link>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className={cn("text-sm font-bold", l.taxa <= 0.3 ? "text-emerald-600" : l.taxa <= 0.5 ? "text-amber-600" : "text-red-500")}>
+                      {l.taxa.toFixed(1).replace(".", ",")}%
+                    </p>
+                    <span className={cn(
+                      "inline-flex items-center gap-0.5 text-[10px] font-semibold",
+                      l.tendencia === "up" ? "text-red-500" : l.tendencia === "down" ? "text-emerald-600" : "text-gray-400"
+                    )}>
+                      {l.tendencia === "up" && <ArrowUpRight className="w-3 h-3" />}
+                      {l.tendencia === "down" && <ArrowDownRight className="w-3 h-3" />}
+                      {l.tendencia === "stable" && <Minus className="w-3 h-3" />}
+                      {l.tendencia === "up" ? "Subindo" : l.tendencia === "down" ? "Caindo" : "Estável"}
+                    </span>
+                  </div>
+                  <Link
+                    href={`/dashboard/flocks/detalhes/${l.loteId}/mortalidade`}
+                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Link>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+           <div className="text-sm text-gray-400 py-6 text-center">Nenhuma mortalidade registrada neste período para os lotes.</div>
+        )}
       </div>
 
       {/* ── Records Table ── */}
@@ -692,67 +875,71 @@ export default function MortalidadePage() {
         </div>
 
         <div className="overflow-x-auto max-h-[380px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-          <table className="w-full">
-            <thead className="sticky top-0 bg-white z-10">
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Data</th>
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Qtd</th>
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Lote</th>
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Causa</th>
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Galpão</th>
-                <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Observação</th>
-                <th className="text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRegistros.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-16 text-gray-400 text-sm">
-                    Nenhum registro encontrado.
-                  </td>
+          {loading ? (
+             <div className="p-8 text-center text-sm text-gray-500">Carregando dados...</div>
+          ) : (
+            <table className="w-full">
+              <thead className="sticky top-0 bg-white z-10">
+                <tr className="border-b border-gray-100 bg-gray-50/50">
+                  <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Data</th>
+                  <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Qtd</th>
+                  <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Lote</th>
+                  <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Causa</th>
+                  <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Galpão</th>
+                  <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Observação</th>
+                  <th className="text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Ações</th>
                 </tr>
-              ) : (
-                filteredRegistros.map((r) => (
-                  <tr key={r.id} className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatDate(r.data)}</td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-red-50 text-red-600 text-xs font-bold">
-                        {r.quantidade}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-xs font-semibold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-lg">
-                        {r.lote}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-lg whitespace-nowrap", causaColor[r.causa]?.badge || "bg-gray-100 text-gray-600")}>
-                        {r.causa}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{r.galpao}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500 max-w-[200px] truncate">{r.observacao || "—"}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(r)}
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirm(r.id)}
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+              </thead>
+              <tbody>
+                {filteredRegistros.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-16 text-gray-400 text-sm">
+                      Nenhum registro encontrado.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  filteredRegistros.map((r) => (
+                    <tr key={r.id} className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatDate(r.data)}</td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-red-50 text-red-600 text-xs font-bold">
+                          {r.quantidade}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-xs font-semibold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-lg">
+                          {r.lote}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-lg whitespace-nowrap", causaColor[r.causa]?.badge || "bg-gray-100 text-gray-600")}>
+                          {r.causa}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{r.galpao}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500 max-w-[200px] truncate">{r.observacao || "—"}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openEdit(r)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm(r.id)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -798,13 +985,13 @@ export default function MortalidadePage() {
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Lote</label>
                   <select
-                    value={form.lote}
-                    onChange={(e) => setForm({ ...form, lote: e.target.value })}
+                    value={form.loteId}
+                    onChange={(e) => setForm({ ...form, loteId: e.target.value })}
                     className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all bg-white cursor-pointer"
                   >
                     <option value="">Selecione...</option>
-                    {loteOptions.map((l) => (
-                      <option key={l} value={l}>{l}</option>
+                    {lotes.map((l) => (
+                      <option key={l.id} value={l.id}>{l.code}</option>
                     ))}
                   </select>
                 </div>
@@ -824,14 +1011,17 @@ export default function MortalidadePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Galpão</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Galpão A1"
-                  value={form.galpao}
-                  onChange={(e) => setForm({ ...form, galpao: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
-                />
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Galpão (Opcional)</label>
+                <select
+                  value={form.galpaoId}
+                  onChange={(e) => setForm({ ...form, galpaoId: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all bg-white cursor-pointer"
+                >
+                  <option value="">Selecione...</option>
+                  {barns.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -850,10 +1040,10 @@ export default function MortalidadePage() {
               <button onClick={() => setModal(null)} className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
               <button
                 onClick={save}
-                disabled={!form.data || !form.causa || !form.lote || !form.galpao}
+                disabled={!form.data || !form.causa || !form.loteId}
                 className={cn(
                   "inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold rounded-xl transition-colors cursor-pointer shadow-sm",
-                  form.data && form.causa && form.lote && form.galpao
+                  form.data && form.causa && form.loteId
                     ? "text-white bg-red-500 hover:bg-red-600"
                     : "text-gray-400 bg-gray-200 cursor-not-allowed"
                 )}
