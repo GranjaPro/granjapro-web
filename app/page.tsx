@@ -328,6 +328,7 @@ function AnimatedSection({ children, className = "", delay = 0 }: { children: Re
 }
 
 function PricingSection() {
+  const [billingCycle, setBillingCycle] = useState<"mensal" | "anual">("mensal");
   return (
     <section id="precos" className="relative py-14 sm:py-16 overflow-hidden bg-brand-950">
       {/* Decorative blurs */}
@@ -347,6 +348,33 @@ function PricingSection() {
           <p className="text-gray-300 max-w-lg mx-auto">
             Comece pequeno e escale conforme sua operação cresce. Sem surpresas.
           </p>
+
+          {/* Billing Toggle */}
+          <div className="mt-8 flex items-center justify-center gap-3">
+            <button
+              onClick={() => setBillingCycle("mensal")}
+              className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                billingCycle === "mensal"
+                  ? "bg-white text-gray-900 shadow-lg"
+                  : "text-white/60 hover:text-white/80"
+              }`}
+            >
+              Mensal
+            </button>
+            <button
+              onClick={() => setBillingCycle("anual")}
+              className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 cursor-pointer flex items-center gap-2 ${
+                billingCycle === "anual"
+                  ? "bg-white text-gray-900 shadow-lg"
+                  : "text-white/60 hover:text-white/80"
+              }`}
+            >
+              Anual
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-brand-500 text-white">
+                2 meses grátis
+              </span>
+            </button>
+          </div>
         </AnimatedSection>
 
         {/* Cards */}
@@ -405,18 +433,40 @@ function PricingSection() {
                   </div>
 
                   <div className="mb-6">
-                    <div className="flex items-baseline gap-1">
-                      <span className={`text-sm font-medium ${isPro ? "text-gray-500" : isPremium ? "text-white/60" : "text-white/40"}`}>
-                        R$
-                      </span>
-                      <span className={`font-heading font-bold tracking-tight ${isPro ? "text-[2.75rem] sm:text-5xl text-gray-900" : isPremium ? "text-4xl text-white" : "text-3xl text-white/70"
-                        }`}>
-                        {plan.price}
-                      </span>
-                      <span className={`text-sm font-medium ${isPro ? "text-gray-500" : isPremium ? "text-white/60" : "text-white/40"}`}>
-                        /mês
-                      </span>
-                    </div>
+                    {(() => {
+                      const monthly = parseFloat(plan.price.replace(",", "."));
+                      const annualTotal = (monthly * 10).toFixed(2).replace(".", ",");
+                      const annualMonthly = (monthly * 10 / 12).toFixed(2).replace(".", ",");
+                      const isAnnual = billingCycle === "anual";
+                      const displayPrice = isAnnual ? annualMonthly : plan.price;
+                      return (
+                        <>
+                          <div className="flex items-baseline gap-1">
+                            <span className={`text-sm font-medium ${isPro ? "text-gray-500" : isPremium ? "text-white/60" : "text-white/40"}`}>
+                              R$
+                            </span>
+                            <span className={`font-heading font-bold tracking-tight ${isPro ? "text-[2.75rem] sm:text-5xl text-gray-900" : isPremium ? "text-4xl text-white" : "text-3xl text-white/70"}`}>
+                              {displayPrice}
+                            </span>
+                            <span className={`text-sm font-medium ${isPro ? "text-gray-500" : isPremium ? "text-white/60" : "text-white/40"}`}>
+                              /mês
+                            </span>
+                          </div>
+                          {isAnnual && (
+                            <div className="mt-1.5 space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs line-through ${isPro ? "text-gray-400" : "text-white/30"}`}>
+                                  R$ {(monthly * 12).toFixed(2).replace(".", ",")}
+                                </span>
+                                <span className={`text-xs font-semibold ${isPro ? "text-brand-600" : "text-brand-400"}`}>
+                                  R$ {annualTotal} — pagamento único anual
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
 
                   <Link
