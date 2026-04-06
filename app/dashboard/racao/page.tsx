@@ -46,7 +46,7 @@ import {
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import { getFeedByDateRange, createFeedRecord, updateFeedRecord, deleteFeedRecord } from "@/lib/services/feed";
-import { getFeedInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem } from "@/lib/services/feed_inventory";
+import { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem } from "@/lib/services/inventory";
 import { getProductionByDateRange } from "@/lib/services/production";
 
 /* ── Types ── */
@@ -247,12 +247,11 @@ export default function RacaoPage() {
       const [feedData, prodData, inventoryData] = await Promise.all([
         getFeedByDateRange(profile.farm_id, startDate, endDate),
         getProductionByDateRange(profile.farm_id, startDate, endDate),
-        getFeedInventory(profile.farm_id)
-      ]);
-      
-      // Map Table
-      const mapped: RegistroRacao[] = feedData.map(d => {
-        const typeStr = d.feed_type.toLowerCase();
+        getInventory(profile.farm_id)
+        ]);
+
+        // Map Table
+        const mapped: RegistroRacao[] = feedData.map((d: any) => {        const typeStr = d.feed_type.toLowerCase();
         let tipo: TipoRacao = "comercial";
         if (typeStr.includes("milho")) tipo = "milho";
         else if (typeStr.includes("soja")) tipo = "soja";
@@ -272,17 +271,19 @@ export default function RacaoPage() {
       setRegistros(mapped.sort((a, b) => b.data.localeCompare(a.data)));
       
       // Map Inventory
-      const mappedInv: ItemEstoque[] = inventoryData.map(d => ({
+      const mappedInv: ItemEstoque[] = inventoryData
+        .filter((d: any) => d.type === "racao")
+        .map((d: any) => ({
         id: d.id,
         nome: d.name,
-        categoria: d.category,
+        categoria: d.type,
         quantidade: Number(d.quantity),
         unidade: d.unit,
         status: d.status as StatusEstoque,
-        fornecedor: d.supplier,
-        location: d.location,
-        lote: d.lot_number,
-        dataChegada: d.arrival_date
+        fornecedor: d.notes || "",
+        localizacao: d.location || "",
+        lote: "",
+        dataChegada: d.created_at
       }));
       setEstoque(mappedInv);
 

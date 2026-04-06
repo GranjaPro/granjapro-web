@@ -194,8 +194,63 @@ export interface Database {
           eggs_per_bird?: number;
         };
       };
-      feed_consumption: {
+      inventory: {
         Row: {
+          id: string;
+          created_at: string;
+          farm_id: string;
+          name: string;
+          location: string | null;
+          area: string | null;
+          status: string;
+          type: string;
+          capacity: string | null;
+          current_occupation: number;
+          quantity: number;
+          unit: string;
+          inventory_value: number;
+          expiration_date: string | null;
+          daily_consumption: number;
+          notes: string | null;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          farm_id: string;
+          name: string;
+          location?: string | null;
+          area?: string | null;
+          status?: string;
+          type: string;
+          capacity?: string | null;
+          current_occupation?: number;
+          quantity?: number;
+          unit: string;
+          inventory_value?: number;
+          expiration_date?: string | null;
+          daily_consumption?: number;
+          notes?: string | null;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          farm_id?: string;
+          name?: string;
+          location?: string | null;
+          area?: string | null;
+          status?: string;
+          type?: string;
+          capacity?: string | null;
+          current_occupation?: number;
+          quantity?: number;
+          unit?: string;
+          inventory_value?: number;
+          expiration_date?: string | null;
+          daily_consumption?: number;
+          notes?: string | null;
+        };
+      };
+      feed_consumption: {        Row: {
           id: string;
           created_at: string;
           farm_id: string;

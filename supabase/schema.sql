@@ -670,30 +670,34 @@ create trigger set_updated_at before update on public.customers
 -- ============================================
 -- 15. FEED INVENTORY
 -- ============================================
-create table public.feed_inventory (
+create table public.inventory (
   id uuid default uuid_generate_v4() primary key,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null,
   farm_id uuid references public.farms on delete cascade not null,
   name text not null,
-  category text default 'Ração' check (category in ('Ração', 'Insumo', 'Suplemento', 'Mineral')),
-  quantity numeric(10,2) not null,
-  unit text default 'kg' check (unit in ('kg', 'g', 'L', 'un')),
-  status text default 'normal' check (status in ('normal', 'alerta', 'baixo')),
-  supplier text,
+  type text default 'outros',
+  quantity numeric(10,2) not null default 0,
+  unit text not null,
+  status text default 'ativo',
   location text,
-  lot_number text,
-  arrival_date date
+  area text,
+  capacity text,
+  current_occupation numeric(5,2) default 0,
+  inventory_value numeric(12,2) default 0,
+  expiration_date date,
+  daily_consumption numeric(10,2) default 0,
+  notes text
 );
 
-alter table public.feed_inventory enable row level security;
+alter table public.inventory enable row level security;
 
-create policy "Users can view inventory of their farm" on public.feed_inventory for select using (farm_id in (select id from public.farms where owner_id = auth.uid() union select farm_id from public.profiles where id = auth.uid()));
+create policy "Users can view inventory of their farm" on public.inventory for select using (farm_id in (select id from public.farms where owner_id = auth.uid() union select farm_id from public.profiles where id = auth.uid()));
 
-create policy "Users can insert inventory in their farm" on public.feed_inventory for insert with check (farm_id in (select id from public.farms where owner_id = auth.uid()));
+create policy "Users can insert inventory in their farm" on public.inventory for insert with check (farm_id in (select id from public.farms where owner_id = auth.uid()));
 
-create policy "Users can update inventory in their farm" on public.feed_inventory for update using (farm_id in (select id from public.farms where owner_id = auth.uid()));
+create policy "Users can update inventory in their farm" on public.inventory for update using (farm_id in (select id from public.farms where owner_id = auth.uid()));
 
-create policy "Users can delete inventory in their farm" on public.feed_inventory for delete using (farm_id in (select id from public.farms where owner_id = auth.uid()));
+create policy "Users can delete inventory in their farm" on public.inventory for delete using (farm_id in (select id from public.farms where owner_id = auth.uid()));
 
-create trigger set_updated_at before update on public.feed_inventory for each row execute procedure public.handle_updated_at();
+create trigger set_updated_at before update on public.inventory for each row execute procedure public.handle_updated_at();
