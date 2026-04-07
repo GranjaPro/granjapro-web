@@ -477,6 +477,115 @@ export interface Database {
           assigned_to?: string | null;
         };
       };
+      equipment: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          farm_id: string;
+          name: string;
+          location: string | null;
+          type: "alimentacao" | "climatizacao" | "iluminacao" | "hidraulico" | "geral";
+          status: "operacional" | "manutencao" | "inativo";
+          brand: string | null;
+          model: string | null;
+          installation_date: string | null;
+          next_maintenance_date: string | null;
+          notes: string | null;
+          equipment_value: number;
+          usage_hours: number;
+          lifespan_hours: number;
+          installation_company: string | null;
+          support_contact: string | null;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          farm_id: string;
+          name: string;
+          location?: string | null;
+          type?: "alimentacao" | "climatizacao" | "iluminacao" | "hidraulico" | "geral";
+          status?: "operacional" | "manutencao" | "inativo";
+          brand?: string | null;
+          model?: string | null;
+          installation_date?: string | null;
+          next_maintenance_date?: string | null;
+          notes?: string | null;
+          equipment_value?: number;
+          usage_hours?: number;
+          lifespan_hours?: number;
+          installation_company?: string | null;
+          support_contact?: string | null;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          farm_id?: string;
+          name?: string;
+          location?: string | null;
+          type?: "alimentacao" | "climatizacao" | "iluminacao" | "hidraulico" | "geral";
+          status?: "operacional" | "manutencao" | "inativo";
+          brand?: string | null;
+          model?: string | null;
+          installation_date?: string | null;
+          next_maintenance_date?: string | null;
+          notes?: string | null;
+          equipment_value?: number;
+          usage_hours?: number;
+          lifespan_hours?: number;
+          installation_company?: string | null;
+          support_contact?: string | null;
+        };
+      };
+      workers: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          farm_id: string;
+          name: string;
+          role: "gerente" | "tratador" | "coletor" | "motorista" | "manutencao" | "administrativo";
+          status: "ativo" | "ferias" | "afastado" | "desligado";
+          phone: string | null;
+          email: string | null;
+          location: string | null;
+          hiring_date: string | null;
+          salary: number;
+          notes: string | null;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          farm_id: string;
+          name: string;
+          role?: "gerente" | "tratador" | "coletor" | "motorista" | "manutencao" | "administrativo";
+          status?: "ativo" | "ferias" | "afastado" | "desligado";
+          phone?: string | null;
+          email?: string | null;
+          location?: string | null;
+          hiring_date?: string | null;
+          salary?: number;
+          notes?: string | null;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          farm_id?: string;
+          name?: string;
+          role?: "gerente" | "tratador" | "coletor" | "motorista" | "manutencao" | "administrativo";
+          status?: "ativo" | "ferias" | "afastado" | "desligado";
+          phone?: string | null;
+          email?: string | null;
+          location?: string | null;
+          hiring_date?: string | null;
+          salary?: number;
+          notes?: string | null;
+        };
+      };
       alerts: {
         Row: {
           id: string;
