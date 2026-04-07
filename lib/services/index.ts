@@ -10,3 +10,4 @@ export { getSales, getSalesByDateRange, createSale, updateSale, deleteSale } fro
 export { getTodayTasks, getTasksByDate, createTask, updateTask, toggleTask, deleteTask } from "./tasks";
 export { getAlerts, getUnreadAlertCount, createAlert, markAlertAsRead, markAllAlertsAsRead, resolveAlert } from "./alerts";
 export { getEquipmentByFarm, createEquipment, updateEquipment, deleteEquipment } from "./equipment";
+export { getWorkers, createWorker, updateWorker, deleteWorker } from "./workers";

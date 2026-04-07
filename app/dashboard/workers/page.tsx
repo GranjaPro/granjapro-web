@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import ModalPortal from "@/components/ui/modal-portal";
 import {
   Users,
@@ -21,12 +21,14 @@ import {
   Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth/auth-provider";
+import { createClient } from "@/lib/supabase/client";
 
 type CargoFuncionario = "gerente" | "tratador" | "coletor" | "motorista" | "manutencao" | "administrativo";
 type StatusFuncionario = "ativo" | "ferias" | "afastado" | "desligado";
 
 interface Funcionario {
-  id: number;
+  id: string;
   nome: string;
   cargo: CargoFuncionario;
   status: StatusFuncionario;
@@ -70,14 +72,6 @@ const statusColor: Record<StatusFuncionario, string> = {
   desligado: "text-gray-500 bg-gray-100",
 };
 
-const initialFuncionarios: Funcionario[] = [
-  { id: 1, nome: "Carlos Oliveira", cargo: "gerente", status: "ativo", telefone: "(11) 99876-5432", email: "carlos@granjapro.com", localizacao: "Escritório Central", dataAdmissao: "2020-03-10", salario: 5500, observacoes: "Responsável geral pela operação." },
-  { id: 2, nome: "Maria Santos", cargo: "coletor", status: "ativo", telefone: "(11) 98765-4321", email: "maria@granjapro.com", localizacao: "Galpão Vale Verde", dataAdmissao: "2022-06-15", salario: 2200, observacoes: "Coleta matutina e vespertina." },
-  { id: 3, nome: "José Pereira", cargo: "tratador", status: "ativo", telefone: "(11) 97654-3210", email: "jose@granjapro.com", localizacao: "Galpão Central", dataAdmissao: "2021-01-20", salario: 2400, observacoes: "Cuida da alimentação e saúde das aves." },
-  { id: 4, nome: "Ana Costa", cargo: "administrativo", status: "ferias", telefone: "(11) 96543-2109", email: "ana@granjapro.com", localizacao: "Escritório Central", dataAdmissao: "2023-02-01", salario: 3000, observacoes: "Retorna em 2 semanas." },
-  { id: 5, nome: "Pedro Lima", cargo: "motorista", status: "ativo", telefone: "(11) 95432-1098", email: "pedro@granjapro.com", localizacao: "Setor de Logística", dataAdmissao: "2022-09-12", salario: 2800, observacoes: "Responsável pelas entregas regionais." },
-];
-
 const cargoOptions: CargoFuncionario[] = ["gerente", "tratador", "coletor", "motorista", "manutencao", "administrativo"];
 
 type ModalMode = "add" | "edit" | null;
@@ -95,13 +89,57 @@ const emptyForm = {
 };
 
 export default function FuncionariosPage() {
+  const { farm } = useAuth();
+  const farmRef = useRef(farm);
+  farmRef.current = farm;
+
   const [search, setSearch] = useState("");
-  const [funcionarios, setFuncionarios] = useState(initialFuncionarios);
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
+  const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<ModalMode>(null);
   const [editing, setEditing] = useState<Funcionario | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [filterCargo, setFilterCargo] = useState<CargoFuncionario | "todos">("todos");
+
+  const fetchData = useCallback(async () => {
+    const currentFarm = farmRef.current;
+    if (!currentFarm) return;
+    setLoading(true);
+
+    const supabase = createClient();
+    try {
+      const { data, error } = await supabase
+        .from("workers")
+        .select("*")
+        .eq("farm_id", currentFarm.id);
+
+      if (error) throw error;
+
+      const mapped: Funcionario[] = (data || []).map((i: any) => ({
+        id: i.id,
+        nome: i.name || "",
+        cargo: (i.role as CargoFuncionario) || "tratador",
+        status: (i.status as StatusFuncionario) || "ativo",
+        telefone: i.phone || "",
+        email: i.email || "",
+        localizacao: i.location || "",
+        dataAdmissao: i.hiring_date || "",
+        salario: i.salary || 0,
+        observacoes: i.notes || "",
+      }));
+
+      setFuncionarios(mapped);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   function openAdd() {
     setForm({ ...emptyForm });
@@ -125,28 +163,47 @@ export default function FuncionariosPage() {
     setModal("edit");
   }
 
-  function save() {
+  async function save() {
     if (!form.nome.trim()) return;
-    const item: Funcionario = {
-      id: editing?.id || Date.now(),
-      nome: form.nome,
-      cargo: form.cargo,
+    const currentFarm = farmRef.current;
+    if (!currentFarm) return;
+
+    const record = {
+      farm_id: currentFarm.id,
+      name: form.nome,
+      role: form.cargo,
       status: form.status,
-      telefone: form.telefone,
+      phone: form.telefone,
       email: form.email,
-      localizacao: form.localizacao,
-      dataAdmissao: form.dataAdmissao,
-      salario: Number(form.salario) || 0,
-      observacoes: form.observacoes,
+      location: form.localizacao,
+      hiring_date: form.dataAdmissao || null,
+      salary: Number(form.salario) || 0,
+      notes: form.observacoes,
     };
-    if (modal === "add") setFuncionarios((prev) => [...prev, item]);
-    else if (editing) setFuncionarios((prev) => prev.map((i) => (i.id === editing.id ? item : i)));
-    setModal(null);
+
+    const supabase = createClient();
+    try {
+      if (modal === "add") {
+        await supabase.from("workers").insert(record);
+      } else if (editing) {
+        await supabase.from("workers").update(record).eq("id", editing.id);
+      }
+      setModal(null);
+      fetchData();
+    } catch (e) {
+      console.error(e);
+    }
   }
 
-  function deleteItem(id: number) {
-    setFuncionarios((prev) => prev.filter((i) => i.id !== id));
-    setDeleteConfirm(null);
+  async function deleteItem(id: string) {
+    const supabase = createClient();
+    try {
+      await supabase.from("workers").delete().eq("id", id);
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   const filtered = funcionarios.filter((i) => {
@@ -158,6 +215,17 @@ export default function FuncionariosPage() {
   const totalAtivos = funcionarios.filter((i) => i.status === "ativo").length;
   const totalFerias = funcionarios.filter((i) => i.status === "ferias").length;
   const totalAfastados = funcionarios.filter((i) => i.status === "afastado").length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-brand-600 border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-gray-500">Carregando funcionários...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
