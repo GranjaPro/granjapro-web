@@ -146,7 +146,16 @@
       "Bash(dir \"C:\\\\Users\\\\Bernardo Timo\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\"\" 2>nul || echo \"Dir not found \")",
       "Skill(claude-api)",
       "Skill(claude-api:*)",
+<<<<<<< HEAD
       "Bash(npx supabase:*)"
+=======
+      "Bash(npx supabase:*)",
+      "Bash(find . -maxdepth 2 -type f -name package.json -o -name *.md -o -name tsconfig.json -o -name next.config.js -o -name .env.example)",
+      "Bash(grep -E \"\\\\.\\(json|ts|js|md\\)$\")",
+      "Bash(wc -l .planning/codebase/*.md)",
+      "Bash(grep -E '\\(sk-[a-zA-Z0-9]{20,}|sk_live_[a-zA-Z0-9]+|sk_test_[a-zA-Z0-9]+|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9_-]+|AKIA[A-Z0-9]{16}|xox[baprs]-[a-zA-Z0-9-]+|-----BEGIN.*PRIVATE KEY|eyJ[a-zA-Z0-9_-]+\\\\.eyJ[a-zA-Z0-9_-]+\\\\.\\)' .planning/codebase/*.md)",
+      "Bash(node:*)"
+>>>>>>> 64bd7cca11f86e4229b5f8fd0e3b853b085af6dc
     ]
   }
 }

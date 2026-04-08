@@ -23,11 +23,9 @@ import {
   Lightbulb,
   Target,
   Activity,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
   Package,
   FileText,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -49,6 +47,7 @@ import { getFeedByDateRange, createFeedRecord, updateFeedRecord, deleteFeedRecor
 import { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem } from "@/lib/services/inventory";
 import { getProductionByDateRange } from "@/lib/services/production";
 import { getBarns } from "@/lib/services/barns";
+import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 
 /* ── Types ── */
 type TipoRacao = "milho" | "soja" | "comercial" | "custom";
@@ -166,6 +165,9 @@ export default function RacaoPage() {
   const [farmId, setFarmId] = useState<string | null>(null);
   const [barns, setBarns] = useState<Barn[]>([]);
 
+  // Shared calendar filter
+  const { dateRange } = useDateFilter();
+
   // Dynamic Data States
   const [monthlyRS, setMonthlyRS] = useState<{ mes: string; valor: number }[]>([]);
   const [monthlyKg, setMonthlyKg] = useState<{ mes: string; valor: number }[]>([]);
@@ -247,11 +249,7 @@ export default function RacaoPage() {
       
       setFarmId(profile.farm_id);
 
-      // Fetch last 180 days for charts, but we filter in memory for simplicity
-      const start = new Date();
-      start.setDate(start.getDate() - 180);
-      const startDate = start.toISOString().split("T")[0];
-      const endDate = new Date().toISOString().split("T")[0];
+      const { startDate, endDate } = dateRange;
 
       const [feedData, prodData, inventoryData, barnsData] = await Promise.all([
         getFeedByDateRange(profile.farm_id, startDate, endDate),
@@ -305,6 +303,9 @@ export default function RacaoPage() {
       }));
       setEstoque(mappedInv);
 
+      // Egg total for cost-per-egg KPI
+      setTotalEggs((prodData || []).reduce((s: number, p: any) => s + (p.eggs_produced || 0), 0));
+
       // Transformers
       setMonthlyRS(calculateMonthly(feedData, 'cost'));
       setMonthlyKg(calculateMonthly(feedData, 'quantity_kg'));
@@ -317,7 +318,7 @@ export default function RacaoPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [calculateMonthly, mapDailyEfficiency, calculateDistribution]);
+  }, [calculateMonthly, mapDailyEfficiency, calculateDistribution, dateRange]);
 
   useEffect(() => {
     loadData();
@@ -338,101 +339,16 @@ export default function RacaoPage() {
   const [form, setForm] = useState({ data: new Date().toISOString().split("T")[0], tipo: "comercial" as TipoRacao, aviario: "", barn_id: "", consumoKg: "", custoRS: "", qtdGalinhas: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<string | number | null>(null);
 
-  // Calendar filter state
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [filterMode, setFilterMode] = useState<"intervalo" | "mes">("intervalo");
-  const [rangeStart, setRangeStart] = useState<Date | null>(new Date());
-  const [rangeEnd, setRangeEnd] = useState<Date | null>(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [calendarMonth, setCalendarMonth] = useState(new Date());
-  const calendarRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutsideCal(e: MouseEvent) {
-      if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) {
-        setCalendarOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutsideCal);
-    return () => document.removeEventListener("mousedown", handleClickOutsideCal);
-  }, []);
-
-  const sameDay = (a: Date, b: Date) =>
-    a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
-
-  const calendarLabel = useMemo(() => {
-    const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    if (filterMode === "intervalo") {
-      if (rangeStart && rangeEnd) {
-        if (sameDay(rangeStart, rangeEnd)) {
-          const today = new Date();
-          if (sameDay(rangeStart, today)) return `Hoje, ${rangeStart.getDate()} ${months[rangeStart.getMonth()]}`;
-          return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]}, ${rangeStart.getFullYear()}`;
-        }
-        return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]} — ${rangeEnd.getDate()} ${months[rangeEnd.getMonth()]}`;
-      }
-      if (rangeStart) return `${rangeStart.getDate()} ${months[rangeStart.getMonth()]} — ...`;
-      return "Selecionar período";
-    }
-    const d = selectedDate;
-    return `${months[d.getMonth()]} ${d.getFullYear()}`;
-  }, [selectedDate, filterMode, rangeStart, rangeEnd]);
-
-  const calendarDays = useMemo(() => {
-    const year = calendarMonth.getFullYear();
-    const month = calendarMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
-    const days: (Date | null)[] = [];
-    for (let i = 0; i < startDay; i++) days.push(null);
-    for (let i = 1; i <= lastDay.getDate(); i++) days.push(new Date(year, month, i));
-    return days;
-  }, [calendarMonth]);
-
-  const isInRange = useCallback((day: Date) => {
-    if (filterMode !== "intervalo" || !rangeStart) return false;
-    if (!rangeEnd) return sameDay(day, rangeStart);
-    const t = day.getTime();
-    const s = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime();
-    const e = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime();
-    return t >= s && t <= e;
-  }, [filterMode, rangeStart, rangeEnd]);
-
-  const isRangeStart = useCallback((day: Date) => {
-    return filterMode === "intervalo" && rangeStart && sameDay(day, rangeStart);
-  }, [filterMode, rangeStart]);
-
-  const isRangeEnd = useCallback((day: Date) => {
-    return filterMode === "intervalo" && rangeEnd && sameDay(day, rangeEnd);
-  }, [filterMode, rangeEnd]);
-
-  const handleCalDayClick = useCallback((day: Date) => {
-    if (filterMode === "intervalo") {
-      if (!rangeStart || (rangeStart && rangeEnd)) {
-        setRangeStart(day);
-        setRangeEnd(null);
-      } else {
-        if (day.getTime() < rangeStart.getTime()) {
-          setRangeEnd(rangeStart);
-          setRangeStart(day);
-        } else {
-          setRangeEnd(day);
-        }
-        setCalendarOpen(false);
-      }
-    } else {
-      setSelectedDate(new Date(day.getFullYear(), day.getMonth(), 1));
-      setCalendarOpen(false);
-    }
-  }, [filterMode, rangeStart, rangeEnd]);
-
-  const handleMonthClick = useCallback((monthIndex: number) => {
-    setSelectedDate(new Date(calendarMonth.getFullYear(), monthIndex, 1));
-    setCalendarOpen(false);
-  }, [calendarMonth]);
-
   const avgConsumoPorGalinha = useMemo(() => registros.length > 0 ? (registros.reduce((s, r) => s + (r.qtdGalinhas > 0 ? r.consumoKg / r.qtdGalinhas : 0), 0) / registros.length * 1000) : 0, [registros]);
+
+  // Production data for cost-per-egg calculation
+  const [totalEggs, setTotalEggs] = useState(0);
+
+  // Store daily consumption for "today" KPI
+  const consumoHoje = useMemo(() => {
+    const today = new Date().toISOString().split("T")[0];
+    return registros.filter((r) => r.data === today).reduce((s, r) => s + r.consumoKg, 0);
+  }, [registros]);
 
   /* KPIs */
   const kpis = useMemo(() => {
@@ -440,53 +356,54 @@ export default function RacaoPage() {
     const totalCusto = registros.reduce((s, r) => s + r.custoRS, 0);
     const custoPorKg = totalConsumo > 0 ? (totalCusto / totalConsumo) : 0;
     const estoqueBaixo = estoque.filter((e) => e.status === "baixo" || e.status === "alerta").length;
+    const custoPerOvo = totalEggs > 0 ? totalCusto / totalEggs : 0;
 
-    const metaConsumoDiario = 800;
-    const consumoHoje = 410;
-    const metaCustoTotal = 420;
+    const numDays = registros.length > 0 ? new Set(registros.map((r) => r.data)).size : 1;
+    const avgConsumoDiario = totalConsumo / numDays;
+
+    const metaConsumoDiario = avgConsumoDiario > 0 ? Math.round(avgConsumoDiario) : 0;
     const metaConsumoPorGalinha = 120;
     const metaCustoOvo = 0.04;
 
-    const diffConsumo = ((consumoHoje / metaConsumoDiario) * 100) - 100;
-    const diffCusto = ((totalCusto / metaCustoTotal) * 100) - 100;
-    const diffConsumoGalinha = ((avgConsumoPorGalinha / metaConsumoPorGalinha) * 100) - 100;
+    const diffConsumo = metaConsumoDiario > 0 ? ((consumoHoje / metaConsumoDiario) * 100) - 100 : 0;
+    const diffConsumoGalinha = metaConsumoPorGalinha > 0 ? ((avgConsumoPorGalinha / metaConsumoPorGalinha) * 100) - 100 : 0;
 
     return [
       {
         title: "Consumo Diário",
-        value: consumoHoje + " kg",
+        value: consumoHoje > 0 ? consumoHoje.toFixed(0) + " kg" : "—",
         icon: Wheat,
         iconBg: "bg-brand-50",
         iconColor: "text-brand-600",
         actual: consumoHoje,
         expectedVal: metaConsumoDiario,
-        expectedLabel: metaConsumoDiario + " kg",
+        expectedLabel: metaConsumoDiario > 0 ? metaConsumoDiario + " kg" : "—",
         unit: "kg",
-        progress: Math.min((consumoHoje / metaConsumoDiario) * 100, 100),
-        progressColor: consumoHoje <= metaConsumoDiario ? "bg-emerald-500" : consumoHoje <= metaConsumoDiario * 1.1 ? "bg-amber-500" : "bg-red-500",
+        progress: metaConsumoDiario > 0 ? Math.min((consumoHoje / metaConsumoDiario) * 100, 100) : 0,
+        progressColor: metaConsumoDiario === 0 ? "bg-gray-300" : consumoHoje <= metaConsumoDiario ? "bg-emerald-500" : consumoHoje <= metaConsumoDiario * 1.1 ? "bg-amber-500" : "bg-red-500",
         diff: diffConsumo,
-        diffLabel: `${diffConsumo > 0 ? "+" : ""}${diffConsumo.toFixed(1)}%`,
-        subtitle: `${((consumoHoje / metaConsumoDiario) * 100).toFixed(0)}% do esperado`,
+        diffLabel: metaConsumoDiario > 0 ? `${diffConsumo > 0 ? "+" : ""}${diffConsumo.toFixed(1)}%` : "—",
+        subtitle: metaConsumoDiario > 0 ? `${((consumoHoje / metaConsumoDiario) * 100).toFixed(0)}% da média` : "Sem dados",
       },
       {
         title: "Custo Total",
-        value: "R$ 381,41",
+        value: totalCusto > 0 ? `R$ ${totalCusto.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—",
         icon: DollarSign,
         iconBg: "bg-amber-50",
         iconColor: "text-amber-600",
-        actual: 381.41,
-        expectedVal: metaCustoTotal,
-        expectedLabel: "R$ " + metaCustoTotal.toFixed(2).replace(".", ","),
+        actual: totalCusto,
+        expectedVal: totalCusto,
+        expectedLabel: custoPorKg > 0 ? `R$ ${custoPorKg.toFixed(2).replace(".", ",")}/kg` : "—",
         unit: "",
-        progress: Math.min((381.41 / (metaCustoTotal * 1.3)) * 100, 100),
-        progressColor: 381.41 <= metaCustoTotal ? "bg-emerald-500" : 381.41 <= metaCustoTotal * 1.1 ? "bg-amber-500" : "bg-red-500",
-        diff: ((381.41 / metaCustoTotal) * 100) - 100,
-        diffLabel: `${((381.41 / metaCustoTotal) * 100) - 100 > 0 ? "+" : ""}${(((381.41 / metaCustoTotal) * 100) - 100).toFixed(1)}%`,
-        subtitle: "Menor é melhor",
+        progress: 50,
+        progressColor: "bg-amber-500",
+        diff: 0,
+        diffLabel: custoPorKg > 0 ? `R$ ${custoPorKg.toFixed(2)}/kg` : "—",
+        subtitle: `${totalConsumo.toFixed(0)} kg no período`,
       },
       {
         title: "Consumo / Galinha",
-        value: avgConsumoPorGalinha.toFixed(0) + " g",
+        value: avgConsumoPorGalinha > 0 ? avgConsumoPorGalinha.toFixed(0) + " g" : "—",
         icon: Activity,
         iconBg: "bg-blue-50",
         iconColor: "text-blue-600",
@@ -494,30 +411,30 @@ export default function RacaoPage() {
         expectedVal: metaConsumoPorGalinha,
         expectedLabel: metaConsumoPorGalinha + " g",
         unit: "g",
-        progress: Math.min((avgConsumoPorGalinha / (metaConsumoPorGalinha * 1.3)) * 100, 100),
+        progress: avgConsumoPorGalinha > 0 ? Math.min((avgConsumoPorGalinha / (metaConsumoPorGalinha * 1.3)) * 100, 100) : 0,
         progressColor: avgConsumoPorGalinha <= metaConsumoPorGalinha ? "bg-emerald-500" : avgConsumoPorGalinha <= metaConsumoPorGalinha * 1.1 ? "bg-amber-500" : "bg-red-500",
         diff: diffConsumoGalinha,
-        diffLabel: `${diffConsumoGalinha > 0 ? "+" : ""}${diffConsumoGalinha.toFixed(1)}%`,
+        diffLabel: avgConsumoPorGalinha > 0 ? `${diffConsumoGalinha > 0 ? "+" : ""}${diffConsumoGalinha.toFixed(1)}%` : "—",
         subtitle: "Padrão: 110-130g",
       },
       {
         title: "Custo / Ovo",
-        value: "R$ 0,05",
+        value: custoPerOvo > 0 ? `R$ ${custoPerOvo.toFixed(3).replace(".", ",")}` : "—",
         icon: Target,
         iconBg: "bg-emerald-50",
         iconColor: "text-emerald-600",
-        actual: 0.05,
+        actual: custoPerOvo,
         expectedVal: metaCustoOvo,
         expectedLabel: "R$ " + metaCustoOvo.toFixed(2),
         unit: "",
-        progress: Math.min((0.05 / (metaCustoOvo * 1.5)) * 100, 100),
-        progressColor: 0.05 <= metaCustoOvo ? "bg-emerald-500" : 0.05 <= metaCustoOvo * 1.2 ? "bg-amber-500" : "bg-red-500",
-        diff: ((0.05 / metaCustoOvo) * 100) - 100,
-        diffLabel: `+${(((0.05 / metaCustoOvo) * 100) - 100).toFixed(1)}%`,
+        progress: custoPerOvo > 0 ? Math.min((custoPerOvo / (metaCustoOvo * 1.5)) * 100, 100) : 0,
+        progressColor: custoPerOvo <= metaCustoOvo ? "bg-emerald-500" : custoPerOvo <= metaCustoOvo * 1.2 ? "bg-amber-500" : "bg-red-500",
+        diff: custoPerOvo > 0 && metaCustoOvo > 0 ? ((custoPerOvo / metaCustoOvo) * 100) - 100 : 0,
+        diffLabel: custoPerOvo > 0 ? `${((custoPerOvo / metaCustoOvo) * 100) - 100 > 0 ? "+" : ""}${(((custoPerOvo / metaCustoOvo) * 100) - 100).toFixed(1)}%` : "—",
         subtitle: `${estoqueBaixo} itens em alerta`,
       },
     ];
-  }, [registros, estoque]);
+  }, [registros, estoque, totalEggs, consumoHoje, avgConsumoPorGalinha]);
 
   /* Insights */
   const insights = useMemo(() => {
@@ -651,138 +568,7 @@ export default function RacaoPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-          <div className="relative" ref={calendarRef}>
-            <button
-              onClick={() => setCalendarOpen(!calendarOpen)}
-              className="inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium text-gray-500 bg-white border border-gray-200 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
-            >
-              <CalendarDays className="w-4 h-4 flex-shrink-0" />
-              <span className="hidden sm:inline">{calendarLabel}</span>
-            </button>
-
-            {calendarOpen && (
-              <div className="absolute right-0 sm:right-0 top-full mt-2 bg-white rounded-2xl border border-gray-200 shadow-2xl p-4 z-50 w-[280px] sm:w-[320px] animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 mb-4">
-                  {([
-                    { key: "intervalo" as const, label: "Intervalo" },
-                    { key: "mes" as const, label: "Mês" },
-                  ]).map((p) => (
-                    <button
-                      key={p.key}
-                      onClick={() => setFilterMode(p.key)}
-                      className={cn(
-                        "flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
-                        filterMode === p.key
-                          ? "bg-white text-gray-900 shadow-sm"
-                          : "text-gray-500 hover:text-gray-700"
-                      )}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-
-                {filterMode === "intervalo" && (
-                  <p className="text-[10px] text-gray-400 font-medium mb-2 text-center">
-                    {!rangeStart || (rangeStart && rangeEnd) ? "Clique no dia inicial" : "Clique no dia final"}
-                  </p>
-                )}
-
-                <div className="flex items-center justify-between mb-3">
-                  <button
-                    onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
-                  >
-                    <ChevronLeft className="w-4 h-4 text-gray-500" />
-                  </button>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
-                  </span>
-                  <button
-                    onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
-                  >
-                    <ChevronRight className="w-4 h-4 text-gray-500" />
-                  </button>
-                </div>
-
-                {filterMode === "mes" ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"].map((m, i) => {
-                      const isSelected = selectedDate.getMonth() === i && selectedDate.getFullYear() === calendarMonth.getFullYear();
-                      return (
-                        <button
-                          key={m}
-                          onClick={() => handleMonthClick(i)}
-                          className={cn(
-                            "py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer",
-                            isSelected ? "bg-brand-600 text-white shadow-sm" : "text-gray-700 hover:bg-gray-100"
-                          )}
-                        >
-                          {m}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-7 gap-0 mb-1">
-                      {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((d) => (
-                        <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-7 gap-0">
-                      {calendarDays.map((day, i) => {
-                        if (!day) return <div key={`empty-${i}`} className="h-9" />;
-                        const today = new Date();
-                        const isToday = sameDay(day, today);
-                        const inRange = isInRange(day);
-                        const isStart = isRangeStart(day);
-                        const isEnd = isRangeEnd(day);
-                        const isSingle = isStart && isEnd;
-
-                        return (
-                          <button
-                            key={i}
-                            onClick={() => handleCalDayClick(day)}
-                            className={cn(
-                              "h-9 text-sm font-medium transition-all duration-150 cursor-pointer relative flex items-center justify-center",
-                              inRange && !isStart && !isEnd && "bg-brand-50 text-brand-700",
-                              isStart && !isSingle && "bg-brand-600 text-white rounded-l-xl",
-                              isEnd && !isSingle && "bg-brand-600 text-white rounded-r-xl",
-                              isSingle && "bg-brand-600 text-white rounded-xl shadow-sm",
-                              !inRange && "hover:bg-gray-100 rounded-xl",
-                            )}
-                          >
-                            <span className={cn(
-                              isToday && !inRange && "w-7 h-7 rounded-full border-2 border-brand-500 flex items-center justify-center",
-                            )}>
-                              {day.getDate()}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-
-                <button
-                  onClick={() => {
-                    const today = new Date();
-                    setRangeStart(today);
-                    setRangeEnd(today);
-                    setSelectedDate(today);
-                    setCalendarMonth(today);
-                    setFilterMode("intervalo");
-                    setCalendarOpen(false);
-                  }}
-                  className="w-full mt-3 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-50 rounded-xl transition-colors cursor-pointer"
-                >
-                  Hoje
-                </button>
-              </div>
-            )}
-          </div>
+          <CalendarFilter />
           <button onClick={openAdd} className="inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-3 sm:px-5 py-2 sm:py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20">
             <Plus className="w-4 h-4 flex-shrink-0" />
             <span className="hidden sm:inline">Registrar Consumo</span>
@@ -1072,192 +858,67 @@ export default function RacaoPage() {
             </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
-            {/* Economia */}
-            <div className="bg-gray-50 rounded-xl p-3 sm:p-4">
-              <div className="flex items-center justify-between mb-2 sm:mb-3">
-                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                    <TrendingUp className="w-4 h-4 text-emerald-600" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Economia</span>
-                </div>
-                <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
-                    <HelpCircle className="w-3 h-3 text-gray-500" />
-                  </button>
-                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Economia?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Economia mensal gerada por otimizações no consumo de ração e negociação com fornecedores.</p>
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: Custo Previsto - Custo Real</p>
+            {(() => {
+              const totalConsumo = registros.reduce((s, r) => s + r.consumoKg, 0);
+              const totalCusto = registros.reduce((s, r) => s + r.custoRS, 0);
+              const custoPorKg = totalConsumo > 0 ? totalCusto / totalConsumo : 0;
+              const custoPerOvo = totalEggs > 0 ? totalCusto / totalEggs : 0;
+              const custoPerDuzia = custoPerOvo * 12;
+              const totalGalinhas = registros.reduce((s, r) => s + r.qtdGalinhas, 0);
+              const avgGalinhas = registros.length > 0 ? totalGalinhas / registros.length : 0;
+              const custoPerAve = avgGalinhas > 0 ? totalCusto / avgGalinhas : 0;
+
+              const metaCustoPorKg = 0.42;
+              const metaCustoOvo = 0.04;
+              const metaCustoDuzia = metaCustoOvo * 12;
+              const metaCustoAve = 0.15;
+
+              const cards = [
+                { label: "Custo/Dúzia", value: custoPerDuzia, meta: metaCustoDuzia, icon: DollarSign, iconBg: "bg-red-50", iconColor: "text-red-500", formula: "Custo Total Ração / (Total Ovos / 12)", desc: "Custo de ração para produzir uma dúzia de ovos." },
+                { label: "Custo/kg", value: custoPorKg, meta: metaCustoPorKg, icon: Wheat, iconBg: "bg-amber-50", iconColor: "text-amber-600", formula: "Custo Total / kg Total", desc: "Preço médio pago por quilograma de ração." },
+                { label: "Custo/Ovo", value: custoPerOvo, meta: metaCustoOvo, icon: Target, iconBg: "bg-violet-50", iconColor: "text-violet-600", formula: "Custo Total Ração / Total Ovos", desc: "Custo de ração para produzir cada ovo." },
+                { label: "Consumo/Ave", value: custoPerAve, meta: metaCustoAve, icon: Activity, iconBg: "bg-blue-50", iconColor: "text-blue-600", formula: "Custo Total / Nº de Aves", desc: "Custo diário de ração por ave." },
+              ];
+
+              return cards.map((c) => {
+                const diff = c.meta > 0 && c.value > 0 ? ((c.value / c.meta) * 100) - 100 : 0;
+                const isOver = diff > 0;
+                return (
+                  <div key={c.label} className="bg-gray-50 rounded-xl p-3 sm:p-4">
+                    <div className="flex items-center justify-between mb-2 sm:mb-3">
+                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                        <div className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center flex-shrink-0", c.iconBg)}>
+                          <c.icon className={cn("w-4 h-4", c.iconColor)} />
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">{c.label}</span>
+                      </div>
+                      <div className="relative group">
+                        <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
+                          <HelpCircle className="w-3 h-3 text-gray-500" />
+                        </button>
+                        <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
+                          <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é {c.label}?</p>
+                          <p className="text-[10px] text-gray-500 leading-relaxed">{c.desc}</p>
+                          <div className="mt-2 pt-2 border-t border-gray-100">
+                            <p className="text-[10px] text-gray-400">Fórmula: {c.formula}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-lg sm:text-xl font-bold text-gray-900">{c.value > 0 ? `R$ ${c.value.toFixed(2).replace(".", ",")}` : "—"}</p>
+                    <div className="flex items-center justify-between mt-2 gap-1">
+                      <span className="text-[10px] text-gray-400 truncate">Esperado: R$ {c.meta.toFixed(2).replace(".", ",")}</span>
+                      {c.value > 0 && (
+                        <span className={cn("inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0", isOver ? "text-red-600 bg-red-50" : "text-emerald-600 bg-emerald-50")}>
+                          {isOver ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                          {isOver ? "+" : ""}{diff.toFixed(1)}%
+                        </span>
+                      )}
                     </div>
                   </div>
-                </div>
-              </div>
-              <p className="text-lg sm:text-xl font-bold text-gray-900">R$ 320</p>
-              <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Meta: R$ 500</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                  <ArrowDownRight className="w-3 h-3" />
-                  64%
-                </span>
-              </div>
-            </div>
-            {/* Desperdício */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
-                    <AlertTriangle className="w-4 h-4 text-red-500" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Desperdício</span>
-                </div>
-                <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
-                    <HelpCircle className="w-3 h-3 text-gray-500" />
-                  </button>
-                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Desperdício?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Custo estimado de ração desperdiçada por dia. Inclui sobras e perdas no processo.</p>
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: (Fornecido - Consumido) × Preço/kg</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-lg sm:text-xl font-bold text-gray-900">R$ 18,00</p>
-              <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Tolerado: R$ 12,00</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                  <ArrowUpRight className="w-3 h-3" />
-                  +50%
-                </span>
-              </div>
-            </div>
-            {/* Custo/Dúzia */}
-            <div className="bg-gray-50 rounded-xl p-3 sm:p-4">
-              <div className="flex items-center justify-between mb-2 sm:mb-3">
-                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
-                    <DollarSign className="w-4 h-4 text-red-500" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Custo/Dúzia</span>
-                </div>
-                <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
-                    <HelpCircle className="w-3 h-3 text-gray-500" />
-                  </button>
-                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Custo/Dúzia?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Custo de ração para produzir uma dúzia de ovos. Indica eficiência econômica da alimentação.</p>
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: Custo Total Ração / (Total Ovos / 12)</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-lg sm:text-xl font-bold text-gray-900">R$ 5,04</p>
-              <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 4,56</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                  <ArrowUpRight className="w-3 h-3" />
-                  +10.5%
-                </span>
-              </div>
-            </div>
-            {/* Custo/kg */}
-            <div className="bg-gray-50 rounded-xl p-3 sm:p-4">
-              <div className="flex items-center justify-between mb-2 sm:mb-3">
-                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-                    <Wheat className="w-4 h-4 text-amber-600" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Custo/kg</span>
-                </div>
-                <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
-                    <HelpCircle className="w-3 h-3 text-gray-500" />
-                  </button>
-                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Custo/kg?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Preço médio pago por quilograma de ração. Quanto menor, mais econômico.</p>
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: Custo Total / kg Total</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-lg sm:text-xl font-bold text-gray-900">R$ 0,46</p>
-              <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 0,42</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                  <ArrowUpRight className="w-3 h-3" />
-                  +9.5%
-                </span>
-              </div>
-            </div>
-            {/* Custo/Ovo */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
-                    <Target className="w-4 h-4 text-violet-600" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Custo/Ovo</span>
-                </div>
-                <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
-                    <HelpCircle className="w-3 h-3 text-gray-500" />
-                  </button>
-                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Custo/Ovo?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Custo de ração para produzir cada ovo. Quanto menor, mais eficiente.</p>
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: Custo Total Ração / Total Ovos</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-lg sm:text-xl font-bold text-gray-900">R$ 0,05</p>
-              <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 0,04</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                  <ArrowUpRight className="w-3 h-3" />
-                  +25%
-                </span>
-              </div>
-            </div>
-            {/* Consumo/Ave */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                    <Activity className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Consumo/Ave</span>
-                </div>
-                <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
-                    <HelpCircle className="w-3 h-3 text-gray-500" />
-                  </button>
-                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Consumo/Ave?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Custo diário de ração por ave. Indica eficiência do arraçoamento.</p>
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: Custo Total / Nº de Aves</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-lg sm:text-xl font-bold text-gray-900">R$ 0,18</p>
-              <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 0,15</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                  <ArrowUpRight className="w-3 h-3" />
-                  +20%
-                </span>
-              </div>
-            </div>
+                );
+              });
+            })()}
           </div>
         </div>
       </div>
