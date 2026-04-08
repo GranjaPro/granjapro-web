@@ -48,6 +48,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getFeedByDateRange, createFeedRecord, updateFeedRecord, deleteFeedRecord } from "@/lib/services/feed";
 import { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem } from "@/lib/services/inventory";
 import { getProductionByDateRange } from "@/lib/services/production";
+import { getBarns } from "@/lib/services/barns";
 
 /* ── Types ── */
 type TipoRacao = "milho" | "soja" | "comercial" | "custom";
@@ -58,6 +59,7 @@ interface RegistroRacao {
   data: string;
   tipo: TipoRacao;
   aviario: string;
+  barn_id: string | null;
   consumoKg: number;
   custoRS: number;
   qtdGalinhas: number;
@@ -74,6 +76,12 @@ interface ItemEstoque {
   localizacao?: string;
   lote?: string;
   dataChegada?: string;
+}
+
+interface Barn {
+  id: string;
+  name: string;
+  current_birds: number;
 }
 
 const tipoLabel: Record<TipoRacao, string> = {
@@ -156,6 +164,7 @@ export default function RacaoPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [farmId, setFarmId] = useState<string | null>(null);
+  const [barns, setBarns] = useState<Barn[]>([]);
 
   // Dynamic Data States
   const [monthlyRS, setMonthlyRS] = useState<{ mes: string; valor: number }[]>([]);
@@ -244,14 +253,22 @@ export default function RacaoPage() {
       const startDate = start.toISOString().split("T")[0];
       const endDate = new Date().toISOString().split("T")[0];
 
-      const [feedData, prodData, inventoryData] = await Promise.all([
+      const [feedData, prodData, inventoryData, barnsData] = await Promise.all([
         getFeedByDateRange(profile.farm_id, startDate, endDate),
         getProductionByDateRange(profile.farm_id, startDate, endDate),
-        getInventory(profile.farm_id)
-        ]);
+        getInventory(profile.farm_id),
+        getBarns(profile.farm_id)
+      ]);
 
-        // Map Table
-        const mapped: RegistroRacao[] = feedData.map((d: any) => {        const typeStr = d.feed_type.toLowerCase();
+      setBarns(barnsData.map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        current_birds: b.current_birds || 0
+      })));
+
+      // Map Table
+      const mapped: RegistroRacao[] = feedData.map((d: any) => {
+        const typeStr = d.feed_type.toLowerCase();
         let tipo: TipoRacao = "comercial";
         if (typeStr.includes("milho")) tipo = "milho";
         else if (typeStr.includes("soja")) tipo = "soja";
@@ -261,10 +278,11 @@ export default function RacaoPage() {
           id: d.id,
           data: d.date,
           tipo,
-          aviario: "Geral", 
+          aviario: d.barns?.name || "Geral",
+          barn_id: d.barn_id,
           consumoKg: Number(d.quantity_kg),
           custoRS: Number(d.cost),
-          qtdGalinhas: 1000 
+          qtdGalinhas: d.barns?.current_birds || 1000 
         };
       });
       
@@ -317,7 +335,7 @@ export default function RacaoPage() {
   }, []);
 
   const [editing, setEditing] = useState<RegistroRacao | null>(null);
-  const [form, setForm] = useState({ data: "", tipo: "comercial" as TipoRacao, aviario: "", consumoKg: "", custoRS: "", qtdGalinhas: "" });
+  const [form, setForm] = useState({ data: new Date().toISOString().split("T")[0], tipo: "comercial" as TipoRacao, aviario: "", barn_id: "", consumoKg: "", custoRS: "", qtdGalinhas: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<string | number | null>(null);
 
   // Calendar filter state
@@ -551,13 +569,14 @@ export default function RacaoPage() {
   }
 
   async function save() {
-    if (!form.data.trim() || !farmId) return;
+    if (!form.data.trim() || !form.barn_id || !farmId) return;
     
     setIsLoading(true);
     try {
       const payload = {
         farm_id: farmId,
         date: form.data,
+        barn_id: form.barn_id,
         quantity_kg: Number(form.consumoKg) || 0,
         cost: Number(form.custoRS) || 0,
         feed_type: tipoLabel[form.tipo] || "Ração Postura",
@@ -1641,7 +1660,30 @@ export default function RacaoPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Aviário</label>
-                <input type="text" value={form.aviario} onChange={(e) => setForm({ ...form, aviario: e.target.value })} placeholder="Ex: Aviário 1A" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                <select
+                  value={form.barn_id}
+                  onChange={(e) => {
+                    const bId = e.target.value;
+                    const barn = barns.find(b => b.id === bId);
+                    setForm({
+                      ...form,
+                      barn_id: bId,
+                      aviario: barn?.name || "",
+                      qtdGalinhas: barn ? String(barn.current_birds) : ""
+                    });
+                  }}
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer"
+                >
+                  <option value="">Selecione um aviário...</option>
+                  {barns.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name} ({b.current_birds} aves)</option>
+                  ))}
+                </select>
+                {barns.length === 0 && (
+                  <p className="text-[10px] text-red-500 mt-1 font-medium italic">
+                    Nenhum aviário cadastrado. Você precisa cadastrar um aviário antes de registrar o consumo.
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
@@ -1662,10 +1704,10 @@ export default function RacaoPage() {
               <button onClick={() => setModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
               <button
                 onClick={save}
-                disabled={!form.data}
+                disabled={!form.data || !form.barn_id}
                 className={cn(
                   "inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold rounded-xl transition-colors cursor-pointer shadow-sm",
-                  form.data
+                  form.data && form.barn_id
                     ? "text-white bg-brand-600 hover:bg-brand-700"
                     : "text-gray-400 bg-gray-200 cursor-not-allowed"
                 )}

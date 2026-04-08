@@ -5,7 +5,7 @@ export async function getTodayFeed(farmId: string) {
   const today = new Date().toISOString().split("T")[0];
   const { data, error } = await supabase
     .from("feed_consumption")
-    .select("*")
+    .select("*, barns(name)")
     .eq("farm_id", farmId)
     .eq("date", today)
     .order("created_at", { ascending: false });
@@ -17,7 +17,7 @@ export async function getFeedByDateRange(farmId: string, startDate: string, endD
   const supabase = createClient();
   const { data, error } = await supabase
     .from("feed_consumption")
-    .select("*")
+    .select("*, barns(name)")
     .eq("farm_id", farmId)
     .gte("date", startDate)
     .lte("date", endDate)
