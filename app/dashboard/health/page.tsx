@@ -42,6 +42,7 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  Legend,
 } from "recharts";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
@@ -49,8 +50,10 @@ import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 
 /* ── Types ── */
 type RegistroTipo = "Vacinação" | "Tratamento" | "Inspeção";
-type RegistroStatus = "Concluído" | "Em andamento";
 type AgendaStatus = "Próximo" | "Agendado";
+type RegistroRapido = "vacinacao" | "medicamento" | "isolamento" | "inspecao" | "sintoma" | "tratamento";
+type RegistroStatus = "Concluído" | "Em andamento";
+type HealthEvolutionRange = "7d" | "30d" | "months" | "total";
 
 interface RegistroSaude {
   id: string;
@@ -76,6 +79,24 @@ interface Lote {
   id: string;
   codigo: string;
   aves: number;
+}
+
+interface RegistroRapidoOption {
+  id: RegistroRapido;
+  label: string;
+  description: string;
+  tipo: RegistroTipo;
+  placeholder: string;
+  icon: typeof Syringe;
+  iconBg: string;
+  iconColor: string;
+}
+
+interface HealthEvolutionPoint {
+  label: string;
+  score: number;
+  mortalidade: number;
+  postura: number;
 }
 
 const statusRegistroConfig: Record<RegistroStatus, { bg: string; text: string }> = {
@@ -112,10 +133,143 @@ const typeMapReverse: Record<RegistroTipo, string> = {
   "Inspeção": "inspection",
 };
 
-const statusMapReverse: Record<RegistroStatus, string> = {
-  "Concluído": "completed",
-  "Em andamento": "in_progress",
-};
+const registroRapidoOptions: RegistroRapidoOption[] = [
+  {
+    id: "vacinacao",
+    label: "Vacinação",
+    description: "Aplicação de vacina no lote",
+    tipo: "Vacinação",
+    placeholder: "Ex: Newcastle — Reforço",
+    icon: Syringe,
+    iconBg: "bg-brand-50",
+    iconColor: "text-brand-600",
+  },
+  {
+    id: "medicamento",
+    label: "Medicamento",
+    description: "Medicação ou suplementação",
+    tipo: "Tratamento",
+    placeholder: "Ex: Oxitetraciclina por 5 dias",
+    icon: Pill,
+    iconBg: "bg-amber-50",
+    iconColor: "text-amber-600",
+  },
+  {
+    id: "isolamento",
+    label: "Isolamento",
+    description: "Separação preventiva ou corretiva",
+    tipo: "Tratamento",
+    placeholder: "Ex: Isolamento preventivo do lote",
+    icon: ShieldCheck,
+    iconBg: "bg-teal-50",
+    iconColor: "text-teal-600",
+  },
+  {
+    id: "inspecao",
+    label: "Inspeção",
+    description: "Checagem sanitária de rotina",
+    tipo: "Inspeção",
+    placeholder: "Ex: Inspeção sanitária de rotina",
+    icon: ClipboardCheck,
+    iconBg: "bg-sky-50",
+    iconColor: "text-sky-600",
+  },
+  {
+    id: "sintoma",
+    label: "Sintoma",
+    description: "Registro de sinal clínico observado",
+    tipo: "Inspeção",
+    placeholder: "Ex: Apatia e queda de consumo",
+    icon: AlertTriangle,
+    iconBg: "bg-red-50",
+    iconColor: "text-red-500",
+  },
+  {
+    id: "tratamento",
+    label: "Tratamento",
+    description: "Acompanhamento sanitário geral",
+    tipo: "Tratamento",
+    placeholder: "Ex: Tratamento respiratório",
+    icon: HeartPulse,
+    iconBg: "bg-rose-50",
+    iconColor: "text-rose-600",
+  },
+];
+
+const mockAgendaVacina: AgendaVacina[] = [
+  {
+    id: "mock-agenda-1",
+    vacina: "Newcastle — reforço",
+    lote: "L001",
+    dataVencimento: "2026-04-08",
+    status: "Próximo",
+  },
+  {
+    id: "mock-agenda-2",
+    vacina: "Bronquite infecciosa",
+    lote: "L003",
+    dataVencimento: "2026-04-14",
+    status: "Agendado",
+  },
+  {
+    id: "mock-agenda-3",
+    vacina: "Gumboro — 2ª dose",
+    lote: "L002",
+    dataVencimento: "2026-04-19",
+    status: "Agendado",
+  },
+];
+
+function toIsoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function startOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function startOfWeek(date: Date) {
+  const next = startOfDay(date);
+  const weekday = (next.getDay() + 6) % 7;
+  next.setDate(next.getDate() - weekday);
+  return next;
+}
+
+function endOfWeek(date: Date) {
+  return addDays(startOfWeek(date), 6);
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function endOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function diffInDays(a: Date, b: Date) {
+  return Math.floor((a.getTime() - b.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function formatShortDayLabel(date: Date) {
+  return date
+    .toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })
+    .replace(".", "");
+}
+
+function formatMonthLabel(date: Date) {
+  return date
+    .toLocaleDateString("pt-BR", { month: "short", year: "2-digit" })
+    .replace(".", "");
+}
 
 export default function SaudePage() {
   const searchParams = useSearchParams();
@@ -136,9 +290,10 @@ export default function SaudePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [editing, setEditing] = useState<RegistroSaude | null>(null);
+  const [healthEvolutionRange, setHealthEvolutionRange] = useState<HealthEvolutionRange>("30d");
 
   useEffect(() => {
-    if (searchParams.get("register") === "true") setShowModal(true);
+    if (searchParams.get("register") === "true") openAdd();
   }, [searchParams]);
 
   const [form, setForm] = useState({
@@ -146,7 +301,7 @@ export default function SaudePage() {
     data: "",
     loteId: "",
     tipo: "Vacinação" as RegistroTipo,
-    status: "Concluído" as RegistroStatus,
+    registroRapido: "vacinacao" as RegistroRapido,
     observacao: "",
     responsavel: "",
   });
@@ -353,6 +508,110 @@ export default function SaudePage() {
     return registros.filter(r => r.titulo.toLowerCase().includes(q) || r.lote.toLowerCase().includes(q) || r.tipo.toLowerCase().includes(q));
   }, [registros, searchQuery]);
 
+  const displayedAgenda = agenda.length > 0 ? agenda : mockAgendaVacina;
+  const displayedVacinasPendentes = displayedAgenda.filter((item) => item.status === "Próximo").length;
+
+  const healthEvolutionData = useMemo(() => {
+    const today = startOfDay(new Date());
+    const allDates = [
+      ...registros.map((registro) => registro.data),
+      ...agenda.map((item) => item.dataVencimento),
+      ...mortalidadeData.map((item) => {
+        const [day, monthLabel] = item.dia.split("/");
+        const monthIndex = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"].indexOf(monthLabel);
+        const currentYear = today.getFullYear();
+        const fallback = new Date(currentYear, monthIndex === -1 ? today.getMonth() : monthIndex, Number(day));
+        return toIsoDate(fallback);
+      }),
+    ].filter(Boolean).sort();
+
+    const firstDate = allDates[0] ? new Date(`${allDates[0]}T00:00:00`) : today;
+
+    const buildPoint = (start: Date, end: Date, label: string): HealthEvolutionPoint => {
+      const startIso = toIsoDate(start);
+      const endIso = toIsoDate(end);
+
+      const bucketRegistros = registros.filter(
+        (registro) => registro.data >= startIso && registro.data <= endIso,
+      );
+      const inspections = bucketRegistros.filter((registro) => registro.tipo === "Inspeção").length;
+      const ongoingTreatments = bucketRegistros.filter(
+        (registro) => registro.tipo === "Tratamento" && registro.status === "Em andamento",
+      ).length;
+      const completedVaccinations = bucketRegistros.filter(
+        (registro) => registro.tipo === "Vacinação",
+      ).length;
+      const pendingVaccines = agenda.filter(
+        (item) => item.dataVencimento >= startIso && item.dataVencimento <= endIso,
+      ).length;
+
+      const mortalityEntries = mortalidadeData.filter((item) => {
+        const [day, monthLabel] = item.dia.split("/");
+        const monthIndex = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"].indexOf(monthLabel);
+        const sampleDate = new Date(today.getFullYear(), monthIndex === -1 ? today.getMonth() : monthIndex, Number(day));
+        const sampleIso = toIsoDate(sampleDate);
+        return sampleIso >= startIso && sampleIso <= endIso;
+      });
+
+      const mortalityRate = mortalityEntries.reduce((sum, item) => sum + item.taxa * 100, 0);
+      const mortalidade = Number(
+        Math.max(0.08, Math.min(2.5, mortalityRate || ongoingTreatments * 0.18 + pendingVaccines * 0.08)).toFixed(2),
+      );
+
+      const postura = Math.max(
+        0,
+        Math.min(
+          100,
+          Math.round(94 - mortalidade * 18 - ongoingTreatments * 6 - pendingVaccines * 2 + completedVaccinations * 1.5),
+        ),
+      );
+
+      const score = Math.max(
+        38,
+        Math.min(
+          100,
+          Math.round(100 - mortalidade * 18 - ongoingTreatments * 10 - pendingVaccines * 6 + inspections * 2),
+        ),
+      );
+
+      return { label, score, mortalidade, postura };
+    };
+
+    if (healthEvolutionRange === "7d") {
+      return Array.from({ length: 7 }, (_, index) => {
+        const day = addDays(today, index - 6);
+        return buildPoint(day, day, formatShortDayLabel(day));
+      });
+    }
+
+    if (healthEvolutionRange === "30d") {
+      return Array.from({ length: 30 }, (_, index) => {
+        const day = addDays(today, index - 29);
+        return buildPoint(day, day, formatShortDayLabel(day));
+      });
+    }
+
+    if (healthEvolutionRange === "months") {
+      return Array.from({ length: 6 }, (_, index) => {
+        const monthDate = new Date(today.getFullYear(), today.getMonth() - (5 - index), 1);
+        return buildPoint(
+          startOfMonth(monthDate),
+          endOfMonth(monthDate),
+          formatMonthLabel(monthDate),
+        );
+      });
+    }
+
+    const timelineStart = startOfWeek(firstDate);
+    const weeks = Math.max(1, Math.ceil((diffInDays(today, timelineStart) + 1) / 7));
+
+    return Array.from({ length: weeks }, (_, index) => {
+      const weekStart = addDays(timelineStart, index * 7);
+      const weekEnd = endOfWeek(weekStart) > today ? today : endOfWeek(weekStart);
+      return buildPoint(weekStart, weekEnd, `Sem ${index + 1}`);
+    });
+  }, [agenda, healthEvolutionRange, mortalidadeData, registros]);
+
   function formatDate(dateStr: string) {
     try { return new Date(dateStr + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }); } catch { return dateStr; }
   }
@@ -361,15 +620,48 @@ export default function SaudePage() {
     try { return new Date(dateStr + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", ""); } catch { return dateStr; }
   }
 
-  function openAdd() {
-    setForm({ titulo: "", data: "", loteId: "", tipo: "Vacinação", status: "Concluído", observacao: "", responsavel: "" });
+  const registroRapidoSelecionado = registroRapidoOptions.find((option) => option.id === form.registroRapido);
+  const titlePlaceholder = registroRapidoSelecionado?.placeholder ?? "Ex: Newcastle — Reforço";
+
+  function inferRegistroRapido(record: RegistroSaude): RegistroRapido {
+    const source = `${record.titulo} ${record.observacao || ""}`.toLowerCase();
+    if (record.tipo === "Vacinação") return "vacinacao";
+    if (record.tipo === "Tratamento") {
+      if (source.includes("isol")) return "isolamento";
+      if (source.includes("medic") || source.includes("antib") || source.includes("suple")) return "medicamento";
+      return "tratamento";
+    }
+    if (source.includes("sint") || source.includes("apat") || source.includes("tosse") || source.includes("diarre")) {
+      return "sintoma";
+    }
+    return "inspecao";
+  }
+
+  function openAdd(option?: RegistroRapidoOption) {
+    setForm({
+      titulo: "",
+      data: "",
+      loteId: "",
+      tipo: option?.tipo ?? "Vacinação",
+      registroRapido: option?.id ?? "vacinacao",
+      observacao: "",
+      responsavel: "",
+    });
     setEditing(null);
     setError("");
     setShowModal(true);
   }
 
   function openEdit(r: RegistroSaude) {
-    setForm({ titulo: r.titulo, data: r.data, loteId: r.loteId || "", tipo: r.tipo, status: r.status, observacao: r.observacao || "", responsavel: r.responsavel || "" });
+    setForm({
+      titulo: r.titulo,
+      data: r.data,
+      loteId: r.loteId || "",
+      tipo: r.tipo,
+      registroRapido: inferRegistroRapido(r),
+      observacao: r.observacao || "",
+      responsavel: r.responsavel || "",
+    });
     setEditing(r);
     setError("");
     setShowModal(true);
@@ -380,13 +672,21 @@ export default function SaudePage() {
     setSaving(true);
     setError("");
 
+    const today = new Date().toISOString().slice(0, 10);
+    const computedStatus =
+      form.data > today
+        ? form.tipo === "Vacinação"
+          ? (form.data <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) ? "upcoming" : "scheduled")
+          : "in_progress"
+        : "completed";
+
     const record = {
       farm_id: farm.id,
       flock_id: form.loteId || null,
       title: form.titulo,
       date: form.data,
       type: typeMapReverse[form.tipo],
-      status: statusMapReverse[form.status],
+      status: computedStatus,
       responsible: form.responsavel || null,
       notes: form.observacao || null,
     };
@@ -456,7 +756,7 @@ export default function SaudePage() {
         </div>
         <div className="flex items-center gap-3">
           <CalendarFilter />
-          <button onClick={openAdd} className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20">
+          <button onClick={() => openAdd()} className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20">
             <Plus className="w-4 h-4" />Adicionar Registro
           </button>
         </div>
@@ -547,76 +847,193 @@ export default function SaudePage() {
         })}
       </div>
 
-      {/* ── AI Insights + Vaccination Schedule ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* AI Insights */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm"><Zap className="w-5 h-5 text-white" /></div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900">Assistente Sanitário</h3>
-                <p className="text-[11px] text-gray-400 font-medium">Baseado nos dados do período</p>
-              </div>
+      {/* ── Evolução do lote ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-brand-600" />
             </div>
-            <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Evolução do lote</h3>
+            </div>
           </div>
-          <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-            {insights.map((ins, i) => (
-              <div key={i} className={cn("p-3.5 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
-                    {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />}
-                    {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
-                    {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600" />}
-                  </div>
-                  <span className="text-sm font-semibold text-gray-800">{ins.title}</span>
-                </div>
-                <p className={cn("text-xs font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
-              </div>
+          <div className="flex items-center gap-2 overflow-x-auto">
+            {[
+              { id: "7d", label: "Últimos 7 dias" },
+              { id: "30d", label: "Últimos 30 dias" },
+              { id: "months", label: "Meses" },
+              { id: "total", label: "Tempo total" },
+            ].map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setHealthEvolutionRange(option.id as HealthEvolutionRange)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-semibold border whitespace-nowrap transition-colors",
+                  healthEvolutionRange === option.id
+                    ? "bg-brand-50 text-brand-700 border-brand-200"
+                    : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50",
+                )}
+              >
+                {option.label}
+              </button>
             ))}
           </div>
         </div>
+        <ResponsiveContainer width="100%" height={280}>
+          <ComposedChart
+            data={healthEvolutionData}
+            margin={{ top: 5, right: 10, left: -10, bottom: 0 }}
+          >
+            <defs>
+              <linearGradient id="evoScoreGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity={0.25} />
+                <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+            <XAxis
+              dataKey="label"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "#9ca3af", fontSize: 12 }}
+              minTickGap={healthEvolutionRange === "30d" ? 18 : 8}
+            />
+            <YAxis
+              yAxisId="left"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "#9ca3af", fontSize: 12 }}
+              domain={[0, 100]}
+              tickFormatter={(value: number) => `${value}%`}
+            />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "#9ca3af", fontSize: 12 }}
+              domain={[0, 2.5]}
+              tickFormatter={(value: number) => `${value}%`}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "#fff",
+                border: "1px solid #e5e7eb",
+                borderRadius: "12px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                fontSize: "13px",
+                padding: "10px 14px",
+              }}
+              formatter={((value: unknown, name: unknown) => {
+                if (name === "Score de saúde" || name === "Postura (%)") {
+                  return [`${Number(value ?? 0)}%`, String(name)];
+                }
+                return [`${Number(value ?? 0).toFixed(2)}%`, String(name)];
+              }) as any}
+            />
+            <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} iconType="circle" />
+            <Area
+              yAxisId="left"
+              type="monotone"
+              dataKey="score"
+              name="Score de saúde"
+              stroke="#10b981"
+              strokeWidth={2.5}
+              fill="url(#evoScoreGrad)"
+            />
+            <Line
+              yAxisId="left"
+              type="monotone"
+              dataKey="postura"
+              name="Postura (%)"
+              stroke="#f59e0b"
+              strokeWidth={2}
+              dot={false}
+            />
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="mortalidade"
+              name="Mortalidade (%)"
+              stroke="#ef4444"
+              strokeWidth={2}
+              dot={false}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
 
-        {/* Vaccination Schedule */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-brand-600" />
-              <h3 className="text-sm font-bold text-gray-900">Agenda de Vacinação</h3>
+      {/* AI Insights — under Cobertura Vacinal */}
+      <div className="lg:col-span-1 bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm"><Zap className="w-4 h-4 text-white" /></div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Assistente Sanitário</h3>
+              <p className="text-[11px] text-gray-400 font-medium">Baseado nos dados do período</p>
             </div>
-            <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">{vacinasPendentes} próximas</span>
           </div>
-          <div className="space-y-0 max-h-[280px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-            {agenda.length === 0 && (
-              <div className="text-center py-10 text-gray-400 text-sm">Nenhuma vacinação agendada.</div>
-            )}
-            {agenda.map((a, i) => {
-              const sColor = statusAgendaConfig[a.status];
-              const isUrgent = a.status === "Próximo";
-              return (
-                <div key={a.id}>
-                  <div className="flex items-center justify-between py-3 group">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", isUrgent ? "bg-red-50" : "bg-gray-50")}>
-                        <Syringe className={cn("w-4 h-4", isUrgent ? "text-red-500" : "text-gray-400")} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{a.vacina}</p>
-                        <p className="text-[11px] text-gray-400 truncate">Lote: {a.lote} · {formatDateShort(a.dataVencimento)}</p>
-                      </div>
-                    </div>
-                    <span className={cn("text-[10px] font-semibold px-2.5 py-1 rounded-lg border flex-shrink-0", sColor.bg, sColor.text, sColor.border)}>{a.status}</span>
-                  </div>
-                  {i < agenda.length - 1 && <div className="border-t border-gray-50" />}
+          <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Pro</span>
+        </div>
+        <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
+          {insights.map((ins, i) => (
+            <div key={i} className={cn("p-3 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
+              <div className="flex items-center gap-2 mb-1">
+                <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
+                  {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />}
+                  {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
+                  {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600" />}
                 </div>
-              );
-            })}
-          </div>
+                <span className="text-xs font-semibold text-gray-800">{ins.title}</span>
+              </div>
+              <p className={cn("text-[11px] font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* ── Charts Row — 2/3 + 1/3 ── */}
+      {/* Vaccination Schedule — under Última Inspeção */}
+      <div className="lg:col-span-1 bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-brand-600" />
+            <h3 className="text-sm font-bold text-gray-900">Agenda de Vacinação</h3>
+          </div>
+          <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">{displayedVacinasPendentes} próximas</span>
+        </div>
+        <div className="space-y-0 max-h-[260px] overflow-y-auto flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
+          {displayedAgenda.length === 0 && (
+            <div className="text-center py-10 text-gray-400 text-sm">Nenhuma vacinação agendada.</div>
+          )}
+          {displayedAgenda.map((a, i) => {
+            const sColor = statusAgendaConfig[a.status];
+            const isUrgent = a.status === "Próximo";
+            return (
+              <div key={a.id}>
+                <div className="flex items-center justify-between py-3 group">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", isUrgent ? "bg-red-50" : "bg-gray-50")}>
+                      <Syringe className={cn("w-4 h-4", isUrgent ? "text-red-500" : "text-gray-400")} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{a.vacina}</p>
+                      <p className="text-[11px] text-gray-400 truncate">Lote: {a.lote} · {formatDateShort(a.dataVencimento)}</p>
+                    </div>
+                  </div>
+                  <span className={cn("text-[10px] font-semibold px-2.5 py-1 rounded-lg border flex-shrink-0", sColor.bg, sColor.text, sColor.border)}>{a.status}</span>
+                </div>
+                {i < displayedAgenda.length - 1 && <div className="border-t border-gray-50" />}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      </div>
+
+      {/* ── Charts Row — moved above (Mortalidade 2/3 + Cobertura 1/3) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Mortalidade */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
@@ -760,11 +1177,33 @@ export default function SaudePage() {
             </div>
             {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
             <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Título</label>
-                <input type="text" value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} placeholder="Ex: Newcastle — Reforço" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.7fr)_220px] gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Título</label>
+                  <input type="text" value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} placeholder={titlePlaceholder} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tipo</label>
+                  <select
+                    value={form.registroRapido}
+                    onChange={(e) => {
+                      const option = registroRapidoOptions.find((item) => item.id === e.target.value);
+                      if (!option) return;
+                      setForm({
+                        ...form,
+                        registroRapido: option.id,
+                        tipo: option.tipo,
+                      });
+                    }}
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer"
+                  >
+                    {registroRapidoOptions.map((option) => (
+                      <option key={option.id} value={option.id}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Data</label>
                   <input type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
@@ -776,33 +1215,14 @@ export default function SaudePage() {
                     {lotes.map(l => <option key={l.id} value={l.id}>{l.codigo}</option>)}
                   </select>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tipo</label>
-                  <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value as RegistroTipo })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
-                    <option value="Vacinação">Vacinação</option>
-                    <option value="Tratamento">Tratamento</option>
-                    <option value="Inspeção">Inspeção</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Status</label>
-                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as RegistroStatus })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
-                    <option value="Concluído">Concluído</option>
-                    <option value="Em andamento">Em andamento</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Responsável</label>
                   <input type="text" value={form.responsavel} onChange={(e) => setForm({ ...form, responsavel: e.target.value })} placeholder="Ex: Dr. Silva" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Observação</label>
-                  <input type="text" value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} placeholder="Notas adicionais" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
-                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Observação</label>
+                <input type="text" value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} placeholder="Notas adicionais" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 pt-2">

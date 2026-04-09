@@ -208,7 +208,44 @@ const causaOptions = ["Natural", "Doença", "Respiratório", "Predadores", "Estr
 export default function MortalidadeLotePage() {
   const params = useParams();
   const loteId = params.loteId as string;
-  const baseData = lotesMortalidade[loteId];
+  const baseData =
+    lotesMortalidade[loteId] ?? {
+      codigo: "L003",
+      taxaMensal: 0.6,
+      totalMortes: 18,
+      mortesSemana: 3,
+      mortesMes: 6,
+      avesVivas: 982,
+      causaPrincipal: "Bicagem",
+      tendencia: "up" as const,
+      semanal: [
+        { semana: "S1", mortes: 1 },
+        { semana: "S2", mortes: 2 },
+        { semana: "S3", mortes: 1 },
+        { semana: "S4", mortes: 2 },
+        { semana: "S5", mortes: 4 },
+        { semana: "S6", mortes: 3 },
+      ],
+      causas: [
+        { causa: "Bicagem", quantidade: 7, porcentagem: 39, color: "#f97316" },
+        { causa: "Doença", quantidade: 5, porcentagem: 28, color: "#ef4444" },
+        { causa: "Problema Nutricional", quantidade: 3, porcentagem: 17, color: "#eab308" },
+        { causa: "Acidente", quantidade: 2, porcentagem: 11, color: "#06b6d4" },
+        { causa: "Desconhecido", quantidade: 1, porcentagem: 5, color: "#94a3b8" },
+      ],
+      mensal: [
+        { mes: "Jan", mortes: 3, taxa: 0.3 },
+        { mes: "Fev", mortes: 4, taxa: 0.4 },
+        { mes: "Mar", mortes: 5, taxa: 0.5 },
+        { mes: "Abr", mortes: 6, taxa: 0.6 },
+      ],
+      registros: [
+        { id: 1, data: "2026-04-05", quantidade: 2, causa: "Bicagem", galpao: "Galpão 1", observacao: "Bicagem entre aves jovens" },
+        { id: 2, data: "2026-04-03", quantidade: 1, causa: "Doença", galpao: "Galpão 2", observacao: "Sintomas respiratórios" },
+        { id: 3, data: "2026-04-01", quantidade: 1, causa: "Bicagem", galpao: "Galpão 1", observacao: "" },
+        { id: 4, data: "2026-03-28", quantidade: 2, causa: "Problema Nutricional", galpao: "Galpão 3", observacao: "Deficiência de cálcio suspeita" },
+      ],
+    };
 
   const [registros, setRegistros] = useState<RegistroMortalidade[]>(baseData?.registros || []);
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
@@ -300,6 +337,164 @@ export default function MortalidadeLotePage() {
     }
   }
 
+  const PADRAO_LINHAGEM = 0.5;
+  const totalInicial = data.avesVivas + data.totalMortes;
+  const taxaTotal = (data.totalMortes / Math.max(1, totalInicial)) * 100;
+  const ultimas3 = data.semanal.slice(-3).reduce((s, w) => s + w.mortes, 0);
+  const media3Anteriores =
+    data.semanal.slice(-6, -3).reduce((s, w) => s + w.mortes, 0) / 3 || 0;
+  const picoAnormal = ultimas3 > Math.max(2, media3Anteriores * 2);
+  const acimaPadrao = data.taxaMensal > PADRAO_LINHAGEM;
+  const tendCresc = data.tendencia === "up";
+  const desvioPadrao = ((data.taxaMensal - PADRAO_LINHAGEM) / PADRAO_LINHAGEM) * 100;
+
+  const insightTendencia = useMemo(() => {
+    if (data.tendencia === "down")
+      return { label: "Estabilizando — quadro melhorando", tone: "emerald" };
+    if (data.tendencia === "up")
+      return { label: "Piorando — requer ação imediata", tone: "red" };
+    return { label: "Estável — mantendo padrão atual", tone: "gray" };
+  }, [data.tendencia]);
+
+  const smartAlerts = useMemo(() => {
+    const list: { level: "red" | "yellow"; text: string }[] = [];
+    if (picoAnormal)
+      list.push({ level: "red", text: "Pico anormal de mortalidade nos últimos 3 dias" });
+    if (acimaPadrao)
+      list.push({
+        level: "red",
+        text: `Acima do padrão da linhagem (${desvioPadrao > 0 ? "+" : ""}${desvioPadrao.toFixed(0)}%)`,
+      });
+    if (tendCresc && !picoAnormal)
+      list.push({ level: "yellow", text: "Tendência de crescimento detectada" });
+    return list;
+  }, [picoAnormal, acimaPadrao, tendCresc, desvioPadrao]);
+
+  const causasPadrao = useMemo(() => {
+    const palette: Record<string, string> = {
+      Doença: "#ef4444",
+      Bicagem: "#f97316",
+      "Problema Nutricional": "#eab308",
+      Predador: "#a855f7",
+      Acidente: "#06b6d4",
+      Desconhecido: "#94a3b8",
+      Outros: "#64748b",
+    };
+    const known = ["Doença", "Bicagem", "Problema Nutricional", "Predador", "Acidente", "Desconhecido", "Outros"];
+    const map: Record<string, number> = {};
+    data.causas.forEach((c) => {
+      const key = known.includes(c.causa)
+        ? c.causa
+        : c.causa === "Respiratório"
+        ? "Doença"
+        : c.causa === "Estresse"
+        ? "Outros"
+        : c.causa === "Natural"
+        ? "Outros"
+        : "Outros";
+      map[key] = (map[key] || 0) + c.quantidade;
+    });
+    const total = Object.values(map).reduce((s, v) => s + v, 0) || 1;
+    return known
+      .map((k) => ({
+        causa: k,
+        quantidade: map[k] || 0,
+        porcentagem: Math.round(((map[k] || 0) / total) * 100),
+        color: palette[k],
+      }))
+      .filter((c) => c.quantidade > 0);
+  }, [data.causas]);
+
+  const fasesMortalidade = useMemo(() => {
+    const total = data.totalMortes || 1;
+    return [
+      { fase: "Inicial (0-6 sem)", pct: 25, mortes: Math.round(total * 0.25), color: "#fca5a5" },
+      { fase: "Crescimento (6-18 sem)", pct: 35, mortes: Math.round(total * 0.35), color: "#f87171" },
+      { fase: "Postura (18+ sem)", pct: 40, mortes: Math.round(total * 0.4), color: "#ef4444" },
+    ];
+  }, [data.totalMortes]);
+
+  const correlations = useMemo(() => {
+    const list: { titulo: string; descricao: string; impacto: "alto" | "médio" | "baixo" }[] = [];
+    const temBicagem = data.causas.some((c) => /bicag/i.test(c.causa));
+    const temDoenca = data.causas.some((c) => /(doen|respira)/i.test(c.causa));
+    if (temBicagem)
+      list.push({
+        titulo: "Bicagem → Mortes",
+        descricao: "Aumento de bicagem correlaciona com mortes recentes. Revisar densidade e enriquecimento ambiental.",
+        impacto: "alto",
+      });
+    if (temDoenca)
+      list.push({
+        titulo: "Sintomas respiratórios → Mortalidade",
+        descricao: "Casos respiratórios precedem aumento de mortes. Verificar ventilação e iniciar tratamento.",
+        impacto: "alto",
+      });
+    list.push({
+      titulo: "Inspeções regulares → Redução de mortes",
+      descricao: "Lotes com inspeção semanal apresentam taxa até 30% menor.",
+      impacto: "médio",
+    });
+    return list;
+  }, [data.causas]);
+
+  const mortalityScore = useMemo(() => {
+    let score = 100;
+    if (acimaPadrao) score -= Math.min(40, Math.max(10, desvioPadrao / 2));
+    if (picoAnormal) score -= 25;
+    if (tendCresc) score -= 15;
+    else if (data.tendencia === "down") score += 5;
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }, [acimaPadrao, desvioPadrao, picoAnormal, tendCresc, data.tendencia]);
+
+  const mortalityStatus = useMemo(() => {
+    if (mortalityScore >= 80)
+      return {
+        label: "Verde",
+        text: "text-emerald-700",
+        gradient: "from-emerald-50 to-emerald-50/40",
+        border: "border-emerald-200",
+      };
+    if (mortalityScore >= 60)
+      return {
+        label: "Amarelo",
+        text: "text-amber-700",
+        gradient: "from-amber-50 to-amber-50/40",
+        border: "border-amber-200",
+      };
+    return {
+      label: "Vermelho",
+      text: "text-red-700",
+      gradient: "from-red-50 to-red-50/40",
+      border: "border-red-200",
+    };
+  }, [mortalityScore]);
+
+  const scoreColorMort =
+    mortalityScore >= 80 ? "#10b981" : mortalityScore >= 60 ? "#f59e0b" : "#ef4444";
+
+  const recomendacoesMort = useMemo(() => {
+    const list: { text: string; impacto: "alto" | "médio" | "baixo" }[] = [];
+    if (picoAnormal)
+      list.push({ text: "Investigar causa do pico — isolar lote e coletar amostras", impacto: "alto" });
+    if (acimaPadrao)
+      list.push({ text: "Revisar manejo sanitário e ambiência do galpão", impacto: "alto" });
+    if (causasPadrao.find((c) => c.causa === "Doença" && c.porcentagem >= 20))
+      list.push({ text: "Acionar veterinário para diagnóstico clínico", impacto: "alto" });
+    if (causasPadrao.find((c) => c.causa === "Bicagem" && c.porcentagem >= 15))
+      list.push({ text: "Reduzir densidade e adicionar enriquecimento ambiental", impacto: "médio" });
+    if (causasPadrao.find((c) => c.causa === "Problema Nutricional"))
+      list.push({ text: "Revisar formulação da ração e qualidade da água", impacto: "médio" });
+    if (tendCresc)
+      list.push({ text: "Aumentar frequência de inspeções diárias", impacto: "médio" });
+    if (causasPadrao.find((c) => c.causa === "Desconhecido" && c.porcentagem >= 20))
+      list.push({ text: "Implementar necropsia para identificar causas ocultas", impacto: "médio" });
+    if (list.length === 0)
+      list.push({ text: "Manter monitoramento de rotina e registros diários", impacto: "baixo" });
+    const order = { alto: 0, médio: 1, baixo: 2 } as const;
+    return list.sort((a, b) => order[a.impacto] - order[b.impacto]).slice(0, 5);
+  }, [picoAnormal, acimaPadrao, tendCresc, causasPadrao]);
+
   const TrendBadge = () => {
     if (data.tendencia === "stable")
       return (
@@ -323,40 +518,40 @@ export default function MortalidadeLotePage() {
 
   const kpis = [
     {
-      title: "Taxa Mensal",
-      value: `${data.taxaMensal.toFixed(1).replace(".", ",")}%`,
+      title: "Mortalidade Total",
+      value: `${taxaTotal.toFixed(2).replace(".", ",")}%`,
       icon: Activity,
-      iconBg: data.taxaMensal <= 0.5 ? "bg-emerald-50" : data.taxaMensal <= 1.0 ? "bg-amber-50" : "bg-red-50",
-      iconColor: data.taxaMensal <= 0.5 ? "text-emerald-600" : data.taxaMensal <= 1.0 ? "text-amber-600" : "text-red-500",
-      badge: data.tendencia === "up" ? "+0.1%" : data.tendencia === "down" ? "-0.1%" : "0%",
-      badgeDir: data.tendencia === "up" ? ("up" as const) : data.tendencia === "down" ? ("down" as const) : ("neutral" as const),
-    },
-    {
-      title: "Mortes Total",
-      value: String(data.totalMortes),
-      icon: Skull,
       iconBg: "bg-red-50",
       iconColor: "text-red-500",
-      badge: `${data.mortesMes} este mês`,
+      badge: `${data.totalMortes} de ${totalInicial.toLocaleString("pt-BR")} aves`,
       badgeDir: "neutral" as const,
     },
     {
-      title: "Esta Semana",
-      value: String(data.mortesSemana),
+      title: "Acumulada (mês)",
+      value: `${data.taxaMensal.toFixed(2).replace(".", ",")}%`,
+      icon: Skull,
+      iconBg: data.taxaMensal <= 0.5 ? "bg-emerald-50" : data.taxaMensal <= 1.0 ? "bg-amber-50" : "bg-red-50",
+      iconColor: data.taxaMensal <= 0.5 ? "text-emerald-600" : data.taxaMensal <= 1.0 ? "text-amber-600" : "text-red-500",
+      badge: `${data.mortesMes} aves no mês`,
+      badgeDir: "neutral" as const,
+    },
+    {
+      title: "Hoje / Últimos 7 dias",
+      value: `${data.semanal[data.semanal.length - 1]?.mortes ?? 0} / ${data.mortesSemana}`,
       icon: Calendar,
       iconBg: data.mortesSemana === 0 ? "bg-emerald-50" : "bg-amber-50",
       iconColor: data.mortesSemana === 0 ? "text-emerald-600" : "text-amber-600",
-      badge: data.mortesSemana === 0 ? "Zero mortes" : `${data.mortesSemana} ave(s)`,
-      badgeDir: data.mortesSemana === 0 ? ("down" as const) : ("neutral" as const),
+      badge: "aves perdidas",
+      badgeDir: "neutral" as const,
     },
     {
-      title: "Aves Vivas",
-      value: data.avesVivas.toLocaleString("pt-BR"),
+      title: "Padrão da linhagem",
+      value: `${PADRAO_LINHAGEM.toFixed(1).replace(".", ",")}%`,
       icon: Heart,
-      iconBg: "bg-brand-50",
-      iconColor: "text-brand-600",
-      badge: data.causaPrincipal,
-      badgeDir: "neutral" as const,
+      iconBg: acimaPadrao ? "bg-red-50" : "bg-emerald-50",
+      iconColor: acimaPadrao ? "text-red-500" : "text-emerald-600",
+      badge: `${desvioPadrao > 0 ? "+" : ""}${desvioPadrao.toFixed(0)}% vs esperado`,
+      badgeDir: acimaPadrao ? ("up" as const) : ("down" as const),
     },
   ];
 
@@ -385,15 +580,145 @@ export default function MortalidadeLotePage() {
               </div>
             </div>
           </div>
-          <button
-            onClick={openAdd}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Registrar Mortalidade
-          </button>
         </div>
       </div>
+
+      {/* Status de Mortalidade */}
+      <div
+        className={cn(
+          "bg-gradient-to-r rounded-2xl border p-5",
+          mortalityStatus.gradient,
+          mortalityStatus.border
+        )}
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+          <div className="flex items-center gap-4 lg:min-w-[300px]">
+            <div className="relative w-16 h-16 flex-shrink-0">
+              <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="28"
+                  fill="none"
+                  stroke={scoreColorMort}
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeDasharray={`${(mortalityScore / 100) * 175.9} 175.9`}
+                  className="transition-all duration-700"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className={cn("text-base font-bold", mortalityStatus.text)}>
+                  {mortalityScore}
+                </span>
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <Skull className="w-4 h-4 text-red-500" />
+                <span className="text-sm font-bold text-gray-900">Status de mortalidade</span>
+              </div>
+              <p className={cn("text-xl font-bold mt-0.5", mortalityStatus.text)}>
+                {mortalityStatus.label}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Taxa: {data.taxaMensal.toFixed(2).replace(".", ",")}% | Padrão: {PADRAO_LINHAGEM.toFixed(1).replace(".", ",")}%
+              </p>
+              <div className="mt-2">
+                <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">
+                  Score baseado em:
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  <li className="text-xs text-gray-600">• Desvio do padrão da linhagem</li>
+                  <li className="text-xs text-gray-600">• Picos recentes de mortalidade</li>
+                  <li className="text-xs text-gray-600">• Tendência de evolução</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="hidden lg:block w-px self-stretch bg-gray-200/70" />
+
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-2">
+              Recomendações automáticas
+            </p>
+            <ul className="space-y-1.5">
+              {recomendacoesMort.map((rec, i) => {
+                const impactColor =
+                  rec.impacto === "alto"
+                    ? "text-red-600"
+                    : rec.impacto === "médio"
+                    ? "text-amber-600"
+                    : "text-emerald-600";
+                const dotColor =
+                  rec.impacto === "alto"
+                    ? "bg-red-500"
+                    : rec.impacto === "médio"
+                    ? "bg-amber-500"
+                    : "bg-emerald-500";
+                return (
+                  <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                    <span className={cn("mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0", dotColor)} />
+                    <span>
+                      {rec.text}{" "}
+                      <span className={cn("font-semibold", impactColor)}>
+                        (impacto: {rec.impacto})
+                      </span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Smart Alerts */}
+      {smartAlerts.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4 text-amber-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Alertas inteligentes</h3>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Sinais detectados automaticamente
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {smartAlerts.map((a, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "flex items-start gap-3 rounded-xl border px-4 py-3",
+                  a.level === "red"
+                    ? "bg-red-50 border-red-200"
+                    : "bg-amber-50 border-amber-200"
+                )}
+              >
+                <span
+                  className={cn(
+                    "mt-1.5 w-2 h-2 rounded-full flex-shrink-0",
+                    a.level === "red" ? "bg-red-500" : "bg-amber-500"
+                  )}
+                />
+                <p
+                  className={cn(
+                    "text-sm font-medium",
+                    a.level === "red" ? "text-red-800" : "text-amber-800"
+                  )}
+                >
+                  {a.text}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -429,7 +754,28 @@ export default function MortalidadeLotePage() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Area Chart - Mortes por Semana */}
         <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-100 p-6">
-          <h3 className="text-sm font-bold text-gray-900 mb-6">Mortes por Semana</h3>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Tendência de mortalidade</h3>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Pico:{" "}
+                {Math.max(...data.semanal.map((s) => s.mortes))} aves ·{" "}
+                <span
+                  className={cn(
+                    "font-semibold",
+                    insightTendencia.tone === "red"
+                      ? "text-red-600"
+                      : insightTendencia.tone === "emerald"
+                      ? "text-emerald-600"
+                      : "text-gray-500"
+                  )}
+                >
+                  {insightTendencia.label}
+                </span>
+              </p>
+            </div>
+            <TrendingDown className="w-4 h-4 text-gray-300" />
+          </div>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={data.semanal} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
               <defs>
@@ -474,7 +820,7 @@ export default function MortalidadeLotePage() {
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
                 <Pie
-                  data={data.causas}
+                  data={causasPadrao}
                   cx="50%"
                   cy="50%"
                   innerRadius={50}
@@ -484,7 +830,7 @@ export default function MortalidadeLotePage() {
                   paddingAngle={3}
                   strokeWidth={0}
                 >
-                  {data.causas.map((entry, index) => (
+                  {causasPadrao.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -502,7 +848,7 @@ export default function MortalidadeLotePage() {
               </PieChart>
             </ResponsiveContainer>
             <div className="w-full space-y-2.5 mt-2">
-              {data.causas.map((c) => (
+              {causasPadrao.map((c) => (
                 <div key={c.causa} className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.color }} />
@@ -548,106 +894,77 @@ export default function MortalidadeLotePage() {
         </ResponsiveContainer>
       </div>
 
-      {/* Records Table */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <div className="p-6 pb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h3 className="text-sm font-bold text-gray-900">Registros de Mortalidade</h3>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar por causa, galpão..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400"
-              />
+      {/* Fase do lote + Correlação saúde */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-2xl border border-gray-100 p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center">
+              <Skull className="w-4 h-4 text-red-500" />
             </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Mortalidade por fase do lote</h3>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Distribuição estimada por estágio produtivo
+              </p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            {fasesMortalidade.map((f) => (
+              <div key={f.fase}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm font-medium text-gray-700">{f.fase}</span>
+                  <span className="text-xs font-semibold text-gray-500">
+                    {f.mortes} aves · {f.pct}%
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${f.pct}%`, backgroundColor: f.color }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-t border-gray-100">
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-6 py-3">Data</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-6 py-3">Qtd</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-6 py-3">Causa</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-6 py-3">Galpão</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-6 py-3">Observação</th>
-                <th className="text-right text-xs font-semibold text-gray-400 uppercase tracking-wider px-6 py-3">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRegistros.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-12 text-gray-400">
-                    Nenhum registro encontrado.
-                  </td>
-                </tr>
-              ) : (
-                filteredRegistros.map((r) => (
-                  <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-gray-900">{formatDate(r.data)}</td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-red-50 text-red-600 text-xs font-bold">
-                        {r.quantidade}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg",
-                          r.causa === "Doença" || r.causa === "Respiratório"
-                            ? "bg-red-50 text-red-600"
-                            : r.causa === "Natural"
-                            ? "bg-gray-100 text-gray-600"
-                            : "bg-amber-50 text-amber-700"
-                        )}
-                      >
-                        {r.causa}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">{r.galpao}</td>
-                    <td className="px-6 py-4 text-gray-500 max-w-[200px] truncate">{r.observacao || "—"}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(r)}
-                          className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        {deleteConfirm === r.id ? (
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => deleteRegistro(r.id)}
-                              className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirm(null)}
-                              className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setDeleteConfirm(r.id)}
-                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="bg-white rounded-2xl border border-gray-100 p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <Heart className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Correlação com saúde</h3>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Relações detectadas entre saúde e mortalidade
+              </p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {correlations.map((c, i) => {
+              const tone =
+                c.impacto === "alto"
+                  ? { dot: "bg-red-500", text: "text-red-600" }
+                  : c.impacto === "médio"
+                  ? { dot: "bg-amber-500", text: "text-amber-600" }
+                  : { dot: "bg-emerald-500", text: "text-emerald-600" };
+              return (
+                <div
+                  key={i}
+                  className="rounded-xl border border-gray-100 bg-gray-50/70 p-4"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={cn("w-2 h-2 rounded-full", tone.dot)} />
+                    <p className="text-sm font-semibold text-gray-900">{c.titulo}</p>
+                    <span className={cn("ml-auto text-[11px] font-semibold", tone.text)}>
+                      Impacto {c.impacto}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600 leading-relaxed">{c.descricao}</p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 

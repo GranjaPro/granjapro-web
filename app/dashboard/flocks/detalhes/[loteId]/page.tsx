@@ -109,7 +109,7 @@ export default function DetalhesLotePage() {
 
     async function fetchLote() {
       setFetching(true);
-      const { data } = await supabase
+      const loteRes = await supabase
         .from("flocks")
         .select("*, barns(name)")
         .eq("id", loteId)
@@ -118,7 +118,8 @@ export default function DetalhesLotePage() {
 
       if (cancelled) return;
 
-      if (data) {
+      if (loteRes.data) {
+        const data = loteRes.data;
         setLote({
           id: data.id,
           code: data.code,
@@ -167,7 +168,7 @@ export default function DetalhesLotePage() {
 
   const dias = daysSinceArrival(lote.arrival_date);
 
-  const kpiCards = [
+  const topCards = [
     {
       label: "Produção",
       href: `/dashboard/flocks/detalhes/${loteId}/producao`,
@@ -175,14 +176,6 @@ export default function DetalhesLotePage() {
       iconBg: "bg-amber-50",
       iconColor: "text-amber-600",
       sub: "Registre a produção diária de ovos",
-    },
-    {
-      label: "Ração",
-      href: `/dashboard/flocks/detalhes/${loteId}/racao`,
-      icon: Wheat,
-      iconBg: "bg-orange-50",
-      iconColor: "text-orange-600",
-      sub: "Registre o consumo de ração",
     },
     {
       label: "Saúde",
@@ -201,20 +194,31 @@ export default function DetalhesLotePage() {
       sub: "Registre ocorrências de mortalidade",
     },
     {
+      label: "Histórico Sanitário",
+      href: `/dashboard/flocks/detalhes/${loteId}/historico-sanitario`,
+      icon: ShieldCheck,
+      iconBg: "bg-teal-50",
+      iconColor: "text-teal-600",
+      sub: "Vacinas e procedimentos",
+    },
+  ];
+
+  const bottomCards = [
+    {
       label: "Consumo de Água",
-      href: `/dashboard/flocks/detalhes/${loteId}/producao`,
+      href: `/dashboard/flocks/detalhes/${loteId}/agua`,
       icon: Droplets,
       iconBg: "bg-blue-50",
       iconColor: "text-blue-600",
       sub: "Registre o consumo de água",
     },
     {
-      label: "Histórico Sanitário",
-      href: `/dashboard/flocks/detalhes/${loteId}/saude`,
-      icon: ShieldCheck,
-      iconBg: "bg-teal-50",
-      iconColor: "text-teal-600",
-      sub: "Vacinas e procedimentos",
+      label: "Consumo de Ração",
+      href: `/dashboard/flocks/detalhes/${loteId}/racao`,
+      icon: Wheat,
+      iconBg: "bg-orange-50",
+      iconColor: "text-orange-600",
+      sub: "Registre o consumo de ração",
     },
     {
       label: "Operacional",
@@ -336,12 +340,42 @@ export default function DetalhesLotePage() {
 
       {/* KPI Cards — Day 0 */}
       {/* KPI Cards — Top row: 4 cols, Bottom row: 3 cols */}
+      {/* Top row: 4 equal cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpiCards.map((card) => (
+        {topCards.map((card) => (
           <Link
             key={card.label}
             href={card.href}
             className="group bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-100/60 hover:border-gray-200 transition-all duration-300 cursor-pointer"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", card.iconBg)}>
+                  <card.icon className={cn("w-[18px] h-[18px]", card.iconColor)} />
+                </div>
+                <span className="text-[13px] font-bold text-gray-900">{card.label}</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
+            </div>
+            <p className="text-2xl font-bold text-gray-300 tracking-tight mb-1">—</p>
+            <p className="text-xs text-gray-400">{card.sub}</p>
+            <div className="w-full h-1.5 bg-gray-100 rounded-full mt-4 overflow-hidden">
+              <div className="h-full rounded-full bg-gray-200 w-0" />
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* Bottom row: 3/8 + 3/8 + 2/8 */}
+      <div className="grid grid-cols-8 gap-4">
+        {bottomCards.map((card, i) => (
+          <Link
+            key={card.label}
+            href={card.href}
+            className={cn(
+              "group bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-100/60 hover:border-gray-200 transition-all duration-300 cursor-pointer",
+              i < 2 ? "col-span-8 sm:col-span-3" : "col-span-8 sm:col-span-2"
+            )}
           >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2.5">

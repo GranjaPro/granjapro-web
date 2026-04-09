@@ -1,5 +1,13 @@
 import { createClient } from "@/lib/supabase/client";
 
+function isMissingFeedInventoryTable(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  return (
+    error.code === "PGRST205" ||
+    error.message?.includes("Could not find the table 'public.feed_inventory'") === true
+  );
+}
+
 export async function getFeedInventory(farmId: string) {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -7,7 +15,10 @@ export async function getFeedInventory(farmId: string) {
     .select("*")
     .eq("farm_id", farmId)
     .order("name", { ascending: true });
-  if (error) throw error;
+  if (error) {
+    if (isMissingFeedInventoryTable(error)) return [];
+    throw error;
+  }
   return data;
 }
 
@@ -18,7 +29,12 @@ export async function createInventoryItem(record: Record<string, any>) {
     .insert(record)
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    if (isMissingFeedInventoryTable(error)) {
+      throw new Error("O estoque de ração ainda não está disponível no banco deste projeto.");
+    }
+    throw error;
+  }
   return data;
 }
 
@@ -30,7 +46,12 @@ export async function updateInventoryItem(id: string, updates: Record<string, an
     .eq("id", id)
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    if (isMissingFeedInventoryTable(error)) {
+      throw new Error("O estoque de ração ainda não está disponível no banco deste projeto.");
+    }
+    throw error;
+  }
   return data;
 }
 
@@ -40,5 +61,10 @@ export async function deleteInventoryItem(id: string) {
     .from("feed_inventory")
     .delete()
     .eq("id", id);
-  if (error) throw error;
+  if (error) {
+    if (isMissingFeedInventoryTable(error)) {
+      throw new Error("O estoque de ração ainda não está disponível no banco deste projeto.");
+    }
+    throw error;
+  }
 }

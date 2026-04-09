@@ -1,104 +1,535 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, HeartPulse, Syringe, ShieldCheck, AlertTriangle, Clock, CheckCircle2 } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  X,
+  CalendarDays,
+  ClipboardCheck,
+  HeartPulse,
+  Loader2,
+  Pill,
+  ShieldCheck,
+  Sparkles,
+  Syringe,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth/auth-provider";
+import { createClient } from "@/lib/supabase/client";
 
-const lotesSaude: Record<string, {
-  codigo: string;
-  score: number;
-  vacinasEmDia: number;
-  vacinasTotal: number;
-  proximaVacina: string;
-  proximaVacinaData: string;
-  tratamentosAtivos: number;
-  ultimaInspecao: string;
-  vacinacoes: { vacina: string; data: string; status: "aplicada" | "pendente" | "atrasada" }[];
-  tratamentos: { titulo: string; inicio: string; fim: string; status: "ativo" | "concluído" }[];
-}> = {
-  "1": {
-    codigo: "L-2024-01", score: 96, vacinasEmDia: 7, vacinasTotal: 8,
-    proximaVacina: "Bronquite (reforço)", proximaVacinaData: "2024-06-15",
-    tratamentosAtivos: 0, ultimaInspecao: "2024-03-08",
-    vacinacoes: [
-      { vacina: "Marek", data: "2023-06-15", status: "aplicada" },
-      { vacina: "Newcastle + Bronquite (1ª)", data: "2023-06-22", status: "aplicada" },
-      { vacina: "Gumboro (1ª)", data: "2023-06-29", status: "aplicada" },
-      { vacina: "Newcastle + Bronquite (2ª)", data: "2023-07-13", status: "aplicada" },
-      { vacina: "Gumboro (2ª)", data: "2023-07-20", status: "aplicada" },
-      { vacina: "Encefalomielite + Bouba", data: "2023-08-24", status: "aplicada" },
-      { vacina: "Newcastle (reforço)", data: "2024-03-15", status: "aplicada" },
-      { vacina: "Bronquite (reforço)", data: "2024-06-15", status: "pendente" },
-    ],
-    tratamentos: [],
-  },
-  "2": {
-    codigo: "L-2024-02", score: 82, vacinasEmDia: 6, vacinasTotal: 7,
-    proximaVacina: "Newcastle (reforço)", proximaVacinaData: "2024-03-20",
-    tratamentosAtivos: 1, ultimaInspecao: "2024-03-06",
-    vacinacoes: [
-      { vacina: "Marek", data: "2023-09-20", status: "aplicada" },
-      { vacina: "Newcastle + Bronquite (1ª)", data: "2023-09-27", status: "aplicada" },
-      { vacina: "Gumboro (1ª)", data: "2023-10-04", status: "aplicada" },
-      { vacina: "Newcastle + Bronquite (2ª)", data: "2023-10-18", status: "aplicada" },
-      { vacina: "Gumboro (2ª)", data: "2023-10-25", status: "aplicada" },
-      { vacina: "Encefalomielite + Bouba", data: "2023-11-29", status: "aplicada" },
-      { vacina: "Newcastle (reforço)", data: "2024-03-20", status: "pendente" },
-    ],
-    tratamentos: [
-      { titulo: "Antibióticos — Sintomas respiratórios", inicio: "2024-03-10", fim: "2024-03-17", status: "ativo" },
-    ],
-  },
-  "3": {
-    codigo: "L-2024-03", score: 91, vacinasEmDia: 4, vacinasTotal: 5,
-    proximaVacina: "Encefalomielite + Bouba", proximaVacinaData: "2024-02-10",
-    tratamentosAtivos: 0, ultimaInspecao: "2024-03-05",
-    vacinacoes: [
-      { vacina: "Marek", data: "2023-11-10", status: "aplicada" },
-      { vacina: "Newcastle + Bronquite (1ª)", data: "2023-11-17", status: "aplicada" },
-      { vacina: "Gumboro (1ª)", data: "2023-11-24", status: "aplicada" },
-      { vacina: "Newcastle + Bronquite (2ª)", data: "2023-12-08", status: "aplicada" },
-      { vacina: "Encefalomielite + Bouba", data: "2024-02-10", status: "atrasada" },
-    ],
-    tratamentos: [],
-  },
-  "4": {
-    codigo: "L-2024-04", score: 88, vacinasEmDia: 8, vacinasTotal: 8,
-    proximaVacina: "—", proximaVacinaData: "",
-    tratamentosAtivos: 0, ultimaInspecao: "2024-03-01",
-    vacinacoes: [
-      { vacina: "Marek", data: "2023-03-05", status: "aplicada" },
-      { vacina: "Newcastle + Bronquite (1ª)", data: "2023-03-12", status: "aplicada" },
-      { vacina: "Gumboro (1ª)", data: "2023-03-19", status: "aplicada" },
-      { vacina: "Newcastle + Bronquite (2ª)", data: "2023-04-02", status: "aplicada" },
-      { vacina: "Gumboro (2ª)", data: "2023-04-09", status: "aplicada" },
-      { vacina: "Encefalomielite + Bouba", data: "2023-05-14", status: "aplicada" },
-      { vacina: "Newcastle (reforço)", data: "2023-09-05", status: "aplicada" },
-      { vacina: "Newcastle (2º reforço)", data: "2024-03-05", status: "aplicada" },
-    ],
-    tratamentos: [
-      { titulo: "Suplementação vitamínica", inicio: "2024-02-15", fim: "2024-02-28", status: "concluído" },
-    ],
-  },
+type RecordType = "vaccination" | "treatment" | "inspection";
+type RecordStatus = "completed" | "in_progress" | "scheduled" | "upcoming";
+
+interface HealthRecord {
+  id: string;
+  title: string;
+  date: string;
+  type: RecordType;
+  status: RecordStatus;
+  responsible: string | null;
+  notes: string | null;
+}
+
+type AgendaStatus = keyof typeof statusAgendaConfig;
+
+const statusAgendaConfig = {
+  Próximo: { bg: "bg-white", text: "text-red-600", border: "border-red-200" },
+  Agendado: { bg: "bg-white", text: "text-gray-600", border: "border-gray-200" },
+} as const;
+
+const typeLabel: Record<RecordType, string> = {
+  vaccination: "Vacinação",
+  treatment: "Tratamento",
+  inspection: "Inspeção",
 };
 
-const statusVacinaConfig = {
-  aplicada: { bg: "bg-emerald-50", text: "text-emerald-700", label: "Aplicada", icon: CheckCircle2 },
-  pendente: { bg: "bg-amber-50", text: "text-amber-700", label: "Pendente", icon: Clock },
-  atrasada: { bg: "bg-red-50", text: "text-red-600", label: "Atrasada", icon: AlertTriangle },
+const typeIcon: Record<RecordType, typeof Syringe> = {
+  vaccination: Syringe,
+  treatment: Pill,
+  inspection: ClipboardCheck,
 };
+
+function formatDate(dateStr: string) {
+  try {
+    return new Date(`${dateStr}T00:00:00`).toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatDateShort(dateStr: string) {
+  try {
+    return new Date(`${dateStr}T00:00:00`)
+      .toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })
+      .replace(".", "");
+  } catch {
+    return dateStr;
+  }
+}
+
+function getDaysSince(dateStr: string) {
+  return Math.floor(
+    (new Date().getTime() - new Date(`${dateStr}T00:00:00`).getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
+}
+
+type SymptomInsight = {
+  causa: string;
+  gravidade: "Baixa" | "Média" | "Alta";
+  risco: "Baixo" | "Médio" | "Alto";
+};
+
+function getVaccineConsequence(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes("newcastle"))
+    return "risco alto de surto respiratório e mortalidade elevada.";
+  if (n.includes("bronquite"))
+    return "queda na produção de ovos e lesões respiratórias.";
+  if (n.includes("gumboro"))
+    return "imunossupressão severa e maior susceptibilidade a outras doenças.";
+  if (n.includes("marek")) return "tumores e paralisia em aves jovens.";
+  if (n.includes("salmonel")) return "contaminação dos ovos e risco zoonótico.";
+  if (n.includes("vermifug") || n.includes("verme"))
+    return "parasitose intestinal, perda de peso e queda na postura.";
+  if (n.includes("coccid"))
+    return "surto de coccidiose com diarreia e mortalidade.";
+  return "aumento do risco sanitário e comprometimento do lote.";
+}
+
+function getSymptomInsight(symptom: string): SymptomInsight {
+  const s = symptom.toLowerCase();
+  if (s.includes("pena")) {
+    return {
+      causa: "Estresse, deficiência nutricional ou ectoparasitas.",
+      gravidade: "Baixa",
+      risco: "Médio",
+    };
+  }
+  if (s.includes("bicagem") || s.includes("canibal")) {
+    return {
+      causa: "Superlotação, baixa luminosidade ou desequilíbrio na ração.",
+      gravidade: "Média",
+      risco: "Alto",
+    };
+  }
+  if (s.includes("coriza") || s.includes("respira")) {
+    return {
+      causa: "Infecção respiratória bacteriana ou viral.",
+      gravidade: "Alta",
+      risco: "Alto",
+    };
+  }
+  if (s.includes("diarre") || s.includes("intest")) {
+    return {
+      causa: "Coccidiose, contaminação alimentar ou estresse térmico.",
+      gravidade: "Média",
+      risco: "Médio",
+    };
+  }
+  return {
+    causa: "Causa indeterminada — requer avaliação veterinária.",
+    gravidade: "Média",
+    risco: "Médio",
+  };
+}
+
+const severityColor: Record<SymptomInsight["gravidade"], string> = {
+  Baixa: "text-emerald-700 bg-emerald-50 border-emerald-200",
+  Média: "text-amber-700 bg-amber-50 border-amber-200",
+  Alta: "text-red-700 bg-red-50 border-red-200",
+};
+
+const riskColor: Record<SymptomInsight["risco"], string> = {
+  Baixo: "text-emerald-700 bg-emerald-50 border-emerald-200",
+  Médio: "text-amber-700 bg-amber-50 border-amber-200",
+  Alto: "text-red-700 bg-red-50 border-red-200",
+};
+
+function extractSymptom(record: HealthRecord) {
+  const source = (record.notes?.trim() || record.title.trim()).replace(/\s+/g, " ");
+  const parts = source.split(/\s*[—–-]\s*/).filter(Boolean);
+  return parts.length > 1 ? parts[parts.length - 1] : source;
+}
 
 export default function SaudeLotePage() {
   const params = useParams();
   const loteId = params.loteId as string;
-  const data = lotesSaude[loteId];
+  const { farm, loading: authLoading } = useAuth();
 
-  if (!data) {
+  const [loading, setLoading] = useState(true);
+  const [loteCode, setLoteCode] = useState("");
+  const [records, setRecords] = useState<HealthRecord[]>([]);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!farm) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const currentFarm = farm;
+    const supabase = createClient();
+
+    async function fetchData() {
+      setLoading(true);
+
+      const [flockRes, recordsRes] = await Promise.all([
+        supabase
+          .from("flocks")
+          .select("code")
+          .eq("id", loteId)
+          .eq("farm_id", currentFarm.id)
+          .single(),
+        supabase
+          .from("health_records")
+          .select("id, title, date, type, status, responsible, notes")
+          .eq("farm_id", currentFarm.id)
+          .eq("flock_id", loteId)
+          .order("date", { ascending: false }),
+      ]);
+
+      if (cancelled) return;
+
+      if (flockRes.error || !flockRes.data) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+
+      setLoteCode(flockRes.data.code);
+      const fetched = (recordsRes.data as HealthRecord[] | null) ?? [];
+      if (flockRes.data.code === "L003" && fetched.length === 0) {
+        const today = new Date();
+        const iso = (offsetDays: number) => {
+          const d = new Date(today);
+          d.setDate(d.getDate() + offsetDays);
+          return d.toISOString().slice(0, 10);
+        };
+        setRecords([
+          {
+            id: "mock-1",
+            title: "Inspeção sanitária semanal",
+            date: iso(-3),
+            type: "inspection",
+            status: "completed",
+            responsible: "João Pereira",
+            notes: "Lote em boas condições gerais — leve queda de penas observada em algumas aves.",
+          },
+          {
+            id: "mock-2",
+            title: "Tratamento preventivo — leve queda de penas",
+            date: iso(-2),
+            type: "treatment",
+            status: "in_progress",
+            responsible: "Maria Souza",
+            notes: "Aplicação de complexo vitamínico — leve queda de penas",
+          },
+          {
+            id: "mock-3",
+            title: "Observação de comportamento — bicagem leve",
+            date: iso(-1),
+            type: "inspection",
+            status: "in_progress",
+            responsible: "João Pereira",
+            notes: "Monitoramento — bicagem leve entre aves jovens",
+          },
+          {
+            id: "mock-4",
+            title: "Vacina Newcastle (reforço)",
+            date: iso(2),
+            type: "vaccination",
+            status: "upcoming",
+            responsible: "Vet. Carlos Lima",
+            notes: "Aplicação via água de bebida",
+          },
+          {
+            id: "mock-5",
+            title: "Vacina Bronquite Infecciosa",
+            date: iso(8),
+            type: "vaccination",
+            status: "scheduled",
+            responsible: "Vet. Carlos Lima",
+            notes: null,
+          },
+          {
+            id: "mock-6",
+            title: "Vacina Gumboro (reforço)",
+            date: iso(15),
+            type: "vaccination",
+            status: "scheduled",
+            responsible: "Vet. Carlos Lima",
+            notes: null,
+          },
+          {
+            id: "mock-7",
+            title: "Vermifugação programada",
+            date: iso(22),
+            type: "vaccination",
+            status: "scheduled",
+            responsible: "Maria Souza",
+            notes: null,
+          },
+          {
+            id: "mock-8",
+            title: "Aplicação de antibiótico — coriza",
+            date: iso(-10),
+            type: "treatment",
+            status: "completed",
+            responsible: "Vet. Carlos Lima",
+            notes: "Tratamento concluído com sucesso",
+          },
+        ]);
+      } else {
+        setRecords(fetched);
+      }
+      setNotFound(false);
+      setLoading(false);
+    }
+
+    fetchData();
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, farm, loteId]);
+
+  const agenda = useMemo(() => {
+    return records
+      .filter(
+        (record) =>
+          record.type === "vaccination" &&
+          (record.status === "scheduled" || record.status === "upcoming")
+      )
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((record) => ({
+        id: record.id,
+        vacina: record.title,
+        dataVencimento: record.date,
+        status: (record.status === "upcoming" ? "Próximo" : "Agendado") as AgendaStatus,
+      }));
+  }, [records]);
+
+  const ultimaInspecao = useMemo(
+    () => records.find((record) => record.type === "inspection") ?? null,
+    [records]
+  );
+
+  const ultimoRegistroSanitario = useMemo(() => {
+    return (
+      records.find(
+        (record) => record.status === "completed" || record.status === "in_progress"
+      ) ?? records[0] ?? null
+    );
+  }, [records]);
+
+  const [resolvedSymptoms, setResolvedSymptoms] = useState<string[]>([]);
+  const [closingSymptoms, setClosingSymptoms] = useState<string[]>([]);
+  const [historyModal, setHistoryModal] = useState<null | "sanitario" | "vacinacao">(null);
+  const [editingRecord, setEditingRecord] = useState<HealthRecord | null>(null);
+  const [editForm, setEditForm] = useState<{
+    title: string;
+    date: string;
+    responsible: string;
+    notes: string;
+    status: RecordStatus;
+  }>({ title: "", date: "", responsible: "", notes: "", status: "scheduled" });
+
+  const openEdit = (record: HealthRecord) => {
+    if (record.type === "vaccination" && record.status === "completed") return;
+    setEditingRecord(record);
+    setEditForm({
+      title: record.title,
+      date: record.date,
+      responsible: record.responsible ?? "",
+      notes: record.notes ?? "",
+      status: record.status,
+    });
+  };
+
+  const saveEdit = () => {
+    if (!editingRecord) return;
+    const today = new Date().toISOString().slice(0, 10);
+    if (editForm.date < today) return;
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.id === editingRecord.id
+          ? {
+              ...r,
+              title: editForm.title,
+              date: editForm.date,
+              responsible: editForm.responsible || null,
+              notes: editForm.notes || null,
+              status: editForm.status,
+            }
+          : r
+      )
+    );
+    setEditingRecord(null);
+  };
+
+  const handleResolveSymptom = (symptom: string) => {
+    setClosingSymptoms((prev) => [...prev, symptom]);
+    setTimeout(() => {
+      setResolvedSymptoms((prev) => [...prev, symptom]);
+      setClosingSymptoms((prev) => prev.filter((s) => s !== symptom));
+    }, 300);
+  };
+
+  const sintomasAtivos = useMemo(() => {
+    const values = records
+      .filter(
+        (record) =>
+          record.status === "in_progress" &&
+          (record.type === "treatment" || record.type === "inspection")
+      )
+      .map(extractSymptom)
+      .filter(Boolean);
+
+    return Array.from(new Set(values)).filter((s) => !resolvedSymptoms.includes(s));
+  }, [records, resolvedSymptoms]);
+
+  const vacinasAtrasadas = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return agenda.filter((item) => item.dataVencimento < today).length;
+  }, [agenda]);
+
+  const diasUltimaInspecao = ultimaInspecao ? getDaysSince(ultimaInspecao.date) : null;
+
+  const healthScore = useMemo(() => {
+    if (records.length === 0) return 0;
+    const vacPendentes = agenda.length;
+    const vacScore = Math.max(0, 100 - vacPendentes * 10 - vacinasAtrasadas * 20);
+    const symptomScore = Math.max(0, 100 - sintomasAtivos.length * 25);
+    const inspScore =
+      diasUltimaInspecao === null
+        ? 50
+        : Math.max(0, Math.min(100, (1 - (diasUltimaInspecao - 7) / 23) * 100));
+    return Math.round(vacScore * 0.35 + symptomScore * 0.4 + inspScore * 0.25);
+  }, [records, agenda.length, vacinasAtrasadas, sintomasAtivos.length, diasUltimaInspecao]);
+
+  const scoreColor =
+    healthScore >= 90 ? "#10b981" : healthScore >= 70 ? "#f59e0b" : "#ef4444";
+
+  const recomendacoes = useMemo(() => {
+    const list: { text: string; impacto: "alto" | "médio" | "baixo" }[] = [];
+    const seen = new Set<string>();
+    const add = (text: string, impacto: "alto" | "médio" | "baixo") => {
+      if (seen.has(text)) return;
+      seen.add(text);
+      list.push({ text, impacto });
+    };
+
+    sintomasAtivos.forEach((s) => {
+      const low = s.toLowerCase();
+      if (low.includes("bicagem") || low.includes("canibal")) {
+        add("Ajustar densidade nas áreas com bicagem", "alto");
+        add("Aplicar enriquecimento ambiental (poleiros e forrageamento)", "alto");
+        add("Reduzir intensidade luminosa nos galpões afetados", "médio");
+      }
+      if (low.includes("pena")) {
+        add("Revisar formulação da ração (proteína e aminoácidos)", "médio");
+        add("Inspecionar lote em busca de ectoparasitas", "médio");
+      }
+      if (low.includes("coriza") || low.includes("respira")) {
+        add("Isolar aves sintomáticas e iniciar antibioticoterapia", "alto");
+        add("Reforçar ventilação e reduzir poeira no galpão", "alto");
+      }
+      if (low.includes("diarre") || low.includes("intest")) {
+        add("Coletar amostras para exame de coccidiose", "alto");
+        add("Revisar qualidade da água e armazenamento da ração", "médio");
+      }
+    });
+
+    if (vacinasAtrasadas > 0) {
+      add(
+        `Aplicar ${vacinasAtrasadas} vacina${vacinasAtrasadas === 1 ? "" : "s"} em atraso`,
+        "alto"
+      );
+    }
+    const proxima = agenda[0];
+    if (proxima) {
+      add(
+        `Preparar ${proxima.vacina} para ${formatDate(proxima.dataVencimento)}`,
+        "médio"
+      );
+    }
+    if (diasUltimaInspecao === null) {
+      add("Realizar a primeira inspeção sanitária do lote", "alto");
+    } else if (diasUltimaInspecao > 14) {
+      add(`Agendar nova inspeção — última há ${diasUltimaInspecao} dias`, "médio");
+    }
+    if (list.length === 0) {
+      add("Manter rotina regular de observação sanitária", "baixo");
+    }
+    const order = { alto: 0, médio: 1, baixo: 2 } as const;
+    return list.sort((a, b) => order[a.impacto] - order[b.impacto]).slice(0, 5);
+  }, [agenda, diasUltimaInspecao, sintomasAtivos, vacinasAtrasadas]);
+
+  const sanitaryStatus = useMemo(() => {
+    if (vacinasAtrasadas > 0 || (sintomasAtivos.length > 0 && diasUltimaInspecao !== null && diasUltimaInspecao > 14)) {
+      return {
+        label: "Vermelho",
+        text: "text-red-700",
+        ring: "border-red-200",
+        iconBg: "bg-red-50",
+        icon: "text-red-600",
+        border: "border-red-200/70",
+        gradient: "from-red-50 via-red-50/60 to-white",
+        helper: "Há sinais que exigem ação imediata no lote.",
+      };
+    }
+
+    if (sintomasAtivos.length > 0 || agenda.length > 0 || diasUltimaInspecao === null || diasUltimaInspecao > 7) {
+      return {
+        label: "Amarelo",
+        text: "text-amber-700",
+        ring: "border-amber-200",
+        iconBg: "bg-amber-50",
+        icon: "text-amber-600",
+        border: "border-amber-200/70",
+        gradient: "from-amber-50 via-amber-50/60 to-white",
+        helper: "O lote pede observação e rotina sanitária próxima.",
+      };
+    }
+
+    return {
+      label: "Verde",
+      text: "text-emerald-700",
+      ring: "border-emerald-200",
+      iconBg: "bg-emerald-50",
+      icon: "text-emerald-600",
+      border: "border-emerald-200/70",
+      gradient: "from-emerald-50 via-emerald-50/60 to-white",
+      helper: "Sem pendências críticas nos registros atuais.",
+    };
+  }, [agenda.length, diasUltimaInspecao, sintomasAtivos.length, vacinasAtrasadas]);
+
+  if (authLoading || loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
+
+  if (notFound) {
     return (
       <div className="space-y-6">
-        <Link href={`/dashboard/flocks/detalhes/${loteId}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-600 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Voltar
+        <Link
+          href={`/dashboard/flocks/detalhes/${loteId}`}
+          className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-600 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Voltar para Detalhes
         </Link>
         <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
           <p className="text-gray-400">Dados não encontrados.</p>
@@ -107,128 +538,671 @@ export default function SaudeLotePage() {
     );
   }
 
-  function formatDate(dateStr: string) {
-    try {
-      const d = new Date(dateStr + "T00:00:00");
-      return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-    } catch { return dateStr; }
-  }
-
   return (
     <div className="space-y-6">
       <div>
-        <Link href={`/dashboard/flocks/detalhes/${loteId}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-600 transition-colors mb-4">
-          <ArrowLeft className="w-4 h-4" /> Voltar para Detalhes
+        <Link
+          href={`/dashboard/flocks/detalhes/${loteId}`}
+          className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-600 transition-colors mb-4"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Voltar para Detalhes
         </Link>
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
             <HeartPulse className="w-6 h-6 text-emerald-600" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Saúde — {data.codigo}</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Vacinações, tratamentos e inspeções</p>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+              Saúde do Lote {loteCode}
+            </h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Situação sanitária, inspeções e vacinação do lote
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: "Score de Saúde", value: `${data.score}%`, color: data.score >= 90 ? "text-emerald-600" : data.score >= 75 ? "text-amber-600" : "text-red-500" },
-          { label: "Vacinas em Dia", value: `${data.vacinasEmDia}/${data.vacinasTotal}`, color: "text-gray-900" },
-          { label: "Tratamentos Ativos", value: String(data.tratamentosAtivos), color: data.tratamentosAtivos > 0 ? "text-amber-600" : "text-emerald-600" },
-          { label: "Última Inspeção", value: formatDate(data.ultimaInspecao), color: "text-gray-900" },
-        ].map((kpi) => (
-          <div key={kpi.label} className="bg-white rounded-2xl border border-gray-100 p-5">
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{kpi.label}</p>
-            <p className={cn("text-2xl font-bold tracking-tight mt-2", kpi.color)}>{kpi.value}</p>
+      <div
+        className={cn(
+          "bg-gradient-to-r rounded-2xl border p-5",
+          sanitaryStatus.gradient,
+          sanitaryStatus.border
+        )}
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+          <div className="flex items-center gap-4 lg:min-w-[300px]">
+            <div className="relative w-16 h-16 flex-shrink-0">
+              <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="28"
+                  fill="none"
+                  stroke={scoreColor}
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeDasharray={`${(healthScore / 100) * 175.9} 175.9`}
+                  className="transition-all duration-700"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className={cn("text-base font-bold", sanitaryStatus.text)}>
+                  {healthScore}
+                </span>
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <HeartPulse className="w-4 h-4 text-brand-600" />
+                <span className="text-sm font-bold text-gray-900">Status sanitário</span>
+              </div>
+              <p className={cn("text-xl font-bold mt-0.5", sanitaryStatus.text)}>
+                {sanitaryStatus.label}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Sintomas: {sintomasAtivos.length} | Vacinas: {agenda.length} pendentes
+              </p>
+              <div className="mt-2">
+                <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">
+                  Score baseado em:
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  <li className="text-xs text-gray-600">• Sintomas ativos</li>
+                  <li className="text-xs text-gray-600">• Risco de escalada</li>
+                  <li className="text-xs text-gray-600">• Vacinação pendente</li>
+                </ul>
+              </div>
+            </div>
           </div>
-        ))}
+
+          <div className="hidden lg:block w-px self-stretch bg-gray-200/70" />
+
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-2">
+              Recomendações automáticas
+            </p>
+            <ul className="space-y-1.5">
+              {recomendacoes.map((rec, i) => {
+                const impactColor =
+                  rec.impacto === "alto"
+                    ? "text-red-600"
+                    : rec.impacto === "médio"
+                    ? "text-amber-600"
+                    : "text-emerald-600";
+                const dotColor =
+                  rec.impacto === "alto"
+                    ? "bg-red-500"
+                    : rec.impacto === "médio"
+                    ? "bg-amber-500"
+                    : "bg-emerald-500";
+                return (
+                  <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                    <span
+                      className={cn("mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0", dotColor)}
+                    />
+                    <span>
+                      {rec.text}{" "}
+                      <span className={cn("font-semibold", impactColor)}>
+                        (impacto: {rec.impacto})
+                      </span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
       </div>
 
-      {/* Score bar */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-6">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-gray-900">Score Geral</h3>
-          <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-lg",
-            data.score >= 90 ? "bg-emerald-50 text-emerald-700" : data.score >= 75 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-600"
-          )}>
-            {data.score >= 90 ? "Bom" : data.score >= 75 ? "Regular" : "Crítico"}
-          </span>
-        </div>
-        <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className={cn("h-full rounded-full transition-all duration-700",
-              data.score >= 90 ? "bg-emerald-500" : data.score >= 75 ? "bg-amber-500" : "bg-red-500"
-            )}
-            style={{ width: `${data.score}%` }}
-          />
-        </div>
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-gray-900">Sintomas ativos</h3>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Sinais em observação no lote
+              </p>
+            </div>
+            <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
+              {sintomasAtivos.length}
+            </span>
+            <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
+              <Sparkles className="w-3 h-3" />Pro
+            </span>
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Vaccination list */}
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-2">
-            <Syringe className="w-4 h-4 text-brand-600" />
-            <h3 className="text-sm font-bold text-gray-900">Calendário de Vacinação</h3>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {data.vacinacoes.map((v, i) => {
-              const cfg = statusVacinaConfig[v.status];
-              const StatusIcon = cfg.icon;
-              return (
-                <div key={i} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", cfg.bg)}>
-                      <StatusIcon className={cn("w-4 h-4", cfg.text)} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">{v.vacina}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{formatDate(v.data)}</p>
-                    </div>
-                  </div>
-                  <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", cfg.bg, cfg.text)}>
-                    {cfg.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Treatments */}
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-brand-600" />
-            <h3 className="text-sm font-bold text-gray-900">Histórico de Tratamentos</h3>
-          </div>
-          {data.tratamentos.length === 0 ? (
-            <div className="p-12 text-center">
-              <HeartPulse className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-              <p className="text-sm text-gray-400">Nenhum tratamento registrado</p>
-              <p className="text-xs text-gray-300 mt-1">Lote saudável</p>
+          {sintomasAtivos.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 px-5 py-6">
+              <p className="text-sm text-gray-500">Nenhum sintoma anormal</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-50">
-              {data.tratamentos.map((t, i) => (
-                <div key={i} className="px-6 py-4 hover:bg-gray-50/50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">{t.titulo}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{formatDate(t.inicio)} — {formatDate(t.fim)}</p>
+            <div
+              className="space-y-3 max-h-[160px] overflow-y-auto overflow-x-hidden pr-1"
+              style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}
+            >
+              {sintomasAtivos.map((symptom) => {
+                const insight = getSymptomInsight(symptom);
+                return (
+                  <div
+                    key={symptom}
+                    className={cn(
+                      "rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition-all duration-300 ease-out overflow-hidden",
+                      closingSymptoms.includes(symptom)
+                        ? "opacity-0 -translate-x-4 max-h-0 py-0 my-0 border-transparent"
+                        : "opacity-100 translate-x-0 max-h-[400px]"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-sm font-semibold text-slate-900">{symptom}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleResolveSymptom(symptom)}
+                        aria-label="Resolver sintoma"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors flex-shrink-0"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
-                    <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg",
-                      t.status === "ativo" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"
-                    )}>
-                      {t.status === "ativo" ? "Em andamento" : "Concluído"}
-                    </span>
+
+                    <div className="mt-3 space-y-2">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+                          Possível causa
+                        </p>
+                        <p className="text-sm text-slate-700 mt-0.5">{insight.causa}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+                            Gravidade:
+                          </span>
+                          <span
+                            className={cn(
+                              "text-[11px] font-semibold border px-2 py-0.5 rounded-md",
+                              severityColor[insight.gravidade]
+                            )}
+                          >
+                            {insight.gravidade}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+                            Risco de escalada:
+                          </span>
+                          <span
+                            className={cn(
+                              "text-[11px] font-semibold border px-2 py-0.5 rounded-md",
+                              riskColor[insight.risco]
+                            )}
+                          >
+                            {insight.risco}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <Syringe className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Vacinas pendentes</h3>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Aguardando aplicação no lote
+              </p>
+            </div>
+          </div>
+
+          <p className="text-3xl font-bold tracking-tight text-gray-900">
+            {agenda.length}
+          </p>
+          <p className="text-sm text-gray-500 mt-2">
+            {agenda.filter((i) => i.status === "Próximo").length} próxima
+            {agenda.filter((i) => i.status === "Próximo").length === 1 ? "" : "s"} ·{" "}
+            {agenda.filter((i) => i.status === "Agendado").length} agendada
+            {agenda.filter((i) => i.status === "Agendado").length === 1 ? "" : "s"}
+          </p>
+          {agenda[0] && (
+            <p className="text-sm text-gray-600 mt-4">
+              Próxima: <span className="font-semibold">{agenda[0].vacina}</span> em{" "}
+              {formatDate(agenda[0].dataVencimento)}
+            </p>
+          )}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-sky-50 flex items-center justify-center">
+              <CalendarDays className="w-4 h-4 text-sky-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Data da última inspeção</h3>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Controle sanitário mais recente
+              </p>
+            </div>
+          </div>
+
+          {ultimaInspecao ? (
+            <>
+              <p className="text-2xl font-bold tracking-tight text-gray-900">
+                {formatDate(ultimaInspecao.date)}
+              </p>
+              <p className="text-sm text-gray-500 mt-2">
+                {diasUltimaInspecao === 0
+                  ? "Inspeção realizada hoje"
+                  : `Há ${diasUltimaInspecao} dia${diasUltimaInspecao === 1 ? "" : "s"}`}
+              </p>
+              {ultimaInspecao.notes && (
+                <p className="text-sm text-gray-600 mt-4">{ultimaInspecao.notes}</p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">Sem inspeção registrada.</p>
+          )}
+        </div>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-gray-900">Último registro sanitário</h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Medicação, observação ou procedimento mais recente
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setHistoryModal("sanitario")}
+            className="text-xs font-semibold text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            Ver todos
+          </button>
+        </div>
+
+        {ultimoRegistroSanitario ? (
+          <div className="rounded-2xl border border-gray-100 bg-gray-50/70 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  {(() => {
+                    const Icon = typeIcon[ultimoRegistroSanitario.type];
+                    return <Icon className="w-4 h-4 text-brand-600 flex-shrink-0" />;
+                  })()}
+                  <span className="text-xs font-semibold text-brand-700 bg-brand-50 px-2.5 py-1 rounded-lg">
+                    {typeLabel[ultimoRegistroSanitario.type]}
+                  </span>
+                </div>
+                <p className="text-sm font-semibold text-gray-900">
+                  {ultimoRegistroSanitario.title}
+                </p>
+                {ultimoRegistroSanitario.notes && (
+                  <p className="text-sm text-gray-600 mt-2">
+                    {ultimoRegistroSanitario.notes}
+                  </p>
+                )}
+              </div>
+              <span className="text-xs text-gray-500 whitespace-nowrap">
+                {formatDate(ultimoRegistroSanitario.date)}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mt-4">
+              <span className="text-xs font-medium text-gray-600 bg-white border border-gray-200 px-2.5 py-1 rounded-lg">
+                {ultimoRegistroSanitario.status === "in_progress"
+                  ? "Em andamento"
+                  : "Concluído"}
+              </span>
+              {ultimoRegistroSanitario.responsible && (
+                <span className="text-xs font-medium text-gray-600 bg-white border border-gray-200 px-2.5 py-1 rounded-lg">
+                  Responsável: {ultimoRegistroSanitario.responsible}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">Nenhum registro sanitário encontrado.</p>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-brand-600" />
+            <h3 className="text-sm font-bold text-gray-900">Agenda de Vacinação</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
+              {agenda.filter((item) => item.status === "Próximo").length} próximas
+            </span>
+            <button
+              type="button"
+              onClick={() => setHistoryModal("vacinacao")}
+              className="text-xs font-semibold text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Ver todos
+            </button>
+          </div>
+        </div>
+
+        <div
+          className="space-y-0 max-h-[192px] overflow-y-auto overflow-x-hidden"
+          style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}
+        >
+          {agenda.length === 0 && (
+            <div className="text-center py-10 text-gray-400 text-sm">
+              Nenhuma vacinação agendada.
+            </div>
+          )}
+
+          {agenda.map((item, index) => {
+            const sColor = statusAgendaConfig[item.status];
+            const isUrgent = item.status === "Próximo";
+
+            return (
+              <div key={item.id}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    const rec = records.find((r) => r.id === item.id);
+                    if (rec) openEdit(rec);
+                  }}
+                  className="flex items-center justify-between py-3 group cursor-pointer hover:bg-gray-50/70 -mx-2 px-2 rounded-lg transition-colors">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={cn(
+                        "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                        isUrgent ? "bg-red-50" : "bg-gray-50"
+                      )}
+                    >
+                      <Syringe
+                        className={cn(
+                          "w-4 h-4",
+                          isUrgent ? "text-red-500" : "text-gray-400"
+                        )}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">
+                        {item.vacina}
+                      </p>
+                      <p className="text-[11px] text-gray-400 truncate">
+                        <span className="font-semibold text-amber-600">
+                          Sem aplicação:
+                        </span>{" "}
+                        {getVaccineConsequence(item.vacina)}
+                      </p>
+                      <p className="text-[11px] text-gray-400 truncate mt-0.5">
+                        Lote: {loteCode} · {formatDateShort(item.dataVencimento)}
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={cn(
+                      "text-[10px] font-semibold px-2.5 py-1 rounded-lg border flex-shrink-0",
+                      sColor.bg,
+                      sColor.text,
+                      sColor.border
+                    )}
+                  >
+                    {item.status}
+                  </span>
+                </div>
+                {index < agenda.length - 1 && <div className="border-t border-gray-50" />}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      </div>
+
+      {historyModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-200"
+          onClick={() => setHistoryModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-gray-100 shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">
+                  {historyModal === "sanitario"
+                    ? "Histórico sanitário"
+                    : "Histórico de vacinação"}
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {historyModal === "sanitario"
+                    ? "Todos os registros sanitários do lote"
+                    : "Todas as vacinações do lote"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoryModal(null)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-5 space-y-3">
+              {(historyModal === "sanitario"
+                ? records.filter((r) => r.type !== "vaccination")
+                : records.filter((r) => r.type === "vaccination")
+              ).map((record) => {
+                const Icon = typeIcon[record.type];
+                return (
+                  <div
+                    key={record.id}
+                    onClick={() => {
+                      setHistoryModal(null);
+                      openEdit(record);
+                    }}
+                    className="rounded-2xl border border-gray-100 bg-gray-50/70 p-4 cursor-pointer hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Icon className="w-4 h-4 text-brand-600 flex-shrink-0" />
+                          <span className="text-xs font-semibold text-brand-700 bg-brand-50 px-2.5 py-1 rounded-lg">
+                            {typeLabel[record.type]}
+                          </span>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-900">{record.title}</p>
+                        {record.notes && (
+                          <p className="text-sm text-gray-600 mt-2">{record.notes}</p>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-500 whitespace-nowrap">
+                        {formatDate(record.date)}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <span className="text-xs font-medium text-gray-600 bg-white border border-gray-200 px-2.5 py-1 rounded-lg">
+                        {record.status === "in_progress"
+                          ? "Em andamento"
+                          : record.status === "completed"
+                          ? "Concluído"
+                          : record.status === "upcoming"
+                          ? "Próximo"
+                          : "Agendado"}
+                      </span>
+                      {record.responsible && (
+                        <span className="text-xs font-medium text-gray-600 bg-white border border-gray-200 px-2.5 py-1 rounded-lg">
+                          Responsável: {record.responsible}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {(historyModal === "sanitario"
+                ? records.filter((r) => r.type !== "vaccination")
+                : records.filter((r) => r.type === "vaccination")
+              ).length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-8">
+                  Nenhum registro encontrado.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingRecord && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-200"
+          onClick={() => setEditingRecord(null)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-gray-100 shadow-xl w-full max-w-md max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Editar registro</h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {typeLabel[editingRecord.type]}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingRecord(null)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-5 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1.5">
+                  Título
+                </label>
+                <input
+                  type="text"
+                  value={editForm.title}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, title: e.target.value }))
+                  }
+                  className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:border-brand-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1.5">
+                  Data
+                </label>
+                {(() => {
+                  const today = new Date().toISOString().slice(0, 10);
+                  const isPast = editForm.date < today;
+                  return (
+                    <>
+                      <input
+                        type="date"
+                        value={editForm.date}
+                        onChange={(e) =>
+                          setEditForm((prev) => ({ ...prev, date: e.target.value }))
+                        }
+                        className={cn(
+                          "w-full text-sm rounded-xl border px-3 py-2 focus:outline-none",
+                          isPast
+                            ? "border-red-300 focus:border-red-500"
+                            : "border-gray-200 focus:border-brand-500"
+                        )}
+                      />
+                      {isPast && (
+                        <p className="text-xs text-red-600 mt-1.5">
+                          A data não pode ser anterior à data de hoje.
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1.5">
+                  Status
+                </label>
+                <select
+                  value={editForm.status}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      status: e.target.value as RecordStatus,
+                    }))
+                  }
+                  className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:border-brand-500"
+                >
+                  <option value="scheduled">Agendado</option>
+                  <option value="upcoming">Próximo</option>
+                  <option value="in_progress">Em andamento</option>
+                  <option value="completed">Concluído</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1.5">
+                  Responsável
+                </label>
+                <input
+                  type="text"
+                  value={editForm.responsible}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, responsible: e.target.value }))
+                  }
+                  className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:border-brand-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1.5">
+                  Observações
+                </label>
+                <textarea
+                  value={editForm.notes}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, notes: e.target.value }))
+                  }
+                  rows={3}
+                  className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:border-brand-500 resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setEditingRecord(null)}
+                className="text-sm font-semibold text-gray-600 hover:bg-gray-100 px-4 py-2 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={saveEdit}
+                disabled={editForm.date < new Date().toISOString().slice(0, 10)}
+                className="text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 px-4 py-2 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-600"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

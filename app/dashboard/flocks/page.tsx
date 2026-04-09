@@ -1,18 +1,21 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Layers, Plus, Pencil, Trash2, X, Check, Search, FileText, Loader2, Bird } from "lucide-react";
+import { Layers, Plus, Pencil, Trash2, X, Check, Search, FileText, Loader2, Bird, AlertTriangle, Sparkles, TrendingDown, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import ModalPortal from "@/components/ui/modal-portal";
 
-type ProductionStage = "crescimento" | "pico" | "estavel" | "declinio" | "descarte";
+type ProductionStage = "cria" | "recria" | "pre-postura" | "producao" | "pico" | "estavel" | "declinio" | "descarte";
 
 function getProductionStage(ageWeeks: number): ProductionStage {
-  if (ageWeeks < 28) return "crescimento";
-  if (ageWeeks <= 35) return "pico";
+  if (ageWeeks <= 5) return "cria";
+  if (ageWeeks <= 16) return "recria";
+  if (ageWeeks <= 18) return "pre-postura";
+  if (ageWeeks <= 28) return "producao";
+  if (ageWeeks <= 40) return "pico";
   if (ageWeeks <= 60) return "estavel";
   if (ageWeeks <= 80) return "declinio";
   return "descarte";
@@ -49,24 +52,47 @@ interface Barn {
   name: string;
   capacity: number;
   current_birds: number;
+  production_system?: string;
+}
+
+interface ActiveAlert {
+  id: string;
+  type: "danger" | "warning" | "info";
+  msg: string;
+  time: string;
+  action: string;
+  risk: string;
+  href?: string;
+  source: "db" | "setup" | "derived";
 }
 
 const sistemaLabel: Record<string, string> = {
   "Cage-Free": "Cage-Free",
+  "cage-free": "Cage-Free",
   "Gaiola": "Gaiola",
+  "gaiola": "Gaiola",
   "Caipira": "Caipira",
+  "caipira": "Caipira",
   "Orgânico": "Orgânico",
+  "organico": "Orgânico",
 };
 
 const sistemaColor: Record<string, string> = {
   "Cage-Free": "text-teal-800 bg-teal-100",
+  "cage-free": "text-teal-800 bg-teal-100",
   "Gaiola": "text-emerald-800 bg-emerald-100",
+  "gaiola": "text-emerald-800 bg-emerald-100",
   "Caipira": "text-orange-800 bg-orange-100",
+  "caipira": "text-orange-800 bg-orange-100",
   "Orgânico": "text-green-800 bg-green-100",
+  "organico": "text-green-800 bg-green-100",
 };
 
 const stageLabel: Record<ProductionStage, string> = {
-  crescimento: "Crescimento",
+  cria: "Cria",
+  recria: "Recria",
+  "pre-postura": "Pré-Postura",
+  producao: "Produção",
   pico: "Pico",
   estavel: "Estável",
   declinio: "Declínio",
@@ -74,12 +100,26 @@ const stageLabel: Record<ProductionStage, string> = {
 };
 
 const stageColor: Record<ProductionStage, string> = {
-  crescimento: "text-blue-700 bg-blue-100",
+  cria: "text-purple-700 bg-purple-100",
+  recria: "text-indigo-700 bg-indigo-100",
+  "pre-postura": "text-cyan-700 bg-cyan-100",
+  producao: "text-blue-700 bg-blue-100",
   pico: "text-emerald-700 bg-emerald-100",
   estavel: "text-brand-700 bg-brand-100",
   declinio: "text-amber-700 bg-amber-100",
   descarte: "text-red-700 bg-red-100",
 };
+
+const setupAlerts: ActiveAlert[] = [
+  { id: "setup-1", type: "info", msg: "Registre a producao pela primeira vez", time: "Configuracao", action: "Registrar", risk: "Sem dados de producao, o dashboard nao podera exibir suas metricas.", href: "/dashboard/production?register=true", source: "setup" },
+  { id: "setup-2", type: "info", msg: "Registre a racao pela primeira vez", time: "Configuracao", action: "Registrar", risk: "Sem controle de racao, voce nao sabera o custo real por ovo.", href: "/dashboard/racao?register=true", source: "setup" },
+  { id: "setup-3", type: "info", msg: "Registre seus ganhos e gastos", time: "Configuracao", action: "Registrar", risk: "Sem dados financeiros, nao e possivel calcular seu lucro.", href: "/dashboard/finances", source: "setup" },
+  { id: "setup-4", type: "info", msg: "Cadastre seus clientes", time: "Configuracao", action: "Cadastrar", risk: "Sem clientes cadastrados, voce nao podera registrar vendas.", href: "/dashboard/customers", source: "setup" },
+  { id: "setup-5", type: "info", msg: "Registre suas vendas", time: "Configuracao", action: "Registrar", risk: "Sem vendas registradas, a receita nao aparecera no dashboard.", href: "/dashboard/sales", source: "setup" },
+  { id: "setup-6", type: "info", msg: "Registre seus estoques", time: "Configuracao", action: "Registrar", risk: "Sem controle de estoque, voce pode ficar sem insumos.", href: "/dashboard/inventory", source: "setup" },
+];
+
+const DISMISSED_FLOCK_ALERTS_KEY = "granja-pro-dismissed-flock-alerts";
 
 type ModalMode = "add" | "edit" | null;
 
@@ -117,6 +157,10 @@ export default function LotesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [filterStage, setFilterStage] = useState<ProductionStage | "todos">("todos");
+  const [activeAlerts, setActiveAlerts] = useState<ActiveAlert[]>([]);
+  const [closingAlertIds, setClosingAlertIds] = useState<string[]>([]);
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([]);
   const [modal, setModal] = useState<ModalMode>(null);
   const [editing, setEditing] = useState<Lote | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
@@ -125,6 +169,20 @@ export default function LotesPage() {
 
   const farmRef = useRef(farm);
   farmRef.current = farm;
+  const alertDismissTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(DISMISSED_FLOCK_ALERTS_KEY);
+      if (stored) setDismissedAlertIds(JSON.parse(stored));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      Object.values(alertDismissTimeoutsRef.current).forEach(clearTimeout);
+    };
+  }, []);
 
   const fetchData = useCallback(async () => {
     const currentFarm = farmRef.current;
@@ -132,7 +190,7 @@ export default function LotesPage() {
     setLoading(true);
     const supabase = createClient();
     try {
-      const [flocksRes, barnsRes] = await Promise.all([
+      const [flocksRes, barnsRes, alertsRes, prodRes, feedRes, finRes, custRes, salesRes, invRes] = await Promise.all([
         supabase
           .from("flocks")
           .select("*, barns(name)")
@@ -140,38 +198,85 @@ export default function LotesPage() {
           .order("created_at", { ascending: false }),
         supabase
           .from("barns")
-          .select("id, name, capacity, current_birds")
+          .select("id, name, capacity, current_birds, production_system")
           .eq("farm_id", currentFarm.id)
           .order("name"),
+        supabase
+          .from("alerts")
+          .select("*")
+          .eq("farm_id", currentFarm.id)
+          .eq("read", false)
+          .order("created_at", { ascending: false })
+          .limit(5),
+        supabase.from("egg_production").select("id", { count: "exact", head: true }).eq("farm_id", currentFarm.id),
+        supabase.from("feed_consumption").select("id", { count: "exact", head: true }).eq("farm_id", currentFarm.id),
+        supabase.from("financial_transactions").select("id", { count: "exact", head: true }).eq("farm_id", currentFarm.id),
+        supabase.from("customers").select("id", { count: "exact", head: true }).eq("farm_id", currentFarm.id),
+        supabase.from("sales").select("id", { count: "exact", head: true }).eq("farm_id", currentFarm.id),
+        supabase.from("feed_inventory").select("id", { count: "exact", head: true }).eq("farm_id", currentFarm.id),
       ]);
 
-      if (flocksRes.data) {
-        setLotes(
-          flocksRes.data.map((f: any) => ({
-            id: f.id,
-            code: f.code,
-            breed: f.breed,
-            bird_count: f.bird_count,
-            arrival_age_weeks: f.arrival_age_weeks ?? 0,
-            production_system: f.production_system,
-            status: f.status as ProductionStage,
-            supplier: f.supplier,
-            supplier_contact: f.supplier_contact,
-            arrival_date: f.arrival_date,
-            origin: f.origin,
-            lineage: f.lineage,
-            avg_weight_kg: f.avg_weight_kg,
-            barn_id: f.barn_id,
-            barn_name: f.barns?.name ?? null,
-          }))
-        );
-      }
+      const mappedLotes: Lote[] = (flocksRes.data ?? []).map((f: any) => ({
+        id: f.id,
+        code: f.code,
+        breed: f.breed,
+        bird_count: f.bird_count,
+        arrival_age_weeks: f.arrival_age_weeks ?? 0,
+        production_system: f.production_system,
+        status: f.status as ProductionStage,
+        supplier: f.supplier,
+        supplier_contact: f.supplier_contact,
+        arrival_date: f.arrival_date,
+        origin: f.origin,
+        lineage: f.lineage,
+        avg_weight_kg: f.avg_weight_kg,
+        barn_id: f.barn_id,
+        barn_name: f.barns?.name ?? null,
+      }));
+
+      setLotes(mappedLotes);
 
       if (barnsRes.data) {
         setBarns(barnsRes.data as Barn[]);
       }
+
+      const realAlerts: ActiveAlert[] = (alertsRes.data ?? []).map((alert: any) => ({
+        id: String(alert.id),
+        type: (alert.type === "error" ? "danger" : alert.type) as ActiveAlert["type"],
+        msg: alert.message,
+        time: new Date(alert.created_at).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+        action: "Ver",
+        risk: "",
+        source: "db",
+      }));
+
+      const criaAlerts: ActiveAlert[] = mappedLotes
+        .filter((lote) => getProductionStage(calculateCurrentAge(lote.arrival_date, lote.arrival_age_weeks)) === "cria")
+        .map((lote) => ({
+          id: `cria-${lote.id}`,
+          type: "warning",
+          msg: `O lote ${lote.code} está em estágio de cria`,
+          time: "Monitoramento",
+          action: "Ver lote",
+          risk: "Observe O comportamento dos pintinhos. O agrupamento excessivo pode indicar frio, corrente de ar ou distribuição inadequada de aquecimento o afastamento excessivo pode indicar calor.",
+          href: `/dashboard/flocks/detalhes/${lote.id}`,
+          source: "derived",
+        }));
+
+      const pendingSetup = setupAlerts.filter((alert) => {
+        if (alert.id === "setup-1" && (prodRes.count ?? 0) > 0) return false;
+        if (alert.id === "setup-2" && (feedRes.count ?? 0) > 0) return false;
+        if (alert.id === "setup-3" && (finRes.count ?? 0) > 0) return false;
+        if (alert.id === "setup-4" && (custRes.count ?? 0) > 0) return false;
+        if (alert.id === "setup-5" && (salesRes.count ?? 0) > 0) return false;
+        if (alert.id === "setup-6" && (invRes.count ?? 0) > 0) return false;
+        return true;
+      });
+
+      setActiveAlerts([...realAlerts, ...criaAlerts, ...pendingSetup]);
     } catch (err) {
       console.error("Error fetching flocks:", err);
+      setActiveAlerts([]);
     }
     setLoading(false);
   }, []);
@@ -180,6 +285,44 @@ export default function LotesPage() {
     if (authLoading || !farm) return;
     fetchData();
   }, [authLoading, farm, fetchData]);
+
+  function dismissLocalAlert(alertId: string) {
+    setDismissedAlertIds((prev) => {
+      if (prev.includes(alertId)) return prev;
+      const next = [...prev, alertId];
+      try {
+        window.localStorage.setItem(DISMISSED_FLOCK_ALERTS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }
+
+  async function dismissAlert(alert: ActiveAlert) {
+    if (closingAlertIds.includes(alert.id)) return;
+
+    setClosingAlertIds((prev) => [...prev, alert.id]);
+
+    alertDismissTimeoutsRef.current[alert.id] = setTimeout(async () => {
+      setActiveAlerts((prev) => prev.filter((item) => item.id !== alert.id));
+
+      if (alert.source === "db") {
+        const supabase = createClient();
+        const { error: updateErr } = await supabase
+          .from("alerts")
+          .update({ read: true, resolved: true })
+          .eq("id", alert.id);
+
+        if (updateErr) {
+          await fetchData();
+        }
+      } else {
+        dismissLocalAlert(alert.id);
+      }
+
+      setClosingAlertIds((prev) => prev.filter((id) => id !== alert.id));
+      delete alertDismissTimeoutsRef.current[alert.id];
+    }, 220);
+  }
 
   function openAdd() {
     setForm({ ...emptyForm });
@@ -193,7 +336,7 @@ export default function LotesPage() {
       code: l.code,
       breed: l.breed,
       bird_count: String(l.bird_count),
-      arrival_age_weeks: String(l.arrival_age_weeks),
+      arrival_age_weeks: String(Math.round(l.arrival_age_weeks * 7)),
       production_system: l.production_system,
       supplier: l.supplier ?? "",
       supplier_contact: l.supplier_contact ? formatPhone(l.supplier_contact) : "",
@@ -232,7 +375,8 @@ export default function LotesPage() {
     setSaving(true);
     setError("");
 
-    const arrivalAgeWeeks = Number(form.arrival_age_weeks) || 0;
+    const arrivalAgeDays = Number(form.arrival_age_weeks) || 0;
+    const arrivalAgeWeeks = Math.round(arrivalAgeDays / 7);
     const currentAge = calculateCurrentAge(form.arrival_date, arrivalAgeWeeks);
     const record: Record<string, any> = {
       farm_id: farm.id,
@@ -316,11 +460,26 @@ export default function LotesPage() {
     }
   }
 
-  const filtered = lotes.filter(
-    (l) =>
-      l.code.toLowerCase().includes(search.toLowerCase()) ||
-      l.breed.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = lotes.filter((l) => {
+    const matchesSearch = l.code.toLowerCase().includes(search.toLowerCase()) || l.breed.toLowerCase().includes(search.toLowerCase());
+    const stage = getProductionStage(calculateCurrentAge(l.arrival_date, l.arrival_age_weeks));
+    const matchesStage = filterStage === "todos" || stage === filterStage;
+    return matchesSearch && matchesStage;
+  });
+  const visibleActiveAlerts = activeAlerts.filter((alert) => !dismissedAlertIds.includes(alert.id));
+  const urgentAlertsCount = visibleActiveAlerts.filter((alert) => alert.type === "danger").length;
+  const productiveLotes = lotes.filter((l) => ["producao", "pico", "estavel"].includes(getProductionStage(calculateCurrentAge(l.arrival_date, l.arrival_age_weeks)))).length;
+  const criticalLotes = lotes.filter((l) => ["declinio", "descarte"].includes(getProductionStage(calculateCurrentAge(l.arrival_date, l.arrival_age_weeks)))).length;
+  const transitionLotes = lotes.length - productiveLotes - criticalLotes;
+  const overcrowdedBarns = barns.filter((barn) => barn.capacity > 0 && barn.current_birds > barn.capacity).length;
+  const performanceScore = lotes.length === 0
+    ? 92
+    : Math.max(35, Math.min(96, 92 - criticalLotes * 18 - overcrowdedBarns * 15 - (productiveLotes === 0 ? 10 : 0)));
+  const performanceColor = performanceScore >= 80 ? "#10b981" : performanceScore >= 50 ? "#f59e0b" : "#ef4444";
+  const performanceGradient = performanceScore >= 80 ? "from-emerald-50 via-emerald-50/50 to-white" : performanceScore >= 50 ? "from-amber-50 via-amber-50/50 to-white" : "from-red-50 via-red-50/50 to-white";
+  const performanceBorder = performanceScore >= 80 ? "border-emerald-200/60" : performanceScore >= 50 ? "border-amber-200/60" : "border-red-200/60";
+  const performanceStatus = performanceScore >= 80 ? "Saudável" : performanceScore >= 50 ? "Atenção" : "Crítico";
+  const performanceStatusColor = performanceScore >= 80 ? "text-emerald-700" : performanceScore >= 50 ? "text-amber-700" : "text-red-700";
 
   return (
     <div className="space-y-6">
@@ -344,10 +503,221 @@ export default function LotesPage() {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3.5 py-2 w-full sm:w-80 focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-300 transition-all">
-        <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
-        <input type="text" placeholder="Buscar lote ou raça..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none w-full" />
+      <div className={cn("bg-gradient-to-r rounded-2xl border p-4 sm:p-5 transition-all duration-300", performanceGradient, performanceBorder)}>
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 lg:min-w-[280px]">
+            <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
+              <svg className="w-14 h-14 sm:w-16 sm:h-16 -rotate-90" viewBox="0 0 64 64">
+                <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                <circle cx="32" cy="32" r="28" fill="none" stroke={performanceColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(performanceScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className={cn("text-sm sm:text-base font-bold", performanceStatusColor)}>{performanceScore}</span>
+              </div>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-brand-600 flex-shrink-0" />
+                <span className="text-sm font-bold text-gray-900">Desempenho dos Lotes</span>
+              </div>
+              <p className={cn("text-lg sm:text-xl font-bold mt-0.5", performanceStatusColor)}>{performanceStatus}</p>
+              <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 truncate">Lotes: {lotes.length} | Fase produtiva: {productiveLotes} | Críticos: {criticalLotes}</p>
+            </div>
+          </div>
+
+          <div className="hidden lg:block w-px h-14 bg-gray-200" />
+
+          <div className="flex-1 space-y-1.5 sm:space-y-2">
+            {criticalLotes > 0 ? (
+              <div className="flex items-start sm:items-center gap-2">
+                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100 mt-0.5 sm:mt-0">
+                  <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-600" />
+                </div>
+                <p className="text-xs sm:text-sm text-gray-700">{criticalLotes} lotes em declínio ou descarte — revisar renovação</p>
+              </div>
+            ) : (
+              <div className="flex items-start sm:items-center gap-2">
+                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100 mt-0.5 sm:mt-0">
+                  <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+                </div>
+                <p className="text-xs sm:text-sm text-gray-700">{productiveLotes} lotes em fase produtiva — operação equilibrada</p>
+              </div>
+            )}
+            {overcrowdedBarns > 0 ? (
+              <div className="flex items-start sm:items-center gap-2">
+                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 mt-0.5 sm:mt-0">
+                  <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
+                </div>
+                <p className="text-xs sm:text-sm text-gray-700">{overcrowdedBarns} galpões acima da capacidade — redistribuir aves</p>
+              </div>
+            ) : (
+              <div className="flex items-start sm:items-center gap-2">
+                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-100 mt-0.5 sm:mt-0">
+                  <Bird className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-600" />
+                </div>
+                <p className="text-xs sm:text-sm text-gray-700">{transitionLotes} lotes em formação — acompanhar avanço de estágio</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Search + Stage Filter */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3.5 py-2 w-full sm:w-80 focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-300 transition-all">
+          <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <input type="text" placeholder="Buscar lote ou raça..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none w-full" />
+        </div>
+        {!loading && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px]">
+            <div className="flex items-center justify-between mb-5 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-red-500 flex items-center justify-center shadow-sm">
+                  <AlertTriangle className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Alertas ativos</h3>
+                  <p className="text-[11px] text-gray-400 font-medium">
+                    {urgentAlertsCount > 0 && (
+                      <span className="text-red-600 font-semibold">{urgentAlertsCount} urgente · </span>
+                    )}
+                    {visibleActiveAlerts.length} alertas no total
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
+                  <Sparkles className="w-3 h-3" />
+                  Pro
+                </span>
+                <span className="text-[11px] font-bold text-white bg-red-500 px-2.5 py-1 rounded-lg">{visibleActiveAlerts.length}</span>
+              </div>
+            </div>
+            <div className="space-y-3 overflow-y-auto flex-1 pr-1 -mr-1 py-1">
+              {visibleActiveAlerts.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500">
+                  Nenhum alerta ativo.
+                </div>
+              ) : visibleActiveAlerts.map((alert) => {
+                const isClosing = closingAlertIds.includes(alert.id);
+                return (
+                  <div
+                    key={alert.id}
+                    className={cn(
+                      "overflow-hidden transition-all duration-200 ease-out",
+                      isClosing ? "max-h-0 opacity-0 -translate-y-1" : "max-h-64 opacity-100 translate-y-0"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "relative rounded-xl p-4 pr-12 border transition-all duration-200",
+                        alert.type === "danger" && "bg-red-50 border-red-200",
+                        alert.type === "warning" && "bg-amber-50 border-amber-200",
+                        alert.type === "info" && "bg-blue-50 border-blue-200"
+                      )}
+                    >
+                      <button
+                        type="button"
+                        aria-label="Excluir aviso"
+                        onClick={() => void dismissAlert(alert)}
+                        className="absolute right-3 top-3 rounded-md p-1 text-gray-400 transition-colors hover:bg-white/70 hover:text-gray-600"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={cn(
+                            "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
+                            alert.type === "danger" && "bg-red-100",
+                            alert.type === "warning" && "bg-amber-100",
+                            alert.type === "info" && "bg-blue-100"
+                          )}
+                        >
+                          <AlertTriangle
+                            className={cn(
+                              "w-4 h-4",
+                              alert.type === "danger" && "text-red-600",
+                              alert.type === "warning" && "text-amber-600",
+                              alert.type === "info" && "text-blue-600"
+                            )}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className={cn(
+                              "text-[13px] font-semibold leading-snug",
+                              alert.type === "danger" && "text-red-800",
+                              alert.type === "warning" && "text-amber-800",
+                              alert.type === "info" && "text-blue-800"
+                            )}
+                          >
+                            {alert.msg}
+                          </p>
+                          {alert.risk && (
+                            <p className="text-[11px] text-gray-500 mt-1 leading-relaxed italic">
+                              Se ignorar: {alert.risk}
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between mt-2.5">
+                            <p className="text-[11px] text-gray-400">{alert.time}</p>
+                            {alert.href ? (
+                              <Link
+                                href={alert.href}
+                                className={cn(
+                                  "text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors",
+                                  alert.type === "danger" && "text-white bg-red-500 hover:bg-red-600",
+                                  alert.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300",
+                                  alert.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300"
+                                )}
+                              >
+                                {alert.action}
+                              </Link>
+                            ) : (
+                              <button
+                                type="button"
+                                className={cn(
+                                  "text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors",
+                                  alert.type === "danger" && "text-white bg-red-500 hover:bg-red-600",
+                                  alert.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300",
+                                  alert.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300"
+                                )}
+                              >
+                                {alert.action}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1 w-fit">
+          {(["todos", "cria", "recria", "pre-postura", "producao", "pico", "estavel", "declinio", "descarte"] as const).filter((s) => {
+            if (s === "todos") return true;
+            return lotes.some((l) => getProductionStage(calculateCurrentAge(l.arrival_date, l.arrival_age_weeks)) === s);
+          }).map((s) => {
+            const isActive = filterStage === s;
+            const label = s === "todos" ? "Todos" : stageLabel[s];
+            return (
+              <button
+                key={s}
+                onClick={() => setFilterStage(s)}
+                className={cn(
+                  "text-[13px] font-medium px-3.5 py-1.5 rounded-full transition-all duration-200 cursor-pointer whitespace-nowrap",
+                  isActive
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Loading */}
@@ -377,7 +747,19 @@ export default function LotesPage() {
         /* Table */
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full table-fixed">
+              <colgroup>
+                <col className="w-[9%]" />
+                <col className="w-[9%]" />
+                <col className="w-[7%]" />
+                <col className="w-[7%]" />
+                <col className="w-[11%]" />
+                <col className="w-[11%]" />
+                <col className="w-[9%]" />
+                <col className="w-[9%]" />
+                <col className="w-[10%]" />
+                <col className="w-[9%]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Código</th>
@@ -387,6 +769,7 @@ export default function LotesPage() {
                   <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Galpão</th>
                   <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Sistema</th>
                   <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Estágio</th>
+                  <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Chegada</th>
                   <th className="text-center text-xs font-bold text-gray-900 px-6 py-4">Detalhes</th>
                   <th className="text-right text-xs font-bold text-gray-900 px-6 py-4">Ações</th>
                 </tr>
@@ -400,9 +783,15 @@ export default function LotesPage() {
                     <td className="px-6 py-4 text-sm text-gray-700">{calculateCurrentAge(l.arrival_date, l.arrival_age_weeks)} sem.</td>
                     <td className="px-6 py-4 text-sm text-gray-700">{l.barn_name ?? "—"}</td>
                     <td className="px-6 py-4">
-                      <span className={cn("text-[11px] font-semibold px-3 py-1 rounded-full", sistemaColor[l.production_system] ?? "text-gray-700 bg-gray-100")}>
-                        {sistemaLabel[l.production_system] ?? l.production_system}
-                      </span>
+                      {(() => {
+                        const barn = barns.find((b) => b.id === l.barn_id);
+                        const sys = barn?.production_system || l.production_system;
+                        return (
+                          <span className={cn("text-[11px] font-semibold px-3 py-1 rounded-full", sistemaColor[sys] ?? "text-gray-700 bg-gray-100")}>
+                            {sistemaLabel[sys] ?? sys}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4">
                       {(() => {
@@ -413,6 +802,9 @@ export default function LotesPage() {
                           </span>
                         );
                       })()}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700">
+                      {new Date(l.arrival_date).toLocaleDateString("pt-BR")}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <Link href={"/dashboard/flocks/detalhes/" + l.id} className="inline-flex items-center justify-center p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
@@ -433,7 +825,7 @@ export default function LotesPage() {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="text-center py-16 text-gray-400 text-sm">Nenhum lote encontrado.</td>
+                    <td colSpan={10} className="text-center py-16 text-gray-400 text-sm">Nenhum lote encontrado.</td>
                   </tr>
                 )}
               </tbody>
@@ -496,8 +888,8 @@ export default function LotesPage() {
                       <input type="number" value={form.bird_count} onChange={(e) => setForm({ ...form, bird_count: e.target.value })} placeholder="800" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Idade na Chegada (semanas)</label>
-                      <input type="number" value={form.arrival_age_weeks} onChange={(e) => setForm({ ...form, arrival_age_weeks: e.target.value })} placeholder="18" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Idade na Chegada (dias)</label>
+                      <input type="number" value={form.arrival_age_weeks} onChange={(e) => setForm({ ...form, arrival_age_weeks: e.target.value })} placeholder="126" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-600 mb-1.5">Peso Médio (kg)</label>
