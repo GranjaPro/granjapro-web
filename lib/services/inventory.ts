@@ -11,7 +11,7 @@ function isMissingFeedInventoryTable(error: { code?: string; message?: string } 
 export async function getFeedInventory(farmId: string) {
   const supabase = createClient();
   const { data, error } = await supabase
-    .from("feed_inventory")
+    .from("inventory")
     .select("*")
     .eq("farm_id", farmId)
     .order("name", { ascending: true });
@@ -25,7 +25,7 @@ export async function getFeedInventory(farmId: string) {
 export async function createInventoryItem(record: Record<string, any>) {
   const supabase = createClient();
   const { data, error } = await supabase
-    .from("feed_inventory")
+    .from("inventory")
     .insert(record)
     .select()
     .single();
@@ -41,7 +41,7 @@ export async function createInventoryItem(record: Record<string, any>) {
 export async function updateInventoryItem(id: string, updates: Record<string, any>) {
   const supabase = createClient();
   const { data, error } = await supabase
-    .from("feed_inventory")
+    .from("inventory")
     .update(updates)
     .eq("id", id)
     .select()
@@ -58,7 +58,7 @@ export async function updateInventoryItem(id: string, updates: Record<string, an
 export async function deleteInventoryItem(id: string) {
   const supabase = createClient();
   const { error } = await supabase
-    .from("feed_inventory")
+    .from("inventory")
     .delete()
     .eq("id", id);
   if (error) {

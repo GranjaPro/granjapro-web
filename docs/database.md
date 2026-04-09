@@ -10,7 +10,7 @@ barns
 flocks
 egg_production
 feed_consumption
-feed_inventory
+inventory
 mortality
 health_records
 financial_transactions
@@ -39,7 +39,7 @@ Daily egg production data.
 feed_consumption
 Feed usage tracking.
 
-feed_inventory
+inventory
 Feed inventory tracking.
 
 mortality

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import ModalPortal from "@/components/ui/modal-portal";
 import {
   Wrench,
@@ -27,12 +27,14 @@ import {
   DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth/auth-provider";
+import { createClient } from "@/lib/supabase/client";
 
 type TipoEquipamento = "alimentacao" | "climatizacao" | "iluminacao" | "hidraulico" | "geral";
 type StatusEquipamento = "operacional" | "manutencao" | "inativo";
 
 interface Equipamento {
-  id: number;
+  id: string;
   nome: string;
   localizacao: string;
   tipo: TipoEquipamento;
@@ -85,14 +87,6 @@ const statusColor: Record<StatusEquipamento, string> = {
   inativo: "text-gray-500 bg-gray-100",
 };
 
-const initialEquipamentos: Equipamento[] = [
-  { id: 1, nome: "Comedouro Automático", localizacao: "Galpão Vale Verde", tipo: "alimentacao", status: "operacional", marca: "AviTech", modelo: "CA-500", dataInstalacao: "2024-03-15", proximaManutencao: "2026-04-15", observacoes: "Sistema automático com sensor de nível.", valorEquipamento: 18500, horasUso: 14200, vidaUtilHoras: 25000, empresaInstalacao: "AviTech Soluções", contatoEmpresa: "(11) 98765-4321" },
-  { id: 2, nome: "Ventilador Industrial", localizacao: "Galpão Central", tipo: "climatizacao", status: "operacional", marca: "CoolFarm", modelo: "VF-1200", dataInstalacao: "2023-11-20", proximaManutencao: "2026-05-20", observacoes: "4 unidades instaladas. Funcionamento 24h no verão.", valorEquipamento: 32000, horasUso: 8500, vidaUtilHoras: 30000, empresaInstalacao: "CoolFarm Brasil", contatoEmpresa: "(19) 3456-7890" },
-  { id: 3, nome: "Sistema de Iluminação LED", localizacao: "Galpão Nascente", tipo: "iluminacao", status: "manutencao", marca: "LuxAviar", modelo: "LED-PRO", dataInstalacao: "2024-07-10", proximaManutencao: "2026-03-28", observacoes: "Troca de lâmpadas programada.", valorEquipamento: 9800, horasUso: 6100, vidaUtilHoras: 20000, empresaInstalacao: "IlumiAgro Ltda", contatoEmpresa: "(11) 91234-5678" },
-  { id: 4, nome: "Bebedouro Nipple", localizacao: "Galpão Vale Verde", tipo: "hidraulico", status: "operacional", marca: "HydroFarm", modelo: "NP-300", dataInstalacao: "2024-01-05", proximaManutencao: "2026-07-05", observacoes: "Linha principal com 200 bicos.", valorEquipamento: 14200, horasUso: 11800, vidaUtilHoras: 20000, empresaInstalacao: "HydroFarm Instalações", contatoEmpresa: "(19) 99876-5432" },
-  { id: 5, nome: "Gerador de Emergência", localizacao: "Setor C", tipo: "geral", status: "inativo", marca: "PowerGen", modelo: "PG-50KVA", dataInstalacao: "2022-06-01", proximaManutencao: "2026-04-01", observacoes: "Necessita revisão completa antes de reativar.", valorEquipamento: 45000, horasUso: 4200, vidaUtilHoras: 15000, empresaInstalacao: "EnerTech Geradores", contatoEmpresa: "(11) 3210-9876" },
-];
-
 const tipoOptions: TipoEquipamento[] = ["alimentacao", "climatizacao", "iluminacao", "hidraulico", "geral"];
 
 type ModalMode = "add" | "edit" | null;
@@ -115,13 +109,62 @@ const emptyForm = {
 };
 
 export default function EquipamentosPage() {
+  const { farm } = useAuth();
+  const farmRef = useRef(farm);
+  farmRef.current = farm;
+
   const [search, setSearch] = useState("");
-  const [equipamentos, setEquipamentos] = useState(initialEquipamentos);
+  const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
+  const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<ModalMode>(null);
   const [editing, setEditing] = useState<Equipamento | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [filterTipo, setFilterTipo] = useState<TipoEquipamento | "todos">("todos");
+
+  const fetchData = useCallback(async () => {
+    const currentFarm = farmRef.current;
+    if (!currentFarm) return;
+    setLoading(true);
+
+    const supabase = createClient();
+    try {
+      const { data, error } = await supabase
+        .from("equipment")
+        .select("*")
+        .eq("farm_id", currentFarm.id);
+
+      if (error) throw error;
+
+      const mapped: Equipamento[] = (data || []).map((i: any) => ({
+        id: i.id,
+        nome: i.name || "",
+        localizacao: i.location || "",
+        tipo: (i.type as TipoEquipamento) || "geral",
+        status: (i.status as StatusEquipamento) || "operacional",
+        marca: i.brand || "",
+        modelo: i.model || "",
+        dataInstalacao: i.installation_date || "",
+        proximaManutencao: i.next_maintenance_date || "",
+        observacoes: i.notes || "",
+        valorEquipamento: i.equipment_value || 0,
+        horasUso: i.usage_hours || 0,
+        vidaUtilHoras: i.lifespan_hours || 0,
+        empresaInstalacao: i.installation_company || "",
+        contatoEmpresa: i.support_contact || "",
+      }));
+
+      setEquipamentos(mapped);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   function openAdd() {
     setForm({ ...emptyForm });
@@ -150,33 +193,52 @@ export default function EquipamentosPage() {
     setModal("edit");
   }
 
-  function save() {
+  async function save() {
     if (!form.nome.trim()) return;
-    const item: Equipamento = {
-      id: editing?.id || Date.now(),
-      nome: form.nome,
-      localizacao: form.localizacao,
-      tipo: form.tipo,
+    const currentFarm = farmRef.current;
+    if (!currentFarm) return;
+
+    const record = {
+      farm_id: currentFarm.id,
+      name: form.nome,
+      location: form.localizacao,
+      type: form.tipo,
       status: form.status,
-      marca: form.marca,
-      modelo: form.modelo,
-      dataInstalacao: form.dataInstalacao,
-      proximaManutencao: form.proximaManutencao,
-      observacoes: form.observacoes,
-      valorEquipamento: Number(form.valorEquipamento) || 0,
-      horasUso: Number(form.horasUso) || 0,
-      vidaUtilHoras: Number(form.vidaUtilHoras) || 0,
-      empresaInstalacao: form.empresaInstalacao,
-      contatoEmpresa: form.contatoEmpresa,
+      brand: form.marca,
+      model: form.modelo,
+      installation_date: form.dataInstalacao || null,
+      next_maintenance_date: form.proximaManutencao || null,
+      notes: form.observacoes,
+      equipment_value: Number(form.valorEquipamento) || 0,
+      usage_hours: Number(form.horasUso) || 0,
+      lifespan_hours: Number(form.vidaUtilHoras) || 0,
+      installation_company: form.empresaInstalacao,
+      support_contact: form.contatoEmpresa,
     };
-    if (modal === "add") setEquipamentos((prev) => [...prev, item]);
-    else if (editing) setEquipamentos((prev) => prev.map((i) => (i.id === editing.id ? item : i)));
-    setModal(null);
+
+    const supabase = createClient();
+    try {
+      if (modal === "add") {
+        await supabase.from("equipment").insert(record);
+      } else if (editing) {
+        await supabase.from("equipment").update(record).eq("id", editing.id);
+      }
+      setModal(null);
+      fetchData();
+    } catch (e) {
+      console.error(e);
+    }
   }
 
-  function deleteItem(id: number) {
-    setEquipamentos((prev) => prev.filter((i) => i.id !== id));
-    setDeleteConfirm(null);
+  async function deleteItem(id: string) {
+    const supabase = createClient();
+    try {
+      await supabase.from("equipment").delete().eq("id", id);
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   const filtered = equipamentos.filter((i) => {
@@ -185,7 +247,7 @@ export default function EquipamentosPage() {
     return matchSearch && matchTipo;
   });
 
-  const today = new Date("2026-03-24T00:00:00");
+  const today = new Date();
   function formatCurrency(v: number) { return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
   function diasAteManutencao(d: string) {
     if (!d) return Infinity;
@@ -209,6 +271,17 @@ export default function EquipamentosPage() {
   const custoManutencaoRisco = [...manutencaoProxima, ...manutencaoAtrasada].reduce((s, i) => s + i.valorEquipamento, 0);
   const custoVidaUtilRisco = vidaUtilCritica.reduce((s, i) => s + i.valorEquipamento, 0);
   const totalAlertas = manutencaoProxima.length + manutencaoAtrasada.length + vidaUtilCritica.length + totalInativo;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-brand-600 border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-gray-500">Carregando equipamentos...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

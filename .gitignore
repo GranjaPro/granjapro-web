@@ -91,3 +91,7 @@ pnpm-lock.yaml
 # PWA
 sw.js
 workbox-*.js
+
+docs/equipment.md
+docs/workes.md
+docs/reports.md

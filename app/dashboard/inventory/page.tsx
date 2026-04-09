@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import ModalPortal from "@/components/ui/modal-portal";
 import {
   Package,
@@ -28,12 +28,14 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth/auth-provider";
+import { createClient } from "@/lib/supabase/client";
 
-type TipoArmazenamento = "racao" | "medicamentos" | "equipamentos" | "embalagens";
+type TipoArmazenamento = "racao" | "medicamentos" | "equipamentos" | "embalagens" | "outros";
 type StatusEstoque = "ativo" | "vazio" | "manutencao";
 
 interface ItemEstoque {
-  id: number;
+  id: string;
   nome: string;
   localizacao: string;
   area: string;
@@ -54,6 +56,7 @@ const tipoLabel: Record<TipoArmazenamento, string> = {
   medicamentos: "Medicamentos",
   equipamentos: "Equipamentos",
   embalagens: "Embalagens",
+  outros: "Outros",
 };
 
 const tipoColor: Record<TipoArmazenamento, string> = {
@@ -61,6 +64,7 @@ const tipoColor: Record<TipoArmazenamento, string> = {
   medicamentos: "text-red-700 bg-red-50",
   equipamentos: "text-blue-700 bg-blue-50",
   embalagens: "text-purple-700 bg-purple-50",
+  outros: "text-gray-700 bg-gray-50",
 };
 
 const tipoIcons: Record<TipoArmazenamento, typeof Wheat> = {
@@ -68,6 +72,7 @@ const tipoIcons: Record<TipoArmazenamento, typeof Wheat> = {
   medicamentos: Pill,
   equipamentos: Wrench,
   embalagens: Box,
+  outros: Package,
 };
 
 const statusLabel: Record<StatusEstoque, string> = {
@@ -82,14 +87,7 @@ const statusColor: Record<StatusEstoque, string> = {
   manutencao: "text-amber-700 bg-amber-50",
 };
 
-const initialEstoque: ItemEstoque[] = [
-  { id: 1, nome: "Galpão de Ração", localizacao: "Setor C, Lote 1", area: "800 m²", status: "ativo", tipo: "racao", capacidade: "50 toneladas", ocupacaoAtual: 72, observacoes: "Estoque principal de ração. Reposição semanal.", quantidade: 36000, unidade: "kg", valorEstoque: 28800, vencimento: "2026-05-15", consumoDiario: 850 },
-  { id: 2, nome: "Galpão de Equipamentos", localizacao: "Setor C, Lote 2", area: "600 m²", status: "manutencao", tipo: "equipamentos", capacidade: "200 m³", ocupacaoAtual: 45, observacoes: "Em manutenção — reforma do telhado prevista para maio.", quantidade: 47, unidade: "itens", valorEstoque: 12500, vencimento: null, consumoDiario: 0 },
-  { id: 3, nome: "Depósito de Medicamentos", localizacao: "Setor A, Lote 4", area: "120 m²", status: "ativo", tipo: "medicamentos", capacidade: "500 itens", ocupacaoAtual: 38, observacoes: "Ambiente climatizado. Controle de temperatura ativo.", quantidade: 190, unidade: "itens", valorEstoque: 4750, vencimento: "2026-04-10", consumoDiario: 8 },
-  { id: 4, nome: "Sala de Embalagens", localizacao: "Setor B, Lote 5", area: "250 m²", status: "ativo", tipo: "embalagens", capacidade: "10.000 unidades", ocupacaoAtual: 85, observacoes: "Estoque alto — próxima compra pode ser adiada.", quantidade: 8500, unidade: "un", valorEstoque: 3400, vencimento: null, consumoDiario: 120 },
-];
-
-const tipoOptions: TipoArmazenamento[] = ["racao", "medicamentos", "equipamentos", "embalagens"];
+const tipoOptions: TipoArmazenamento[] = ["racao", "medicamentos", "equipamentos", "embalagens", "outros"];
 
 type ModalMode = "add" | "edit" | null;
 
@@ -110,13 +108,61 @@ const emptyForm = {
 };
 
 export default function EstoquePage() {
+  const { farm } = useAuth();
+  const farmRef = useRef(farm);
+  farmRef.current = farm;
+
   const [search, setSearch] = useState("");
-  const [estoque, setEstoque] = useState(initialEstoque);
+  const [estoque, setEstoque] = useState<ItemEstoque[]>([]);
+  const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<ModalMode>(null);
   const [editing, setEditing] = useState<ItemEstoque | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [filterTipo, setFilterTipo] = useState<TipoArmazenamento | "todos">("todos");
+
+  const fetchData = useCallback(async () => {
+    const currentFarm = farmRef.current;
+    if (!currentFarm) return;
+    setLoading(true);
+
+    const supabase = createClient();
+    try {
+      const { data, error } = await supabase
+        .from("inventory")
+        .select("*")
+        .eq("farm_id", currentFarm.id);
+
+      if (error) throw error;
+
+      const mapped: ItemEstoque[] = (data || []).map((i: any) => ({
+        id: i.id,
+        nome: i.name || "",
+        localizacao: i.location || "",
+        area: i.area || "",
+        status: (i.status as StatusEstoque) || "ativo",
+        tipo: (i.type as TipoArmazenamento) || "racao",
+        capacidade: i.capacity || "",
+        ocupacaoAtual: i.current_occupation || 0,
+        observacoes: i.notes || "",
+        quantidade: i.quantity || 0,
+        unidade: i.unit || "",
+        valorEstoque: i.inventory_value || 0,
+        vencimento: i.expiration_date || null,
+        consumoDiario: i.daily_consumption || 0,
+      }));
+
+      setEstoque(mapped);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   function openAdd() {
     setForm({ ...emptyForm });
@@ -144,32 +190,51 @@ export default function EstoquePage() {
     setModal("edit");
   }
 
-  function save() {
+  async function save() {
     if (!form.nome.trim()) return;
-    const item: ItemEstoque = {
-      id: editing?.id || Date.now(),
-      nome: form.nome,
-      localizacao: form.localizacao,
+    const currentFarm = farmRef.current;
+    if (!currentFarm) return;
+
+    const record = {
+      farm_id: currentFarm.id,
+      name: form.nome,
+      location: form.localizacao,
       area: form.area,
       status: form.status,
-      tipo: form.tipo,
-      capacidade: form.capacidade,
-      ocupacaoAtual: Number(form.ocupacaoAtual) || 0,
-      observacoes: form.observacoes,
-      quantidade: Number(form.quantidade) || 0,
-      unidade: form.unidade,
-      valorEstoque: Number(form.valorEstoque) || 0,
-      vencimento: form.vencimento || null,
-      consumoDiario: Number(form.consumoDiario) || 0,
+      type: form.tipo,
+      capacity: form.capacidade,
+      current_occupation: Number(form.ocupacaoAtual) || 0,
+      notes: form.observacoes,
+      quantity: Number(form.quantidade) || 0,
+      unit: form.unidade,
+      inventory_value: Number(form.valorEstoque) || 0,
+      expiration_date: form.vencimento || null,
+      daily_consumption: Number(form.consumoDiario) || 0,
     };
-    if (modal === "add") setEstoque((prev) => [...prev, item]);
-    else if (editing) setEstoque((prev) => prev.map((i) => (i.id === editing.id ? item : i)));
-    setModal(null);
+
+    const supabase = createClient();
+    try {
+      if (modal === "add") {
+        await supabase.from("feed_inventory").insert(record);
+      } else if (editing) {
+        await supabase.from("feed_inventory").update(record).eq("id", editing.id);
+      }
+      setModal(null);
+      fetchData();
+    } catch (e) {
+      console.error(e);
+    }
   }
 
-  function deleteItem(id: number) {
-    setEstoque((prev) => prev.filter((i) => i.id !== id));
-    setDeleteConfirm(null);
+  async function deleteItem(id: string) {
+    const supabase = createClient();
+    try {
+      await supabase.from("feed_inventory").delete().eq("id", id);
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   const filtered = estoque.filter((i) => {
@@ -182,7 +247,7 @@ export default function EstoquePage() {
   const totalManutencao = estoque.filter((i) => i.status === "manutencao").length;
   const mediaOcupacao = estoque.length > 0 ? Math.round(estoque.reduce((s, i) => s + i.ocupacaoAtual, 0) / estoque.length) : 0;
   const valorTotal = estoque.reduce((s, i) => s + i.valorEstoque, 0);
-  const today = new Date("2026-03-24T00:00:00");
+  const today = new Date();
 
   function formatCurrency(v: number) { return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
   function diasAteVencimento(d: string | null) {
@@ -231,10 +296,6 @@ export default function EstoquePage() {
             <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Valor em Estoque</span>
           </div>
           <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{formatCurrency(valorTotal)}</p>
-          <div className="mt-3 flex items-center gap-1.5">
-            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full"><ArrowUpRight className="w-3 h-3" />+3%</span>
-            <span className="text-[10px] text-gray-400">vs mês anterior</span>
-          </div>
         </div>
 
         {/* Espaços Ativos */}
@@ -367,7 +428,7 @@ export default function EstoquePage() {
 
       {/* Filters + Search */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto scrollbar-none">
           {([
             { key: "todos" as const, label: "Todos" },
             { key: "racao" as const, label: "Ração" },
@@ -379,7 +440,7 @@ export default function EstoquePage() {
               key={t.key}
               onClick={() => setFilterTipo(t.key)}
               className={cn(
-                "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
+                "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer whitespace-nowrap",
                 filterTipo === t.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
               )}
             >
@@ -396,8 +457,10 @@ export default function EstoquePage() {
 
       {/* Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filtered.map((item) => {
-          const TipoIcon = tipoIcons[item.tipo];
+        {loading ? (
+          <div className="col-span-full text-center py-16 text-gray-400 text-sm">Carregando dados...</div>
+        ) : filtered.map((item) => {
+          const TipoIcon = tipoIcons[item.tipo] || Box;
           const diasVenc = diasAteVencimento(item.vencimento);
           const diasEst = diasDeEstoque(item);
           return (
@@ -472,20 +535,20 @@ export default function EstoquePage() {
 
               {/* Badges */}
               <div className="flex flex-wrap items-center gap-2 mt-3">
-                <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", statusColor[item.status])}>
-                  {statusLabel[item.status]}
+                <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", statusColor[item.status] || statusColor.ativo)}>
+                  {statusLabel[item.status] || "Ativo"}
                 </span>
-                <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", tipoColor[item.tipo])}>
-                  {tipoLabel[item.tipo]}
+                <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", tipoColor[item.tipo] || tipoColor.racao)}>
+                  {tipoLabel[item.tipo] || "Outro"}
                 </span>
                 <span className="text-[11px] font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-lg">
-                  {item.area}
+                  {item.area || "—"}
                 </span>
               </div>
             </div>
           );
         })}
-        {filtered.length === 0 && (
+        {!loading && filtered.length === 0 && (
           <div className="col-span-full text-center py-16 text-gray-400 text-sm">Nenhum espaço encontrado.</div>
         )}
       </div>

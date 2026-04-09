@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import ModalPortal from "@/components/ui/modal-portal";
 import {
@@ -23,15 +23,15 @@ import {
   Zap,
   Lightbulb,
   AlertTriangle,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
   Target,
   Minus,
   Percent,
   Wallet,
   PiggyBank,
   HelpCircle,
+  Receipt,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -48,89 +48,39 @@ import {
   Line,
   ComposedChart,
 } from "recharts";
+import { useAuth } from "@/components/auth/auth-provider";
+import { createClient } from "@/lib/supabase/client";
+import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 
 /* ══════════════════════════════════════════════
-   MOCK DATA
+   TYPES
    ══════════════════════════════════════════════ */
 
 interface Venda {
-  id: number;
+  id: string;
   data: string;
-  cliente: string;
-  lote: string;
-  galpao: string;
+  clienteId: string;
+  clienteNome: string;
+  egg_type: string;
   quantidade: number;
   precoUn: number;
   total: number;
+  payment_status: "pending" | "paid" | "overdue";
+  notes: string;
 }
 
-const initialVendas: Venda[] = [
-  { id: 1, data: "2024-04-17", cliente: "Mercado Central", lote: "L-2024-01", galpao: "Galpão A1", quantidade: 200, precoUn: 12.5, total: 2500 },
-  { id: 2, data: "2024-04-16", cliente: "Padaria Boa Mesa", lote: "L-2024-02", galpao: "Galpão B1", quantidade: 80, precoUn: 13.0, total: 1040 },
-  { id: 3, data: "2024-04-15", cliente: "Restaurante Sabor", lote: "L-2024-01", galpao: "Galpão A2", quantidade: 150, precoUn: 12.0, total: 1800 },
-  { id: 4, data: "2024-04-14", cliente: "Mercado Central", lote: "L-2024-04", galpao: "Galpão D1", quantidade: 300, precoUn: 11.5, total: 3450 },
-  { id: 5, data: "2024-04-12", cliente: "Feira Livre", lote: "L-2024-03", galpao: "Galpão C1", quantidade: 120, precoUn: 14.0, total: 1680 },
-  { id: 6, data: "2024-04-10", cliente: "Padaria Boa Mesa", lote: "L-2024-01", galpao: "Galpão A1", quantidade: 90, precoUn: 12.5, total: 1125 },
-  { id: 7, data: "2024-04-08", cliente: "Supermercado BH", lote: "L-2024-02", galpao: "Galpão B2", quantidade: 250, precoUn: 11.0, total: 2750 },
-  { id: 8, data: "2024-04-05", cliente: "Restaurante Sabor", lote: "L-2024-03", galpao: "Galpão C1", quantidade: 100, precoUn: 13.5, total: 1350 },
-];
+interface Customer {
+  id: string;
+  name: string;
+}
 
-/* ── Revenue chart (daily with volume) ── */
-const receitaDiaria = [
-  { dia: "01", receita: 1200, volume: 96 },
-  { dia: "03", receita: 2100, volume: 175 },
-  { dia: "05", receita: 1350, volume: 100 },
-  { dia: "08", receita: 2750, volume: 250 },
-  { dia: "10", receita: 1125, volume: 90 },
-  { dia: "12", receita: 1680, volume: 120 },
-  { dia: "14", receita: 3450, volume: 300 },
-  { dia: "15", receita: 1800, volume: 150 },
-  { dia: "16", receita: 1040, volume: 80 },
-  { dia: "17", receita: 2500, volume: 200 },
-];
+const EGG_TYPES = ["Branco", "Caipira", "Codorna", "Vermelho", "Jumbo", "Outros"];
 
-/* ── Price history ── */
-const historicoPreco = [
-  { mes: "Jan", preco: 13.2, meta: 13.0 },
-  { mes: "Fev", preco: 12.8, meta: 13.0 },
-  { mes: "Mar", preco: 12.5, meta: 13.0 },
-  { mes: "Abr", preco: 12.0, meta: 13.0 },
-];
-
-/* ── Profit & Margin history ── */
-const lucratividadeAll: Record<number, { mes: string; receita: number; custo: number; lucro: number; margem: number }[]> = {
-  2022: [
-    { mes: "Set", receita: 8200, custo: 5740, lucro: 2460, margem: 30.0 },
-    { mes: "Out", receita: 9100, custo: 6188, lucro: 2912, margem: 32.0 },
-    { mes: "Nov", receita: 9800, custo: 6664, lucro: 3136, margem: 32.0 },
-    { mes: "Dez", receita: 10500, custo: 7140, lucro: 3360, margem: 32.0 },
-  ],
-  2023: [
-    { mes: "Jan", receita: 10800, custo: 7560, lucro: 3240, margem: 30.0 },
-    { mes: "Fev", receita: 11200, custo: 7616, lucro: 3584, margem: 32.0 },
-    { mes: "Mar", receita: 11500, custo: 7820, lucro: 3680, margem: 32.0 },
-    { mes: "Abr", receita: 11900, custo: 7973, lucro: 3927, margem: 33.0 },
-    { mes: "Mai", receita: 12300, custo: 8118, lucro: 4182, margem: 34.0 },
-    { mes: "Jun", receita: 12000, custo: 8160, lucro: 3840, margem: 32.0 },
-    { mes: "Jul", receita: 12800, custo: 8576, lucro: 4224, margem: 33.0 },
-    { mes: "Ago", receita: 13100, custo: 8646, lucro: 4454, margem: 34.0 },
-    { mes: "Set", receita: 13500, custo: 9045, lucro: 4455, margem: 33.0 },
-    { mes: "Out", receita: 13800, custo: 9108, lucro: 4692, margem: 34.0 },
-    { mes: "Nov", receita: 14200, custo: 9372, lucro: 4828, margem: 34.0 },
-    { mes: "Dez", receita: 14500, custo: 9570, lucro: 4930, margem: 34.0 },
-  ],
-  2024: [
-    { mes: "Jan", receita: 14800, custo: 9620, lucro: 5180, margem: 35.0 },
-    { mes: "Fev", receita: 13500, custo: 9180, lucro: 4320, margem: 32.0 },
-    { mes: "Mar", receita: 14200, custo: 9940, lucro: 4260, margem: 30.0 },
-    { mes: "Abr", receita: 15695, custo: 10345, lucro: 5350, margem: 34.1 },
-  ],
+const STATUS_CONFIG = {
+  paid: { label: "Pago", color: "text-emerald-700", bg: "bg-emerald-50", icon: CheckCircle2 },
+  pending: { label: "A Receber", color: "text-blue-700", bg: "bg-blue-50", icon: Receipt },
+  overdue: { label: "Atrasado", color: "text-amber-700", bg: "bg-amber-50", icon: Clock },
 };
-const signupYear = 2022;
-const availableYears = Object.keys(lucratividadeAll).map(Number).sort();
-
-const clienteOptions = ["Mercado Central", "Padaria Boa Mesa", "Restaurante Sabor", "Supermercado BH", "Feira Livre"];
-const loteOptions = ["L-2024-01", "L-2024-02", "L-2024-03", "L-2024-04"];
 
 /* ══════════════════════════════════════════════
    COMPONENT
@@ -138,56 +88,123 @@ const loteOptions = ["L-2024-01", "L-2024-02", "L-2024-03", "L-2024-04"];
 
 export default function VendasPage() {
   const searchParams = useSearchParams();
-  const [vendas, setVendas] = useState(initialVendas);
+  const { farm } = useAuth();
+  const farmRef = useRef(farm);
+  farmRef.current = farm;
+
+  const [vendas, setVendas] = useState<Venda[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
+  const [editing, setEditing] = useState<Venda | null>(null);
+  const [form, setForm] = useState({
+    data: new Date().toISOString().split("T")[0],
+    clienteId: "",
+    egg_type: "Branco",
+    quantidade: "",
+    precoUn: "",
+    payment_status: "paid" as "pending" | "paid" | "overdue",
+    notes: "",
+  });
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [breakdownTab, setBreakdownTab] = useState<"cliente" | "tipo" | "status">("cliente");
+  const [unidade, setUnidade] = useState<"duzia" | "unidade" | "bandeja">("duzia");
+  const [anoLucro, setAnoLucro] = useState(new Date().getFullYear());
+  const [margemDesejada, setMargemDesejada] = useState(35);
+
+  const { dateRange, filterMode, rangeStart, rangeEnd } = useDateFilter();
 
   useEffect(() => {
     if (searchParams.get("register") === "true") setModal("add");
   }, [searchParams]);
-  const [editing, setEditing] = useState<Venda | null>(null);
-  const [form, setForm] = useState({ data: "", cliente: "", lote: "", galpao: "", quantidade: "", precoUn: "" });
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [breakdownTab, setBreakdownTab] = useState<"cliente" | "lote" | "galpao">("cliente");
-  const [periodo, setPeriodo] = useState<"dia" | "semana" | "mes">("mes");
-  const [unidade, setUnidade] = useState<"duzia" | "unidade" | "bandeja">("duzia");
-  const [anoLucro, setAnoLucro] = useState(2024);
-  const [margemDesejada, setMargemDesejada] = useState(35);
-  const lucratividade = lucratividadeAll[anoLucro] || [];
 
-  /* ── Period-filtered vendas ── */
-  const periodoVendas = useMemo(() => {
-    if (periodo === "dia") {
-      return vendas.filter((v) => v.data === "2024-04-17");
-    } else if (periodo === "semana") {
-      return vendas.filter((v) => v.data >= "2024-04-11" && v.data <= "2024-04-17");
-    } else {
-      return vendas.filter((v) => v.data.startsWith("2024-04"));
+  const fetchData = useCallback(async () => {
+    const currentFarm = farmRef.current;
+    if (!currentFarm) return;
+    setLoading(true);
+
+    const supabase = createClient();
+    try {
+      const { startDate, endDate } = dateRange;
+      
+      const [salesRes, customersRes] = await Promise.all([
+        supabase
+          .from("sales")
+          .select("*, customers(name)")
+          .eq("farm_id", currentFarm.id)
+          .gte("date", startDate)
+          .lte("date", endDate)
+          .order("date", { ascending: false }),
+        supabase
+          .from("customers")
+          .select("id, name")
+          .eq("farm_id", currentFarm.id)
+          .order("name", { ascending: true })
+      ]);
+
+      if (salesRes.error) throw salesRes.error;
+      if (customersRes.error) throw customersRes.error;
+
+      setCustomers(customersRes.data || []);
+      
+      const mappedVendas: Venda[] = (salesRes.data || []).map((s: any) => ({
+        id: s.id,
+        data: s.date,
+        clienteId: s.customer_id || "",
+        clienteNome: s.customers?.name || "Cliente não encontrado",
+        egg_type: s.egg_type || "Branco",
+        quantidade: s.quantity || 0,
+        precoUn: s.unit_price || 0,
+        total: s.total || 0,
+        payment_status: s.payment_status || "paid",
+        notes: s.notes || "",
+      }));
+      setVendas(mappedVendas);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
-  }, [vendas, periodo]);
+  }, [dateRange]);
 
-  const periodoLabel = periodo === "dia" ? "Hoje" : periodo === "semana" ? "Esta Semana" : "Este Mês";
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  /* ── Search filter ── */
+  const filteredVendas = useMemo(() => {
+    if (!searchQuery.trim()) return vendas;
+    const q = searchQuery.toLowerCase();
+    return vendas.filter(
+      (v) =>
+        v.clienteNome.toLowerCase().includes(q) ||
+        v.egg_type.toLowerCase().includes(q) ||
+        v.data.includes(q) ||
+        v.notes.toLowerCase().includes(q)
+    );
+  }, [vendas, searchQuery]);
 
   /* ── Derived KPIs ── */
-  const receitaPeriodo = periodoVendas.reduce((s, v) => s + v.total, 0);
-  const volumeTotal = periodoVendas.reduce((s, v) => s + v.quantidade, 0);
-  const precoMedio = periodoVendas.length > 0 ? (receitaPeriodo / volumeTotal) : 0;
-  const totalVendas = periodoVendas.length;
+  const receitaPeriodo = vendas.reduce((s, v) => s + v.total, 0);
+  const volumeTotal = vendas.reduce((s, v) => s + v.quantidade, 0);
+  const precoMedio = vendas.length > 0 ? (receitaPeriodo / volumeTotal) : 0;
+  const totalVendas = vendas.length;
 
-  const receitaMesAnterior = 14200;
   const metaReceita = 18000;
-  const variacaoReceita = (((receitaPeriodo - (periodo === "mes" ? receitaMesAnterior : periodo === "semana" ? 3550 : 1800)) / (periodo === "mes" ? receitaMesAnterior : periodo === "semana" ? 3550 : 1800)) * 100).toFixed(1);
+  // Simplification for variation: we don't have past period data fetched currently, so assume 0% or fake it for UI placeholder, or calculate a simpler metric.
+  // We will set variation to 0 to avoid breaking UI without previous data.
+  const variacaoReceita = "0.0";
   const pctMeta = Math.min((receitaPeriodo / metaReceita) * 100, 100);
 
   /* ── Profit & Margin ── */
-  const custoMedio = 6.8; // R$/dz cost
+  const custoMedio = 6.8; // R$/dz cost assumption
   const custoTotal = volumeTotal * custoMedio;
   const lucro = receitaPeriodo - custoTotal;
   const margem = receitaPeriodo > 0 ? (lucro / receitaPeriodo) * 100 : 0;
-  const lucroAnterior = lucratividade.length >= 2 ? lucratividade[lucratividade.length - 2].lucro : lucro;
-  const margemAnterior = lucratividade.length >= 2 ? lucratividade[lucratividade.length - 2].margem : margem;
-  const varLucro = lucroAnterior > 0 ? ((lucro - lucroAnterior) / lucroAnterior * 100).toFixed(1) : "0";
-  const varMargem = (margem - margemAnterior).toFixed(1);
+  const varLucro = "0.0";
+  const varMargem = "0.0";
 
   /* ── Unit conversion ── */
   const unidadeLabel = unidade === "duzia" ? "Dúzia" : unidade === "unidade" ? "Unidade" : "Bandeja 30";
@@ -197,45 +214,102 @@ export default function VendasPage() {
   const custoUn = custoMedio / divisor;
   const lucroUn = receitaUn - custoUn;
 
-  const filteredVendas = useMemo(() => {
-    const base = periodoVendas;
-    if (!searchQuery.trim()) return base;
-    const q = searchQuery.toLowerCase();
-    return base.filter(
-      (v) =>
-        v.cliente.toLowerCase().includes(q) ||
-        v.lote.toLowerCase().includes(q) ||
-        v.galpao.toLowerCase().includes(q) ||
-        v.data.includes(q)
-    );
-  }, [periodoVendas, searchQuery]);
-
   /* ── Dynamic breakdown from period vendas ── */
   const dynamicReceitaPorCliente = useMemo(() => {
     const map = new Map<string, { valor: number; vendas: number }>();
-    periodoVendas.forEach((v) => {
-      const existing = map.get(v.cliente) || { valor: 0, vendas: 0 };
-      map.set(v.cliente, { valor: existing.valor + v.total, vendas: existing.vendas + 1 });
+    vendas.forEach((v) => {
+      const existing = map.get(v.clienteNome) || { valor: 0, vendas: 0 };
+      map.set(v.clienteNome, { valor: existing.valor + v.total, vendas: existing.vendas + 1 });
     });
     return Array.from(map.entries()).map(([cliente, d]) => ({ cliente, ...d })).sort((a, b) => b.valor - a.valor);
-  }, [periodoVendas]);
+  }, [vendas]);
 
-  const dynamicReceitaPorLote = useMemo(() => {
+  const dynamicReceitaPorTipo = useMemo(() => {
     const map = new Map<string, { valor: number; volume: number }>();
-    periodoVendas.forEach((v) => {
-      const existing = map.get(v.lote) || { valor: 0, volume: 0 };
-      map.set(v.lote, { valor: existing.valor + v.total, volume: existing.volume + v.quantidade });
+    vendas.forEach((v) => {
+      const existing = map.get(v.egg_type) || { valor: 0, volume: 0 };
+      map.set(v.egg_type, { valor: existing.valor + v.total, volume: existing.volume + v.quantidade });
     });
-    return Array.from(map.entries()).map(([lote, d]) => ({ lote, ...d })).sort((a, b) => b.valor - a.valor);
-  }, [periodoVendas]);
+    return Array.from(map.entries()).map(([tipo, d]) => ({ tipo, ...d })).sort((a, b) => b.valor - a.valor);
+  }, [vendas]);
 
-  const dynamicReceitaPorGalpao = useMemo(() => {
+  const dynamicReceitaPorStatus = useMemo(() => {
     const map = new Map<string, number>();
-    periodoVendas.forEach((v) => {
-      map.set(v.galpao, (map.get(v.galpao) || 0) + v.total);
+    vendas.forEach((v) => {
+      map.set(v.payment_status, (map.get(v.payment_status) || 0) + v.total);
     });
-    return Array.from(map.entries()).map(([galpao, valor]) => ({ galpao, valor })).sort((a, b) => b.valor - a.valor);
-  }, [periodoVendas]);
+    return Array.from(map.entries()).map(([status, valor]) => ({ status, valor })).sort((a, b) => b.valor - a.valor);
+  }, [vendas]);
+
+  /* ── Charts Data ── */
+  const receitaDiaria = useMemo(() => {
+    const { startDate, endDate } = dateRange;
+    if (filterMode === "intervalo" && rangeStart && rangeEnd && (rangeEnd.getTime() - rangeStart.getTime() > 1000 * 60 * 60 * 24 * 60)) {
+       // Group by month
+       const map: Record<string, { dia: string; receita: number; volume: number }> = {};
+       vendas.forEach(v => {
+         const ym = v.data.substring(0, 7);
+         if (!map[ym]) map[ym] = { dia: ym, receita: 0, volume: 0 };
+         map[ym].receita += v.total;
+         map[ym].volume += v.quantidade;
+       });
+       return Object.values(map).sort((a,b) => a.dia.localeCompare(b.dia));
+    } else {
+       // Group by day
+       const map: Record<string, { dia: string; receita: number; volume: number }> = {};
+       vendas.forEach(v => {
+         const d = v.data.substring(5, 10).replace("-", "/"); // MM/DD
+         if (!map[d]) map[d] = { dia: d, receita: 0, volume: 0 };
+         map[d].receita += v.total;
+         map[d].volume += v.quantidade;
+       });
+       const arr = [];
+       const start = new Date(startDate + "T12:00:00");
+       const end = new Date(endDate + "T12:00:00");
+       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+         const dStr = String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0');
+         arr.push({ dia: dStr, receita: map[dStr]?.receita || 0, volume: map[dStr]?.volume || 0 });
+       }
+       return arr;
+    }
+  }, [vendas, filterMode, rangeStart, rangeEnd, dateRange]);
+
+  const historicoPreco = useMemo(() => {
+    // Generate a simple monthly trend based on the fetched data (all time or active view)
+    const map: Record<string, { totalVolume: number; totalReceita: number }> = {};
+    vendas.forEach(v => {
+      const ym = v.data.substring(0, 7);
+      if (!map[ym]) map[ym] = { totalVolume: 0, totalReceita: 0 };
+      map[ym].totalVolume += v.quantidade;
+      map[ym].totalReceita += v.total;
+    });
+    
+    return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0])).map(([mes, d]) => ({
+      mes: mes.substring(5, 7) + "/" + mes.substring(0, 4),
+      preco: d.totalVolume > 0 ? d.totalReceita / d.totalVolume : 0,
+      meta: 13.0
+    })).slice(-6); // last 6 months present in current filter
+  }, [vendas]);
+
+  const lucratividade = useMemo(() => {
+    // We group current view sales into months for the history selector
+    const map: Record<string, { receita: number; custo: number; lucro: number; margem: number }> = {};
+    vendas.forEach(v => {
+      const ym = v.data.substring(0, 7);
+      if (ym.startsWith(String(anoLucro))) {
+        const mesStr = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][parseInt(ym.substring(5, 7)) - 1];
+        if (!map[mesStr]) map[mesStr] = { receita: 0, custo: 0, lucro: 0, margem: 0 };
+        map[mesStr].receita += v.total;
+        map[mesStr].custo += v.quantidade * custoMedio;
+      }
+    });
+    return Object.entries(map).map(([mes, d]) => {
+      d.lucro = d.receita - d.custo;
+      d.margem = d.receita > 0 ? (d.lucro / d.receita) * 100 : 0;
+      return { mes, ...d };
+    });
+  }, [vendas, anoLucro]);
+
 
   /* ── Insights ── */
   const insights = useMemo(() => {
@@ -245,18 +319,16 @@ export default function VendasPage() {
       const pct = ((topCliente.valor / receitaPeriodo) * 100).toFixed(1);
       if (Number(pct) > 30) arr.push({ type: "warning", title: `${topCliente.cliente} concentra ${pct}% da receita`, action: "Diversifique a carteira para reduzir dependência" });
     }
-    if (Number(variacaoReceita) >= 0) arr.push({ type: "success", title: `Volume cresceu ${variacaoReceita}% no período`, action: "Bom desempenho — mantenha o ritmo de vendas" });
-    else arr.push({ type: "warning", title: `Receita caiu ${variacaoReceita}% vs período anterior`, action: "Intensifique ações comerciais e prospecção" });
-    if (precoMedio < 12.5) arr.push({ type: "warning", title: `Preço médio em R$ ${precoMedio.toFixed(2)} — abaixo da meta`, action: "Negocie contratos com preço fixo para proteger margem" });
-    const bestPrice = periodoVendas.reduce((best, v) => v.precoUn > best.precoUn ? v : best, periodoVendas[0]);
-    if (bestPrice) arr.push({ type: "info", title: `${bestPrice.cliente} paga R$ ${bestPrice.precoUn.toFixed(2)}/dz — melhor preço`, action: "Priorize este canal para maximizar margem" });
-    if (pctMeta < 80) arr.push({ type: "warning", title: `${pctMeta.toFixed(0)}% da meta atingida`, action: `Faltam ${formatCurrency(metaReceita - receitaPeriodo)} para bater a meta` });
+    if (precoMedio > 0 && precoMedio < 12.5) arr.push({ type: "warning", title: `Preço médio em R$ ${precoMedio.toFixed(2)} — abaixo da meta`, action: "Negocie contratos com preço fixo para proteger margem" });
+    const bestPrice = vendas.reduce((best, v) => v.precoUn > best?.precoUn ? v : best, vendas[0]);
+    if (bestPrice) arr.push({ type: "info", title: `${bestPrice.clienteNome} paga R$ ${bestPrice.precoUn.toFixed(2)}/dz — melhor preço`, action: "Priorize este canal para maximizar margem" });
+    if (pctMeta < 80 && metaReceita - receitaPeriodo > 0) arr.push({ type: "warning", title: `${pctMeta.toFixed(0)}% da meta atingida`, action: `Faltam ${formatCurrency(metaReceita - receitaPeriodo)} para bater a meta` });
     return arr;
-  }, [dynamicReceitaPorCliente, receitaPeriodo, variacaoReceita, precoMedio, periodoVendas, pctMeta]);
+  }, [dynamicReceitaPorCliente, receitaPeriodo, precoMedio, vendas, pctMeta]);
 
   /* ── CRUD ── */
   function openAdd() {
-    setForm({ data: "", cliente: "", lote: "", galpao: "", quantidade: "", precoUn: "" });
+    setForm({ data: new Date().toISOString().split("T")[0], clienteId: "", egg_type: "Branco", quantidade: "", precoUn: "", payment_status: "paid", notes: "" });
     setEditing(null);
     setModal("add");
   }
@@ -264,41 +336,60 @@ export default function VendasPage() {
   function openEdit(v: Venda) {
     setForm({
       data: v.data,
-      cliente: v.cliente,
-      lote: v.lote,
-      galpao: v.galpao,
+      clienteId: v.clienteId,
+      egg_type: v.egg_type,
       quantidade: String(v.quantidade),
       precoUn: String(v.precoUn),
+      payment_status: v.payment_status,
+      notes: v.notes,
     });
     setEditing(v);
     setModal("edit");
   }
 
-  function save() {
-    if (!form.data.trim() || !form.cliente.trim() || !form.lote.trim()) return;
+  async function save() {
+    if (!form.data.trim() || !form.clienteId || !form.quantidade || !form.precoUn) return;
+    const currentFarm = farmRef.current;
+    if (!currentFarm) return;
+
     const quantidade = Number(form.quantidade) || 0;
     const precoUn = Number(form.precoUn) || 0;
-    const venda: Venda = {
-      id: editing?.id || Date.now(),
-      data: form.data,
-      cliente: form.cliente,
-      lote: form.lote,
-      galpao: form.galpao,
-      quantidade,
-      precoUn,
+    
+    const record = {
+      farm_id: currentFarm.id,
+      customer_id: form.clienteId,
+      date: form.data,
+      quantity: quantidade,
+      egg_type: form.egg_type,
+      unit_price: precoUn,
       total: quantidade * precoUn,
+      payment_status: form.payment_status,
+      notes: form.notes || null,
     };
-    if (modal === "add") {
-      setVendas((prev) => [venda, ...prev]);
-    } else if (editing) {
-      setVendas((prev) => prev.map((v) => (v.id === editing.id ? venda : v)));
+
+    const supabase = createClient();
+    try {
+      if (modal === "add") {
+        await supabase.from("sales").insert(record);
+      } else if (editing) {
+        await supabase.from("sales").update(record).eq("id", editing.id);
+      }
+      setModal(null);
+      fetchData();
+    } catch (e) {
+      console.error(e);
     }
-    setModal(null);
   }
 
-  function deleteVenda(id: number) {
-    setVendas((prev) => prev.filter((v) => v.id !== id));
-    setDeleteConfirm(null);
+  async function deleteVenda(id: string) {
+    const supabase = createClient();
+    try {
+      await supabase.from("sales").delete().eq("id", id);
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   function formatDate(dateStr: string) {
@@ -318,12 +409,6 @@ export default function VendasPage() {
      RENDER
      ══════════════════════════════════════════════ */
 
-  const breakdownMax = breakdownTab === "cliente"
-    ? Math.max(...dynamicReceitaPorCliente.map((d) => d.valor), 1)
-    : breakdownTab === "lote"
-    ? Math.max(...dynamicReceitaPorLote.map((d) => d.valor), 1)
-    : Math.max(...dynamicReceitaPorGalpao.map((d) => d.valor), 1);
-
   return (
     <div className="space-y-6">
       {/* ── Header ── */}
@@ -337,41 +422,16 @@ export default function VendasPage() {
             <p className="text-sm text-gray-500 mt-0.5">Registro de vendas, receitas e análise comercial</p>
           </div>
         </div>
-        <button
-          onClick={openAdd}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20"
-        >
-          <Plus className="w-4 h-4" />
-          Registrar Venda
-        </button>
-      </div>
-
-      {/* ── Period Filter ── */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-          {([
-            { key: "dia" as const, label: "Dia" },
-            { key: "semana" as const, label: "Semana" },
-            { key: "mes" as const, label: "Mês" },
-          ]).map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setPeriodo(p.key)}
-              className={cn(
-                "px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
-                periodo === p.key
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              )}
-            >
-              {p.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <CalendarFilter />
+          <button
+            onClick={openAdd}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20"
+          >
+            <Plus className="w-4 h-4" />
+            Registrar Venda
+          </button>
         </div>
-        <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
-          <Sparkles className="w-3 h-3" />
-          Premium
-        </span>
       </div>
 
       {/* ── Revenue Banner ── */}
@@ -411,7 +471,7 @@ export default function VendasPage() {
                 <DollarSign className={cn("w-3.5 h-3.5", precoMedio >= 12.5 ? "text-emerald-600" : "text-amber-600")} />
               </div>
               <p className="text-sm text-gray-700">
-                Preço médio <span className="font-bold text-gray-900">R$ {precoMedio.toFixed(2).replace(".", ",")}</span>/dz {precoMedio < 12.5 && <span className="text-amber-600 font-semibold">— abaixo da meta</span>}
+                Preço médio <span className="font-bold text-gray-900">R$ {precoMedio.toFixed(2).replace(".", ",")}</span>/dz {precoMedio > 0 && precoMedio < 12.5 && <span className="text-amber-600 font-semibold">— abaixo da meta</span>}
               </p>
             </div>
             <div className="flex items-center gap-2.5">
@@ -468,7 +528,7 @@ export default function VendasPage() {
           <div className="flex items-end justify-between">
             <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{volumeTotal.toLocaleString("pt-BR")} dz</p>
             <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full text-emerald-700 bg-emerald-50">
-              <ArrowUpRight className="w-3 h-3" />+8%
+              <ArrowUpRight className="w-3 h-3" />+0%
             </span>
           </div>
           <div className="mt-4 relative">
@@ -496,7 +556,7 @@ export default function VendasPage() {
           <div className="flex items-end justify-between">
             <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{precoMedio > 0 ? `R$ ${precoMedio.toFixed(2).replace(".", ",")}` : "—"}</p>
             <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full text-red-600 bg-red-50">
-              <ArrowDownRight className="w-3 h-3" />-4%
+              <ArrowDownRight className="w-3 h-3" />0%
             </span>
           </div>
           <div className="mt-4 relative">
@@ -524,7 +584,7 @@ export default function VendasPage() {
           <div className="flex items-end justify-between">
             <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{totalVendas}</p>
             <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full text-gray-500 bg-gray-50">
-              {periodoLabel}
+              No período
             </span>
           </div>
           <div className="mt-4 relative">
@@ -551,7 +611,7 @@ export default function VendasPage() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-gray-900">Lucratividade</h3>
-              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Análise de custos e margens — {periodoLabel}</p>
+              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Análise de custos e margens no período</p>
             </div>
           </div>
           <span className={cn("inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full", margem >= 35 ? "text-emerald-700 bg-emerald-50 border border-emerald-200" : margem >= 28 ? "text-amber-700 bg-amber-50 border border-amber-200" : "text-red-600 bg-red-50 border border-red-200")}>
@@ -599,10 +659,10 @@ export default function VendasPage() {
         {/* Stacked bar visual */}
         <div className="mb-5">
           <div className="flex items-center gap-1 h-8 rounded-xl overflow-hidden">
-            <div className="h-full bg-emerald-500 rounded-l-xl transition-all duration-700 flex items-center justify-center" style={{ width: `${margem}%` }}>
-              <span className="text-[10px] font-bold text-white px-1 whitespace-nowrap">Lucro {margem.toFixed(1)}%</span>
+            <div className="h-full bg-emerald-500 rounded-l-xl transition-all duration-700 flex items-center justify-center" style={{ width: `${Math.max(margem, 0)}%` }}>
+              {margem > 0 && <span className="text-[10px] font-bold text-white px-1 whitespace-nowrap">Lucro {margem.toFixed(1)}%</span>}
             </div>
-            <div className="h-full bg-gray-200 rounded-r-xl transition-all duration-700 flex items-center justify-center" style={{ width: `${100 - margem}%` }}>
+            <div className="h-full bg-gray-200 rounded-r-xl transition-all duration-700 flex items-center justify-center" style={{ width: `${Math.max(100 - margem, 0)}%` }}>
               <span className="text-[10px] font-bold text-gray-500 px-1 whitespace-nowrap">Custo {(100 - margem).toFixed(1)}%</span>
             </div>
           </div>
@@ -674,7 +734,7 @@ export default function VendasPage() {
                 className="text-[11px] font-semibold text-gray-600 bg-gray-100 border-none rounded-lg px-2.5 py-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/20 appearance-none pr-6"
                 style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")", backgroundPosition: "right 4px center", backgroundRepeat: "no-repeat", backgroundSize: "16px" }}
               >
-                {availableYears.map((y) => (
+                {[new Date().getFullYear() - 1, new Date().getFullYear()].map((y) => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
@@ -695,6 +755,9 @@ export default function VendasPage() {
                   </div>
                 );
               })}
+              {lucratividade.length === 0 && (
+                <div className="text-center py-4 text-gray-400 text-sm">Sem dados para {anoLucro}</div>
+              )}
             </div>
           </div>
         </div>
@@ -709,7 +772,7 @@ export default function VendasPage() {
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm"><Zap className="w-5 h-5 text-white" /></div>
               <div>
                 <h3 className="text-sm font-bold text-gray-900">Assistente de Granja</h3>
-                <p className="text-[11px] text-gray-400 font-medium">Análise comercial — {periodoLabel}</p>
+                <p className="text-[11px] text-gray-400 font-medium">Análise comercial — Período Selecionado</p>
               </div>
             </div>
             <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
@@ -728,6 +791,9 @@ export default function VendasPage() {
                 <p className={cn("text-xs font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
               </div>
             ))}
+            {insights.length === 0 && (
+              <div className="text-center py-8 text-gray-400 text-sm">Sem insights suficientes no período</div>
+            )}
           </div>
         </div>
 
@@ -837,7 +903,7 @@ export default function VendasPage() {
                   </div>
                   <div className="h-px bg-gray-100 my-1" />
                   <div className={cn("flex items-center justify-between p-2.5 rounded-lg", diff * volumeTotal >= 0 ? "bg-emerald-50/60" : "bg-red-50/60")}>
-                    <span className="text-sm text-gray-700 font-semibold">Impacto na receita mensal</span>
+                    <span className="text-sm text-gray-700 font-semibold">Impacto na receita</span>
                     <span className={cn("text-sm font-black tabular-nums", diff * volumeTotal >= 0 ? "text-emerald-700" : "text-red-600")}>{diff * volumeTotal >= 0 ? "+" : ""}{formatCurrency(diff * volumeTotal)}</span>
                   </div>
                 </div>
@@ -854,7 +920,7 @@ export default function VendasPage() {
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Receita Diária</h3>
-              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Receita × Volume — {periodoLabel}</p>
+              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Receita × Volume — Período Selecionado</p>
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5">
@@ -940,14 +1006,14 @@ export default function VendasPage() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-gray-900">Registros de Vendas</h3>
-              <p className="text-[11px] text-gray-400 font-medium mt-0.5">{filteredVendas.length} vendas — {periodoLabel}</p>
+              <p className="text-[11px] text-gray-400 font-medium mt-0.5">{filteredVendas.length} vendas — Período Selecionado</p>
             </div>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar por cliente, lote..."
+              placeholder="Buscar por cliente, tipo, notas..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all w-full sm:w-64"
@@ -956,76 +1022,88 @@ export default function VendasPage() {
         </div>
 
         <div className="overflow-x-auto mt-4">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-y border-gray-100 bg-gray-50/50">
-                <th className="text-left py-3 px-5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Data</th>
-                <th className="text-left py-3 px-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Cliente</th>
-                <th className="text-left py-3 px-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Lote</th>
-                <th className="text-left py-3 px-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Galpão</th>
-                <th className="text-right py-3 px-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Qtd (dz)</th>
-                <th className="text-right py-3 px-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Preço/dz</th>
-                <th className="text-right py-3 px-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Total</th>
-                <th className="text-right py-3 px-5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredVendas.map((v) => (
-                <tr key={v.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                  <td className="py-3.5 px-5 text-gray-500 font-medium">{formatDate(v.data)}</td>
-                  <td className="py-3.5 px-3 font-semibold text-gray-900">{v.cliente}</td>
-                  <td className="py-3.5 px-3">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-xs font-semibold">{v.lote}</span>
-                  </td>
-                  <td className="py-3.5 px-3 text-gray-500">{v.galpao}</td>
-                  <td className="py-3.5 px-3 text-right font-semibold text-gray-900 tabular-nums">{v.quantidade}</td>
-                  <td className="py-3.5 px-3 text-right text-gray-500 tabular-nums">R$ {v.precoUn.toFixed(2).replace(".", ",")}</td>
-                  <td className="py-3.5 px-3 text-right font-bold text-gray-900 tabular-nums">{formatCurrency(v.total)}</td>
-                  <td className="py-3.5 px-5">
-                    <div className="flex items-center justify-end gap-1">
-                      {deleteConfirm === v.id ? (
-                        <>
-                          <button onClick={() => deleteVenda(v.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Confirmar">
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => setDeleteConfirm(null)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="Cancelar">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => openEdit(v)} className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer" title="Editar">
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => setDeleteConfirm(v.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Excluir">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
+          {loading ? (
+             <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Carregando dados...</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-y border-gray-100 bg-gray-50/50">
+                  <th className="text-left py-3 px-5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Data</th>
+                  <th className="text-left py-3 px-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Cliente</th>
+                  <th className="text-left py-3 px-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Tipo de Ovo</th>
+                  <th className="text-left py-3 px-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Status Pagto.</th>
+                  <th className="text-right py-3 px-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Qtd (dz)</th>
+                  <th className="text-right py-3 px-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Preço/dz</th>
+                  <th className="text-right py-3 px-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Total</th>
+                  <th className="text-right py-3 px-5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Ações</th>
                 </tr>
-              ))}
-              {filteredVendas.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="text-center py-12 text-gray-400">
-                    Nenhuma venda encontrada
-                  </td>
-                </tr>
+              </thead>
+              <tbody>
+                {filteredVendas.map((v) => {
+                  const statusConf = STATUS_CONFIG[v.payment_status] || STATUS_CONFIG.paid;
+                  return (
+                    <tr key={v.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                      <td className="py-3.5 px-5 text-gray-500 font-medium">{formatDate(v.data)}</td>
+                      <td className="py-3.5 px-3 font-semibold text-gray-900">{v.clienteNome}</td>
+                      <td className="py-3.5 px-3">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-xs font-semibold">{v.egg_type}</span>
+                      </td>
+                      <td className="py-3.5 px-3">
+                        <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold", statusConf.bg, statusConf.color)}>
+                          <statusConf.icon className="w-3 h-3" />
+                          {statusConf.label}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-3 text-right font-semibold text-gray-900 tabular-nums">{v.quantidade}</td>
+                      <td className="py-3.5 px-3 text-right text-gray-500 tabular-nums">R$ {v.precoUn.toFixed(2).replace(".", ",")}</td>
+                      <td className="py-3.5 px-3 text-right font-bold text-gray-900 tabular-nums">{formatCurrency(v.total)}</td>
+                      <td className="py-3.5 px-5">
+                        <div className="flex items-center justify-end gap-1">
+                          {deleteConfirm === v.id ? (
+                            <>
+                              <button onClick={() => deleteVenda(v.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Confirmar">
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => setDeleteConfirm(null)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="Cancelar">
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button onClick={() => openEdit(v)} className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer" title="Editar">
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => setDeleteConfirm(v.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Excluir">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {filteredVendas.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="text-center py-12 text-gray-400">
+                      Nenhuma venda encontrada
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              {filteredVendas.length > 0 && (
+                <tfoot>
+                  <tr className="bg-gray-50/80 border-t-2 border-gray-200">
+                    <td className="py-3.5 px-5 text-[11px] font-bold text-gray-400 uppercase tracking-wider" colSpan={4}>Total</td>
+                    <td className="py-3.5 px-3 text-right font-bold text-gray-900 tabular-nums">{filteredVendas.reduce((s, v) => s + v.quantidade, 0).toLocaleString("pt-BR")}</td>
+                    <td className="py-3.5 px-3 text-right text-gray-500 tabular-nums text-xs">média R$ {(filteredVendas.reduce((s, v) => s + v.precoUn, 0) / filteredVendas.length).toFixed(2).replace(".", ",")}</td>
+                    <td className="py-3.5 px-3 text-right font-bold text-emerald-700 tabular-nums">{formatCurrency(filteredVendas.reduce((s, v) => s + v.total, 0))}</td>
+                    <td className="py-3.5 px-5" />
+                  </tr>
+                </tfoot>
               )}
-            </tbody>
-            {filteredVendas.length > 0 && (
-              <tfoot>
-                <tr className="bg-gray-50/80 border-t-2 border-gray-200">
-                  <td className="py-3.5 px-5 text-[11px] font-bold text-gray-400 uppercase tracking-wider" colSpan={4}>Total</td>
-                  <td className="py-3.5 px-3 text-right font-bold text-gray-900 tabular-nums">{filteredVendas.reduce((s, v) => s + v.quantidade, 0).toLocaleString("pt-BR")}</td>
-                  <td className="py-3.5 px-3 text-right text-gray-500 tabular-nums text-xs">média R$ {(filteredVendas.reduce((s, v) => s + v.precoUn, 0) / filteredVendas.length).toFixed(2).replace(".", ",")}</td>
-                  <td className="py-3.5 px-3 text-right font-bold text-emerald-700 tabular-nums">{formatCurrency(filteredVendas.reduce((s, v) => s + v.total, 0))}</td>
-                  <td className="py-3.5 px-5" />
-                </tr>
-              </tfoot>
-            )}
-          </table>
+            </table>
+          )}
         </div>
       </div>
 
@@ -1057,24 +1135,27 @@ export default function VendasPage() {
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Cliente</label>
-                  <select value={form.cliente} onChange={(e) => setForm({ ...form, cliente: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
+                  <select value={form.clienteId} onChange={(e) => setForm({ ...form, clienteId: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
                     <option value="">Selecione...</option>
-                    {clienteOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                    {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Lote</label>
-                  <select value={form.lote} onChange={(e) => setForm({ ...form, lote: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
-                    <option value="">Selecione...</option>
-                    {loteOptions.map((l) => <option key={l} value={l}>{l}</option>)}
+                  <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Tipo de Ovo</label>
+                  <select value={form.egg_type} onChange={(e) => setForm({ ...form, egg_type: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
+                    {EGG_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Galpão</label>
-                  <input type="text" placeholder="Ex: Galpão A1" value={form.galpao} onChange={(e) => setForm({ ...form, galpao: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400" />
+                  <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Status Pagamento</label>
+                  <select value={form.payment_status} onChange={(e) => setForm({ ...form, payment_status: e.target.value as any })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
+                    <option value="paid">Pago</option>
+                    <option value="pending">A Receber</option>
+                    <option value="overdue">Atrasado</option>
+                  </select>
                 </div>
               </div>
 
@@ -1089,6 +1170,11 @@ export default function VendasPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Observações</label>
+                <textarea rows={2} placeholder="Notas adicionais..." value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400 resize-none" />
+              </div>
+
               {form.quantidade && form.precoUn && (
                 <div className="p-3.5 bg-emerald-50 rounded-xl flex items-center justify-between">
                   <span className="text-xs text-emerald-600 font-semibold">Total estimado</span>
@@ -1101,7 +1187,7 @@ export default function VendasPage() {
               <button onClick={() => setModal(null)} className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer">
                 Cancelar
               </button>
-              <button onClick={save} className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition-colors cursor-pointer shadow-sm shadow-brand-600/20">
+              <button onClick={save} disabled={!form.data || !form.clienteId || !form.quantidade || !form.precoUn} className={cn("flex-1 px-4 py-2.5 text-sm font-semibold text-white rounded-xl transition-colors cursor-pointer shadow-sm shadow-brand-600/20", (!form.data || !form.clienteId || !form.quantidade || !form.precoUn) ? "bg-brand-300 cursor-not-allowed" : "bg-brand-600 hover:bg-brand-700")}>
                 {modal === "add" ? "Registrar" : "Salvar"}
               </button>
             </div>
