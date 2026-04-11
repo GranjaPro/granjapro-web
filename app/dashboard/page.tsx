@@ -7,6 +7,7 @@ import {
   Wheat,
   DollarSign,
   AlertTriangle,
+  XCircle,
   ArrowUpRight,
   ArrowDownRight,
   MoreHorizontal,
@@ -49,9 +50,75 @@ import {
 } from "recharts";
 import Link from "next/link";
 import ModalPortal from "@/components/ui/modal-portal";
-import { X, Pencil, Trash2 } from "lucide-react";
+import {
+  X, Pencil, Trash2, Droplets, Eye, ShieldCheck, Thermometer, Bug, Scissors,
+  Scale, Syringe, Hammer, Truck, Sun, Moon, Heart, Star, Flame, Leaf, Bell,
+  Users, ClipboardList, type LucideIcon,
+} from "lucide-react";
 
-/* ── KPI Data ── */
+/* ── Task Icon Map ── */
+type TaskIconKey = "egg" | "wheat" | "droplets" | "eye" | "shield" | "clipboard" | "thermometer" | "bug" | "scissors" | "scale" | "syringe" | "hammer" | "truck" | "sun" | "moon" | "zap" | "heart" | "star" | "flame" | "leaf" | "bell" | "users";
+
+const taskIconMap: Record<TaskIconKey, { icon: LucideIcon; label: string; color: string; bg: string }> = {
+  egg: { icon: Egg, label: "Ovo", color: "text-amber-700", bg: "bg-amber-50" },
+  wheat: { icon: Wheat, label: "Ração", color: "text-orange-700", bg: "bg-orange-50" },
+  droplets: { icon: Droplets, label: "Água", color: "text-blue-700", bg: "bg-blue-50" },
+  eye: { icon: Eye, label: "Inspeção", color: "text-purple-700", bg: "bg-purple-50" },
+  shield: { icon: ShieldCheck, label: "Saúde", color: "text-emerald-700", bg: "bg-emerald-50" },
+  clipboard: { icon: ClipboardList, label: "Geral", color: "text-gray-700", bg: "bg-gray-100" },
+  thermometer: { icon: Thermometer, label: "Temperatura", color: "text-red-700", bg: "bg-red-50" },
+  bug: { icon: Bug, label: "Pragas", color: "text-rose-700", bg: "bg-rose-50" },
+  scissors: { icon: Scissors, label: "Debicagem", color: "text-slate-700", bg: "bg-slate-50" },
+  scale: { icon: Scale, label: "Pesagem", color: "text-indigo-700", bg: "bg-indigo-50" },
+  syringe: { icon: Syringe, label: "Vacina", color: "text-teal-700", bg: "bg-teal-50" },
+  hammer: { icon: Hammer, label: "Manutenção", color: "text-stone-700", bg: "bg-stone-100" },
+  truck: { icon: Truck, label: "Transporte", color: "text-cyan-700", bg: "bg-cyan-50" },
+  sun: { icon: Sun, label: "Manhã", color: "text-yellow-700", bg: "bg-yellow-50" },
+  moon: { icon: Moon, label: "Noite", color: "text-violet-700", bg: "bg-violet-50" },
+  zap: { icon: Zap, label: "Elétrico", color: "text-amber-700", bg: "bg-amber-50" },
+  heart: { icon: Heart, label: "Cuidado", color: "text-pink-700", bg: "bg-pink-50" },
+  star: { icon: Star, label: "Importante", color: "text-yellow-600", bg: "bg-yellow-50" },
+  flame: { icon: Flame, label: "Urgente", color: "text-orange-700", bg: "bg-orange-50" },
+  leaf: { icon: Leaf, label: "Ambiente", color: "text-green-700", bg: "bg-green-50" },
+  bell: { icon: Bell, label: "Lembrete", color: "text-blue-700", bg: "bg-blue-50" },
+  users: { icon: Users, label: "Equipe", color: "text-violet-700", bg: "bg-violet-50" },
+};
+
+const taskCategoryOptions = [
+  { value: "coleta", label: "Coleta" },
+  { value: "alimentacao", label: "Alimentação" },
+  { value: "limpeza", label: "Limpeza" },
+  { value: "inspecao", label: "Inspeção" },
+  { value: "saude", label: "Saúde" },
+  { value: "geral", label: "Geral" },
+];
+
+const taskPriorityOptions = [
+  { value: "alta", label: "Alta" },
+  { value: "media", label: "Média" },
+  { value: "baixa", label: "Baixa" },
+];
+
+const taskRecurrenceOptions = [
+  { value: "diaria", label: "Diária" },
+  { value: "semanal", label: "Semanal" },
+  { value: "mensal", label: "Mensal" },
+  { value: "unica", label: "Única" },
+];
+
+const priorityConfig: Record<string, { label: string; color: string }> = {
+  alta: { label: "Alta", color: "text-red-700 bg-red-50 border-red-200" },
+  media: { label: "Média", color: "text-amber-700 bg-amber-50 border-amber-200" },
+  baixa: { label: "Baixa", color: "text-gray-600 bg-gray-50 border-gray-200" },
+};
+
+const recurrenceLabel: Record<string, string> = {
+  diaria: "Diária",
+  semanal: "Semanal",
+  mensal: "Mensal",
+  unica: "Única",
+};
+
 /* ── Quick Actions ── */
 const quickActions = [
   { label: "Registrar Produção", icon: Egg, href: "/dashboard/production?register=true", color: "bg-brand-500 hover:bg-brand-600" },
@@ -94,7 +161,7 @@ export default function DashboardPage() {
     revenue: 0, expenses: 0, profit: 0, feedCost: 0, laborCost: 0, otherExpenses: 0, revenueGoal: 0,
   });
   const [barnsData, setBarnsData] = useState<{ id: number; name: string; birds: number; layingRate: number; status: "ok" | "warning"; createdAt: string }[]>([]);
-  const [dbTasks, setDbTasks] = useState<{ id: any; title: string; status: "done" | "progress" | "pending"; time: string; date: string }[]>([]);
+  const [dbTasks, setDbTasks] = useState<{ id: any; title: string; status: "done" | "progress" | "pending" | "missed"; time: string; date: string; category: string; priority: string; iconKey: TaskIconKey; recurrence: string }[]>([]);
   const [dbAlerts, setDbAlerts] = useState<{ id: any; type: "danger" | "warning" | "info"; msg: string; time: string; action: string; risk: string; href?: string }[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
@@ -127,14 +194,17 @@ export default function DashboardPage() {
 
     async function fetchDashboardData() {
       try {
-        const [prodRes, feedRes, barnsRes, tasksRes, alertsRes, finRes] = await Promise.all([
+        const [prodRes, feedRes, barnsRes, tasksRes, alertsRes, finRes, flocksRes] = await Promise.all([
           supabase.from("egg_production").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
           supabase.from("feed_consumption").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
           supabase.from("barns").select("*").eq("farm_id", farmId).order("created_at"),
           supabase.from("tasks").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate).order("scheduled_time"),
           supabase.from("alerts").select("*").eq("farm_id", farmId).eq("read", false).order("created_at", { ascending: false }).limit(5),
           supabase.from("financial_transactions").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
+          supabase.from("flocks").select("id, code, breed").eq("farm_id", farmId).order("created_at"),
         ]);
+
+        if (flocksRes.data) setAvailableFlocks(flocksRes.data);
 
         // Update farm info — total birds from barns capacity
         const totalBirdsFromBarns = barnsRes.data?.reduce((s: number, b: any) => s + (b.current_birds ?? 0), 0) ?? 0;
@@ -218,12 +288,17 @@ export default function DashboardPage() {
 
         // Tasks for selected period
         if (tasksRes.data) {
-          setDbTasks(tasksRes.data.map((t) => ({
+          const defaultIcons: TaskIconKey[] = ["egg", "wheat", "droplets", "eye", "shield", "clipboard", "thermometer", "syringe", "scale", "heart"];
+          setDbTasks(tasksRes.data.map((t, idx) => ({
             id: t.id as any,
             title: t.title,
-            status: (t.done ? "done" : "pending") as "done" | "progress" | "pending",
+            status: (t.done ? "done" : "pending") as "done" | "progress" | "pending" | "missed",
             time: t.scheduled_time ?? "",
             date: t.scheduled_date ?? t.date,
+            category: (t as any).category ?? "geral",
+            priority: (t as any).priority ?? (idx % 3 === 0 ? "alta" : idx % 3 === 1 ? "media" : "baixa"),
+            iconKey: ((t as any).icon_key ?? defaultIcons[idx % defaultIcons.length]) as TaskIconKey,
+            recurrence: (t as any).recurrence ?? "diaria",
           })));
         }
 
@@ -448,7 +523,7 @@ export default function DashboardPage() {
   const profitMargin = financialData.revenue > 0
     ? ((financialData.profit / financialData.revenue) * 100).toFixed(1)
     : "0.0";
-  const [taskStatuses, setTaskStatuses] = useState<Record<number | string, "done" | "progress" | "pending">>(
+  const [taskStatuses, setTaskStatuses] = useState<Record<number | string, "done" | "progress" | "pending" | "missed">>(
     Object.fromEntries(dbTasks.map((t) => [t.id, t.status]))
   );
 
@@ -456,6 +531,36 @@ export default function DashboardPage() {
   useEffect(() => {
     setTaskStatuses(Object.fromEntries(dbTasks.map((t) => [t.id, t.status])));
   }, [dbTasks]);
+
+  // Auto-mark overdue tasks as "missed"
+  useEffect(() => {
+    if (dbTasks.length === 0) return;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    setTaskStatuses((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      dbTasks.forEach((t) => {
+        const status = next[t.id] ?? "pending";
+        if (status === "done" || status === "missed") return;
+        // Past date → missed
+        if (t.date < todayStr) {
+          next[t.id] = "missed";
+          changed = true;
+          return;
+        }
+        // Today + time passed by more than 60min → missed
+        if (t.date === todayStr && t.time && t.time !== "--:--") {
+          const [h, m] = t.time.split(":").map(Number);
+          if (h * 60 + m + 60 < currentMinutes) {
+            next[t.id] = "missed";
+            changed = true;
+          }
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [dbTasks, todayStr]);
 
   const [openDropdown, setOpenDropdown] = useState<number | string | null>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
@@ -484,12 +589,21 @@ export default function DashboardPage() {
   }, [openDropdown]);
 
   const completedTasks = Object.values(taskStatuses).filter((s) => s === "done").length;
+  const missedTasksCount = Object.values(taskStatuses).filter((s) => s === "missed").length;
+
+  // Flocks for task association
+  const [availableFlocks, setAvailableFlocks] = useState<{ id: string; code: string; breed: string }[]>([]);
 
   // New task modal state
   const [showNewTask, setShowNewTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskTime, setNewTaskTime] = useState("");
   const [newTaskDate, setNewTaskDate] = useState("");
+  const [newTaskCategory, setNewTaskCategory] = useState("geral");
+  const [newTaskPriority, setNewTaskPriority] = useState("media");
+  const [newTaskRecurrence, setNewTaskRecurrence] = useState("unica");
+  const [newTaskIcon, setNewTaskIcon] = useState("clipboard");
+  const [newTaskFlockId, setNewTaskFlockId] = useState("all");
   const [viewTask, setViewTask] = useState<(typeof dbTasks)[number] | null>(null);
   const [editingTask, setEditingTask] = useState(false);
   const [editTaskTitle, setEditTaskTitle] = useState("");
@@ -498,14 +612,21 @@ export default function DashboardPage() {
 
   const handleAddTask = useCallback(() => {
     if (!newTaskTitle.trim()) return;
+    const flockLabel = newTaskFlockId === "all" ? "Todos os lotes" : availableFlocks.find((f) => f.id === newTaskFlockId)?.code ?? "";
+    const titleWithFlock = flockLabel ? `${newTaskTitle.trim()} — ${flockLabel}` : newTaskTitle.trim();
     const newId = Date.now();
-    setDbTasks((prev) => [...prev, { id: newId, title: newTaskTitle.trim(), status: "pending" as const, time: newTaskTime || "--:--", date: newTaskDate || todayStr }]);
+    setDbTasks((prev) => [...prev, { id: newId, title: titleWithFlock, status: "pending" as const, time: newTaskTime || "--:--", date: newTaskDate || todayStr, category: newTaskCategory, priority: newTaskPriority, iconKey: newTaskIcon as TaskIconKey, recurrence: newTaskRecurrence }]);
     setTaskStatuses((prev) => ({ ...prev, [newId]: "pending" }));
     setNewTaskTitle("");
     setNewTaskTime("");
     setNewTaskDate("");
+    setNewTaskCategory("geral");
+    setNewTaskPriority("media");
+    setNewTaskRecurrence("unica");
+    setNewTaskIcon("clipboard");
+    setNewTaskFlockId("all");
     setShowNewTask(false);
-  }, [newTaskTitle, newTaskTime, newTaskDate]);
+  }, [newTaskTitle, newTaskTime, newTaskDate, newTaskFlockId, availableFlocks]);
 
   const displayName = profile?.full_name?.split(" ")[0] || farmData.producer.split(" ")[0];
   const greeting = (() => {
@@ -991,76 +1112,81 @@ export default function DashboardPage() {
           <div className="space-y-2 overflow-y-auto flex-1 dashboard-scroll pr-1 -mr-1 py-1">
             {dbTasks.map((t) => {
               const status = taskStatuses[t.id] ?? "pending";
-              const isDelayed = status !== "done" && t.date < todayStr;
-              const formatTaskDate = (d: string) => {
-                if (d === todayStr) return "Hoje";
-                if (d === yesterdayStr) return "Ontem";
-                const [y, m, day] = d.split("-");
-                return `${day}/${m}`;
-              };
-              return (
-                <div
-                  key={t.id}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-200",
-                    isDelayed && "bg-red-50/50 border-red-200",
-                    !isDelayed && status === "done" && "bg-emerald-50/50 border-emerald-100",
-                    !isDelayed && status === "progress" && "bg-amber-50/50 border-amber-100",
-                    !isDelayed && status === "pending" && "bg-gray-50/50 border-gray-100"
-                  )}
-                >
-                  {/* Clickable square checkbox */}
-                  <button
-                    onClick={(e) => {
-                      if (openDropdown === t.id) {
-                        setOpenDropdown(null);
-                        setDropdownPos(null);
-                      } else {
-                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        const dropdownHeight = 120;
-                        const spaceBelow = window.innerHeight - rect.bottom;
-                        const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight - 4 : rect.bottom + 4;
-                        setDropdownPos({ top, left: rect.left });
-                        setOpenDropdown(t.id);
-                      }
-                    }}
-                    className="w-[18px] h-[18px] rounded flex items-center justify-center cursor-pointer transition-colors border flex-shrink-0"
-                    style={{
-                      borderColor: isDelayed ? "#ef4444" : status === "done" ? "#10b981" : status === "progress" ? "#f59e0b" : "#d1d5db",
-                      backgroundColor: isDelayed ? "#ef4444" : status === "done" ? "#10b981" : status === "progress" ? "#f59e0b" : "transparent",
-                    }}
-                  >
-                    {status === "done" && <CheckSquare className="w-3.5 h-3.5 text-white" />}
-                    {status === "progress" && !isDelayed && <Minus className="w-3.5 h-3.5 text-white" />}
-                    {isDelayed && <AlertTriangle className="w-3 h-3 text-white" />}
-                  </button>
+              const isMissed = status === "missed";
+              const isDelayed = !isMissed && status !== "done" && t.date < todayStr;
+              const isDone = status === "done";
+              const ico = taskIconMap[t.iconKey] ?? taskIconMap.clipboard;
+              const TaskIcon = ico.icon;
+              const pri = priorityConfig[t.priority] ?? priorityConfig.media;
 
-                  <div
-                    className="flex-1 min-w-0 cursor-pointer"
-                    onClick={() => { setViewTask(t); setEditingTask(false); setEditTaskTitle(t.title); setEditTaskTime(t.time); setEditTaskDate(t.date); }}
-                  >
-                    <span className={cn(
-                      "text-[13px] truncate block",
-                      isDelayed && "text-red-600 font-medium",
-                      !isDelayed && status === "done" && "text-gray-400 line-through",
-                      !isDelayed && status !== "done" && "text-gray-700 font-medium"
-                    )}>
-                      {t.title}
-                    </span>
+              if (isMissed) {
+                return (
+                  <div key={t.id} className="bg-red-50/40 rounded-xl border border-red-100 px-4 py-3 flex items-center gap-3">
+                    <button onClick={(e) => { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); const dh = 120; const sb = window.innerHeight - rect.bottom; setDropdownPos({ top: sb < dh ? rect.top - dh - 4 : rect.bottom + 4, left: rect.left }); setOpenDropdown(openDropdown === t.id ? null : t.id); if (openDropdown === t.id) { setOpenDropdown(null); setDropdownPos(null); } }} className="shrink-0 cursor-pointer">
+                      <XCircle className="w-5 h-5 text-red-400" />
+                    </button>
+                    <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0 opacity-50", ico.bg)}>
+                      <TaskIcon className={cn("w-4 h-4", ico.color)} />
+                    </div>
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => { setViewTask(t); setEditingTask(false); setEditTaskTitle(t.title); setEditTaskTime(t.time); setEditTaskDate(t.date); }}>
+                      <p className="text-[13px] font-medium text-red-800/70 truncate">{t.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[11px] text-red-400 flex items-center gap-1"><Clock className="w-3 h-3" /> {t.time}</span>
+                        <span className="text-[11px] font-medium text-red-500">não realizada</span>
+                      </div>
+                    </div>
+                    <button onClick={() => { setTaskStatuses((prev) => ({ ...prev, [t.id]: "done" })); }} className="shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer">Marcar feita</button>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {isDelayed && (
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-100 text-red-600">
-                        Atrasada
-                      </span>
-                    )}
-                    <span
-                      className={cn("text-[11px] flex-shrink-0 cursor-pointer", isDelayed ? "text-red-400" : "text-gray-400")}
-                      onClick={() => { setViewTask(t); setEditingTask(false); setEditTaskTitle(t.title); setEditTaskTime(t.time); setEditTaskDate(t.date); }}
-                    >
-                      {formatTaskDate(t.date)} · {t.time}
-                    </span>
+                );
+              }
+
+              if (isDone) {
+                return (
+                  <div key={t.id} className="bg-gray-50/50 rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3 opacity-70">
+                    <button onClick={(e) => { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); const dh = 120; const sb = window.innerHeight - rect.bottom; setDropdownPos({ top: sb < dh ? rect.top - dh - 4 : rect.bottom + 4, left: rect.left }); setOpenDropdown(openDropdown === t.id ? null : t.id); if (openDropdown === t.id) { setOpenDropdown(null); setDropdownPos(null); } }} className="shrink-0 cursor-pointer">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                    </button>
+                    <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", ico.bg)}>
+                      <TaskIcon className={cn("w-4 h-4", ico.color)} />
+                    </div>
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => { setViewTask(t); setEditingTask(false); setEditTaskTitle(t.title); setEditTaskTime(t.time); setEditTaskDate(t.date); }}>
+                      <p className="text-[13px] font-medium text-gray-500 line-through truncate">{t.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[11px] text-gray-400 flex items-center gap-1"><Clock className="w-3 h-3" /> {t.time}</span>
+                        <span className="text-[11px] text-gray-400">· {recurrenceLabel[t.recurrence] ?? t.recurrence}</span>
+                      </div>
+                    </div>
+                    <button onClick={() => { setDbTasks((prev) => prev.filter((task) => task.id !== t.id)); }} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
+                      <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
+                    </button>
                   </div>
+                );
+              }
+
+              // pending / progress / delayed
+              return (
+                <div key={t.id} className={cn("bg-white rounded-xl border px-4 py-3 flex items-center gap-3 hover:shadow-sm transition-shadow", isDelayed ? "border-red-200 bg-red-50/30" : "border-gray-100")}>
+                  <button onClick={(e) => { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); const dh = 120; const sb = window.innerHeight - rect.bottom; setDropdownPos({ top: sb < dh ? rect.top - dh - 4 : rect.bottom + 4, left: rect.left }); setOpenDropdown(openDropdown === t.id ? null : t.id); if (openDropdown === t.id) { setOpenDropdown(null); setDropdownPos(null); } }} className="shrink-0 cursor-pointer">
+                    {isDelayed ? <AlertTriangle className="w-5 h-5 text-red-400" /> : status === "progress" ? <Clock className="w-5 h-5 text-amber-500" /> : <Circle className="w-5 h-5 text-gray-300 hover:text-brand-500 transition-colors" />}
+                  </button>
+                  <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", ico.bg)}>
+                    <TaskIcon className={cn("w-4 h-4", ico.color)} />
+                  </div>
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => { setViewTask(t); setEditingTask(false); setEditTaskTitle(t.title); setEditTaskTime(t.time); setEditTaskDate(t.date); }}>
+                    <p className={cn("text-[13px] font-semibold truncate", isDelayed ? "text-red-600" : "text-gray-900")}>{t.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={cn("text-[11px] flex items-center gap-1", isDelayed ? "text-red-400" : "text-gray-400")}><Clock className="w-3 h-3" /> {t.time}</span>
+                      <span className="text-[11px] text-gray-400">· {recurrenceLabel[t.recurrence] ?? t.recurrence}</span>
+                      {isDelayed && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-100 text-red-600">Atrasada</span>}
+                    </div>
+                  </div>
+                  <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold", pri.color)}>{pri.label}</span>
+                  <button onClick={() => { setViewTask(t); setEditingTask(true); setEditTaskTitle(t.title); setEditTaskTime(t.time); setEditTaskDate(t.date); }} className="shrink-0 p-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer">
+                    <Pencil className="w-3.5 h-3.5 text-gray-400 hover:text-blue-500" />
+                  </button>
+                  <button onClick={() => { setDbTasks((prev) => prev.filter((task) => task.id !== t.id)); }} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
+                    <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
+                  </button>
                 </div>
               );
             })}
@@ -1080,6 +1206,7 @@ export default function DashboardPage() {
               { value: "done" as const, label: "Concluído", icon: CheckSquare, color: "text-emerald-600", bg: "hover:bg-emerald-50" },
               { value: "progress" as const, label: "Em Andamento", icon: Clock, color: "text-amber-600", bg: "hover:bg-amber-50" },
               { value: "pending" as const, label: "Pendente", icon: Square, color: "text-gray-400", bg: "hover:bg-gray-50" },
+              { value: "missed" as const, label: "Não realizada", icon: XCircle, color: "text-red-500", bg: "hover:bg-red-50" },
             ].map((opt) => {
               const currentStatus = taskStatuses[openDropdown] ?? "pending";
               return (
@@ -1113,57 +1240,102 @@ export default function DashboardPage() {
         <ModalPortal>
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowNewTask(false)} />
-            <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-gray-900">Nova Tarefa</h3>
-                <button onClick={() => setShowNewTask(false)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer">
+            <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between p-5 border-b border-gray-100">
+                <h3 className="text-base font-bold text-gray-900">Nova Tarefa</h3>
+                <button onClick={() => setShowNewTask(false)} className="p-1 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
                   <X className="w-4 h-4 text-gray-500" />
                 </button>
               </div>
-              <div className="space-y-4">
+              <div className="p-5 space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Título</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Título</label>
                   <input
                     type="text"
                     value={newTaskTitle}
                     onChange={(e) => setNewTaskTitle(e.target.value)}
                     placeholder="Ex: Coletar ovos — Galpão A1"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 placeholder-gray-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
                     autoFocus
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Data</label>
-                    <input
-                      type="date"
-                      value={newTaskDate}
-                      onChange={(e) => setNewTaskDate(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-                    />
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Categoria</label>
+                    <select value={newTaskCategory} onChange={(e) => setNewTaskCategory(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none">
+                      {taskCategoryOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                    </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Horário</label>
-                    <input
-                      type="time"
-                      value={newTaskTime}
-                      onChange={(e) => setNewTaskTime(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-                    />
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Prioridade</label>
+                    <select value={newTaskPriority} onChange={(e) => setNewTaskPriority(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none">
+                      {taskPriorityOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Horário</label>
+                    <input type="time" value={newTaskTime} onChange={(e) => setNewTaskTime(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Recorrência</label>
+                    <select value={newTaskRecurrence} onChange={(e) => setNewTaskRecurrence(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none">
+                      {taskRecurrenceOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Data</label>
+                    <input type="date" value={newTaskDate} onChange={(e) => setNewTaskDate(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Lote</label>
+                    <select value={newTaskFlockId} onChange={(e) => setNewTaskFlockId(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none">
+                      <option value="all">Todos os lotes</option>
+                      {availableFlocks.map((f) => (<option key={f.id} value={f.id}>{f.code} — {f.breed}</option>))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-2">Ícone</label>
+                  <div className="grid grid-cols-7 gap-1.5 max-h-40 overflow-y-auto rounded-xl border border-gray-200 p-2">
+                    {(Object.entries(taskIconMap) as [TaskIconKey, typeof taskIconMap.egg][]).map(([key, cfg]) => {
+                      const IconOption = cfg.icon;
+                      const isSelected = newTaskIcon === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setNewTaskIcon(key)}
+                          title={cfg.label}
+                          className={cn(
+                            "flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors cursor-pointer",
+                            isSelected ? "bg-brand-100 ring-2 ring-brand-500" : "hover:bg-gray-100",
+                          )}
+                        >
+                          <div className={cn("w-7 h-7 rounded-md flex items-center justify-center", cfg.bg)}>
+                            <IconOption className={cn("w-3.5 h-3.5", cfg.color)} />
+                          </div>
+                          <span className="text-[9px] text-gray-500 truncate w-full text-center">{cfg.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3 mt-6">
+              <div className="flex gap-3 p-5 border-t border-gray-100">
                 <button
                   onClick={() => setShowNewTask(false)}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                  className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleAddTask}
                   disabled={!newTaskTitle.trim()}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                  className="flex-1 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
                 >
                   Adicionar
                 </button>
@@ -1186,90 +1358,109 @@ export default function DashboardPage() {
                 </button>
               </div>
 
-              {editingTask ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Título</label>
-                    <input
-                      type="text"
-                      value={editTaskTitle}
-                      onChange={(e) => setEditTaskTitle(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Data</label>
-                      <input
-                        type="date"
-                        value={editTaskDate}
-                        onChange={(e) => setEditTaskDate(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Horário</label>
-                      <input
-                        type="time"
-                        value={editTaskTime}
-                        onChange={(e) => setEditTaskTime(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
-                    <div className="flex gap-2">
-                      {[
-                        { value: "done" as const, label: "Concluído", color: "bg-emerald-500" },
-                        { value: "progress" as const, label: "Em Andamento", color: "bg-amber-500" },
-                        { value: "pending" as const, label: "Pendente", color: "bg-gray-400" },
-                      ].map((s) => (
-                        <button
-                          key={s.value}
-                          onClick={() => setTaskStatuses((prev) => ({ ...prev, [viewTask.id]: s.value }))}
-                          className={cn(
-                            "flex-1 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border",
-                            taskStatuses[viewTask.id] === s.value
-                              ? `${s.color} text-white border-transparent`
-                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                          )}
-                        >
-                          {s.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 mt-2">
-                    <button
-                      onClick={() => setEditingTask(false)}
-                      className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={() => {
-                        setDbTasks((prev) => prev.map((task) => task.id === viewTask.id ? { ...task, title: editTaskTitle.trim() || task.title, time: editTaskTime || task.time, date: editTaskDate || task.date } : task));
-                        setViewTask({ ...viewTask, title: editTaskTitle.trim() || viewTask.title, time: editTaskTime || viewTask.time, date: editTaskDate || viewTask.date });
-                        setEditingTask(false);
-                      }}
-                      className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors cursor-pointer shadow-sm"
-                    >
-                      Salvar
-                    </button>
-                  </div>
-                </div>
-              ) : (() => {
-                const viewDelayed = taskStatuses[viewTask.id] !== "done" && viewTask.date < todayStr;
+              {(() => {
+                const vIco = taskIconMap[viewTask.iconKey] ?? taskIconMap.clipboard;
+                const VIcon = vIco.icon;
+                const vPri = priorityConfig[viewTask.priority] ?? priorityConfig.media;
+                const viewMissed = taskStatuses[viewTask.id] === "missed";
+                const viewDelayed = !viewMissed && taskStatuses[viewTask.id] !== "done" && viewTask.date < todayStr;
+                const viewDone = taskStatuses[viewTask.id] === "done";
                 const formatDetailDate = (d: string) => {
                   if (d === todayStr) return "Hoje";
                   if (d === yesterdayStr) return "Ontem";
                   const [y, m, day] = d.split("-");
                   return `${day}/${m}/${y}`;
                 };
+                const catLabel = taskCategoryOptions.find((c) => c.value === viewTask.category)?.label ?? viewTask.category;
+
+                if (editingTask) {
+                  return (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Título</label>
+                        <input type="text" value={editTaskTitle} onChange={(e) => setEditTaskTitle(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all" autoFocus />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Categoria</label>
+                          <select value={viewTask.category} onChange={(e) => setViewTask({ ...viewTask, category: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all">
+                            {taskCategoryOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Prioridade</label>
+                          <select value={viewTask.priority} onChange={(e) => setViewTask({ ...viewTask, priority: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all">
+                            {taskPriorityOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Data</label>
+                          <input type="date" value={editTaskDate} onChange={(e) => setEditTaskDate(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Horário</label>
+                          <input type="time" value={editTaskTime} onChange={(e) => setEditTaskTime(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Recorrência</label>
+                          <select value={viewTask.recurrence} onChange={(e) => setViewTask({ ...viewTask, recurrence: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all">
+                            {taskRecurrenceOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Ícone</label>
+                        <div className="grid grid-cols-8 gap-1.5">
+                          {(Object.entries(taskIconMap) as [TaskIconKey, typeof taskIconMap.egg][]).map(([key, cfg]) => {
+                            const I = cfg.icon;
+                            return (
+                              <button key={key} onClick={() => setViewTask({ ...viewTask, iconKey: key })} className={cn("w-9 h-9 rounded-lg flex items-center justify-center transition-all cursor-pointer border-2", viewTask.iconKey === key ? "border-brand-500 shadow-sm scale-110" : "border-transparent hover:bg-gray-100", cfg.bg)}>
+                                <I className={cn("w-4 h-4", cfg.color)} />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
+                        <div className="flex gap-2">
+                          {[
+                            { value: "done" as const, label: "Concluído", color: "bg-emerald-500" },
+                            { value: "progress" as const, label: "Em Andamento", color: "bg-amber-500" },
+                            { value: "pending" as const, label: "Pendente", color: "bg-gray-400" },
+                            { value: "missed" as const, label: "Não realizada", color: "bg-red-500" },
+                          ].map((s) => (
+                            <button key={s.value} onClick={() => setTaskStatuses((prev) => ({ ...prev, [viewTask.id]: s.value }))} className={cn("flex-1 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border", taskStatuses[viewTask.id] === s.value ? `${s.color} text-white border-transparent` : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50")}>
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 mt-2">
+                        <button onClick={() => setEditingTask(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">Cancelar</button>
+                        <button
+                          onClick={() => {
+                            setDbTasks((prev) => prev.map((task) => task.id === viewTask.id ? { ...task, title: editTaskTitle.trim() || task.title, time: editTaskTime || task.time, date: editTaskDate || task.date, category: viewTask.category, priority: viewTask.priority, iconKey: viewTask.iconKey, recurrence: viewTask.recurrence } : task));
+                            setViewTask({ ...viewTask, title: editTaskTitle.trim() || viewTask.title, time: editTaskTime || viewTask.time, date: editTaskDate || viewTask.date });
+                            setEditingTask(false);
+                          }}
+                          className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors cursor-pointer shadow-sm"
+                        >Salvar</button>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                 <div className="space-y-4">
+                  {viewMissed && (
+                    <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200">
+                      <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                      <span className="text-xs font-semibold text-red-600">Tarefa não realizada — marcada automaticamente como não concluída</span>
+                    </div>
+                  )}
                   {viewDelayed && (
                     <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200">
                       <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
@@ -1277,48 +1468,54 @@ export default function DashboardPage() {
                     </div>
                   )}
 
+                  {/* Task header with icon */}
                   <div className="flex items-center gap-3 p-4 rounded-xl bg-gray-50 border border-gray-100">
-                    <div
-                      className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
-                      style={{
-                        borderWidth: 2,
-                        borderColor: viewDelayed ? "#ef4444" : taskStatuses[viewTask.id] === "done" ? "#10b981" : taskStatuses[viewTask.id] === "progress" ? "#f59e0b" : "#d1d5db",
-                        backgroundColor: viewDelayed ? "#ef4444" : taskStatuses[viewTask.id] === "done" ? "#10b981" : taskStatuses[viewTask.id] === "progress" ? "#f59e0b" : "transparent",
-                      }}
-                    >
-                      {taskStatuses[viewTask.id] === "done" && <CheckSquare className="w-3.5 h-3.5 text-white" />}
-                      {taskStatuses[viewTask.id] === "progress" && !viewDelayed && <Minus className="w-3.5 h-3.5 text-white" />}
-                      {viewDelayed && <AlertTriangle className="w-3 h-3 text-white" />}
+                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", viewMissed ? "opacity-50" : "", vIco.bg)}>
+                      <VIcon className={cn("w-5 h-5", vIco.color)} />
                     </div>
-                    <span className={cn(
-                      "text-sm font-medium",
-                      viewDelayed && "text-red-600",
-                      !viewDelayed && taskStatuses[viewTask.id] === "done" && "text-gray-400 line-through",
-                      !viewDelayed && taskStatuses[viewTask.id] !== "done" && "text-gray-800"
-                    )}>
-                      {viewTask.title}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        "text-sm font-semibold truncate",
+                        viewMissed && "text-red-600/70",
+                        viewDelayed && !viewMissed && "text-red-600",
+                        viewDone && !viewDelayed && !viewMissed && "text-gray-400 line-through",
+                        !viewDone && !viewDelayed && !viewMissed && "text-gray-900"
+                      )}>{viewTask.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[11px] text-gray-400 flex items-center gap-1"><Clock className="w-3 h-3" /> {viewTask.time}</span>
+                        <span className="text-[11px] text-gray-400">· {recurrenceLabel[viewTask.recurrence] ?? viewTask.recurrence}</span>
+                      </div>
+                    </div>
+                    <span className={cn("shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold", vPri.color)}>{vPri.label}</span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
+                  {/* Info grid */}
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
                       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Data</p>
                       <p className={cn("text-sm font-bold", viewDelayed ? "text-red-600" : "text-gray-800")}>{formatDetailDate(viewTask.date)}</p>
                     </div>
                     <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Horário</p>
-                      <p className="text-sm font-bold text-gray-800">{viewTask.time}</p>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Categoria</p>
+                      <p className="text-sm font-bold text-gray-800">{catLabel}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Recorrência</p>
+                      <p className="text-sm font-bold text-gray-800">{recurrenceLabel[viewTask.recurrence] ?? viewTask.recurrence}</p>
                     </div>
                     <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
                       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Status</p>
                       <span className={cn(
                         "inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-lg",
-                        viewDelayed && "bg-red-50 text-red-600",
-                        !viewDelayed && taskStatuses[viewTask.id] === "done" && "bg-emerald-50 text-emerald-600",
-                        !viewDelayed && taskStatuses[viewTask.id] === "progress" && "bg-amber-50 text-amber-600",
-                        !viewDelayed && taskStatuses[viewTask.id] === "pending" && "bg-gray-100 text-gray-500",
+                        viewMissed && "bg-red-50 text-red-600",
+                        viewDelayed && !viewMissed && "bg-red-50 text-red-600",
+                        viewDone && !viewDelayed && !viewMissed && "bg-emerald-50 text-emerald-600",
+                        !viewDone && !viewDelayed && !viewMissed && taskStatuses[viewTask.id] === "progress" && "bg-amber-50 text-amber-600",
+                        !viewDone && !viewDelayed && !viewMissed && taskStatuses[viewTask.id] === "pending" && "bg-gray-100 text-gray-500",
                       )}>
-                        {viewDelayed ? "Atrasada" : taskStatuses[viewTask.id] === "done" ? "Concluído" : taskStatuses[viewTask.id] === "progress" ? "Em Andamento" : "Pendente"}
+                        {viewMissed ? "Não realizada" : viewDelayed ? "Atrasada" : viewDone ? "Concluído" : taskStatuses[viewTask.id] === "progress" ? "Em Andamento" : "Pendente"}
                       </span>
                     </div>
                   </div>

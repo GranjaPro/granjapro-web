@@ -649,24 +649,24 @@ export default function ProducaoPage() {
       {/* AI Insights + Trend Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Assistente de Granja */}
-        {insights.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm">
-                  <Zap className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900">Assistente de Granja</h3>
-                  <p className="text-[11px] text-gray-400 font-medium">Baseado nos dados do período</p>
-                </div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm">
+                <Zap className="w-5 h-5 text-white" />
               </div>
-              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
-                <Sparkles className="w-3 h-3" />
-                Premium
-              </span>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Assistente de Granja</h3>
+                <p className="text-[11px] text-gray-400 font-medium">Baseado nos dados do período</p>
+              </div>
             </div>
-            <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
+            <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
+              <Sparkles className="w-3 h-3" />
+              Premium
+            </span>
+          </div>
+          {insights.length > 0 ? (
+            <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
               {insights.map((ins, i) => (
                 <div key={i} className={cn(
                   "p-3.5 rounded-xl border-l-[3px]",
@@ -696,8 +696,16 @@ export default function ProducaoPage() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
+              <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
+                <Lightbulb className="w-6 h-6 text-gray-300" />
+              </div>
+              <p className="text-sm font-semibold text-gray-400">Nenhuma informação disponível</p>
+              <p className="text-xs text-gray-300 mt-1 max-w-[220px]">Registre dados de produção para receber recomendações personalizadas do assistente.</p>
+            </div>
+          )}
+        </div>
 
         {/* Financial Production Metrics */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5">

@@ -72,7 +72,7 @@ interface Barn {
   name: string;
 }
 
-const causaOptions = ["Natural", "Doença", "Respiratório", "Predadores", "Estresse", "Desconhecido"];
+const causaOptions = ["Natural", "Doença", "Respiratório", "Predadores", "Estresse", "Desconhecido", "Outros"];
 
 const causaColor: Record<string, { badge: string }> = {
   "Natural": { badge: "bg-gray-100 text-gray-600" },
@@ -81,6 +81,7 @@ const causaColor: Record<string, { badge: string }> = {
   "Predadores": { badge: "bg-amber-50 text-amber-700" },
   "Estresse": { badge: "bg-violet-50 text-violet-600" },
   "Desconhecido": { badge: "bg-gray-100 text-gray-500" },
+  "Outros": { badge: "bg-slate-100 text-slate-600" },
 };
 
 const causaHexColors: Record<string, string> = {
@@ -89,7 +90,8 @@ const causaHexColors: Record<string, string> = {
   "Respiratório": "#f97316",
   "Predadores": "#f59e0b",
   "Estresse": "#a78bfa",
-  "Desconhecido": "#cbd5e1"
+  "Desconhecido": "#cbd5e1",
+  "Outros": "#64748b"
 };
 
 export default function MortalidadePage() {
@@ -857,20 +859,6 @@ export default function MortalidadePage() {
                     ))}
                   </select>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Galpão (Opcional)</label>
-                <select
-                  value={form.galpaoId}
-                  onChange={(e) => setForm({ ...form, galpaoId: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all bg-white cursor-pointer"
-                >
-                  <option value="">Selecione...</option>
-                  {barns.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
               </div>
 
               <div>

@@ -222,7 +222,7 @@ export default function DetalhesLotePage() {
     },
     {
       label: "Operacional",
-      href: `/dashboard/flocks/detalhes/${loteId}/producao`,
+      href: `/dashboard/flocks/detalhes/${loteId}/operacional`,
       icon: Users,
       iconBg: "bg-violet-50",
       iconColor: "text-violet-600",

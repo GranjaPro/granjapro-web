@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
@@ -147,6 +147,18 @@ function buildWaterMetrics(lote: Lote) {
       : "text-red-700 bg-red-50 border-red-200";
   const score = status === "Saudável" ? 92 : status === "Atenção" ? 79 : 64;
   const litersPer100Birds = Number(((mlPerBird * 100) / 1000).toFixed(1));
+  const stageEggRate: Record<ProductionStage, number> = {
+    cria: 0,
+    recria: 0,
+    "pre-postura": 0.18,
+    producao: 0.82,
+    pico: 0.93,
+    estavel: 0.88,
+    declinio: 0.73,
+    descarte: 0.42,
+  };
+  const eggsPerDay = Math.round(lote.bird_count * stageEggRate[stage]);
+  const litersPerEgg = eggsPerDay > 0 ? Number((litersPerDay / eggsPerDay).toFixed(3)) : null;
   const monthlyEstimate = Math.round(litersPerDay * 30);
 
   const dailyFactors = [0.97, 1.01, 0.99, 1.02, 1.03, 0.98, 1];
@@ -190,6 +202,9 @@ function buildWaterMetrics(lote: Lote) {
     targetLitersPerDay,
     monthlyEstimate,
     litersPer100Birds,
+    eggsPerDay,
+    litersPerEgg,
+    variationPercent,
     weeklyDelta,
     trend,
     status,
@@ -384,6 +399,103 @@ export default function AguaLotePage() {
     });
   }, [lote?.bird_count, metrics, waterHistoryRange]);
 
+  const waterKpis = useMemo(() => {
+    if (!metrics || !lote) return [];
+
+    const targetMlPerBird = Number(((metrics.targetLitersPerDay * 1000) / lote.bird_count).toFixed(1));
+    const litersPerEggTarget =
+      metrics.eggsPerDay > 0 ? Number((metrics.targetLitersPerDay / metrics.eggsPerDay).toFixed(3)) : null;
+    const weeklyBaseline = Math.max(metrics.targetLitersPerDay * 0.08, 0.1);
+    const markerPercent = 75;
+
+    const buildMetaBar = (performancePercent: number | null) => {
+      if (performancePercent === null || !Number.isFinite(performancePercent)) {
+        return {
+          progress: 0,
+          progressColor: "bg-gray-300",
+          statusText: "Sem meta",
+        };
+      }
+
+      const safePercent = Math.max(0, Math.min(performancePercent, 200));
+      const diff = safePercent - 100;
+
+      return {
+        progress: Math.min((safePercent / 100) * markerPercent, 100),
+        progressColor:
+          safePercent < 100 ? (safePercent >= 90 ? "bg-amber-500" : "bg-red-500") : "bg-emerald-500",
+        statusText:
+          Math.abs(diff) < 1
+            ? "Dentro"
+            : diff < 0
+              ? `Abaixo em ${Math.round(Math.abs(diff))}%`
+              : `Acima em ${Math.round(diff)}%`,
+      };
+    };
+
+    const dailyMeta = buildMetaBar(
+      metrics.targetLitersPerDay > 0 ? (metrics.litersPerDay / metrics.targetLitersPerDay) * 100 : null,
+    );
+    const perBirdMeta = buildMetaBar(
+      targetMlPerBird > 0 ? (metrics.mlPerBird / targetMlPerBird) * 100 : null,
+    );
+    const weeklyMeta = buildMetaBar(
+      Math.abs(metrics.weeklyDelta) < 0.0001 ? 200 : (weeklyBaseline / Math.abs(metrics.weeklyDelta)) * 100,
+    );
+    const perEggMeta = buildMetaBar(
+      metrics.litersPerEgg !== null && litersPerEggTarget ? (litersPerEggTarget / metrics.litersPerEgg) * 100 : null,
+    );
+
+    return [
+      {
+        label: "Consumo Diário",
+        value: `${formatDecimal(metrics.litersPerDay)} L`,
+        helper: `${lote.bird_count.toLocaleString("pt-BR")} aves ativas`,
+        targetLabel: `Meta: ${formatDecimal(metrics.targetLitersPerDay)} L`,
+        progress: dailyMeta.progress,
+        progressColor: dailyMeta.progressColor,
+        statusText: dailyMeta.statusText,
+      },
+      {
+        label: "Consumo diário / ave",
+        value: `${metrics.mlPerBird} ml`,
+        helper: `Idade atual: ${metrics.ageWeeks} semanas`,
+        targetLabel: `Meta: ${formatDecimal(targetMlPerBird, 0)} ml`,
+        progress: perBirdMeta.progress,
+        progressColor: perBirdMeta.progressColor,
+        statusText: perBirdMeta.statusText,
+      },
+      {
+        label: "Variação Semanal",
+        value: `${metrics.weeklyDelta >= 0 ? "+" : ""}${formatDecimal(metrics.weeklyDelta)} L`,
+        helper:
+          metrics.trend === "up"
+            ? "Acima da semana anterior"
+            : metrics.trend === "down"
+              ? "Abaixo da semana anterior"
+              : "Sem variação relevante",
+        helperSecondary: `${metrics.variationPercent >= 0 ? "+" : ""}${formatDecimal(metrics.variationPercent, 1)}%`,
+        targetLabel: "",
+        progress: weeklyMeta.progress,
+        progressColor: weeklyMeta.progressColor,
+        statusText: weeklyMeta.statusText,
+        hideMetaBar: true,
+      },
+      {
+        label: "Litros de água consumidos / ovo",
+        value: metrics.litersPerEgg !== null ? `${formatDecimal(metrics.litersPerEgg, 2)} L` : "—",
+        helper:
+          metrics.eggsPerDay > 0
+            ? `${metrics.eggsPerDay.toLocaleString("pt-BR")} ovos/dia estimados`
+            : "Sem postura estimada no lote",
+        targetLabel: litersPerEggTarget ? `Meta: ${formatDecimal(litersPerEggTarget, 2)} L` : "Meta indisponível",
+        progress: perEggMeta.progress,
+        progressColor: perEggMeta.progressColor,
+        statusText: perEggMeta.statusText,
+      },
+    ];
+  }, [lote, metrics]);
+
   if (loading || authLoading) {
     return (
       <div className="space-y-6">
@@ -428,21 +540,12 @@ export default function AguaLotePage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-                Consumo de Água — {lote.code}
+                Consumo de Água - {lote.code}
               </h1>
               <p className="text-sm text-gray-500 mt-0.5">
                 Indicadores hídricos e histórico operacional do lote
               </p>
             </div>
-          </div>
-          <div
-            className={cn(
-              "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold",
-              metrics.statusColor,
-            )}
-          >
-            <span>{metrics.score}</span>
-            <span>{metrics.status}</span>
           </div>
         </div>
       </div>
@@ -563,39 +666,85 @@ export default function AguaLotePage() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          {
-            label: "Consumo Diário",
-            value: `${formatDecimal(metrics.litersPerDay)} L`,
-            helper: `${lote.bird_count.toLocaleString("pt-BR")} aves ativas`,
-          },
-          {
-            label: "Consumo/Ave/Dia",
-            value: `${metrics.mlPerBird} ml`,
-            helper: `Idade atual: ${metrics.ageWeeks} semanas`,
-          },
-          {
-            label: "Variação Semanal",
-            value: `${metrics.weeklyDelta >= 0 ? "+" : ""}${formatDecimal(metrics.weeklyDelta)} L`,
-            helper:
-              metrics.trend === "up"
-                ? "Acima da semana anterior"
-                : metrics.trend === "down"
-                ? "Abaixo da semana anterior"
-                : "Sem variação relevante",
-          },
-          {
-            label: "Índice Hídrico",
-            value: `${formatDecimal(metrics.litersPer100Birds)} L`,
-            helper: "Por 100 aves/dia",
-          },
-        ].map((kpi) => (
-          <div key={kpi.label} className="bg-white rounded-2xl border border-gray-100 p-5">
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{kpi.label}</p>
-            <p className="text-2xl font-bold text-gray-900 tracking-tight mt-2">{kpi.value}</p>
-            <p className="text-xs text-gray-500 mt-2">{kpi.helper}</p>
-          </div>
-        ))}
+        {waterKpis.map((kpi) => {
+          const isTrendCard = ("hideMetaBar" in kpi && kpi.hideMetaBar) && ("helperSecondary" in kpi && !!kpi.helperSecondary);
+          const isNegativeTrend = String(kpi.value).trim().startsWith("-");
+          const trendTone = isNegativeTrend
+            ? {
+                iconWrap: "bg-amber-50 text-amber-600",
+                badge: "bg-amber-100 text-amber-700 border border-amber-200",
+                caption: "text-amber-700",
+              }
+            : {
+                iconWrap: "bg-emerald-50 text-emerald-600",
+                badge: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+                caption: "text-emerald-700",
+              };
+
+          return (
+            <div key={kpi.label} className="bg-white rounded-2xl border border-gray-100 p-5">
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{kpi.label}</p>
+              <p className="text-2xl font-bold text-gray-900 tracking-tight mt-2">{kpi.value}</p>
+              {isTrendCard ? (
+                <div className="mt-3 rounded-xl border border-gray-100 bg-gradient-to-br from-gray-50 to-white px-3 py-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", trendTone.iconWrap)}>
+                      {isNegativeTrend ? <ArrowDownRight className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-gray-600">{kpi.helper}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold", trendTone.badge)}>
+                          {kpi.helperSecondary}
+                        </span>
+                        <span className={cn("text-[11px] font-medium", trendTone.caption)}>
+                          vs. semana anterior
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-gray-500 mt-2">{kpi.helper}</p>
+                  {"helperSecondary" in kpi && kpi.helperSecondary ? (
+                    <p className="text-[11px] font-semibold text-gray-500 mt-1">{kpi.helperSecondary}</p>
+                  ) : null}
+                </>
+              )}
+              {!("hideMetaBar" in kpi) || !kpi.hideMetaBar ? (
+                <>
+                  <div className="relative mt-2.5">
+                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={cn("h-full rounded-full transition-all duration-700", kpi.progressColor)}
+                        style={{ width: `${kpi.progress}%` }}
+                      />
+                    </div>
+                    <div
+                      className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full"
+                      style={{ left: "75%" }}
+                      title={kpi.targetLabel}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between mt-2 gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {kpi.targetLabel ? (
+                        <>
+                          <div className="w-1.5 h-1.5 rounded-full bg-gray-900 flex-shrink-0" />
+                          <span className="text-[10px] text-gray-500 font-medium truncate">{kpi.targetLabel}</span>
+                        </>
+                      ) : (
+                        <span />
+                      )}
+                    </div>
+                    <span className="text-[10px] font-semibold text-gray-600 flex-shrink-0">{kpi.statusText}</span>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -753,3 +902,5 @@ export default function AguaLotePage() {
     </div>
   );
 }
+
+
