@@ -19,6 +19,13 @@ interface DateFilterState {
 
 const DateFilterContext = createContext<DateFilterState | null>(null);
 
+function toLocalDateString(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function DateFilterProvider({ children }: { children: ReactNode }) {
   const [filterMode, setFilterMode] = useState<FilterMode>("dia");
   const [rangeStart, setRangeStart] = useState<Date | null>(new Date());
@@ -30,22 +37,22 @@ export function DateFilterProvider({ children }: { children: ReactNode }) {
     let endDate: string;
 
     if (filterMode === "dia" && rangeStart) {
-      startDate = rangeStart.toISOString().split("T")[0];
+      startDate = toLocalDateString(rangeStart);
       endDate = startDate;
     } else if (filterMode === "intervalo" && rangeStart && rangeEnd) {
-      startDate = rangeStart.toISOString().split("T")[0];
-      endDate = rangeEnd.toISOString().split("T")[0];
+      startDate = toLocalDateString(rangeStart);
+      endDate = toLocalDateString(rangeEnd);
     } else if (filterMode === "mes") {
       const year = selectedDate.getFullYear();
       const month = selectedDate.getMonth();
-      startDate = new Date(year, month, 1).toISOString().split("T")[0];
-      endDate = new Date(year, month + 1, 0).toISOString().split("T")[0];
+      startDate = toLocalDateString(new Date(year, month, 1));
+      endDate = toLocalDateString(new Date(year, month + 1, 0));
     } else {
       const end = new Date();
       const start = new Date();
       start.setDate(start.getDate() - 7);
-      startDate = start.toISOString().split("T")[0];
-      endDate = end.toISOString().split("T")[0];
+      startDate = toLocalDateString(start);
+      endDate = toLocalDateString(end);
     }
 
     return { startDate, endDate };
