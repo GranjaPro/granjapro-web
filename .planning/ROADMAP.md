@@ -28,7 +28,12 @@
   2. All transaction category references across the codebase point to the same constants (no raw Portuguese string literals scattered in service files)
   3. The finances service compiles without TypeScript `any` type warnings on transaction rows
   4. A query for transactions by date range can be made via a single typed service function call
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Fix UTC off-by-one bug in DateFilterContext (FOUND-01)
+- [ ] 01-02-PLAN.md — Create transaction categories constants file (FOUND-02)
+- [ ] 01-03-PLAN.md — Replace `any` with typed row type in finances.ts and fix return signature (FOUND-03, FOUND-04)
 
 ### Phase 2: Calendar Sync
 **Goal**: Changing the date range on any dashboard page changes it everywhere — all pages share one source of truth
@@ -75,7 +80,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/? | Not started | - |
+| 1. Foundation | 0/3 | Not started | - |
 | 2. Calendar Sync | 0/? | Not started | - |
 | 3. Financial KPIs | 0/? | Not started | - |
 | 4. Charts, CRUD & Revenue Sync | 0/? | Not started | - |
@@ -83,4 +88,4 @@
 ---
 
 *Roadmap created: 2026-04-11*
-*Last updated: 2026-04-11 after initial creation*
+*Last updated: 2026-04-11 after Phase 1 planning*
