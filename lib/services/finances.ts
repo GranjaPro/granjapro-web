@@ -1,4 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
+import type { Tables } from "@/lib/database.types";
+
+type FinancialTransaction = Tables<"financial_transactions">;
 
 export async function getMonthlyFinancials(farmId: string, year?: number, month?: number) {
   const supabase = createClient();
@@ -23,20 +26,20 @@ export async function getFinancialSummary(farmId: string, year?: number, month?:
   const transactions = await getMonthlyFinancials(farmId, year, month);
 
   const revenue = transactions
-    .filter((t: any) => t.type === "revenue")
-    .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+    .filter((t: FinancialTransaction) => t.type === "revenue")
+    .reduce((sum: number, t: FinancialTransaction) => sum + Number(t.amount), 0);
 
   const expenses = transactions
-    .filter((t: any) => t.type === "expense")
-    .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+    .filter((t: FinancialTransaction) => t.type === "expense")
+    .reduce((sum: number, t: FinancialTransaction) => sum + Number(t.amount), 0);
 
   const feedCost = transactions
-    .filter((t: any) => t.type === "expense" && t.category === "feed")
-    .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+    .filter((t: FinancialTransaction) => t.type === "expense" && t.category === "feed")
+    .reduce((sum: number, t: FinancialTransaction) => sum + Number(t.amount), 0);
 
   const laborCost = transactions
-    .filter((t: any) => t.type === "expense" && t.category === "labor")
-    .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+    .filter((t: FinancialTransaction) => t.type === "expense" && t.category === "labor")
+    .reduce((sum: number, t: FinancialTransaction) => sum + Number(t.amount), 0);
 
   return {
     revenue,
@@ -48,7 +51,11 @@ export async function getFinancialSummary(farmId: string, year?: number, month?:
   };
 }
 
-export async function getTransactionsByDateRange(farmId: string, startDate: string, endDate: string) {
+export async function getTransactionsByDateRange(
+  farmId: string,
+  startDate: string,
+  endDate: string
+): Promise<FinancialTransaction[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("financial_transactions")
@@ -58,7 +65,7 @@ export async function getTransactionsByDateRange(farmId: string, startDate: stri
     .lte("date", endDate)
     .order("date", { ascending: false });
   if (error) throw error;
-  return data;
+  return data ?? [];
 }
 
 export async function createTransaction(record: Record<string, any>) {
