@@ -10,9 +10,9 @@
 
 ## Phases
 
-- [ ] **Phase 1: Foundation** - Fix date handling, type safety, and financial service infrastructure
-- [ ] **Phase 2: Calendar Sync** - Wire all dashboard pages to shared date filter context
-- [ ] **Phase 3: Financial KPIs** - Replace mock data with real Supabase data on finances page and dashboard widget
+- [x] **Phase 1: Foundation** - Fix date handling, type safety, and financial service infrastructure
+- [x] **Phase 2: Calendar Sync** - Wire all dashboard pages to shared date filter context
+- [x] **Phase 3: Financial KPIs** - Replace mock data with real Supabase data on finances page and dashboard widget
 - [ ] **Phase 4: Charts, CRUD & Revenue Sync** - Deliver live charts, full transaction management, and sales auto-sync
 
 ---
@@ -31,9 +31,9 @@
 **Plans:** 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Fix UTC off-by-one bug in DateFilterContext (FOUND-01)
-- [ ] 01-02-PLAN.md — Create transaction categories constants file (FOUND-02)
-- [ ] 01-03-PLAN.md — Replace `any` with typed row type in finances.ts and fix return signature (FOUND-03, FOUND-04)
+- [x] 01-01-PLAN.md — Fix UTC off-by-one bug in DateFilterContext (FOUND-01)
+- [x] 01-02-PLAN.md — Create transaction categories constants file (FOUND-02)
+- [x] 01-03-PLAN.md — Replace `any` with typed row type in finances.ts and fix return signature (FOUND-03, FOUND-04)
 
 ### Phase 2: Calendar Sync
 **Goal**: Changing the date range on any dashboard page changes it everywhere — all pages share one source of truth
@@ -44,8 +44,10 @@ Plans:
   2. User changes the date range on the finances page and the racao, mortality, and health pages reflect the same period
   3. No page in the dashboard has its own independent date picker that can desync from the others
   4. Removing the local `periodo` state from the finances page does not break any existing UI element
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 1 plan
+
+Plans:
+- [x] 02-01-PLAN.md — Refactor Finances page to use `useDateFilter()` and `CalendarFilter` (CAL-01, CAL-02, CAL-04)
 
 ### Phase 3: Financial KPIs
 **Goal**: Farmers see real financial data on the finances page and dashboard — no more mock numbers
@@ -57,8 +59,13 @@ Plans:
   3. Net profit and profit margin reflect real revenue minus real expenses — not hardcoded values
   4. Profit per bird uses the farm's actual bird count from the database, not a hardcoded number
   5. The financial summary widget on the main dashboard shows real data instead of mock values
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 4 plans
+
+Plans:
+- [x] 03-01-PLAN.md — Update finances and farms services for aggregation and bird counts (FOUND-03, FOUND-04, FIN-01, FIN-02)
+- [x] 03-02-PLAN.md — Update `FinancialSummary` widget to use real data (FIN-05, DASH-01)
+- [x] 03-03-PLAN.md — Integrate real data into Finances page (FIN-01, FIN-02, FIN-03, FIN-04)
+- [x] 03-04-PLAN.md — Refactor main dashboard data fetching to use services (FIN-06)
 
 ### Phase 4: Charts, CRUD & Revenue Sync
 **Goal**: Farmers can visualize financial trends over time, manage individual transactions, and see sales automatically reflected in revenue
@@ -71,8 +78,12 @@ Plans:
   4. User can edit an existing transaction and see the updated values reflected without a page reload
   5. User can delete a transaction and it is removed from the list and no longer affects KPI totals
   6. Recording a sale in the sales module automatically creates a corresponding revenue entry in financial transactions, with no duplicate counting
-**Plans**: TBD
-**UI hint**: yes
+**Plans:** 3 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Replace mock chart arrays with real useMemo computations (CHART-01, CHART-02, CHART-03)
+- [ ] 04-02-PLAN.md — Wire transaction CRUD modal to Supabase service layer (CRUD-01, CRUD-02, CRUD-03, CRUD-04)
+- [ ] 04-03-PLAN.md — Auto-sync sales to revenue transactions (SYNC-01, SYNC-02)
 
 ---
 
@@ -80,12 +91,12 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/3 | Not started | - |
-| 2. Calendar Sync | 0/? | Not started | - |
-| 3. Financial KPIs | 0/? | Not started | - |
-| 4. Charts, CRUD & Revenue Sync | 0/? | Not started | - |
+| 1. Foundation | 3/3 | Completed | 2026-04-12 |
+| 2. Calendar Sync | 1/1 | Completed | 2026-04-12 |
+| 3. Financial KPIs | 4/4 | Completed | 2026-04-12 |
+| 4. Charts, CRUD & Revenue Sync | 0/3 | Planning | - |
 
 ---
 
 *Roadmap created: 2026-04-11*
-*Last updated: 2026-04-11 after Phase 1 planning*
+*Last updated: 2026-04-13 after Phase 4 planning*
