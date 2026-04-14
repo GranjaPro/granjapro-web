@@ -82,7 +82,7 @@ Plans:
 
 Plans:
 - [x] 04-01-PLAN.md — Replace mock chart arrays with real useMemo computations (CHART-01, CHART-02, CHART-03)
-- [ ] 04-02-PLAN.md — Wire transaction CRUD modal to Supabase service layer (CRUD-01, CRUD-02, CRUD-03, CRUD-04)
+- [x] 04-02-PLAN.md — Wire transaction CRUD modal to Supabase service layer (CRUD-01, CRUD-02, CRUD-03, CRUD-04)
 - [ ] 04-03-PLAN.md — Auto-sync sales to revenue transactions (SYNC-01, SYNC-02)
 
 ---
