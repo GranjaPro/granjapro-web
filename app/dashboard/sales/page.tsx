@@ -50,6 +50,7 @@ import {
 } from "recharts";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
+import { createRevenueFromSale } from "@/lib/services/finances";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 
 /* ══════════════════════════════════════════════
@@ -370,9 +371,25 @@ export default function VendasPage() {
     const supabase = createClient();
     try {
       if (modal === "add") {
-        await supabase.from("sales").insert(record);
+        const { data: newSale, error } = await supabase
+          .from("sales")
+          .insert(record)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        const customerName = customers.find(c => c.id === form.clienteId)?.name || "Venda";
+        await createRevenueFromSale(
+          currentFarm.id,
+          newSale.id,
+          record.date,
+          record.total,
+          `Venda - ${customerName}`
+        );
       } else if (editing) {
-        await supabase.from("sales").update(record).eq("id", editing.id);
+        const { error } = await supabase.from("sales").update(record).eq("id", editing.id);
+        if (error) throw error;
       }
       setModal(null);
       fetchData();
