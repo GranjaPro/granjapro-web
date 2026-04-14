@@ -38,7 +38,7 @@ import {
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { cn } from "@/lib/utils";
-import { getTransactionsByDateRange, getFinancialSummaryInRange, type FinancialTransaction, type FinancialSummaryData } from "@/lib/services/finances";
+import { getTransactionsByDateRange, getFinancialSummaryInRange, createTransaction, updateTransaction, deleteTransaction, type FinancialTransaction, type FinancialSummaryData } from "@/lib/services/finances";
 import { getFarmBirdCount } from "@/lib/services/farms";
 import { transactionCategories, type TransactionCategoryKey } from "@/lib/constants/transaction-categories";
 import {
@@ -59,19 +59,16 @@ import {
 } from "recharts";
 
 
-interface Venda {
-  id: string | number;
-  data: string;
-  cliente: string;
-  lote: string;
-  galpao: string;
-  quantidade: number;
-  precoUn: number;
-  total: number;
+interface TransactionRow {
+  id: string;
+  date: string;
+  type: "revenue" | "expense";
+  category: string;
+  description: string;
+  amount: number;
+  payment_method: string | null;
+  reference: string | null;
 }
-
-const clienteOptions = ["Mercado Central", "Padaria Boa Mesa", "Restaurante Sabor", "Supermercado BH", "Feira Livre"];
-const loteOptions = ["L-2024-01", "L-2024-02", "L-2024-03", "L-2024-04"];
 
 /* ══════════════════════════════════════════════
    COMPONENT
@@ -81,16 +78,23 @@ export default function FinancasPage() {
   const { farm } = useAuth();
   const { dateRange, filterMode } = useDateFilter();
 
-  const [vendas, setVendas] = useState<Venda[]>([]);
+  const [transactionRows, setTransactionRows] = useState<TransactionRow[]>([]);
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
   const [summary, setSummary] = useState<FinancialSummaryData | null>(null);
   const [totalAves, setTotalAves] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
-  const [editing, setEditing] = useState<Venda | null>(null);
-  const [form, setForm] = useState({ data: "", cliente: "", lote: "", galpao: "", quantidade: "", precoUn: "" });
-  const [deleteConfirm, setDeleteConfirm] = useState<string | number | null>(null);
+  const [editing, setEditing] = useState<TransactionRow | null>(null);
+  const [form, setForm] = useState({
+    date: "",
+    type: "expense" as "revenue" | "expense",
+    category: "feed",
+    description: "",
+    amount: "",
+    paymentMethod: "",
+  });
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [breakdownTab, setBreakdownTab] = useState<"cliente" | "lote" | "galpao">("cliente");
 
@@ -106,20 +110,18 @@ export default function FinancasPage() {
 
       setTransactions(transRes);
 
-      const mappedVendas: Venda[] = transRes
-        .filter(t => t.type === "revenue")
-        .map(t => ({
-          id: t.id,
-          data: t.date,
-          cliente: t.description,
-          lote: t.reference || "N/A",
-          galpao: "Geral",
-          quantidade: 0,
-          precoUn: 0,
-          total: Number(t.amount),
-        }));
+      const mappedRows: TransactionRow[] = transRes.map(t => ({
+        id: t.id,
+        date: t.date,
+        type: t.type as "revenue" | "expense",
+        category: t.category,
+        description: t.description,
+        amount: Number(t.amount),
+        payment_method: t.payment_method,
+        reference: t.reference,
+      }));
 
-      setVendas(mappedVendas);
+      setTransactionRows(mappedRows);
       setSummary(summaryRes);
       setTotalAves(birdCount);
     } catch (err) {
@@ -133,7 +135,7 @@ export default function FinancasPage() {
     fetchData();
   }, [fetchData]);
 
-  const periodoVendas = useMemo(() => vendas, [vendas]);
+  const periodoTransactions = useMemo(() => transactionRows, [transactionRows]);
 
   const periodoLabel = filterMode === "dia" ? "Hoje" : filterMode === "intervalo" ? "Esta Semana" : "Este Mês";
 
@@ -204,9 +206,9 @@ export default function FinancasPage() {
   const lucroLiquido = summary?.profit ?? 0;
   const margem = receitaPeriodo > 0 ? ((lucroLiquido / receitaPeriodo) * 100) : 0;
   const lucroPorAve = totalAves > 0 ? lucroLiquido / totalAves : 0;
-  const volumeTotal = periodoVendas.reduce((s, v) => s + v.quantidade, 0);
+  const volumeTotal = periodoTransactions.filter(t => t.type === "revenue").length;
   const precoMedio = volumeTotal > 0 ? receitaPeriodo / volumeTotal : 0;
-  const custoOvo = despesaPeriodo > 0 && volumeTotal > 0 ? despesaPeriodo / (volumeTotal * 12) : 0;
+  const custoOvo = 0;
 
   const metaReceita = summary?.revenueGoal ?? 20000;
   const progressoMeta = Math.min((receitaPeriodo / metaReceita) * 100, 100);
@@ -231,41 +233,44 @@ export default function FinancasPage() {
   const varDespesa = calcVar(despesaPeriodo, prev.despesa);
   const varLucro = calcVar(lucroLiquido, prev.lucro);
 
-  const filteredVendas = useMemo(() => {
-    if (!searchQuery.trim()) return periodoVendas;
+  const filteredTransactions = useMemo(() => {
+    if (!searchQuery.trim()) return periodoTransactions;
     const q = searchQuery.toLowerCase();
-    return periodoVendas.filter(
-      (v) =>
-        v.cliente.toLowerCase().includes(q) ||
-        v.lote.toLowerCase().includes(q) ||
-        v.galpao.toLowerCase().includes(q) ||
-        v.data.includes(q)
+    return periodoTransactions.filter(
+      (t) =>
+        t.description.toLowerCase().includes(q) ||
+        t.category.toLowerCase().includes(q) ||
+        t.date.includes(q)
     );
-  }, [periodoVendas, searchQuery]);
+  }, [periodoTransactions, searchQuery]);
 
   const receitaPorCliente = useMemo(() => {
     const map = new Map<string, { valor: number; vendas: number }>();
-    periodoVendas.forEach((v) => {
-      const e = map.get(v.cliente) || { valor: 0, vendas: 0 };
-      map.set(v.cliente, { valor: e.valor + v.total, vendas: e.vendas + 1 });
+    periodoTransactions.forEach((t) => {
+      const e = map.get(t.description) || { valor: 0, vendas: 0 };
+      map.set(t.description, { valor: e.valor + t.amount, vendas: e.vendas + 1 });
     });
     return Array.from(map.entries()).map(([nome, d]) => ({ nome, ...d })).sort((a, b) => b.valor - a.valor);
-  }, [periodoVendas]);
+  }, [periodoTransactions]);
 
   const receitaPorLote = useMemo(() => {
     const map = new Map<string, { valor: number; volume: number }>();
-    periodoVendas.forEach((v) => {
-      const e = map.get(v.lote) || { valor: 0, volume: 0 };
-      map.set(v.lote, { valor: e.valor + v.total, volume: e.volume + v.quantidade });
+    periodoTransactions.forEach((t) => {
+      const catLabel = transactionCategories[t.category as TransactionCategoryKey]?.label || t.category;
+      const e = map.get(catLabel) || { valor: 0, volume: 0 };
+      map.set(catLabel, { valor: e.valor + t.amount, volume: e.volume + 1 });
     });
     return Array.from(map.entries()).map(([nome, d]) => ({ nome, ...d })).sort((a, b) => b.valor - a.valor);
-  }, [periodoVendas]);
+  }, [periodoTransactions]);
 
   const receitaPorGalpao = useMemo(() => {
     const map = new Map<string, number>();
-    periodoVendas.forEach((v) => { map.set(v.galpao, (map.get(v.galpao) || 0) + v.total); });
+    periodoTransactions.forEach((t) => {
+      const label = t.type === "revenue" ? "Receita" : "Despesa";
+      map.set(label, (map.get(label) || 0) + t.amount);
+    });
     return Array.from(map.entries()).map(([nome, valor]) => ({ nome, valor })).sort((a, b) => b.valor - a.valor);
-  }, [periodoVendas]);
+  }, [periodoTransactions]);
 
   const breakdownData = breakdownTab === "cliente" ? receitaPorCliente : breakdownTab === "lote" ? receitaPorLote : receitaPorGalpao;
 
@@ -294,30 +299,59 @@ export default function FinancasPage() {
   }, [margem, varDespesa, precoMedio, progressoMeta, lucroLiquido, varLucro, varReceita, filterMode]);
 
   function openAdd() {
-    setForm({ data: "", cliente: "", lote: "", galpao: "", quantidade: "", precoUn: "" });
+    setForm({ date: "", type: "expense", category: "feed", description: "", amount: "", paymentMethod: "" });
     setEditing(null);
     setModal("add");
   }
 
-  function openEdit(v: Venda) {
-    setForm({ data: v.data, cliente: v.cliente, lote: v.lote, galpao: v.galpao, quantidade: String(v.quantidade), precoUn: String(v.precoUn) });
-    setEditing(v);
+  function openEdit(t: TransactionRow) {
+    setForm({
+      date: t.date,
+      type: t.type,
+      category: t.category,
+      description: t.description,
+      amount: String(t.amount),
+      paymentMethod: t.payment_method || "",
+    });
+    setEditing(t);
     setModal("edit");
   }
 
-  function save() {
-    if (!form.data.trim() || !form.cliente.trim() || !form.lote.trim()) return;
-    const quantidade = Number(form.quantidade) || 0;
-    const precoUn = Number(form.precoUn) || 0;
-    const venda: Venda = { id: editing?.id || Date.now(), data: form.data, cliente: form.cliente, lote: form.lote, galpao: form.galpao, quantidade, precoUn, total: quantidade * precoUn };
-    if (modal === "add") setVendas((prev) => [venda, ...prev]);
-    else if (editing) setVendas((prev) => prev.map((v) => (v.id === editing.id ? venda : v)));
-    setModal(null);
+  async function save() {
+    if (!form.date.trim() || !form.description.trim() || !form.amount) return;
+    if (!farm?.id) return;
+
+    const record = {
+      farm_id: farm.id,
+      date: form.date,
+      type: form.type,
+      category: form.type === "revenue" ? "sales" : form.category,
+      description: form.description,
+      amount: Number(form.amount),
+      payment_method: form.paymentMethod || null,
+    };
+
+    try {
+      if (modal === "add") {
+        await createTransaction(record);
+      } else if (editing) {
+        await updateTransaction(editing.id, record);
+      }
+      setModal(null);
+      fetchData();
+    } catch (err) {
+      console.error("Error saving transaction:", err);
+    }
   }
 
-  function deleteVenda(id: string | number) {
-    setVendas((prev) => prev.filter((v) => v.id !== id));
-    setDeleteConfirm(null);
+  async function handleDelete(id: string) {
+    try {
+      await deleteTransaction(id);
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (err) {
+      console.error("Error deleting transaction:", err);
+    }
   }
 
   function formatDate(dateStr: string) {
@@ -877,7 +911,7 @@ export default function FinancasPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
           <div>
             <h3 className="text-sm font-bold text-gray-900">Registros de Vendas</h3>
-            <p className="text-xs text-gray-400 mt-0.5">{filteredVendas.length} vendas — {periodoLabel}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{filteredTransactions.length} transações — {periodoLabel}</p>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -896,32 +930,33 @@ export default function FinancasPage() {
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Data</th>
-                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Cliente</th>
-                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Lote</th>
-                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Galpão</th>
-                <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Qtd (dz)</th>
-                <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Preço/dz</th>
-                <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Total</th>
+                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Tipo</th>
+                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Categoria</th>
+                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Descrição</th>
+                <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Valor</th>
                 <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {filteredVendas.map((v) => (
-                <tr key={v.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                  <td className="py-3 px-3 text-gray-600">{formatDate(v.data)}</td>
-                  <td className="py-3 px-3 font-medium text-gray-900">{v.cliente}</td>
+              {filteredTransactions.map((t) => (
+                <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                  <td className="py-3 px-3 text-gray-600">{formatDate(t.date)}</td>
                   <td className="py-3 px-3">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-xs font-semibold">{v.lote}</span>
+                    <span className={cn(
+                      "inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold",
+                      t.type === "revenue" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                    )}>
+                      {t.type === "revenue" ? "Receita" : "Despesa"}
+                    </span>
                   </td>
-                  <td className="py-3 px-3 text-gray-600">{v.galpao}</td>
-                  <td className="py-3 px-3 text-right font-medium text-gray-900">{v.quantidade}</td>
-                  <td className="py-3 px-3 text-right text-gray-600">R$ {v.precoUn.toFixed(2).replace(".", ",")}</td>
-                  <td className="py-3 px-3 text-right font-bold text-gray-900">{formatCurrency(v.total)}</td>
+                  <td className="py-3 px-3 text-gray-600">{transactionCategories[t.category as TransactionCategoryKey]?.label || t.category}</td>
+                  <td className="py-3 px-3 font-medium text-gray-900">{t.description}</td>
+                  <td className="py-3 px-3 text-right font-bold text-gray-900">{formatCurrency(t.amount)}</td>
                   <td className="py-3 px-3">
                     <div className="flex items-center justify-end gap-1">
-                      {deleteConfirm === v.id ? (
+                      {deleteConfirm === t.id ? (
                         <>
-                          <button onClick={() => deleteVenda(v.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Confirmar">
+                          <button onClick={() => handleDelete(t.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Confirmar">
                             <Check className="w-4 h-4" />
                           </button>
                           <button onClick={() => setDeleteConfirm(null)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="Cancelar">
@@ -930,10 +965,10 @@ export default function FinancasPage() {
                         </>
                       ) : (
                         <>
-                          <button onClick={() => openEdit(v)} className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer" title="Editar">
+                          <button onClick={() => openEdit(t)} className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer" title="Editar">
                             <Pencil className="w-4 h-4" />
                           </button>
-                          <button onClick={() => setDeleteConfirm(v.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Excluir">
+                          <button onClick={() => setDeleteConfirm(t.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Excluir">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </>
@@ -942,10 +977,10 @@ export default function FinancasPage() {
                   </td>
                 </tr>
               ))}
-              {!loading && filteredVendas.length === 0 && (
+              {!loading && filteredTransactions.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-gray-400">
-                    Nenhuma venda encontrada
+                  <td colSpan={6} className="text-center py-12 text-gray-400">
+                    Nenhuma transação encontrada
                   </td>
                 </tr>
               )}
@@ -962,7 +997,7 @@ export default function FinancasPage() {
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold text-gray-900">
-                {modal === "add" ? "Registrar Venda" : "Editar Venda"}
+                {modal === "add" ? "Registrar Transação" : "Editar Transação"}
               </h3>
               <button onClick={() => setModal(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
@@ -973,46 +1008,49 @@ export default function FinancasPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Data</label>
-                  <input type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Cliente</label>
-                  <select value={form.cliente} onChange={(e) => setForm({ ...form, cliente: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
-                    <option value="">Selecione...</option>
-                    {clienteOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Tipo</label>
+                  <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as "revenue" | "expense" })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
+                    <option value="revenue">Receita</option>
+                    <option value="expense">Despesa</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                {form.type === "expense" && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Categoria</label>
+                    <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
+                      {Object.entries(transactionCategories).map(([key, { label }]) => (
+                        <option key={key} value={key}>{label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Lote</label>
-                  <select value={form.lote} onChange={(e) => setForm({ ...form, lote: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
-                    <option value="">Selecione...</option>
-                    {loteOptions.map((l) => <option key={l} value={l}>{l}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Galpão</label>
-                  <input type="text" placeholder="Ex: Galpão A1" value={form.galpao} onChange={(e) => setForm({ ...form, galpao: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400" />
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Descrição</label>
+                  <input type="text" placeholder="Ex: Compra de ração" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Quantidade (dúzias)</label>
-                  <input type="number" min="1" value={form.quantidade} onChange={(e) => setForm({ ...form, quantidade: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Valor (R$)</label>
+                  <input type="number" step="0.01" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Preço / Dúzia (R$)</label>
-                  <input type="number" step="0.01" min="0" value={form.precoUn} onChange={(e) => setForm({ ...form, precoUn: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Método de Pagamento</label>
+                  <input type="text" placeholder="Ex: PIX, Dinheiro" value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400" />
                 </div>
               </div>
 
-              {form.quantidade && form.precoUn && (
-                <div className="p-3 bg-emerald-50 rounded-xl text-center">
-                  <p className="text-xs text-emerald-600 font-medium">Total estimado</p>
-                  <p className="text-lg font-bold text-emerald-700">{formatCurrency((Number(form.quantidade) || 0) * (Number(form.precoUn) || 0))}</p>
+              {form.amount && (
+                <div className={cn("p-3 rounded-xl text-center", form.type === "revenue" ? "bg-emerald-50" : "bg-red-50")}>
+                  <p className={cn("text-xs font-medium", form.type === "revenue" ? "text-emerald-600" : "text-red-600")}>Valor da transação</p>
+                  <p className={cn("text-lg font-bold", form.type === "revenue" ? "text-emerald-700" : "text-red-700")}>{formatCurrency(Number(form.amount) || 0)}</p>
                 </div>
               )}
             </div>
