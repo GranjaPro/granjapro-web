@@ -1,9 +1,9 @@
 ---
 phase: 1
 slug: foundation
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: verified
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-04-12
 ---
 
@@ -38,10 +38,10 @@ created: 2026-04-12
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 01-01-01 | 01 | 1 | FOUND-01 | manual | Browser test at UTC-3 after 21:00 | N/A | ⬜ pending |
-| 01-01-02 | 01 | 1 | FOUND-02 | type-check | `npx tsc --noEmit` | ❌ W0 | ⬜ pending |
-| 01-01-03 | 01 | 1 | FOUND-03 | type-check | `npx tsc --noEmit` | ✅ | ⬜ pending |
-| 01-01-04 | 01 | 1 | FOUND-04 | type-check | `npx tsc --noEmit` | ✅ | ⬜ pending |
+| 01-01-01 | 01 | 1 | FOUND-01 | manual | Browser test at UTC-3 after 21:00 | N/A | ✅ green |
+| 01-01-02 | 01 | 1 | FOUND-02 | type-check | `npx tsc --noEmit` | ✅ | ✅ green |
+| 01-01-03 | 01 | 1 | FOUND-03 | type-check | `npx tsc --noEmit` | ✅ | ✅ green |
+| 01-01-04 | 01 | 1 | FOUND-04 | type-check | `npx tsc --noEmit` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -49,7 +49,7 @@ created: 2026-04-12
 
 ## Wave 0 Requirements
 
-- [ ] `lib/constants/transaction-categories.ts` — category constants file (FOUND-02)
+- [x] `lib/constants/transaction-categories.ts` — category constants file (FOUND-02)
 
 *Existing TypeScript infrastructure covers remaining requirements.*
 
@@ -65,11 +65,11 @@ created: 2026-04-12
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 30s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 30s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** verified
