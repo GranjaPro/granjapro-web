@@ -30,6 +30,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
+import { usePlan } from "@/components/plan/plan-provider";
+import { LockedOverlay } from "@/components/plan/locked-overlay";
 
 function calculateCurrentAge(arrivalDate: string, arrivalAgeWeeks: number): number {
   const arrival = new Date(arrivalDate);
@@ -97,6 +99,7 @@ export default function DetalhesLotePage() {
   const params = useParams();
   const loteId = params.loteId as string;
   const { farm, loading: authLoading } = useAuth();
+  const { plan } = usePlan();
 
   const [lote, setLote] = useState<Lote | null>(null);
   const [fetching, setFetching] = useState(true);
@@ -342,7 +345,29 @@ export default function DetalhesLotePage() {
       {/* KPI Cards — Top row: 4 cols, Bottom row: 3 cols */}
       {/* Top row: 4 equal cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {topCards.map((card) => (
+        {topCards.map((card) => {
+          if (plan === "essencial") {
+            return (
+              <div key={card.label} className="bg-white rounded-2xl border border-gray-100 p-5">
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", card.iconBg)}>
+                    <card.icon className={cn("w-[18px] h-[18px]", card.iconColor)} />
+                  </div>
+                  <span className="text-[13px] font-bold text-gray-900">{card.label}</span>
+                </div>
+                <LockedOverlay message="Desbloqueie as informações detalhadas do seu lote" targetPlan="pro">
+                  <div>
+                    <p className="text-2xl font-bold text-gray-300 tracking-tight mb-1">—</p>
+                    <p className="text-xs text-gray-400">{card.sub}</p>
+                    <div className="w-full h-1.5 bg-gray-100 rounded-full mt-4 overflow-hidden">
+                      <div className="h-full rounded-full bg-gray-200 w-0" />
+                    </div>
+                  </div>
+                </LockedOverlay>
+              </div>
+            );
+          }
+          return (
           <Link
             key={card.label}
             href={card.href}
@@ -363,12 +388,38 @@ export default function DetalhesLotePage() {
               <div className="h-full rounded-full bg-gray-200 w-0" />
             </div>
           </Link>
-        ))}
+          );
+        })}
       </div>
 
       {/* Bottom row: 3/8 + 3/8 + 2/8 */}
       <div className="grid grid-cols-8 gap-4">
-        {bottomCards.map((card, i) => (
+        {bottomCards.map((card, i) => {
+          if (plan === "essencial") {
+            return (
+              <div key={card.label} className={cn(
+                "bg-white rounded-2xl border border-gray-100 p-5",
+                i < 2 ? "col-span-8 sm:col-span-3" : "col-span-8 sm:col-span-2"
+              )}>
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", card.iconBg)}>
+                    <card.icon className={cn("w-[18px] h-[18px]", card.iconColor)} />
+                  </div>
+                  <span className="text-[13px] font-bold text-gray-900">{card.label}</span>
+                </div>
+                <LockedOverlay message="Desbloqueie as informações detalhadas do seu lote" targetPlan="pro">
+                  <div>
+                    <p className="text-2xl font-bold text-gray-300 tracking-tight mb-1">—</p>
+                    <p className="text-xs text-gray-400">{card.sub}</p>
+                    <div className="w-full h-1.5 bg-gray-100 rounded-full mt-4 overflow-hidden">
+                      <div className="h-full rounded-full bg-gray-200 w-0" />
+                    </div>
+                  </div>
+                </LockedOverlay>
+              </div>
+            );
+          }
+          return (
           <Link
             key={card.label}
             href={card.href}
@@ -392,7 +443,8 @@ export default function DetalhesLotePage() {
               <div className="h-full rounded-full bg-gray-200 w-0" />
             </div>
           </Link>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

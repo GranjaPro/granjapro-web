@@ -625,6 +625,7 @@ export interface Database {
           farm_id: string | null;
           role: "owner" | "manager" | "worker";
           avatar_url: string | null;
+          plan: "essencial" | "pro" | "premium";
         };
         Insert: {
           id: string;
@@ -635,6 +636,7 @@ export interface Database {
           farm_id?: string | null;
           role?: "owner" | "manager" | "worker";
           avatar_url?: string | null;
+          plan?: "essencial" | "pro" | "premium";
         };
         Update: {
           id?: string;
@@ -645,6 +647,7 @@ export interface Database {
           farm_id?: string | null;
           role?: "owner" | "manager" | "worker";
           avatar_url?: string | null;
+          plan?: "essencial" | "pro" | "premium";
         };
       };
     };

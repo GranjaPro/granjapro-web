@@ -50,6 +50,9 @@ import {
 } from "recharts";
 import Link from "next/link";
 import ModalPortal from "@/components/ui/modal-portal";
+import { usePlan } from "@/components/plan/plan-provider";
+import { LockedOverlay } from "@/components/plan/locked-overlay";
+import { UpgradePopup } from "@/components/plan/upgrade-popup";
 import {
   X, Pencil, Trash2, Droplets, Eye, ShieldCheck, Thermometer, Bug, Scissors,
   Scale, Syringe, Hammer, Truck, Sun, Moon, Heart, Star, Flame, Leaf, Bell,
@@ -145,7 +148,9 @@ const setupAlerts = [
 
 export default function DashboardPage() {
   const { profile, farm } = useAuth();
+  const { plan } = usePlan();
   const supabase = createClient();
+  const [showTaskUpgrade, setShowTaskUpgrade] = useState(false);
 
   // Real data state — start empty, filled by Supabase fetch
   const [farmData, setFarmData] = useState({
@@ -1004,7 +1009,31 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="space-y-3 overflow-y-auto flex-1 dashboard-scroll pr-1 -mr-1 py-1">
-            {dbAlerts.map((a) => (
+            {dbAlerts.map((a, idx) => {
+              const isLocked = plan === "essencial" && idx >= 2;
+              if (isLocked) {
+                return (
+                  <LockedOverlay key={a.id} message="Desbloqueie todos os alertas inteligentes" targetPlan="pro">
+                    <div className={cn(
+                      "rounded-xl p-4 border",
+                      a.type === "danger" && "bg-red-50 border-red-200",
+                      a.type === "warning" && "bg-amber-50 border-amber-200",
+                      a.type === "info" && "bg-blue-50 border-blue-200"
+                    )}>
+                      <div className="flex items-start gap-3">
+                        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5", a.type === "danger" && "bg-red-100", a.type === "warning" && "bg-amber-100", a.type === "info" && "bg-blue-100")}>
+                          <AlertTriangle className="w-4 h-4 text-gray-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-semibold text-gray-600">{a.msg}</p>
+                          <p className="text-[11px] text-gray-400 mt-1">Se ignorar: {a.risk}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </LockedOverlay>
+                );
+              }
+              return (
               <div
                 key={a.id}
                 className={cn(
@@ -1065,7 +1094,8 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -1102,7 +1132,13 @@ export default function DashboardPage() {
                 </span>
               </div>
               <button
-                onClick={() => setShowNewTask(true)}
+                onClick={() => {
+                  if (plan !== "premium" && dbTasks.length >= 2) {
+                    setShowTaskUpgrade(true);
+                  } else {
+                    setShowNewTask(true);
+                  }
+                }}
                 className="inline-flex items-center gap-1.5 text-xs text-brand-600 font-semibold hover:text-brand-700 cursor-pointer transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -1724,7 +1760,30 @@ export default function DashboardPage() {
                 title: "Mortalidade sob controle",
                 detail: "Taxa de 0.02% — bem abaixo do limite aceitável de 0.05%.",
               },
-            ].map((insight, i) => (
+            ].map((insight, i) => {
+              const isLockedInsight = plan !== "premium" && i >= 2;
+              if (isLockedInsight) {
+                return (
+                  <LockedOverlay key={i} message="Desbloqueie o Assistente de Granja completo" targetPlan="premium">
+                    <div className={cn(
+                      "rounded-xl px-4 py-3 border-l-[3px]",
+                      insight.type === "warning" && "bg-amber-50/60 border-l-amber-500",
+                      insight.type === "success" && "bg-emerald-50/60 border-l-emerald-500",
+                      insight.type === "danger" && "bg-red-50/60 border-l-red-500",
+                      insight.type === "info" && "bg-blue-50/60 border-l-blue-500"
+                    )}>
+                      <div className="flex items-start gap-2.5">
+                        <insight.icon className="w-4 h-4 flex-shrink-0 mt-0.5 text-gray-400" />
+                        <div>
+                          <p className="text-[13px] font-semibold text-gray-600">{insight.title}</p>
+                          <p className="text-[11px] text-gray-400 mt-0.5">{insight.detail}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </LockedOverlay>
+                );
+              }
+              return (
               <div
                 key={i}
                 className={cn(
@@ -1749,7 +1808,8 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1892,6 +1952,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      <UpgradePopup open={showTaskUpgrade} onClose={() => setShowTaskUpgrade(false)} targetPlan="premium" />
     </div>
   );
 }

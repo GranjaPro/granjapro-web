@@ -27,6 +27,9 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
+import { usePlan } from "@/components/plan/plan-provider";
+import { LockedOverlay } from "@/components/plan/locked-overlay";
+import { UpgradePopup } from "@/components/plan/upgrade-popup";
 
 type DbStatus = "active" | "maintenance" | "inactive";
 type SistemaAvicola = "gaiola" | "caipira" | "organico" | "cage-free";
@@ -151,6 +154,8 @@ const supabase = createClient();
 
 export default function BarnsPage() {
   const { farm } = useAuth();
+  const { plan } = usePlan();
+  const [showEnvUpgrade, setShowEnvUpgrade] = useState(false);
   const [search, setSearch] = useState("");
   const [barns, setBarns] = useState<Barn[]>([]);
   const [flocksByBarn, setFlocksByBarn] = useState<Record<string, { id: string; code: string; breed: string; bird_count: number; status: string }[]>>({});
@@ -630,7 +635,13 @@ export default function BarnsPage() {
               <div className="border border-gray-100 rounded-xl overflow-hidden">
                 <button
                   type="button"
-                  onClick={() => setShowEnvironmental(!showEnvironmental)}
+                  onClick={() => {
+                    if (plan === "essencial") {
+                      setShowEnvUpgrade(true);
+                    } else {
+                      setShowEnvironmental(!showEnvironmental);
+                    }
+                  }}
                   className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
@@ -643,7 +654,7 @@ export default function BarnsPage() {
                   </span>
                   {showEnvironmental ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                 </button>
-                {showEnvironmental && (
+                {showEnvironmental && plan !== "essencial" && (
                   <div className="px-4 pb-4 pt-1 space-y-3 border-t border-gray-100">
                     <div className="grid grid-cols-3 gap-3">
                       <div>
@@ -665,6 +676,22 @@ export default function BarnsPage() {
                         <input type="number" step="0.1" value={form.light_intensity} onChange={(e) => setForm({ ...form, light_intensity: e.target.value })} placeholder="20" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                       </div>
                     </div>
+                  </div>
+                )}
+                {showEnvironmental && plan === "essencial" && (
+                  <div className="border-t border-gray-100">
+                    <LockedOverlay message="Desbloqueie as condições ambientais" targetPlan="pro">
+                      <div className="px-4 pb-4 pt-3 space-y-3">
+                        <div className="grid grid-cols-3 gap-3">
+                          {[1,2,3].map(n => (
+                            <div key={n}>
+                              <div className="h-3 bg-gray-200 rounded w-20 mb-2" />
+                              <div className="h-9 bg-gray-100 rounded-lg w-full" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </LockedOverlay>
                   </div>
                 )}
               </div>
@@ -701,6 +728,7 @@ export default function BarnsPage() {
         </div>
         </ModalPortal>
       )}
+      <UpgradePopup open={showEnvUpgrade} onClose={() => setShowEnvUpgrade(false)} targetPlan="pro" />
     </div>
   );
 }

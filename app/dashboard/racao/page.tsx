@@ -51,6 +51,8 @@ import { getProductionByDateRange } from "@/lib/services/production";
 import { getBarns } from "@/lib/services/barns";
 import { getFlocks } from "@/lib/services/flocks";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
+import { usePlan } from "@/components/plan/plan-provider";
+import { LockedOverlay } from "@/components/plan/locked-overlay";
 
 /* ── Types ── */
 type TipoRacao = "milho" | "soja" | "comercial" | "custom";
@@ -157,6 +159,7 @@ function TableSkeleton() {
 type ModalMode = "add" | "edit" | null;
 
 export default function RacaoPage() {
+  const { plan } = usePlan();
   const searchParams = useSearchParams();
   const [registros, setRegistros] = useState<RegistroRacao[]>([]);
   const [estoque, setEstoque] = useState<ItemEstoque[]>([]);
@@ -605,7 +608,56 @@ export default function RacaoPage() {
       </div>
 
       {/* Resumo de Hoje — Saúde Alimentar */}
-      {(() => {
+      {plan === "essencial" ? (
+        <LockedOverlay message="Desbloqueie o resumo de saúde alimentar" targetPlan="pro">
+          {(() => {
+            const estoqueBaixo = estoque.filter((e) => e.status === "baixo").length;
+            const estoqueAlerta = estoque.filter((e) => e.status === "alerta").length;
+            const totalProblems = estoqueBaixo + estoqueAlerta;
+            const score = totalProblems === 0 ? 92 : totalProblems <= 2 ? 65 : 35;
+            const scoreColor = score >= 80 ? "#10b981" : score >= 50 ? "#f59e0b" : "#ef4444";
+            const bannerGradient = score >= 80 ? "from-emerald-50 via-emerald-50/50 to-white" : score >= 50 ? "from-amber-50 via-amber-50/50 to-white" : "from-red-50 via-red-50/50 to-white";
+            const bannerBorder = score >= 80 ? "border-emerald-200/60" : score >= 50 ? "border-amber-200/60" : "border-red-200/60";
+            const statusText = score >= 80 ? "Saudável" : score >= 50 ? "Atenção" : "Crítico";
+            const statusTextColor = score >= 80 ? "text-emerald-700" : score >= 50 ? "text-amber-700" : "text-red-700";
+            return (
+              <div className={cn("bg-gradient-to-r rounded-2xl border p-4 sm:p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
+                <div className="flex flex-col lg:flex-row lg:items-center gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 lg:min-w-[280px]">
+                    <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
+                      <svg className="w-14 h-14 sm:w-16 sm:h-16 -rotate-90" viewBox="0 0 64 64">
+                        <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                        <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(score / 100) * 175.9} 175.9`} className="transition-all duration-700" />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className={cn("text-sm sm:text-base font-bold", statusTextColor)}>{score}</span>
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Wheat className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                        <span className="text-sm font-bold text-gray-900">Saúde Alimentar</span>
+                      </div>
+                      <p className={cn("text-lg sm:text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
+                      <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 truncate">Consumo: 410 kg/dia | Meta: 800 kg | Estoque: {estoqueBaixo} críticos</p>
+                    </div>
+                  </div>
+                  <div className="hidden lg:block w-px h-14 bg-gray-200" />
+                  <div className="flex-1 space-y-1.5 sm:space-y-2">
+                    <div className="flex items-start sm:items-center gap-2">
+                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 mt-0.5 sm:mt-0">
+                        <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
+                      </div>
+                      <p className="text-xs sm:text-sm text-gray-700">Custo médio por kg subiu 2% — renegociar fornecedor</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </LockedOverlay>
+      ) : (
+      (() => {
         const estoqueBaixo = estoque.filter((e) => e.status === "baixo").length;
         const estoqueAlerta = estoque.filter((e) => e.status === "alerta").length;
         const totalProblems = estoqueBaixo + estoqueAlerta;
@@ -668,7 +720,8 @@ export default function RacaoPage() {
             </div>
           </div>
         );
-      })()}
+      })()
+      )}
 
       {/* Status Cards — Simple Visual Indicators with Progress Bars */}
       <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
@@ -823,7 +876,43 @@ export default function RacaoPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Consumo Ração x Água — under Consumo + Produção KPIs (2 cols) */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-          {(() => {
+          {plan === "essencial" ? (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
+                    <Wheat className="w-4 h-4 text-orange-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900">Consumo Ração x Água</h3>
+                    <p className="text-[11px] text-gray-400">Comparativo diário</p>
+                  </div>
+                </div>
+                <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Pro</span>
+              </div>
+              <LockedOverlay message="Desbloqueie o comparativo de consumo" targetPlan="pro">
+                <div className="h-[200px] bg-gray-50 rounded-xl flex items-end justify-around px-4 pb-4 pt-2 gap-2">
+                  {[65, 45, 80, 55, 70, 40, 75].map((h, i) => (
+                    <div key={i} className="flex gap-1 items-end flex-1">
+                      <div className="flex-1 rounded-t bg-orange-300/60" style={{ height: `${h}%` }} />
+                      <div className="flex-1 rounded-t bg-blue-300/60" style={{ height: `${h * 0.7}%` }} />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-center gap-5 mt-3">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                    <span className="text-[10px] font-medium text-gray-500">Ração (kg)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                    <span className="text-[10px] font-medium text-gray-500">Água (L)</span>
+                  </div>
+                </div>
+              </LockedOverlay>
+            </>
+          ) : (
+          (() => {
             const [chartPeriod, setChartPeriod] = useState<"7d" | "30d" | "meses" | "total">("7d");
             const isMonthly = chartPeriod === "meses" || chartPeriod === "total";
             const today = new Date();
@@ -923,7 +1012,8 @@ export default function RacaoPage() {
                 </div>
               </>
             );
-          })()}
+          })()
+          )}
         </div>
 
         {/* Assistente de Granja — under Eficiência */}
@@ -936,10 +1026,28 @@ export default function RacaoPage() {
                 <p className="text-[11px] text-gray-400 font-medium">Baseado nos dados do período</p>
               </div>
             </div>
-            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Pro</span>
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
           </div>
           <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-            {insights.map((ins, i) => (
+            {insights.map((ins, i) => {
+              if (plan === "essencial" && i >= 2) {
+                return (
+                  <LockedOverlay key={i} message="Desbloqueie o Assistente de Granja" targetPlan="premium">
+                    <div className={cn("p-3 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
+                          {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />}
+                          {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
+                          {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600" />}
+                        </div>
+                        <span className="text-xs font-semibold text-gray-800">{ins.title}</span>
+                      </div>
+                      <p className={cn("text-[11px] font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>→ {ins.action}</p>
+                    </div>
+                  </LockedOverlay>
+                );
+              }
+              return (
               <div key={i} className={cn("p-3 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
                 <div className="flex items-center gap-2 mb-1">
                   <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
@@ -951,7 +1059,8 @@ export default function RacaoPage() {
                 </div>
                 <p className={cn("text-[11px] font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>→ {ins.action}</p>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -962,11 +1071,10 @@ export default function RacaoPage() {
               <DollarSign className="w-3.5 h-3.5 text-white" />
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="text-xs font-bold text-gray-900 leading-tight">Financeiro</h3>
+              <h3 className="text-sm font-bold text-gray-900">Resumo Financeiro</h3>
+              <p className="text-[11px] text-gray-400 font-medium">Indicadores de custo e receita</p>
             </div>
-            <span className="flex items-center gap-0.5 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
-              <Sparkles className="w-2.5 h-2.5" /> Pro
-            </span>
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Pro</span>
           </div>
           <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
             {[
@@ -976,8 +1084,8 @@ export default function RacaoPage() {
               { label: "Custo/Ave", value: "R$ 0,14", meta: "R$ 0,15", diff: -6.7, icon: Activity, iconBg: "bg-blue-50", iconColor: "text-blue-600" },
             ].map((c) => {
               const isOver = c.diff > 0;
-              return (
-                <div key={c.label} className="bg-gray-50 rounded-xl p-3 flex flex-col">
+              const cardContent = (
+                <div className="bg-gray-50 rounded-xl p-3 flex flex-col">
                   <div className="flex items-center gap-1.5 mb-2">
                     <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0", c.iconBg)}>
                       <c.icon className={cn("w-3 h-3", c.iconColor)} />
@@ -993,6 +1101,13 @@ export default function RacaoPage() {
                     </span>
                   </div>
                 </div>
+              );
+              return plan === "essencial" ? (
+                <LockedOverlay key={c.label} message="Desbloqueie o resumo financeiro" targetPlan="pro">
+                  {cardContent}
+                </LockedOverlay>
+              ) : (
+                <div key={c.label}>{cardContent}</div>
               );
             })}
           </div>
@@ -1038,40 +1153,66 @@ export default function RacaoPage() {
               </div>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={280}>
-            <ComposedChart data={dailyChart} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="gradConsumoBar" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2d7a4f" stopOpacity={0.95} />
-                  <stop offset="100%" stopColor="#2d7a4f" stopOpacity={0.7} />
-                </linearGradient>
-                <linearGradient id="gradOvosBar" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.95} />
-                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.7} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-              <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11, fontWeight: 500 }} dy={10} />
-              <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 10 }} dx={-4} domain={[0, 'auto']} />
-              <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 10, fontWeight: 600 }} dx={4} domain={[0, 'auto']} tickFormatter={(v: number) => v.toFixed(2)} />
-              <Tooltip
-                contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
-                labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px", fontSize: "14px" }}
-                itemStyle={{ padding: "2px 0" }}
-                formatter={((value: any, name: any) => {
-                  const n = String(name);
-                  if (n === "kg") return [Number(value) + " kg", "Consumo"];
-                  if (n === "ovos") return [Number(value).toLocaleString("pt-BR") + " ovos", "Produção"];
-                  if (n === "eficiencia") return [Number(value).toFixed(3) + " kg/ovo", "Eficiência"];
-                  return [value, name];
-                }) as any}
-                cursor={{ fill: "rgba(45, 122, 79, 0.04)" }}
-              />
-              <Bar yAxisId="left" dataKey="kg" fill="url(#gradConsumoBar)" radius={[4, 4, 0, 0]} barSize={14} name="kg" />
-              <Bar yAxisId="left" dataKey="ovos" fill="url(#gradOvosBar)" radius={[4, 4, 0, 0]} barSize={14} name="ovos" />
-              <Line yAxisId="right" type="monotone" dataKey="eficiencia" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="eficiencia" />
-            </ComposedChart>
-          </ResponsiveContainer>
+          {plan === "essencial" ? (
+            <LockedOverlay message="Desbloqueie o comparativo de consumo, produção e eficiência" targetPlan="pro">
+              <ResponsiveContainer width="100%" height={280}>
+                <ComposedChart data={dailyChart} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="gradConsumoBar" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#2d7a4f" stopOpacity={0.95} />
+                      <stop offset="100%" stopColor="#2d7a4f" stopOpacity={0.7} />
+                    </linearGradient>
+                    <linearGradient id="gradOvosBar" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.95} />
+                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.7} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                  <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11, fontWeight: 500 }} dy={10} />
+                  <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 10 }} dx={-4} domain={[0, 'auto']} />
+                  <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 10, fontWeight: 600 }} dx={4} domain={[0, 'auto']} tickFormatter={(v: number) => v.toFixed(2)} />
+                  <Bar yAxisId="left" dataKey="kg" fill="url(#gradConsumoBar)" radius={[4, 4, 0, 0]} barSize={14} name="kg" />
+                  <Bar yAxisId="left" dataKey="ovos" fill="url(#gradOvosBar)" radius={[4, 4, 0, 0]} barSize={14} name="ovos" />
+                  <Line yAxisId="right" type="monotone" dataKey="eficiencia" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} name="eficiencia" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </LockedOverlay>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart data={dailyChart} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gradConsumoBar" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#2d7a4f" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="#2d7a4f" stopOpacity={0.7} />
+                  </linearGradient>
+                  <linearGradient id="gradOvosBar" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.7} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11, fontWeight: 500 }} dy={10} />
+                <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 10 }} dx={-4} domain={[0, 'auto']} />
+                <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 10, fontWeight: 600 }} dx={4} domain={[0, 'auto']} tickFormatter={(v: number) => v.toFixed(2)} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
+                  labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px", fontSize: "14px" }}
+                  itemStyle={{ padding: "2px 0" }}
+                  formatter={((value: any, name: any) => {
+                    const n = String(name);
+                    if (n === "kg") return [Number(value) + " kg", "Consumo"];
+                    if (n === "ovos") return [Number(value).toLocaleString("pt-BR") + " ovos", "Produção"];
+                    if (n === "eficiencia") return [Number(value).toFixed(3) + " kg/ovo", "Eficiência"];
+                    return [value, name];
+                  }) as any}
+                  cursor={{ fill: "rgba(45, 122, 79, 0.04)" }}
+                />
+                <Bar yAxisId="left" dataKey="kg" fill="url(#gradConsumoBar)" radius={[4, 4, 0, 0]} barSize={14} name="kg" />
+                <Bar yAxisId="left" dataKey="ovos" fill="url(#gradOvosBar)" radius={[4, 4, 0, 0]} barSize={14} name="ovos" />
+                <Line yAxisId="right" type="monotone" dataKey="eficiencia" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="eficiencia" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Consumo por Tipo — 1/3 */}

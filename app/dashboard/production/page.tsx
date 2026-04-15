@@ -45,6 +45,8 @@ import {
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
+import { usePlan } from "@/components/plan/plan-provider";
+import { LockedOverlay } from "@/components/plan/locked-overlay";
 
 /* ── Interfaces ── */
 interface Lote {
@@ -72,6 +74,7 @@ type ModalMode = "add" | "edit" | null;
 export default function ProducaoPage() {
   const searchParams = useSearchParams();
   const { farm, loading: authLoading } = useAuth();
+  const { plan } = usePlan();
 
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [registros, setRegistros] = useState<Registro[]>([]);
@@ -667,7 +670,29 @@ export default function ProducaoPage() {
           </div>
           {insights.length > 0 ? (
             <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-              {insights.map((ins, i) => (
+              {insights.map((ins, i) => {
+                const isLockedInsight = plan !== "premium" && i >= 2;
+                if (isLockedInsight) {
+                  return (
+                    <LockedOverlay key={i} message="Desbloqueie o Assistente de Granja completo" targetPlan="premium">
+                      <div className={cn(
+                        "p-3.5 rounded-xl border-l-[3px]",
+                        ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500",
+                        ins.type === "warning" && "bg-amber-50/50 border-l-amber-500",
+                        ins.type === "info" && "bg-blue-50/50 border-l-blue-500",
+                      )}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-gray-100">
+                            <Lightbulb className="w-2.5 h-2.5 text-gray-400" />
+                          </div>
+                          <span className="text-sm font-semibold text-gray-600">{ins.title}</span>
+                        </div>
+                        <p className="text-xs font-medium ml-7 text-gray-400">→ {ins.action}</p>
+                      </div>
+                    </LockedOverlay>
+                  );
+                }
+                return (
                 <div key={i} className={cn(
                   "p-3.5 rounded-xl border-l-[3px]",
                   ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500",
@@ -694,7 +719,8 @@ export default function ProducaoPage() {
                     → {ins.action}
                   </p>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
@@ -719,6 +745,20 @@ export default function ProducaoPage() {
               Pro
             </span>
           </div>
+          {plan === "essencial" ? (
+            <LockedOverlay message="Desbloqueie o resumo financeiro da sua produção" targetPlan="pro">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {/* Placeholder KPI cards for blur effect */}
+                {[1,2,3,4,5,6].map(n => (
+                  <div key={n} className="bg-gray-50 rounded-xl p-4">
+                    <div className="h-4 bg-gray-200 rounded w-20 mb-3" />
+                    <div className="h-6 bg-gray-200 rounded w-24 mb-2" />
+                    <div className="h-3 bg-gray-100 rounded w-32" />
+                  </div>
+                ))}
+              </div>
+            </LockedOverlay>
+          ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {/* Custo por Ovo */}
             <div className="bg-gray-50 rounded-xl p-4">
@@ -893,6 +933,7 @@ export default function ProducaoPage() {
               </div>
             </div>
           </div>
+          )}
         </div>
       </div>
 
@@ -953,7 +994,33 @@ export default function ProducaoPage() {
             <h3 className="text-sm font-bold text-gray-900">Produção por Lote</h3>
             <p className="text-xs text-gray-400 mt-0.5">Taxa de postura por lote</p>
           </div>
-          {producaoPorLote.length > 0 ? (
+          {plan === "essencial" ? (
+            <LockedOverlay message="Veja sua produção por lote" targetPlan="pro">
+              <div>
+                <div className="space-y-4">
+                  {[1,2,3,4].map(n => (
+                    <div key={n}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <div className="h-5 bg-gray-200 rounded w-14" />
+                          <div className="h-4 bg-gray-100 rounded w-24" />
+                        </div>
+                        <div className="h-4 bg-gray-200 rounded w-10" />
+                      </div>
+                      <div className="w-full h-2 bg-gray-100 rounded-full" />
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-5 pt-4 border-t border-gray-50">
+                  <div className="flex items-center gap-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500" /> {"≥90%"}</div>
+                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-400" /> 85-89%</div>
+                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-400" /> {"<85%"}</div>
+                  </div>
+                </div>
+              </div>
+            </LockedOverlay>
+          ) : producaoPorLote.length > 0 ? (
             <div className="space-y-4">
               {producaoPorLote.map((item) => (
                 <div key={item.lote}>
@@ -986,6 +1053,7 @@ export default function ProducaoPage() {
               Sem dados por lote.
             </div>
           )}
+          {plan !== "essencial" && (
           <div className="mt-5 pt-4 border-t border-gray-50">
             <div className="flex items-center gap-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
               <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500" /> {"≥90%"}</div>
@@ -993,6 +1061,7 @@ export default function ProducaoPage() {
               <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-400" /> {"<85%"}</div>
             </div>
           </div>
+          )}
         </div>
       </div>
 
@@ -1050,6 +1119,25 @@ export default function ProducaoPage() {
               <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
+          {plan === "essencial" ? (
+            <LockedOverlay message="Veja o desempenho dos seus lotes" targetPlan="pro">
+              <div className="space-y-3">
+                {[1,2,3].map(n => (
+                  <div key={n} className="flex items-center justify-between py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-gray-100" />
+                      <div>
+                        <div className="h-4 bg-gray-200 rounded w-16 mb-1" />
+                        <div className="h-3 bg-gray-100 rounded w-24" />
+                      </div>
+                    </div>
+                    <div className="h-4 bg-gray-100 rounded w-20" />
+                  </div>
+                ))}
+              </div>
+            </LockedOverlay>
+          ) : (
+          <>
           {(() => {
             const lotesComPostura = lotes.filter(l => !isNaN(parseFloat(l.postura)));
             const avg = lotesComPostura.length > 0
@@ -1124,6 +1212,8 @@ export default function ProducaoPage() {
             <div className="flex items-center justify-center h-24 text-sm text-gray-400">
               Nenhum lote cadastrado.
             </div>
+          )}
+          </>
           )}
         </div>
         </div>
