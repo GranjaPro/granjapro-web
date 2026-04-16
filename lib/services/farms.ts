@@ -48,6 +48,17 @@ export async function createFarm(farm: Record<string, any>) {
   return data;
 }
 
+export async function getFarmBirdCount(farmId: string): Promise<number> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("barns")
+    .select("current_birds")
+    .eq("farm_id", farmId);
+
+  if (error) throw error;
+  return data?.reduce((sum, barn) => sum + (barn.current_birds ?? 0), 0) ?? 0;
+}
+
 export async function updateFarm(farmId: string, updates: Record<string, any>) {
   const supabase = createClient();
   const { data, error } = await supabase

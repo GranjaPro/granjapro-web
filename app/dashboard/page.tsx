@@ -33,6 +33,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { createClient } from "@/lib/supabase/client";
+import { getFinancialSummaryInRange } from "@/lib/services/finances";
+import { getFarmBirdCount } from "@/lib/services/farms";
 import { formatNumber, formatCurrency } from "@/lib/utils";
 import {
   AreaChart,
@@ -194,25 +196,25 @@ export default function DashboardPage() {
 
     async function fetchDashboardData() {
       try {
-        const [prodRes, feedRes, barnsRes, tasksRes, alertsRes, finRes, flocksRes] = await Promise.all([
+        const [prodRes, feedRes, barnsRes, tasksRes, alertsRes, flocksRes, finSummary, birdCount] = await Promise.all([
           supabase.from("egg_production").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
           supabase.from("feed_consumption").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
           supabase.from("barns").select("*").eq("farm_id", farmId).order("created_at"),
           supabase.from("tasks").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate).order("scheduled_time"),
           supabase.from("alerts").select("*").eq("farm_id", farmId).eq("read", false).order("created_at", { ascending: false }).limit(5),
-          supabase.from("financial_transactions").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
           supabase.from("flocks").select("id, code, breed").eq("farm_id", farmId).order("created_at"),
+          getFinancialSummaryInRange(farmId, startDate, endDate),
+          getFarmBirdCount(farmId),
         ]);
 
         if (flocksRes.data) setAvailableFlocks(flocksRes.data);
 
-        // Update farm info — total birds from barns capacity
-        const totalBirdsFromBarns = barnsRes.data?.reduce((s: number, b: any) => s + (b.current_birds ?? 0), 0) ?? 0;
+        // Update farm info
         setFarmData({
           name: currentFarm.name,
           producer: currentFarm.producer_name,
-          totalBirds: totalBirdsFromBarns,
-          activeBirds: totalBirdsFromBarns,
+          totalBirds: birdCount,
+          activeBirds: birdCount,
           barns: barnsRes.data?.length ?? 0,
           breed: currentFarm.main_breed,
           productionSystem: currentFarm.production_system,
@@ -314,7 +316,7 @@ export default function DashboardPage() {
 
         const hasProduction = (prodRes.data?.length ?? 0) > 0;
         const hasFeed = (feedRes.data?.length ?? 0) > 0;
-        const hasFinance = (finRes.data?.length ?? 0) > 0;
+        const hasFinance = (finSummary.revenue > 0 || finSummary.expenses > 0);
 
         // Check customers & sales & inventory
         const [custRes, salesRes, invRes] = await Promise.all([
@@ -339,21 +341,15 @@ export default function DashboardPage() {
         setDbAlerts([...realAlerts, ...pending]);
 
         // Financial summary for selected period
-        if (finRes.data) {
-          const revenue = finRes.data.filter((t) => t.type === "revenue").reduce((s, t) => s + Number(t.amount), 0);
-          const expenses = finRes.data.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
-          const feedCost = finRes.data.filter((t) => t.type === "expense" && t.category === "feed").reduce((s, t) => s + Number(t.amount), 0);
-          const laborCost = finRes.data.filter((t) => t.type === "expense" && t.category === "labor").reduce((s, t) => s + Number(t.amount), 0);
-          setFinancialData({
-            revenue,
-            expenses,
-            profit: revenue - expenses,
-            feedCost,
-            laborCost,
-            otherExpenses: expenses - feedCost - laborCost,
-            revenueGoal: 0,
-          });
-        }
+        setFinancialData({
+          revenue: finSummary.revenue,
+          expenses: finSummary.expenses,
+          profit: finSummary.profit,
+          feedCost: finSummary.categoryTotals.feed,
+          laborCost: finSummary.categoryTotals.labor,
+          otherExpenses: finSummary.expenses - finSummary.categoryTotals.feed - finSummary.categoryTotals.labor,
+          revenueGoal: finSummary.revenueGoal,
+        });
 
         setDataLoaded(true);
       } catch (err) {

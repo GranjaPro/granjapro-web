@@ -1,20 +1,57 @@
-import { TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { useState, useEffect } from "react";
+import { TrendingUp, TrendingDown, DollarSign, Loader2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { mockMonthFinancial } from "@/lib/mock-data";
 import { formatCurrency } from "@/lib/utils";
+import { useDateFilter } from "@/components/date-filter";
+import { useAuth } from "@/components/auth/auth-provider";
+import { getFinancialSummaryInRange, type FinancialSummaryData } from "@/lib/services/finances";
 
 export function FinancialSummary() {
-  const { revenue, expenses, profit, revenueGoal } = mockMonthFinancial;
+  const { farm } = useAuth();
+  const { dateRange, filterMode } = useDateFilter();
+  const [data, setData] = useState<FinancialSummaryData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!farm?.id) return;
+
+    async function fetchData() {
+      setLoading(true);
+      try {
+        const summary = await getFinancialSummaryInRange(farm!.id, dateRange.startDate, endDate);
+        setData(summary);
+      } catch (err) {
+        console.error("Error fetching financial summary:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    const { startDate, endDate } = dateRange;
+    fetchData();
+  }, [farm?.id, dateRange]);
+
+  const revenue = data?.revenue ?? 0;
+  const expenses = data?.expenses ?? 0;
+  const profit = data?.profit ?? 0;
+  const revenueGoal = data?.revenueGoal ?? 20000;
   const revenueProgress = Math.min((revenue / revenueGoal) * 100, 100);
+
+  const monthLabel = filterMode === "mes" ? "Este Mês" : filterMode === "dia" ? "Hoje" : "Esta Semana";
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-sm font-semibold text-gray-800">
-          Financeiro – Março
+          Financeiro – {monthLabel}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 pt-0">
+      <CardContent className="space-y-3 pt-0 relative min-h-[160px]">
+        {loading ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10">
+            <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
+          </div>
+        ) : null}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-green-50">
