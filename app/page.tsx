@@ -236,7 +236,7 @@ const pricingPlans = [
       "📊 Comparação com outras granjas",
       "🏆 Ranking de desempenho",
       "Alertas automáticos inteligentes",
-      "Gestão de tarefas e rotinas",
+      "Gestão ilimitada de tarefas e rotinas",
       "Histórico completo ilimitado",
       "🤖 Até 60 análises com IA por mês (uso intensivo)",
       "Até 5 usuários",

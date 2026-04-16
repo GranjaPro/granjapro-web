@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import ModalPortal from "@/components/ui/modal-portal";
+import { usePlan } from "@/components/plan/plan-provider";
+import { LockedOverlay } from "@/components/plan/locked-overlay";
 
 type ProductionStage = "cria" | "recria" | "pre-postura" | "producao" | "pico" | "estavel" | "declinio" | "descarte";
 
@@ -151,6 +153,7 @@ const emptyForm = {
 
 export default function LotesPage() {
   const { farm, loading: authLoading } = useAuth();
+  const { plan } = usePlan();
 
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [barns, setBarns] = useState<Barn[]>([]);
@@ -598,8 +601,30 @@ export default function LotesPage() {
                 <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500">
                   Nenhum alerta ativo.
                 </div>
-              ) : visibleActiveAlerts.map((alert) => {
+              ) : visibleActiveAlerts.map((alert, alertIdx) => {
                 const isClosing = closingAlertIds.includes(alert.id);
+                const isLockedAlert = plan === "essencial" && alertIdx >= 2;
+                if (isLockedAlert) {
+                  return (
+                    <LockedOverlay key={alert.id} message="Desbloqueie todos os alertas inteligentes" targetPlan="pro">
+                      <div className={cn(
+                        "rounded-xl p-4 border",
+                        alert.type === "danger" && "bg-red-50 border-red-200",
+                        alert.type === "warning" && "bg-amber-50 border-amber-200",
+                        alert.type === "info" && "bg-blue-50 border-blue-200"
+                      )}>
+                        <div className="flex items-start gap-3">
+                          <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5", alert.type === "danger" && "bg-red-100", alert.type === "warning" && "bg-amber-100", alert.type === "info" && "bg-blue-100")}>
+                            <AlertTriangle className="w-4 h-4 text-gray-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-gray-600">{alert.msg}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </LockedOverlay>
+                  );
+                }
                 return (
                   <div
                     key={alert.id}

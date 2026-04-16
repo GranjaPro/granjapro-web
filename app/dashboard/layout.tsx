@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import ProfileSettings from "@/components/dashboard/profile-settings";
 import { DateFilterProvider } from "@/components/date-filter";
+import { PlanProvider } from "@/components/plan/plan-provider";
 import dynamic from "next/dynamic";
 import {
   LayoutDashboard,
@@ -86,6 +87,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
+    <PlanProvider>
     <DateFilterProvider>
     <div className="min-h-screen bg-[#f8faf9]">
       {/* Mobile overlay */}
@@ -282,5 +284,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <ProfileSettings open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
     </DateFilterProvider>
+    </PlanProvider>
   );
 }
