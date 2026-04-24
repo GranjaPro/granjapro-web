@@ -506,64 +506,127 @@ export default function LotesPage() {
         </button>
       </div>
 
-      <div className={cn("bg-gradient-to-r rounded-2xl border p-4 sm:p-5 transition-all duration-300", performanceGradient, performanceBorder)}>
-        <div className="flex flex-col lg:flex-row lg:items-center gap-3 sm:gap-4">
-          <div className="flex items-center gap-3 sm:gap-4 lg:min-w-[280px]">
-            <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
-              <svg className="w-14 h-14 sm:w-16 sm:h-16 -rotate-90" viewBox="0 0 64 64">
-                <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
-                <circle cx="32" cy="32" r="28" fill="none" stroke={performanceColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(performanceScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className={cn("text-sm sm:text-base font-bold", performanceStatusColor)}>{performanceScore}</span>
+      {plan === "essencial" ? (
+        <LockedOverlay message="Desbloqueie o desempenho dos lotes" targetPlan="pro">
+          <div className={cn("bg-gradient-to-r rounded-2xl border p-4 sm:p-5 transition-all duration-300", performanceGradient, performanceBorder)}>
+            <div className="flex flex-col lg:flex-row lg:items-center gap-3 sm:gap-4">
+              <div className="flex items-center gap-3 sm:gap-4 lg:min-w-[280px]">
+                <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
+                  <svg className="w-14 h-14 sm:w-16 sm:h-16 -rotate-90" viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                    <circle cx="32" cy="32" r="28" fill="none" stroke={performanceColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(performanceScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={cn("text-sm sm:text-base font-bold", performanceStatusColor)}>{performanceScore}</span>
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-brand-600 flex-shrink-0" />
+                    <span className="text-sm font-bold text-gray-900">Desempenho dos Lotes</span>
+                  </div>
+                  <p className={cn("text-lg sm:text-xl font-bold mt-0.5", performanceStatusColor)}>{performanceStatus}</p>
+                  <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 truncate">Lotes: {lotes.length} | Fase produtiva: {productiveLotes} | Críticos: {criticalLotes}</p>
+                </div>
               </div>
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-brand-600 flex-shrink-0" />
-                <span className="text-sm font-bold text-gray-900">Desempenho dos Lotes</span>
+
+              <div className="hidden lg:block w-px h-14 bg-gray-200" />
+
+              <div className="flex-1 space-y-1.5 sm:space-y-2">
+                {criticalLotes > 0 ? (
+                  <div className="flex items-start sm:items-center gap-2">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100 mt-0.5 sm:mt-0">
+                      <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-600" />
+                    </div>
+                    <p className="text-xs sm:text-sm text-gray-700">{criticalLotes} lotes em declínio ou descarte — revisar renovação</p>
+                  </div>
+                ) : (
+                  <div className="flex items-start sm:items-center gap-2">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100 mt-0.5 sm:mt-0">
+                      <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+                    </div>
+                    <p className="text-xs sm:text-sm text-gray-700">{productiveLotes} lotes em fase produtiva — operação equilibrada</p>
+                  </div>
+                )}
+                {overcrowdedBarns > 0 ? (
+                  <div className="flex items-start sm:items-center gap-2">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 mt-0.5 sm:mt-0">
+                      <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
+                    </div>
+                    <p className="text-xs sm:text-sm text-gray-700">{overcrowdedBarns} galpões acima da capacidade — redistribuir aves</p>
+                  </div>
+                ) : (
+                  <div className="flex items-start sm:items-center gap-2">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-100 mt-0.5 sm:mt-0">
+                      <Bird className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-600" />
+                    </div>
+                    <p className="text-xs sm:text-sm text-gray-700">{transitionLotes} lotes em formação — acompanhar avanço de estágio</p>
+                  </div>
+                )}
               </div>
-              <p className={cn("text-lg sm:text-xl font-bold mt-0.5", performanceStatusColor)}>{performanceStatus}</p>
-              <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 truncate">Lotes: {lotes.length} | Fase produtiva: {productiveLotes} | Críticos: {criticalLotes}</p>
             </div>
           </div>
+        </LockedOverlay>
+      ) : (
+        <div className={cn("bg-gradient-to-r rounded-2xl border p-4 sm:p-5 transition-all duration-300", performanceGradient, performanceBorder)}>
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3 sm:gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 lg:min-w-[280px]">
+              <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
+                <svg className="w-14 h-14 sm:w-16 sm:h-16 -rotate-90" viewBox="0 0 64 64">
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                  <circle cx="32" cy="32" r="28" fill="none" stroke={performanceColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(performanceScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className={cn("text-sm sm:text-base font-bold", performanceStatusColor)}>{performanceScore}</span>
+                </div>
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-brand-600 flex-shrink-0" />
+                  <span className="text-sm font-bold text-gray-900">Desempenho dos Lotes</span>
+                </div>
+                <p className={cn("text-lg sm:text-xl font-bold mt-0.5", performanceStatusColor)}>{performanceStatus}</p>
+                <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 truncate">Lotes: {lotes.length} | Fase produtiva: {productiveLotes} | Críticos: {criticalLotes}</p>
+              </div>
+            </div>
 
-          <div className="hidden lg:block w-px h-14 bg-gray-200" />
+            <div className="hidden lg:block w-px h-14 bg-gray-200" />
 
-          <div className="flex-1 space-y-1.5 sm:space-y-2">
-            {criticalLotes > 0 ? (
-              <div className="flex items-start sm:items-center gap-2">
-                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100 mt-0.5 sm:mt-0">
-                  <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-600" />
+            <div className="flex-1 space-y-1.5 sm:space-y-2">
+              {criticalLotes > 0 ? (
+                <div className="flex items-start sm:items-center gap-2">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100 mt-0.5 sm:mt-0">
+                    <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-600" />
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-700">{criticalLotes} lotes em declínio ou descarte — revisar renovação</p>
                 </div>
-                <p className="text-xs sm:text-sm text-gray-700">{criticalLotes} lotes em declínio ou descarte — revisar renovação</p>
-              </div>
-            ) : (
-              <div className="flex items-start sm:items-center gap-2">
-                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100 mt-0.5 sm:mt-0">
-                  <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+              ) : (
+                <div className="flex items-start sm:items-center gap-2">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100 mt-0.5 sm:mt-0">
+                    <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-700">{productiveLotes} lotes em fase produtiva — operação equilibrada</p>
                 </div>
-                <p className="text-xs sm:text-sm text-gray-700">{productiveLotes} lotes em fase produtiva — operação equilibrada</p>
-              </div>
-            )}
-            {overcrowdedBarns > 0 ? (
-              <div className="flex items-start sm:items-center gap-2">
-                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 mt-0.5 sm:mt-0">
-                  <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
+              )}
+              {overcrowdedBarns > 0 ? (
+                <div className="flex items-start sm:items-center gap-2">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 mt-0.5 sm:mt-0">
+                    <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-700">{overcrowdedBarns} galpões acima da capacidade — redistribuir aves</p>
                 </div>
-                <p className="text-xs sm:text-sm text-gray-700">{overcrowdedBarns} galpões acima da capacidade — redistribuir aves</p>
-              </div>
-            ) : (
-              <div className="flex items-start sm:items-center gap-2">
-                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-100 mt-0.5 sm:mt-0">
-                  <Bird className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-600" />
+              ) : (
+                <div className="flex items-start sm:items-center gap-2">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-100 mt-0.5 sm:mt-0">
+                    <Bird className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-600" />
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-700">{transitionLotes} lotes em formação — acompanhar avanço de estágio</p>
                 </div>
-                <p className="text-xs sm:text-sm text-gray-700">{transitionLotes} lotes em formação — acompanhar avanço de estágio</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Search + Stage Filter */}
       <div className="flex flex-col gap-3">

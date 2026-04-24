@@ -540,53 +540,105 @@ export default function ProducaoPage() {
       </div>
 
       {/* Resumo de Hoje */}
-      <div className={cn("bg-gradient-to-r to-white rounded-2xl border p-5 transition-all duration-300", healthBgFrom, healthBgVia, healthBorder)}>
-        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-          {/* Health Score */}
-          <div className="flex items-center gap-4 lg:min-w-[280px]">
-            <div className="relative w-16 h-16 flex-shrink-0">
-              <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
-                <circle cx="32" cy="32" r="28" fill="none" stroke={healthStrokeColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(healthScore.score / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className={cn("text-base font-bold", healthTextColor)}>{healthScore.score}</span>
+      {plan === "essencial" ? (
+        <LockedOverlay message="Desbloqueie o resumo de saúde produtiva" targetPlan="pro">
+          <div className={cn("bg-gradient-to-r to-white rounded-2xl border p-5 transition-all duration-300", healthBgFrom, healthBgVia, healthBorder)}>
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+              {/* Health Score */}
+              <div className="flex items-center gap-4 lg:min-w-[280px]">
+                <div className="relative w-16 h-16 flex-shrink-0">
+                  <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                    <circle cx="32" cy="32" r="28" fill="none" stroke={healthStrokeColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(healthScore.score / 100) * 175.9} 175.9`} className="transition-all duration-700" />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={cn("text-base font-bold", healthTextColor)}>{healthScore.score}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Target className="w-4 h-4 text-amber-600" />
+                    <span className="text-sm font-bold text-gray-900">Saúde Produtiva</span>
+                  </div>
+                  <p className={cn("text-xl font-bold mt-0.5", healthTextColor)}>{healthScore.label}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Postura: {healthScore.posturaRate.toFixed(1)}% | Meta: 92% | Perdas: {healthScore.lossRate.toFixed(1)}%</p>
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-amber-600" />
-                <span className="text-sm font-bold text-gray-900">Saúde Produtiva</span>
+
+              {/* Divider */}
+              <div className="hidden lg:block w-px h-14 bg-gray-200" />
+
+              {/* Action Items */}
+              <div className="flex-1 space-y-2">
+                {insights.slice(0, 3).map((ins, i) => (
+                  <div key={i} className="flex items-center gap-2.5">
+                    <div className={cn(
+                      "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
+                      ins.type === "success" ? "bg-emerald-100" : ins.type === "warning" ? "bg-amber-100" : "bg-blue-100"
+                    )}>
+                      {ins.type === "success" ? <TrendingUp className="w-3.5 h-3.5 text-emerald-600" /> :
+                       ins.type === "warning" ? <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> :
+                       <Lightbulb className="w-3.5 h-3.5 text-blue-600" />}
+                    </div>
+                    <p className="text-sm text-gray-700">{ins.title}</p>
+                  </div>
+                ))}
+                {insights.length === 0 && (
+                  <p className="text-sm text-gray-400">Nenhuma informação disponível para hoje.</p>
+                )}
               </div>
-              <p className={cn("text-xl font-bold mt-0.5", healthTextColor)}>{healthScore.label}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Postura: {healthScore.posturaRate.toFixed(1)}% | Meta: 92% | Perdas: {healthScore.lossRate.toFixed(1)}%</p>
             </div>
           </div>
-
-          {/* Divider */}
-          <div className="hidden lg:block w-px h-14 bg-gray-200" />
-
-          {/* Action Items */}
-          <div className="flex-1 space-y-2">
-            {insights.slice(0, 3).map((ins, i) => (
-              <div key={i} className="flex items-center gap-2.5">
-                <div className={cn(
-                  "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
-                  ins.type === "success" ? "bg-emerald-100" : ins.type === "warning" ? "bg-amber-100" : "bg-blue-100"
-                )}>
-                  {ins.type === "success" ? <TrendingUp className="w-3.5 h-3.5 text-emerald-600" /> :
-                   ins.type === "warning" ? <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> :
-                   <Lightbulb className="w-3.5 h-3.5 text-blue-600" />}
+        </LockedOverlay>
+      ) : (
+        <div className={cn("bg-gradient-to-r to-white rounded-2xl border p-5 transition-all duration-300", healthBgFrom, healthBgVia, healthBorder)}>
+          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+            {/* Health Score */}
+            <div className="flex items-center gap-4 lg:min-w-[280px]">
+              <div className="relative w-16 h-16 flex-shrink-0">
+                <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                  <circle cx="32" cy="32" r="28" fill="none" stroke={healthStrokeColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(healthScore.score / 100) * 175.9} 175.9`} className="transition-all duration-700" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className={cn("text-base font-bold", healthTextColor)}>{healthScore.score}</span>
                 </div>
-                <p className="text-sm text-gray-700">{ins.title}</p>
               </div>
-            ))}
-            {insights.length === 0 && (
-              <p className="text-sm text-gray-400">Nenhuma informação disponível para hoje.</p>
-            )}
+              <div>
+                <div className="flex items-center gap-2">
+                  <Target className="w-4 h-4 text-amber-600" />
+                  <span className="text-sm font-bold text-gray-900">Saúde Produtiva</span>
+                </div>
+                <p className={cn("text-xl font-bold mt-0.5", healthTextColor)}>{healthScore.label}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Postura: {healthScore.posturaRate.toFixed(1)}% | Meta: 92% | Perdas: {healthScore.lossRate.toFixed(1)}%</p>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="hidden lg:block w-px h-14 bg-gray-200" />
+
+            {/* Action Items */}
+            <div className="flex-1 space-y-2">
+              {insights.slice(0, 3).map((ins, i) => (
+                <div key={i} className="flex items-center gap-2.5">
+                  <div className={cn(
+                    "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
+                    ins.type === "success" ? "bg-emerald-100" : ins.type === "warning" ? "bg-amber-100" : "bg-blue-100"
+                  )}>
+                    {ins.type === "success" ? <TrendingUp className="w-3.5 h-3.5 text-emerald-600" /> :
+                     ins.type === "warning" ? <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> :
+                     <Lightbulb className="w-3.5 h-3.5 text-blue-600" />}
+                  </div>
+                  <p className="text-sm text-gray-700">{ins.title}</p>
+                </div>
+              ))}
+              {insights.length === 0 && (
+                <p className="text-sm text-gray-400">Nenhuma informação disponível para hoje.</p>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -668,69 +720,70 @@ export default function ProducaoPage() {
               Premium
             </span>
           </div>
-          {insights.length > 0 ? (
-            <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-              {insights.map((ins, i) => {
-                const isLockedInsight = plan !== "premium" && i >= 2;
-                if (isLockedInsight) {
-                  return (
-                    <LockedOverlay key={i} message="Desbloqueie o Assistente de Granja completo" targetPlan="premium">
-                      <div className={cn(
-                        "p-3.5 rounded-xl border-l-[3px]",
-                        ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500",
-                        ins.type === "warning" && "bg-amber-50/50 border-l-amber-500",
-                        ins.type === "info" && "bg-blue-50/50 border-l-blue-500",
-                      )}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-gray-100">
-                            <Lightbulb className="w-2.5 h-2.5 text-gray-400" />
+          {(() => {
+            const displayInsights = insights.length > 0 ? insights : [
+              { type: "warning" as const, title: "Taxa de postura abaixo da meta", action: "Verificar idade dos lotes e ajustar manejo alimentar" },
+              { type: "success" as const, title: "Produção acima da média semanal", action: "Manter padrão de iluminação e temperatura atuais" },
+              { type: "info" as const, title: "Oportunidade de otimização", action: "Redistribuir aves entre galpões para equilibrar densidade" },
+              { type: "warning" as const, title: "Perdas acima do aceitável", action: "Rever coleta e transporte de ovos nos horários críticos" },
+              { type: "success" as const, title: "Meta de dúzias atingida", action: "Considerar aumentar a meta para o próximo ciclo" },
+            ];
+            return (
+              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
+                {displayInsights.map((ins, i) => {
+                  const isLockedInsight = plan !== "premium" && i >= 2;
+                  if (isLockedInsight) {
+                    return (
+                      <LockedOverlay key={i} message="Desbloqueie o Assistente de Granja completo" targetPlan="premium">
+                        <div className={cn(
+                          "p-3.5 rounded-xl border-l-[3px]",
+                          ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500",
+                          ins.type === "warning" && "bg-amber-50/50 border-l-amber-500",
+                          ins.type === "info" && "bg-blue-50/50 border-l-blue-500",
+                        )}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-gray-100">
+                              <Lightbulb className="w-2.5 h-2.5 text-gray-400" />
+                            </div>
+                            <span className="text-sm font-semibold text-gray-600">{ins.title}</span>
                           </div>
-                          <span className="text-sm font-semibold text-gray-600">{ins.title}</span>
+                          <p className="text-xs font-medium ml-7 text-gray-400">→ {ins.action}</p>
                         </div>
-                        <p className="text-xs font-medium ml-7 text-gray-400">→ {ins.action}</p>
-                      </div>
-                    </LockedOverlay>
-                  );
-                }
-                return (
-                <div key={i} className={cn(
-                  "p-3.5 rounded-xl border-l-[3px]",
-                  ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500",
-                  ins.type === "warning" && "bg-amber-50/50 border-l-amber-500",
-                  ins.type === "info" && "bg-blue-50/50 border-l-blue-500",
-                )}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className={cn(
-                      "w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0",
-                      ins.type === "success" && "bg-emerald-100",
-                      ins.type === "warning" && "bg-amber-100",
-                      ins.type === "info" && "bg-blue-100",
+                      </LockedOverlay>
+                    );
+                  }
+                  return (
+                    <div key={i} className={cn(
+                      "p-3.5 rounded-xl border-l-[3px]",
+                      ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500",
+                      ins.type === "warning" && "bg-amber-50/50 border-l-amber-500",
+                      ins.type === "info" && "bg-blue-50/50 border-l-blue-500",
                     )}>
-                      {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />}
-                      {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
-                      {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600" />}
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className={cn(
+                          "w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0",
+                          ins.type === "success" && "bg-emerald-100",
+                          ins.type === "warning" && "bg-amber-100",
+                          ins.type === "info" && "bg-blue-100",
+                        )}>
+                          {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />}
+                          {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
+                          {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600" />}
+                        </div>
+                        <span className="text-sm font-semibold text-gray-800">{ins.title}</span>
+                      </div>
+                      <p className={cn(
+                        "text-xs font-medium ml-7",
+                        ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600"
+                      )}>
+                        → {ins.action}
+                      </p>
                     </div>
-                    <span className="text-sm font-semibold text-gray-800">{ins.title}</span>
-                  </div>
-                  <p className={cn(
-                    "text-xs font-medium ml-7",
-                    ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600"
-                  )}>
-                    → {ins.action}
-                  </p>
-                </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
-              <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
-                <Lightbulb className="w-6 h-6 text-gray-300" />
+                  );
+                })}
               </div>
-              <p className="text-sm font-semibold text-gray-400">Nenhuma informação disponível</p>
-              <p className="text-xs text-gray-300 mt-1 max-w-[220px]">Registre dados de produção para receber recomendações personalizadas do assistente.</p>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* Financial Production Metrics */}

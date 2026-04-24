@@ -1076,41 +1076,44 @@ export default function RacaoPage() {
             </div>
             <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Pro</span>
           </div>
-          <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-            {[
+          {(() => {
+            const financeCards = [
               { label: "Custo/Dúzia", value: "R$ 0,52", meta: "R$ 0,48", diff: +8.3, icon: DollarSign, iconBg: "bg-red-50", iconColor: "text-red-500" },
               { label: "Custo/kg", value: "R$ 0,44", meta: "R$ 0,42", diff: +4.8, icon: Wheat, iconBg: "bg-amber-50", iconColor: "text-amber-600" },
               { label: "Custo/Ovo", value: "R$ 0,043", meta: "R$ 0,040", diff: +7.5, icon: Target, iconBg: "bg-violet-50", iconColor: "text-violet-600" },
               { label: "Custo/Ave", value: "R$ 0,14", meta: "R$ 0,15", diff: -6.7, icon: Activity, iconBg: "bg-blue-50", iconColor: "text-blue-600" },
-            ].map((c) => {
-              const isOver = c.diff > 0;
-              const cardContent = (
-                <div className="bg-gray-50 rounded-xl p-3 flex flex-col">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0", c.iconBg)}>
-                      <c.icon className={cn("w-3 h-3", c.iconColor)} />
+            ];
+            const grid = (
+              <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
+                {financeCards.map((c) => {
+                  const isOver = c.diff > 0;
+                  return (
+                    <div key={c.label} className="bg-gray-50 rounded-xl p-3 flex flex-col">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0", c.iconBg)}>
+                          <c.icon className={cn("w-3 h-3", c.iconColor)} />
+                        </div>
+                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider leading-tight">{c.label}</span>
+                      </div>
+                      <p className="text-base font-bold text-gray-900">{c.value}</p>
+                      <div className="flex items-center justify-between mt-auto pt-1.5">
+                        <span className="text-[9px] text-gray-400">{c.meta}</span>
+                        <span className={cn("inline-flex items-center gap-0.5 text-[9px] font-bold px-1 py-0.5 rounded-full", isOver ? "text-red-600 bg-red-50" : "text-emerald-600 bg-emerald-50")}>
+                          {isOver ? <ArrowUpRight className="w-2.5 h-2.5" /> : <ArrowDownRight className="w-2.5 h-2.5" />}
+                          {isOver ? "+" : ""}{c.diff.toFixed(1)}%
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider leading-tight">{c.label}</span>
-                  </div>
-                  <p className="text-base font-bold text-gray-900">{c.value}</p>
-                  <div className="flex items-center justify-between mt-auto pt-1.5">
-                    <span className="text-[9px] text-gray-400">{c.meta}</span>
-                    <span className={cn("inline-flex items-center gap-0.5 text-[9px] font-bold px-1 py-0.5 rounded-full", isOver ? "text-red-600 bg-red-50" : "text-emerald-600 bg-emerald-50")}>
-                      {isOver ? <ArrowUpRight className="w-2.5 h-2.5" /> : <ArrowDownRight className="w-2.5 h-2.5" />}
-                      {isOver ? "+" : ""}{c.diff.toFixed(1)}%
-                    </span>
-                  </div>
-                </div>
-              );
-              return plan === "essencial" ? (
-                <LockedOverlay key={c.label} message="Desbloqueie o resumo financeiro" targetPlan="pro">
-                  {cardContent}
-                </LockedOverlay>
-              ) : (
-                <div key={c.label}>{cardContent}</div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            );
+            return plan === "essencial" ? (
+              <LockedOverlay message="Desbloqueie o resumo financeiro" targetPlan="pro" className="flex-1">
+                {grid}
+              </LockedOverlay>
+            ) : grid;
+          })()}
         </div>
       </div>
 
