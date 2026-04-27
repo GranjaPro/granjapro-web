@@ -47,6 +47,8 @@ import {
 } from "recharts";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
+import { usePlan } from "@/components/plan/plan-provider";
+import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 
 interface RegistroMortalidade {
@@ -97,6 +99,7 @@ const causaHexColors: Record<string, string> = {
 export default function MortalidadePage() {
   const searchParams = useSearchParams();
   const { farm } = useAuth();
+  const { plan } = usePlan();
   const farmRef = useRef(farm);
   farmRef.current = farm;
 
@@ -414,54 +417,107 @@ export default function MortalidadePage() {
       </div>
 
       {/* ── Mortality Status Banner ── */}
-      <div className={cn("bg-gradient-to-r rounded-2xl border p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
-        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-          <div className="flex items-center gap-4 lg:min-w-[280px]">
-            <div className="relative w-16 h-16 flex-shrink-0">
-              <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
-                <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(mortalityScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className={cn("text-base font-bold", statusTextColor)}>{mortalityScore}</span>
+      {plan === "essencial" ? (
+        <LockedOverlay message="Desbloqueie o status da mortalidade" targetPlan="pro">
+          <div className={cn("bg-gradient-to-r rounded-2xl border p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+              <div className="flex items-center gap-4 lg:min-w-[280px]">
+                <div className="relative w-16 h-16 flex-shrink-0">
+                  <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                    <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(mortalityScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={cn("text-base font-bold", statusTextColor)}>{mortalityScore}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Skull className="w-4 h-4 text-red-500" />
+                    <span className="text-sm font-bold text-gray-900">Status da Mortalidade</span>
+                  </div>
+                  <p className={cn("text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Semana: {mortesSemana} | Mês: {mortesMes} | Total: {totalMortes}</p>
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <Skull className="w-4 h-4 text-red-500" />
-                <span className="text-sm font-bold text-gray-900">Status da Mortalidade</span>
+              <div className="hidden lg:block w-px h-14 bg-gray-200" />
+              <div className="flex-1 space-y-2">
+                {taxaMensal <= 0.5 && (
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><Shield className="w-3.5 h-3.5 text-emerald-600" /></div>
+                    <p className="text-sm text-gray-700">Mortalidade controlada — taxa mensal de {taxaMensal.toFixed(1).replace(".", ",")}%</p>
+                  </div>
+                )}
+                {taxaMensal > 0.5 && (
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100"><AlertTriangle className="w-3.5 h-3.5 text-red-600" /></div>
+                    <p className="text-sm text-gray-700">Taxa mensal elevada ({taxaMensal.toFixed(1).replace(".", ",")}%) — <button className="font-semibold text-red-600 hover:text-red-700 underline underline-offset-2 decoration-red-300 hover:decoration-red-500 transition-colors cursor-pointer">investigar causas</button></p>
+                  </div>
+                )}
+                {porLote.filter(l => l.tendencia === "up").length > 0 && (
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100"><TrendingUp className="w-3.5 h-3.5 text-amber-600" /></div>
+                    <p className="text-sm text-gray-700">{porLote.filter(l => l.tendencia === "up").length} lotes com tendência de alta — <button className="font-semibold text-amber-600 hover:text-amber-700 underline underline-offset-2 decoration-amber-300 hover:decoration-amber-500 transition-colors cursor-pointer">monitorar lotes</button></p>
+                  </div>
+                )}
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><Heart className="w-3.5 h-3.5 text-emerald-600" /></div>
+                  <p className="text-sm text-gray-700">{totalAves > 1 ? (totalAves - totalMortes).toLocaleString("pt-BR") : "—"} aves vivas em {lotes.length} lotes ativos</p>
+                </div>
               </div>
-              <p className={cn("text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Semana: {mortesSemana} | Mês: {mortesMes} | Total: {totalMortes}</p>
             </div>
           </div>
-          <div className="hidden lg:block w-px h-14 bg-gray-200" />
-          <div className="flex-1 space-y-2">
-            {taxaMensal <= 0.5 && (
-              <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><Shield className="w-3.5 h-3.5 text-emerald-600" /></div>
-                <p className="text-sm text-gray-700">Mortalidade controlada — taxa mensal de {taxaMensal.toFixed(1).replace(".", ",")}%</p>
+        </LockedOverlay>
+      ) : (
+        <div className={cn("bg-gradient-to-r rounded-2xl border p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
+          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+            <div className="flex items-center gap-4 lg:min-w-[280px]">
+              <div className="relative w-16 h-16 flex-shrink-0">
+                <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                  <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(mortalityScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className={cn("text-base font-bold", statusTextColor)}>{mortalityScore}</span>
+                </div>
               </div>
-            )}
-            {taxaMensal > 0.5 && (
-              <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100"><AlertTriangle className="w-3.5 h-3.5 text-red-600" /></div>
-                <p className="text-sm text-gray-700">Taxa mensal elevada ({taxaMensal.toFixed(1).replace(".", ",")}%) — <button className="font-semibold text-red-600 hover:text-red-700 underline underline-offset-2 decoration-red-300 hover:decoration-red-500 transition-colors cursor-pointer">investigar causas</button></p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <Skull className="w-4 h-4 text-red-500" />
+                  <span className="text-sm font-bold text-gray-900">Status da Mortalidade</span>
+                </div>
+                <p className={cn("text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Semana: {mortesSemana} | Mês: {mortesMes} | Total: {totalMortes}</p>
               </div>
-            )}
-            {porLote.filter(l => l.tendencia === "up").length > 0 && (
+            </div>
+            <div className="hidden lg:block w-px h-14 bg-gray-200" />
+            <div className="flex-1 space-y-2">
+              {taxaMensal <= 0.5 && (
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><Shield className="w-3.5 h-3.5 text-emerald-600" /></div>
+                  <p className="text-sm text-gray-700">Mortalidade controlada — taxa mensal de {taxaMensal.toFixed(1).replace(".", ",")}%</p>
+                </div>
+              )}
+              {taxaMensal > 0.5 && (
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100"><AlertTriangle className="w-3.5 h-3.5 text-red-600" /></div>
+                  <p className="text-sm text-gray-700">Taxa mensal elevada ({taxaMensal.toFixed(1).replace(".", ",")}%) — <button className="font-semibold text-red-600 hover:text-red-700 underline underline-offset-2 decoration-red-300 hover:decoration-red-500 transition-colors cursor-pointer">investigar causas</button></p>
+                </div>
+              )}
+              {porLote.filter(l => l.tendencia === "up").length > 0 && (
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100"><TrendingUp className="w-3.5 h-3.5 text-amber-600" /></div>
+                  <p className="text-sm text-gray-700">{porLote.filter(l => l.tendencia === "up").length} lotes com tendência de alta — <button className="font-semibold text-amber-600 hover:text-amber-700 underline underline-offset-2 decoration-amber-300 hover:decoration-amber-500 transition-colors cursor-pointer">monitorar lotes</button></p>
+                </div>
+              )}
               <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100"><TrendingUp className="w-3.5 h-3.5 text-amber-600" /></div>
-                <p className="text-sm text-gray-700">{porLote.filter(l => l.tendencia === "up").length} lotes com tendência de alta — <button className="font-semibold text-amber-600 hover:text-amber-700 underline underline-offset-2 decoration-amber-300 hover:decoration-amber-500 transition-colors cursor-pointer">monitorar lotes</button></p>
+                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><Heart className="w-3.5 h-3.5 text-emerald-600" /></div>
+                <p className="text-sm text-gray-700">{totalAves > 1 ? (totalAves - totalMortes).toLocaleString("pt-BR") : "—"} aves vivas em {lotes.length} lotes ativos</p>
               </div>
-            )}
-            <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><Heart className="w-3.5 h-3.5 text-emerald-600" /></div>
-              <p className="text-sm text-gray-700">{totalAves > 1 ? (totalAves - totalMortes).toLocaleString("pt-BR") : "—"} aves vivas em {lotes.length} lotes ativos</p>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── KPI Cards with Progress Bars ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -532,6 +588,29 @@ export default function MortalidadePage() {
                 <p className={cn("text-xs font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
               </div>
             ))}
+            {plan !== "premium" ? (
+              <LockedOverlay message="Desbloqueie a análise avançada de mortalidade" targetPlan="premium">
+                <div className="p-3.5 rounded-xl border-l-[3px] bg-violet-50/50 border-l-violet-500">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-violet-100">
+                      <Activity className="w-2.5 h-2.5 text-violet-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-800">Previsão de risco para os próximos 7 dias</span>
+                  </div>
+                  <p className="text-xs font-medium ml-7 text-violet-600">&rarr; Análise preditiva baseada no histórico do lote</p>
+                </div>
+              </LockedOverlay>
+            ) : (
+              <div className="p-3.5 rounded-xl border-l-[3px] bg-violet-50/50 border-l-violet-500">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-violet-100">
+                    <Activity className="w-2.5 h-2.5 text-violet-600" />
+                  </div>
+                  <span className="text-sm font-semibold text-gray-800">Previsão de risco para os próximos 7 dias</span>
+                </div>
+                <p className="text-xs font-medium ml-7 text-violet-600">&rarr; Análise preditiva baseada no histórico do lote</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -583,6 +662,8 @@ export default function MortalidadePage() {
       {/* ── Charts Row — 2/3 + 1/3 ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Mortalidade x Taxa Composed Chart */}
+        {plan === "essencial" ? (
+        <LockedOverlay message="Desbloqueie o gráfico Mortalidade x Taxa" targetPlan="pro" className="lg:col-span-2">
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -624,6 +705,50 @@ export default function MortalidadePage() {
             </ComposedChart>
           </ResponsiveContainer>
         </div>
+        </LockedOverlay>
+        ) : (
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Mortalidade x Taxa</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Últimos 7 dias</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30"><Sparkles className="w-3 h-3" />Pro</span>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-red-500" /><span className="text-[10px] font-medium text-gray-400">Mortes</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-5 h-[3px] rounded-full bg-amber-500" /><span className="text-[10px] font-medium text-gray-400">Taxa (%)</span></div>
+              </div>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <ComposedChart data={mortalidadeSemanal} margin={{ top: 10, right: 50, left: -10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gradMortesBarMort2" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#ef4444" stopOpacity={0.6} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+              <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12, fontWeight: 500 }} dy={10} />
+              <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} domain={[0, 'auto']} />
+              <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 11, fontWeight: 600 }} dx={4} domain={[0, 'auto']} tickFormatter={(v: number) => (v).toFixed(1) + "%"} />
+              <Tooltip
+                contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
+                labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px" }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={((value: any, name: any) => {
+                  if (name === "mortes") return [Number(value) + " aves", "Mortes"];
+                  if (name === "taxa") return [(Number(value)).toFixed(2) + "%", "Taxa"];
+                  return [String(value), name];
+                }) as any}
+              />
+              <Bar yAxisId="left" dataKey="mortes" fill="url(#gradMortesBarMort2)" radius={[6, 6, 0, 0]} barSize={24} name="mortes" />
+              <Line yAxisId="right" type="monotone" dataKey="taxa" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="taxa" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        )}
 
         {/* Evolução Mensal */}
         <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">

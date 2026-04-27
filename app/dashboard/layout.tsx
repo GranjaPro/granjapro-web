@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import ProfileSettings from "@/components/dashboard/profile-settings";
 import { DateFilterProvider } from "@/components/date-filter";
-import { PlanProvider } from "@/components/plan/plan-provider";
+import { PlanProvider, usePlan } from "@/components/plan/plan-provider";
+import { UpgradePopup } from "@/components/plan/upgrade-popup";
 import dynamic from "next/dynamic";
 import {
   LayoutDashboard,
@@ -57,12 +58,15 @@ const sidebarNav = [
   { label: "Relatórios", href: "/dashboard/reports", icon: FileText, pro: true },
 ];
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const { plan } = usePlan();
   const { user, profile, farm, loading, signOut } = useAuth();
 
   const displayName = profile?.full_name || user?.email?.split("@")[0] || "Usuário";
@@ -87,7 +91,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <PlanProvider>
     <DateFilterProvider>
     <div className="min-h-screen bg-[#f8faf9]">
       {/* Mobile overlay */}
@@ -167,19 +170,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             }
             const navItem = item as { label: string; href: string; icon: any; pro?: boolean };
             const isActive = pathname === navItem.href;
-            return (
-              <Link
-                key={navItem.href}
-                href={navItem.href}
-                onClick={() => setSidebarOpen(false)}
-                className={cn(
-                  "group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-200 cursor-pointer",
-                  collapsed && "justify-center px-0",
-                  isActive
-                    ? "bg-brand-500/90 text-white shadow-lg shadow-brand-500/20"
-                    : "text-brand-300/80 hover:bg-white/[0.07] hover:text-white"
-                )}
-              >
+            const isLocked = navItem.pro && plan === "essencial";
+            const itemClass = cn(
+              "group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-200 cursor-pointer w-full text-left",
+              collapsed && "justify-center px-0",
+              isActive
+                ? "bg-brand-500/90 text-white shadow-lg shadow-brand-500/20"
+                : "text-brand-300/80 hover:bg-white/[0.07] hover:text-white"
+            );
+            const itemContent = (
+              <>
                 <navItem.icon
                   className={cn(
                     "w-[18px] h-[18px] flex-shrink-0 transition-colors",
@@ -196,6 +196,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     Pro
                   </span>
                 )}
+              </>
+            );
+            if (isLocked) {
+              return (
+                <button
+                  key={navItem.href}
+                  onClick={() => { setSidebarOpen(false); setUpgradeOpen(true); }}
+                  className={itemClass}
+                >
+                  {itemContent}
+                </button>
+              );
+            }
+            return (
+              <Link
+                key={navItem.href}
+                href={navItem.href}
+                onClick={() => setSidebarOpen(false)}
+                className={itemClass}
+              >
+                {itemContent}
               </Link>
             );
           })}
@@ -282,8 +303,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Profile Settings Modal */}
       <ProfileSettings open={profileOpen} onClose={() => setProfileOpen(false)} />
+
+      {/* Upgrade Popup */}
+      <UpgradePopup open={upgradeOpen} onClose={() => setUpgradeOpen(false)} targetPlan="pro" />
     </div>
     </DateFilterProvider>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <PlanProvider>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
     </PlanProvider>
   );
 }

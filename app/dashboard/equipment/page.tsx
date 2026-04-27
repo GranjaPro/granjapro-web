@@ -134,7 +134,10 @@ export default function EquipamentosPage() {
         .select("*")
         .eq("farm_id", currentFarm.id);
 
-      if (error) throw error;
+      if (error) {
+        setEquipamentos([]);
+        return;
+      }
 
       const mapped: Equipamento[] = (data || []).map((i: any) => ({
         id: i.id,

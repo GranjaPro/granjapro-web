@@ -36,6 +36,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { usePlan } from "@/components/plan/plan-provider";
+import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { cn } from "@/lib/utils";
 import { getTransactionsByDateRange, getFinancialSummaryInRange, createTransaction, updateTransaction, deleteTransaction, type FinancialTransaction, type FinancialSummaryData } from "@/lib/services/finances";
@@ -76,6 +78,7 @@ interface TransactionRow {
 
 export default function FinancasPage() {
   const { farm } = useAuth();
+  const { plan } = usePlan();
   const { dateRange, filterMode } = useDateFilter();
 
   const [transactionRows, setTransactionRows] = useState<TransactionRow[]>([]);
@@ -402,7 +405,9 @@ export default function FinancasPage() {
       </div>
 
       {/* Financial Health Banner */}
-      <div className={cn(
+      {plan === "essencial" ? (
+        <LockedOverlay message="Desbloqueie a saúde financeira" targetPlan="pro">
+          <div className={cn(
         "rounded-2xl p-5 border transition-all duration-300",
         healthColor === "emerald" && "bg-gradient-to-r from-emerald-50 via-emerald-50/50 to-white border-emerald-200/60",
         healthColor === "amber" && "bg-gradient-to-r from-amber-50 via-amber-50/50 to-white border-amber-200/60",
@@ -476,7 +481,83 @@ export default function FinancasPage() {
             )}
           </div>
         </div>
-      </div>
+          </div>
+        </LockedOverlay>
+      ) : (
+        <div className={cn(
+          "rounded-2xl p-5 border transition-all duration-300",
+          healthColor === "emerald" && "bg-gradient-to-r from-emerald-50 via-emerald-50/50 to-white border-emerald-200/60",
+          healthColor === "amber" && "bg-gradient-to-r from-amber-50 via-amber-50/50 to-white border-amber-200/60",
+          healthColor === "red" && "bg-gradient-to-r from-red-50 via-red-50/50 to-white border-red-200/60",
+        )}>
+          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+            <div className="flex items-center gap-4 lg:min-w-[280px]">
+              <div className="relative w-16 h-16 flex-shrink-0">
+                <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                  <circle
+                    cx="32" cy="32" r="28" fill="none"
+                    stroke={healthColor === "emerald" ? "#10b981" : healthColor === "amber" ? "#f59e0b" : "#ef4444"}
+                    strokeWidth="5" strokeLinecap="round"
+                    strokeDasharray={`${(healthScore / 100) * 175.9} 175.9`}
+                    className="transition-all duration-700"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className={cn(
+                    "text-base font-bold",
+                    healthColor === "emerald" && "text-emerald-700",
+                    healthColor === "amber" && "text-amber-700",
+                    healthColor === "red" && "text-red-700",
+                  )}>{healthScore}</span>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className={cn(
+                    "w-4 h-4",
+                    healthColor === "emerald" && "text-emerald-600",
+                    healthColor === "amber" && "text-amber-600",
+                    healthColor === "red" && "text-red-600",
+                  )} />
+                  <span className="text-sm font-bold text-gray-900">Saúde Financeira</span>
+                </div>
+                <p className={cn(
+                  "text-xl font-bold mt-0.5",
+                  healthColor === "emerald" && "text-emerald-700",
+                  healthColor === "amber" && "text-amber-700",
+                  healthColor === "red" && "text-red-700",
+                )}>{healthLabel}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Margem: {margem.toFixed(1)}% | Custo/ovo: {formatCurrency(custoOvo)}</p>
+              </div>
+            </div>
+            <div className="hidden lg:block w-px h-14 bg-gray-200" />
+            <div className="flex-1 space-y-2">
+              {actionItems.slice(0, 3).map((item, i) => (
+                <div key={i} className="flex items-center gap-2.5">
+                  <div className={cn(
+                    "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
+                    item.type === "warning" && "bg-amber-100",
+                    item.type === "success" && "bg-emerald-100",
+                    item.type === "info" && "bg-blue-100",
+                  )}>
+                    <item.icon className={cn(
+                      "w-3.5 h-3.5",
+                      item.type === "warning" && "text-amber-600",
+                      item.type === "success" && "text-emerald-600",
+                      item.type === "info" && "text-blue-600",
+                    )} />
+                  </div>
+                  <p className="text-sm text-gray-700">{item.text}</p>
+                </div>
+              ))}
+              {!loading && actionItems.length === 0 && (
+                <p className="text-sm text-gray-500">Sem alertas no momento.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -569,58 +650,117 @@ export default function FinancasPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
-              <BarChart3 className="w-5 h-5 text-brand-600" />
+        {plan === "essencial" ? (
+          <LockedOverlay message="Desbloqueie o lucro por ave" targetPlan="pro">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
+                  <BarChart3 className="w-5 h-5 text-brand-600" />
+                </div>
+              </div>
+              <p className="text-xs font-semibold text-gray-500 mb-1">Lucro por Ave</p>
+              <p className="text-2xl font-bold text-gray-900 tracking-tight">R$ {lucroPorAve.toFixed(2).replace(".", ",")}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="text-center p-1.5 rounded-lg bg-gray-50">
+                  <p className="text-xs font-bold text-gray-900">{precoMedio > 0 ? `R$ ${precoMedio.toFixed(2).replace(".", ",")}` : "—"}</p>
+                  <p className="text-[10px] text-gray-400">Preço/dz</p>
+                </div>
+                <div className="text-center p-1.5 rounded-lg bg-gray-50">
+                  <p className="text-xs font-bold text-gray-900">{volumeTotal.toLocaleString("pt-BR")} dz</p>
+                  <p className="text-[10px] text-gray-400">Volume</p>
+                </div>
+              </div>
+            </div>
+          </LockedOverlay>
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
+                <BarChart3 className="w-5 h-5 text-brand-600" />
+              </div>
+            </div>
+            <p className="text-xs font-semibold text-gray-500 mb-1">Lucro por Ave</p>
+            <p className="text-2xl font-bold text-gray-900 tracking-tight">R$ {lucroPorAve.toFixed(2).replace(".", ",")}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="text-center p-1.5 rounded-lg bg-gray-50">
+                <p className="text-xs font-bold text-gray-900">{precoMedio > 0 ? `R$ ${precoMedio.toFixed(2).replace(".", ",")}` : "—"}</p>
+                <p className="text-[10px] text-gray-400">Preço/dz</p>
+              </div>
+              <div className="text-center p-1.5 rounded-lg bg-gray-50">
+                <p className="text-xs font-bold text-gray-900">{volumeTotal.toLocaleString("pt-BR")} dz</p>
+                <p className="text-[10px] text-gray-400">Volume</p>
+              </div>
             </div>
           </div>
-          <p className="text-xs font-semibold text-gray-500 mb-1">Lucro por Ave</p>
-          <p className="text-2xl font-bold text-gray-900 tracking-tight">R$ {lucroPorAve.toFixed(2).replace(".", ",")}</p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="text-center p-1.5 rounded-lg bg-gray-50">
-              <p className="text-xs font-bold text-gray-900">{precoMedio > 0 ? `R$ ${precoMedio.toFixed(2).replace(".", ",")}` : "—"}</p>
-              <p className="text-[10px] text-gray-400">Preço/dz</p>
-            </div>
-            <div className="text-center p-1.5 rounded-lg bg-gray-50">
-              <p className="text-xs font-bold text-gray-900">{volumeTotal.toLocaleString("pt-BR")} dz</p>
-              <p className="text-[10px] text-gray-400">Volume</p>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* AI Insight */}
-      <div className="bg-gradient-to-r from-amber-50 via-orange-50/50 to-white border border-amber-200/60 rounded-2xl p-5">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-sm shadow-amber-400/30">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-bold text-gray-900 mb-2">Assistente Financeiro</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-white/60 border border-amber-100">
-                <TrendingDown className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Preço médio caiu 4%</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Impacto: <span className="font-semibold text-red-600">- R$ 1.000</span> na receita mensal</p>
-                </div>
+      {plan !== "premium" ? (
+        <LockedOverlay message="Desbloqueie o Assistente Financeiro" targetPlan="premium">
+          <div className="bg-gradient-to-r from-amber-50 via-orange-50/50 to-white border border-amber-200/60 rounded-2xl p-5">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-sm shadow-amber-400/30">
+                <Sparkles className="w-5 h-5 text-white" />
               </div>
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-white/60 border border-amber-100">
-                <TrendingUp className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Volume cresceu 8%</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Compensa parcialmente a queda de preço</p>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-gray-900 mb-2">Assistente Financeiro</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-white/60 border border-amber-100">
+                    <TrendingDown className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Preço médio caiu 4%</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Impacto: <span className="font-semibold text-red-600">- R$ 1.000</span> na receita mensal</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-white/60 border border-amber-100">
+                    <TrendingUp className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Volume cresceu 8%</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Compensa parcialmente a queda de preço</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-2 p-2.5 rounded-xl bg-brand-50/50 border border-brand-100">
+                  <ArrowRight className="w-4 h-4 text-brand-600 flex-shrink-0" />
+                  <p className="text-xs text-brand-800 font-medium">Sugestão: Negocie preços fixos com Mercado Central e Supermercado BH para proteger a margem</p>
                 </div>
               </div>
             </div>
-            <div className="mt-3 flex items-center gap-2 p-2.5 rounded-xl bg-brand-50/50 border border-brand-100">
-              <ArrowRight className="w-4 h-4 text-brand-600 flex-shrink-0" />
-              <p className="text-xs text-brand-800 font-medium">Sugestão: Negocie preços fixos com Mercado Central e Supermercado BH para proteger a margem</p>
+          </div>
+        </LockedOverlay>
+      ) : (
+        <div className="bg-gradient-to-r from-amber-50 via-orange-50/50 to-white border border-amber-200/60 rounded-2xl p-5">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-sm shadow-amber-400/30">
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-gray-900 mb-2">Assistente Financeiro</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-white/60 border border-amber-100">
+                  <TrendingDown className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Preço médio caiu 4%</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Impacto: <span className="font-semibold text-red-600">- R$ 1.000</span> na receita mensal</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-white/60 border border-amber-100">
+                  <TrendingUp className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Volume cresceu 8%</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Compensa parcialmente a queda de preço</p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-2 p-2.5 rounded-xl bg-brand-50/50 border border-brand-100">
+                <ArrowRight className="w-4 h-4 text-brand-600 flex-shrink-0" />
+                <p className="text-xs text-brand-800 font-medium">Sugestão: Negocie preços fixos com Mercado Central e Supermercado BH para proteger a margem</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -661,31 +801,41 @@ export default function FinancasPage() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-6">
-          <h3 className="text-sm font-bold text-gray-900 mb-1">Fluxo de Caixa Mensal</h3>
-          <p className="text-xs text-gray-400 mb-4">Receita, despesa e lucro por mês</p>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={fluxoMensalData} barGap={2}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-              <Tooltip
-                contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                formatter={(value: any, name: any) => [
-                  formatCurrency(Number(value)),
-                  String(name) === "receita" ? "Receita" : String(name) === "despesa" ? "Despesa" : "Lucro"
-                ]}
-              />
-              <Bar dataKey="receita" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={28} />
-              <Bar dataKey="despesa" fill="#f87171" radius={[4, 4, 0, 0]} maxBarSize={28} />
-              <Bar dataKey="lucro" radius={[4, 4, 0, 0]} maxBarSize={28}>
-                {fluxoMensalData.map((entry, i) => (
-                  <Cell key={i} fill={entry.lucro >= 0 ? "#34d399" : "#fca5a5"} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {plan === "essencial" ? (
+          <LockedOverlay message="Desbloqueie o fluxo de caixa mensal" targetPlan="pro">
+            <div className="bg-white rounded-2xl border border-gray-100 p-6">
+              <h3 className="text-sm font-bold text-gray-900 mb-1">Fluxo de Caixa Mensal</h3>
+              <p className="text-xs text-gray-400 mb-4">Receita, despesa e lucro por mês</p>
+              <div className="h-[240px]" />
+            </div>
+          </LockedOverlay>
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6">
+            <h3 className="text-sm font-bold text-gray-900 mb-1">Fluxo de Caixa Mensal</h3>
+            <p className="text-xs text-gray-400 mb-4">Receita, despesa e lucro por mês</p>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={fluxoMensalData} barGap={2}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
+                  formatter={(value: any, name: any) => [
+                    formatCurrency(Number(value)),
+                    String(name) === "receita" ? "Receita" : String(name) === "despesa" ? "Despesa" : "Lucro"
+                  ]}
+                />
+                <Bar dataKey="receita" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="despesa" fill="#f87171" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="lucro" radius={[4, 4, 0, 0]} maxBarSize={28}>
+                  {fluxoMensalData.map((entry, i) => (
+                    <Cell key={i} fill={entry.lucro >= 0 ? "#34d399" : "#fca5a5"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       {/* Charts Row 2 */}
@@ -744,91 +894,120 @@ export default function FinancasPage() {
           </div>
         </div>
 
-        <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">Receitas por Categoria</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Receita por categoria — {periodoLabel}</p>
-            </div>
-            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-              {([
-                { key: "cliente" as const, label: "Cliente" },
-                { key: "lote" as const, label: "Lote" },
-                { key: "galpao" as const, label: "Galpão" },
-              ]).map((t) => (
-                <button
-                  key={t.key}
-                  onClick={() => setBreakdownTab(t.key)}
-                  className={cn(
-                    "px-3 py-1 text-[11px] font-semibold rounded-lg transition-all duration-200 cursor-pointer",
-                    breakdownTab === t.key
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  )}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-3">
-            {breakdownData.map((d: any, i: number) => {
-              const pct = receitaPeriodo > 0 ? (d.valor / receitaPeriodo) * 100 : 0;
-              return (
-                <div key={d.nome} className="flex items-center gap-3">
-                  <div className={cn(
-                    "w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0",
-                    i === 0 && "bg-amber-100 text-amber-700",
-                    i === 1 && "bg-gray-100 text-gray-600",
-                    i === 2 && "bg-orange-50 text-orange-600",
-                    i > 2 && "bg-gray-50 text-gray-400",
-                  )}>
-                    {i + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      {breakdownTab === "lote" ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-xs font-semibold">{d.nome}</span>
-                      ) : (
-                        <span className="text-sm font-medium text-gray-800 truncate">{d.nome}</span>
-                      )}
-                      <span className="text-sm font-bold text-gray-900 ml-2">{formatCurrency(d.valor)}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full bg-brand-400 transition-all duration-500" style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className="text-[10px] text-gray-400 font-medium w-8 text-right">{pct.toFixed(1)}%</span>
-                    </div>
-                  </div>
+        {plan === "essencial" ? (
+          <LockedOverlay message="Desbloqueie as receitas por categoria" targetPlan="pro" className="lg:col-span-5">
+            <div className="bg-white rounded-2xl border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Receitas por Categoria</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Receita por categoria — {periodoLabel}</p>
                 </div>
-              );
-            })}
-            {!loading && breakdownData.length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-8">Nenhuma venda neste período</p>
-            )}
+                <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                  {(["Cliente", "Lote", "Galpão"]).map((label) => (
+                    <span key={label} className="px-3 py-1 text-[11px] font-semibold rounded-lg text-gray-500">{label}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="h-[160px]" />
+            </div>
+          </LockedOverlay>
+        ) : (
+          <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-100 p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Receitas por Categoria</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Receita por categoria — {periodoLabel}</p>
+              </div>
+              <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                {([
+                  { key: "cliente" as const, label: "Cliente" },
+                  { key: "lote" as const, label: "Lote" },
+                  { key: "galpao" as const, label: "Galpão" },
+                ]).map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => setBreakdownTab(t.key)}
+                    className={cn(
+                      "px-3 py-1 text-[11px] font-semibold rounded-lg transition-all duration-200 cursor-pointer",
+                      breakdownTab === t.key
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-3">
+              {breakdownData.map((d: any, i: number) => {
+                const pct = receitaPeriodo > 0 ? (d.valor / receitaPeriodo) * 100 : 0;
+                return (
+                  <div key={d.nome} className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0",
+                      i === 0 && "bg-amber-100 text-amber-700",
+                      i === 1 && "bg-gray-100 text-gray-600",
+                      i === 2 && "bg-orange-50 text-orange-600",
+                      i > 2 && "bg-gray-50 text-gray-400",
+                    )}>
+                      {i + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        {breakdownTab === "lote" ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-xs font-semibold">{d.nome}</span>
+                        ) : (
+                          <span className="text-sm font-medium text-gray-800 truncate">{d.nome}</span>
+                        )}
+                        <span className="text-sm font-bold text-gray-900 ml-2">{formatCurrency(d.valor)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full bg-brand-400 transition-all duration-500" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-[10px] text-gray-400 font-medium w-8 text-right">{pct.toFixed(1)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {!loading && breakdownData.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-8">Nenhuma venda neste período</p>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Price History */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
-          <h3 className="text-sm font-bold text-gray-900 mb-1">Histórico de Preço / Dúzia</h3>
-          <p className="text-xs text-gray-400 mb-4">Evolução do preço médio por dúzia</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={historicoPrecosData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} />
-              <YAxis domain={["auto", "auto"]} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} tickFormatter={(v) => `R$ ${v}`} />
-              <Tooltip
-                contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, "Preço/dz"]}
-              />
-              <Line type="monotone" dataKey="preco" stroke="#f59e0b" strokeWidth={2.5} dot={{ fill: "#f59e0b", r: 4, strokeWidth: 0 }} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2, fill: "#f59e0b" }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        {plan === "essencial" ? (
+          <LockedOverlay message="Desbloqueie o histórico de preço" targetPlan="pro" className="lg:col-span-2">
+            <div className="bg-white rounded-2xl border border-gray-100 p-6">
+              <h3 className="text-sm font-bold text-gray-900 mb-1">Histórico de Preço / Dúzia</h3>
+              <p className="text-xs text-gray-400 mb-4">Evolução do preço médio por dúzia</p>
+              <div className="h-[200px]" />
+            </div>
+          </LockedOverlay>
+        ) : (
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
+            <h3 className="text-sm font-bold text-gray-900 mb-1">Histórico de Preço / Dúzia</h3>
+            <p className="text-xs text-gray-400 mb-4">Evolução do preço médio por dúzia</p>
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={historicoPrecosData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                <YAxis domain={["auto", "auto"]} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} tickFormatter={(v) => `R$ ${v}`} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
+                  formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, "Preço/dz"]}
+                />
+                <Line type="monotone" dataKey="preco" stroke="#f59e0b" strokeWidth={2.5} dot={{ fill: "#f59e0b", r: 4, strokeWidth: 0 }} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2, fill: "#f59e0b" }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
           <div className="flex items-center justify-between mb-5">

@@ -47,6 +47,8 @@ import {
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
+import { usePlan } from "@/components/plan/plan-provider";
+import { LockedOverlay } from "@/components/plan/locked-overlay";
 
 /* ── Types ── */
 type RegistroTipo = "Vacinação" | "Tratamento" | "Inspeção";
@@ -274,6 +276,7 @@ function formatMonthLabel(date: Date) {
 export default function SaudePage() {
   const searchParams = useSearchParams();
   const { farm, loading: authLoading } = useAuth();
+  const { plan } = usePlan();
 
   const [registros, setRegistros] = useState<RegistroSaude[]>([]);
   const [agenda, setAgenda] = useState<AgendaVacina[]>([]);
@@ -763,48 +766,95 @@ export default function SaudePage() {
       </div>
 
       {/* ── Health Score Banner ── */}
-      <div className={cn("bg-gradient-to-r rounded-2xl border p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
-        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-          <div className="flex items-center gap-4 lg:min-w-[280px]">
-            <div className="relative w-16 h-16 flex-shrink-0">
-              <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
-                <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(healthScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className={cn("text-base font-bold", statusTextColor)}>{healthScore}</span>
+      {plan === "essencial" ? (
+        <LockedOverlay message="Desbloqueie o resumo de saúde do plantel" targetPlan="pro">
+          <div className={cn("bg-gradient-to-r rounded-2xl border p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+              <div className="flex items-center gap-4 lg:min-w-[280px]">
+                <div className="relative w-16 h-16 flex-shrink-0">
+                  <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                    <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(healthScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={cn("text-base font-bold", statusTextColor)}>{healthScore}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <HeartPulse className="w-4 h-4 text-brand-600" />
+                    <span className="text-sm font-bold text-gray-900">Saúde do Plantel</span>
+                  </div>
+                  <p className={cn("text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Mortalidade: {totalMortesSemana} aves | Vacinas: {vacinasPendentes} pendentes</p>
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <HeartPulse className="w-4 h-4 text-brand-600" />
-                <span className="text-sm font-bold text-gray-900">Saúde do Plantel</span>
+              <div className="hidden lg:block w-px h-14 bg-gray-200" />
+              <div className="flex-1 space-y-2">
+                {vacinasPendentes > 0 && (
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100"><Syringe className="w-3.5 h-3.5 text-amber-600" /></div>
+                    <p className="text-sm text-gray-700">{vacinasPendentes} vacinas próximas do vencimento — <button className="font-semibold text-amber-600 hover:text-amber-700 underline underline-offset-2 decoration-amber-300 hover:decoration-amber-500 transition-colors cursor-pointer">agendar aplicação</button></p>
+                  </div>
+                )}
+                {tratamentosAtivos > 0 && (
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100"><Pill className="w-3.5 h-3.5 text-red-600" /></div>
+                    <p className="text-sm text-gray-700">{tratamentosAtivos} tratamento em andamento — <button className="font-semibold text-red-600 hover:text-red-700 underline underline-offset-2 decoration-red-300 hover:decoration-red-500 transition-colors cursor-pointer">monitorar evolução</button></p>
+                  </div>
+                )}
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /></div>
+                  <p className="text-sm text-gray-700">Cobertura vacinal em {coberturaVacinal}% — <button className="font-semibold text-emerald-600 hover:text-emerald-700 underline underline-offset-2 decoration-emerald-300 hover:decoration-emerald-500 transition-colors cursor-pointer">ver calendário</button></p>
+                </div>
               </div>
-              <p className={cn("text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Mortalidade: {totalMortesSemana} aves | Vacinas: {vacinasPendentes} pendentes</p>
             </div>
           </div>
-          <div className="hidden lg:block w-px h-14 bg-gray-200" />
-          <div className="flex-1 space-y-2">
-            {vacinasPendentes > 0 && (
-              <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100"><Syringe className="w-3.5 h-3.5 text-amber-600" /></div>
-                <p className="text-sm text-gray-700">{vacinasPendentes} vacinas próximas do vencimento — <button className="font-semibold text-amber-600 hover:text-amber-700 underline underline-offset-2 decoration-amber-300 hover:decoration-amber-500 transition-colors cursor-pointer">agendar aplicação</button></p>
+        </LockedOverlay>
+      ) : (
+        <div className={cn("bg-gradient-to-r rounded-2xl border p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
+          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+            <div className="flex items-center gap-4 lg:min-w-[280px]">
+              <div className="relative w-16 h-16 flex-shrink-0">
+                <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                  <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(healthScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className={cn("text-base font-bold", statusTextColor)}>{healthScore}</span>
+                </div>
               </div>
-            )}
-            {tratamentosAtivos > 0 && (
-              <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100"><Pill className="w-3.5 h-3.5 text-red-600" /></div>
-                <p className="text-sm text-gray-700">{tratamentosAtivos} tratamento em andamento — <button className="font-semibold text-red-600 hover:text-red-700 underline underline-offset-2 decoration-red-300 hover:decoration-red-500 transition-colors cursor-pointer">monitorar evolução</button></p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <HeartPulse className="w-4 h-4 text-brand-600" />
+                  <span className="text-sm font-bold text-gray-900">Saúde do Plantel</span>
+                </div>
+                <p className={cn("text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Mortalidade: {totalMortesSemana} aves | Vacinas: {vacinasPendentes} pendentes</p>
               </div>
-            )}
-            <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /></div>
-              <p className="text-sm text-gray-700">Cobertura vacinal em {coberturaVacinal}% — <button className="font-semibold text-emerald-600 hover:text-emerald-700 underline underline-offset-2 decoration-emerald-300 hover:decoration-emerald-500 transition-colors cursor-pointer">ver calendário</button></p>
+            </div>
+            <div className="hidden lg:block w-px h-14 bg-gray-200" />
+            <div className="flex-1 space-y-2">
+              {vacinasPendentes > 0 && (
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100"><Syringe className="w-3.5 h-3.5 text-amber-600" /></div>
+                  <p className="text-sm text-gray-700">{vacinasPendentes} vacinas próximas do vencimento — <button className="font-semibold text-amber-600 hover:text-amber-700 underline underline-offset-2 decoration-amber-300 hover:decoration-amber-500 transition-colors cursor-pointer">agendar aplicação</button></p>
+                </div>
+              )}
+              {tratamentosAtivos > 0 && (
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100"><Pill className="w-3.5 h-3.5 text-red-600" /></div>
+                  <p className="text-sm text-gray-700">{tratamentosAtivos} tratamento em andamento — <button className="font-semibold text-red-600 hover:text-red-700 underline underline-offset-2 decoration-red-300 hover:decoration-red-500 transition-colors cursor-pointer">monitorar evolução</button></p>
+                </div>
+              )}
+              <div className="flex items-center gap-2.5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /></div>
+                <p className="text-sm text-gray-700">Cobertura vacinal em {coberturaVacinal}% — <button className="font-semibold text-emerald-600 hover:text-emerald-700 underline underline-offset-2 decoration-emerald-300 hover:decoration-emerald-500 transition-colors cursor-pointer">ver calendário</button></p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -849,7 +899,9 @@ export default function SaudePage() {
 
       {/* ── Evolução do lote ── */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-      <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5">
+      {plan === "essencial" ? (
+        <LockedOverlay message="Desbloqueie a evolução do lote" targetPlan="pro" className="lg:col-span-2">
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center">
@@ -965,6 +1017,125 @@ export default function SaudePage() {
           </ComposedChart>
         </ResponsiveContainer>
       </div>
+        </LockedOverlay>
+      ) : (
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-brand-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Evolução do lote</h3>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto">
+              {[
+                { id: "7d", label: "Últimos 7 dias" },
+                { id: "30d", label: "Últimos 30 dias" },
+                { id: "months", label: "Meses" },
+                { id: "total", label: "Tempo total" },
+              ].map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setHealthEvolutionRange(option.id as HealthEvolutionRange)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-semibold border whitespace-nowrap transition-colors",
+                    healthEvolutionRange === option.id
+                      ? "bg-brand-50 text-brand-700 border-brand-200"
+                      : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50",
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={280}>
+            <ComposedChart
+              data={healthEvolutionData}
+              margin={{ top: 5, right: 10, left: -10, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="evoScoreGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10b981" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+              <XAxis
+                dataKey="label"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: "#9ca3af", fontSize: 12 }}
+                minTickGap={healthEvolutionRange === "30d" ? 18 : 8}
+              />
+              <YAxis
+                yAxisId="left"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: "#9ca3af", fontSize: 12 }}
+                domain={[0, 100]}
+                tickFormatter={(value: number) => `${value}%`}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: "#9ca3af", fontSize: 12 }}
+                domain={[0, 2.5]}
+                tickFormatter={(value: number) => `${value}%`}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#fff",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "12px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                  fontSize: "13px",
+                  padding: "10px 14px",
+                }}
+                formatter={((value: unknown, name: unknown) => {
+                  if (name === "Score de saúde" || name === "Postura (%)") {
+                    return [`${Number(value ?? 0)}%`, String(name)];
+                  }
+                  return [`${Number(value ?? 0).toFixed(2)}%`, String(name)];
+                }) as any}
+              />
+              <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} iconType="circle" />
+              <Area
+                yAxisId="left"
+                type="monotone"
+                dataKey="score"
+                name="Score de saúde"
+                stroke="#10b981"
+                strokeWidth={2.5}
+                fill="url(#evoScoreGrad)"
+              />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="postura"
+                name="Postura (%)"
+                stroke="#f59e0b"
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="mortalidade"
+                name="Mortalidade (%)"
+                stroke="#ef4444"
+                strokeWidth={2}
+                dot={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* AI Insights — under Cobertura Vacinal */}
       <div className="lg:col-span-1 bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
@@ -979,19 +1150,38 @@ export default function SaudePage() {
           <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Pro</span>
         </div>
         <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-          {insights.map((ins, i) => (
-            <div key={i} className={cn("p-3 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
-              <div className="flex items-center gap-2 mb-1">
-                <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
-                  {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />}
-                  {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
-                  {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600" />}
+          {insights.map((ins, i) => {
+            if (plan === "essencial" && i >= 2) {
+              return (
+                <LockedOverlay key={i} message="Desbloqueie o Assistente Sanitário" targetPlan="pro">
+                  <div className={cn("p-3 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
+                        {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />}
+                        {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
+                        {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600" />}
+                      </div>
+                      <span className="text-xs font-semibold text-gray-800">{ins.title}</span>
+                    </div>
+                    <p className={cn("text-[11px] font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
+                  </div>
+                </LockedOverlay>
+              );
+            }
+            return (
+              <div key={i} className={cn("p-3 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
+                    {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />}
+                    {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
+                    {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600" />}
+                  </div>
+                  <span className="text-xs font-semibold text-gray-800">{ins.title}</span>
                 </div>
-                <span className="text-xs font-semibold text-gray-800">{ins.title}</span>
+                <p className={cn("text-[11px] font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
               </div>
-              <p className={cn("text-[11px] font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -1036,50 +1226,71 @@ export default function SaudePage() {
       {/* ── Charts Row — moved above (Mortalidade 2/3 + Cobertura 1/3) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Mortalidade */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">Mortalidade x Taxa</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Período selecionado</p>
+        {plan === "essencial" ? (
+          <LockedOverlay message="Desbloqueie o gráfico Mortalidade x Taxa" targetPlan="pro" className="lg:col-span-2">
+            <div className="bg-white rounded-2xl border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Mortalidade x Taxa</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Período selecionado</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30"><Sparkles className="w-3 h-3" />Pro</span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-red-500" /><span className="text-[10px] font-medium text-gray-400">Mortes</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-5 h-[3px] rounded-full bg-amber-500" /><span className="text-[10px] font-medium text-gray-400">Taxa (%)</span></div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-center h-[300px] text-gray-400 text-sm">Nenhum dado de mortalidade no período.</div>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30"><Sparkles className="w-3 h-3" />Pro</span>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-red-500" /><span className="text-[10px] font-medium text-gray-400">Mortes</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-5 h-[3px] rounded-full bg-amber-500" /><span className="text-[10px] font-medium text-gray-400">Taxa (%)</span></div>
+          </LockedOverlay>
+        ) : (
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Mortalidade x Taxa</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Período selecionado</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30"><Sparkles className="w-3 h-3" />Pro</span>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-red-500" /><span className="text-[10px] font-medium text-gray-400">Mortes</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-5 h-[3px] rounded-full bg-amber-500" /><span className="text-[10px] font-medium text-gray-400">Taxa (%)</span></div>
+                </div>
               </div>
             </div>
+            {mortalidadeData.length === 0 ? (
+              <div className="flex items-center justify-center h-[300px] text-gray-400 text-sm">Nenhum dado de mortalidade no período.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <ComposedChart data={mortalidadeData} margin={{ top: 10, right: 50, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="gradMortesBar" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="#ef4444" stopOpacity={0.6} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                  <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12, fontWeight: 500 }} dy={10} />
+                  <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} domain={[0, "auto"]} />
+                  <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 11, fontWeight: 600 }} dx={4} domain={[0, "auto"]} tickFormatter={(v: number) => (v * 100).toFixed(1) + "%"} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
+                    labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px" }}
+                    formatter={((value: any, name: any) => {
+                      if (name === "mortes") return [Number(value) + " aves", "Mortes"];
+                      if (name === "taxa") return [(Number(value) * 100).toFixed(2) + "%", "Taxa"];
+                      return [String(value), name];
+                    }) as any}
+                  />
+                  <Bar yAxisId="left" dataKey="mortes" fill="url(#gradMortesBar)" radius={[6, 6, 0, 0]} barSize={24} name="mortes" />
+                  <Line yAxisId="right" type="monotone" dataKey="taxa" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="taxa" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
           </div>
-          {mortalidadeData.length === 0 ? (
-            <div className="flex items-center justify-center h-[300px] text-gray-400 text-sm">Nenhum dado de mortalidade no período.</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={mortalidadeData} margin={{ top: 10, right: 50, left: -10, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gradMortesBar" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
-                    <stop offset="100%" stopColor="#ef4444" stopOpacity={0.6} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12, fontWeight: 500 }} dy={10} />
-                <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} domain={[0, "auto"]} />
-                <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 11, fontWeight: 600 }} dx={4} domain={[0, "auto"]} tickFormatter={(v: number) => (v * 100).toFixed(1) + "%"} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
-                  labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px" }}
-                  formatter={((value: any, name: any) => {
-                    if (name === "mortes") return [Number(value) + " aves", "Mortes"];
-                    if (name === "taxa") return [(Number(value) * 100).toFixed(2) + "%", "Taxa"];
-                    return [String(value), name];
-                  }) as any}
-                />
-                <Bar yAxisId="left" dataKey="mortes" fill="url(#gradMortesBar)" radius={[6, 6, 0, 0]} barSize={24} name="mortes" />
-                <Line yAxisId="right" type="monotone" dataKey="taxa" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="taxa" />
-              </ComposedChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+        )}
 
         {/* Cobertura Vacinal Mensal */}
         <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">

@@ -45,6 +45,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
+import { usePlan } from "@/components/plan/plan-provider";
+import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { createClient } from "@/lib/supabase/client";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 
@@ -103,6 +105,7 @@ const tipoOptions: ClienteTipo[] = ["market", "restaurant", "distributor", "dire
 
 export default function ClientesPage() {
   const { farm } = useAuth();
+  const { plan } = usePlan();
   const farmRef = useRef(farm);
   farmRef.current = farm;
   
@@ -552,7 +555,9 @@ export default function ClientesPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
+      {plan === "essencial" ? (
+        <LockedOverlay message="Desbloqueie os indicadores financeiros de clientes" targetPlan="pro">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
         {/* Receita Recebida (30d) */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
           <div className="flex items-center gap-2.5 mb-4">
@@ -733,7 +738,192 @@ export default function ClientesPage() {
             <span className="text-[10px] font-semibold text-gray-500">Reativar</span>
           </div>
         </div>
-      </div>
+          </div>
+        </LockedOverlay>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
+          {/* Receita Recebida (30d) */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
+                <DollarSign className="w-4.5 h-4.5 text-emerald-600" />
+              </div>
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Receita Recebida</span>
+            </div>
+            <div className="flex items-end justify-between">
+              <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{formatCurrency(receitaRecebida)}</p>
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                <CheckCircle2 className="w-3 h-3" />{clientesPagos} pagos
+              </span>
+            </div>
+            <p className="text-xs text-emerald-600 font-semibold mt-2">Potencial: {formatCurrency(receitaPotencial)}</p>
+            <div className="mt-auto pt-3 relative">
+              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-700 bg-emerald-500" style={{ width: `${totalClientes > 0 ? (clientesPagos / totalClientes) * 100 : 0}%` }} />
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
+                <span className="text-[10px] text-gray-500 font-medium">{clientesPagos} de {totalClientes} clientes</span>
+              </div>
+              <span className="text-[10px] font-semibold text-emerald-600">{pctRecebida.toFixed(0)}% recebido</span>
+            </div>
+          </div>
+
+          {/* A Receber */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
+                <Receipt className="w-4.5 h-4.5 text-blue-600" />
+              </div>
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">A Receber</span>
+            </div>
+            <div className="flex items-end justify-between">
+              <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{formatCurrency(valorAReceber)}</p>
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+                {clientesAReceber} cliente{clientesAReceber !== 1 ? "s" : ""}
+              </span>
+            </div>
+            <p className="text-xs text-blue-600 font-semibold mt-2">Dentro do prazo</p>
+            <div className="mt-auto pt-3 relative">
+              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-700 bg-blue-500" style={{ width: `${totalClientes > 0 ? (clientesAReceber / totalClientes) * 100 : 0}%` }} />
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                <span className="text-[10px] text-gray-500 font-medium">{clientesAReceber} de {totalClientes} clientes</span>
+              </div>
+              <span className="text-[10px] font-semibold text-blue-600">Aguardando</span>
+            </div>
+          </div>
+
+          {/* Se Todos Pagassem */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
+                <TrendingUp className="w-4.5 h-4.5 text-blue-600" />
+              </div>
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Se Todos Pagassem</span>
+            </div>
+            <div className="flex items-end justify-between">
+              <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{formatCurrency(receitaPotencial)}</p>
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                {totalClientes - clientes.filter(c => c.status === "inativo").length} ativos
+              </span>
+            </div>
+            <p className="text-xs text-amber-600 font-semibold mt-2">Falta Receber: {formatCurrency(receitaPotencial - receitaRecebida)}</p>
+            <div className="mt-auto pt-3 relative">
+              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-700 bg-blue-500" style={{ width: `${totalClientes > 0 ? ((totalClientes - clientes.filter(c => c.status === "inativo").length) / totalClientes) * 100 : 0}%` }} />
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
+                <span className="text-[10px] text-gray-500 font-medium">{totalClientes - clientes.filter(c => c.status === "inativo").length} de {totalClientes} clientes</span>
+              </div>
+              <span className="text-[10px] font-semibold text-blue-600">Ticket: {formatCurrency(ticketMedioGeral)}</span>
+            </div>
+          </div>
+
+          {/* Atrasados */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center">
+                <Clock className="w-4.5 h-4.5 text-amber-600" />
+              </div>
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Atrasados</span>
+            </div>
+            <div className="flex items-end justify-between">
+              <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{formatCurrency(dividaAtrasados)}</p>
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                {clientesAtrasados} cliente{clientesAtrasados !== 1 ? "s" : ""}
+              </span>
+            </div>
+            {dividaAtrasados > 0 && (
+              <button onClick={() => setCobrancaModal("atrasado")} className="mt-3 self-start px-3 py-1 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-700 text-[11px] font-bold transition-colors duration-200 cursor-pointer">
+                Cobrar agora
+              </button>
+            )}
+            <div className="mt-auto pt-4 relative">
+              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-700 bg-amber-500" style={{ width: `${totalClientes > 0 ? (clientesAtrasados / totalClientes) * 100 : 0}%` }} />
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                <span className="text-[10px] text-gray-500 font-medium">{clientesAtrasados} de {totalClientes} clientes</span>
+              </div>
+              <span className={cn("text-[10px] font-semibold", dividaAtrasados > 0 ? "text-amber-600" : "text-emerald-600")}>{dividaAtrasados > 0 ? "Risco médio" : "Nenhuma"}</span>
+            </div>
+          </div>
+
+          {/* Inadimplentes */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center">
+                <ShieldAlert className="w-4.5 h-4.5 text-red-500" />
+              </div>
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Inadimplentes</span>
+            </div>
+            <div className="flex items-end justify-between">
+              <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{formatCurrency(dividaInadimplentes)}</p>
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                {clientesInadimplentes} cliente{clientesInadimplentes !== 1 ? "s" : ""}
+              </span>
+            </div>
+            {dividaInadimplentes > 0 && (
+              <button onClick={() => setCobrancaModal("inadimplente")} className="mt-3 self-start px-3 py-1 rounded-md bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-bold transition-colors duration-200 cursor-pointer">
+                Cobrar agora
+              </button>
+            )}
+            <div className="mt-auto pt-4 relative">
+              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-700 bg-red-500" style={{ width: `${totalClientes > 0 ? (clientesInadimplentes / totalClientes) * 100 : 0}%` }} />
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                <span className="text-[10px] text-gray-500 font-medium">{clientesInadimplentes} de {totalClientes} clientes</span>
+              </div>
+              <span className={cn("text-[10px] font-semibold", dividaInadimplentes > 0 ? "text-red-500" : "text-emerald-600")}>{dividaInadimplentes > 0 ? "Risco alto" : "Nenhuma"}</span>
+            </div>
+          </div>
+
+          {/* Inativos */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center">
+                <UserX className="w-4.5 h-4.5 text-gray-500" />
+              </div>
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Inativos</span>
+            </div>
+            <div className="flex items-end justify-between">
+              <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{clientes.filter(c => c.status === "inativo").length}</p>
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                <XCircle className="w-3 h-3" />sem compras
+              </span>
+            </div>
+            <div className="mt-auto pt-4 relative">
+              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-700 bg-gray-400" style={{ width: `${totalClientes > 0 ? (clientes.filter(c => c.status === "inativo").length / totalClientes) * 100 : 0}%` }} />
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                <span className="text-[10px] text-gray-500 font-medium">{clientes.filter(c => c.status === "inativo").length} de {totalClientes} clientes</span>
+              </div>
+              <span className="text-[10px] font-semibold text-gray-500">Reativar</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Assistente de Granja + Top 5 ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -750,75 +940,167 @@ export default function ClientesPage() {
             <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
           </div>
           <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-            {insightsComerciais.length > 0 ? insightsComerciais.map((ins, i) => (
-              <div key={i} className={cn("p-3.5 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
-                    {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />}
-                    {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
-                    {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600" />}
+            {insightsComerciais.length > 0 ? insightsComerciais.map((ins, i) => {
+              if (plan !== "premium" && i >= 2) {
+                return (
+                  <LockedOverlay key={i} message="Desbloqueie o Assistente de Granja" targetPlan="premium">
+                    <div className={cn("p-3.5 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
+                          {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />}
+                          {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
+                          {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600" />}
+                        </div>
+                        <span className="text-sm font-semibold text-gray-800">{ins.title}</span>
+                      </div>
+                      <p className={cn("text-xs font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
+                    </div>
+                  </LockedOverlay>
+                );
+              }
+              return (
+                <div key={i} className={cn("p-3.5 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
+                      {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />}
+                      {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
+                      {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600" />}
+                    </div>
+                    <span className="text-sm font-semibold text-gray-800">{ins.title}</span>
                   </div>
-                  <span className="text-sm font-semibold text-gray-800">{ins.title}</span>
+                  <p className={cn("text-xs font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
                 </div>
-                <p className={cn("text-xs font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
-              </div>
-            )) : (
+              );
+            }) : (
               <div className="text-center py-8">
                 <Lightbulb className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                 <p className="text-sm text-gray-500">Sem dados suficientes para insights.</p>
               </div>
             )}
+            {plan !== "premium" ? (
+              <>
+                <LockedOverlay message="Desbloqueie o Assistente de Granja" targetPlan="premium">
+                  <div className="p-3.5 rounded-xl border-l-[3px] bg-emerald-50/50 border-l-emerald-500">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100">
+                        <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />
+                      </div>
+                      <span className="text-sm font-semibold text-gray-800">Previsão de receita para o próximo mês</span>
+                    </div>
+                    <p className="text-xs font-medium ml-7 text-emerald-600">&rarr; Baseada no histórico dos últimos 3 meses</p>
+                  </div>
+                </LockedOverlay>
+                <LockedOverlay message="Desbloqueie o Assistente de Granja" targetPlan="premium">
+                  <div className="p-3.5 rounded-xl border-l-[3px] bg-violet-50/50 border-l-violet-500">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-violet-100">
+                        <Lightbulb className="w-2.5 h-2.5 text-violet-600" />
+                      </div>
+                      <span className="text-sm font-semibold text-gray-800">Clientes com maior potencial de crescimento</span>
+                    </div>
+                    <p className="text-xs font-medium ml-7 text-violet-600">&rarr; Análise de volume e frequência de compra</p>
+                  </div>
+                </LockedOverlay>
+              </>
+            ) : (
+              <>
+                <div className="p-3.5 rounded-xl border-l-[3px] bg-emerald-50/50 border-l-emerald-500">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100">
+                      <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-800">Previsão de receita para o próximo mês</span>
+                  </div>
+                  <p className="text-xs font-medium ml-7 text-emerald-600">&rarr; Baseada no histórico dos últimos 3 meses</p>
+                </div>
+                <div className="p-3.5 rounded-xl border-l-[3px] bg-violet-50/50 border-l-violet-500">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-violet-100">
+                      <Lightbulb className="w-2.5 h-2.5 text-violet-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-800">Clientes com maior potencial de crescimento</span>
+                  </div>
+                  <p className="text-xs font-medium ml-7 text-violet-600">&rarr; Análise de volume e frequência de compra</p>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
         {/* Top 5 Clientes */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-baseline gap-2">
-              <h3 className="text-sm font-bold text-gray-900">Top 5 Clientes</h3>
-              <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-md">{top5Pct.toFixed(0)}% da receita</span>
-            </div>
-            <span className="text-xs font-semibold text-gray-400">{formatCurrency(top5Revenue)}</span>
-          </div>
-          <div className="space-y-2.5 flex-1">
-            {top5.length > 0 ? top5.map((c, i) => {
-              const pct = receitaPotencial > 0 ? (c.receitaMensal / receitaPotencial) * 100 : 0;
-              return (
-                <div key={c.id} className="group cursor-pointer">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-[11px] font-bold text-gray-300 w-4 flex-shrink-0">{i + 1}</span>
-                      <p className="text-sm font-medium text-gray-700 truncate group-hover:text-gray-900 transition-colors">{c.nome}</p>
-                    </div>
-                    <div className="flex items-baseline gap-1.5 flex-shrink-0 ml-3">
-                      <span className="text-sm font-bold text-gray-900 tabular-nums">{formatCurrency(c.receitaMensal)}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 pl-6">
-                    <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-700" style={{ width: `${pct}%` }} />
-                    </div>
-                    <span className="text-[11px] font-semibold text-gray-400 tabular-nums w-10 text-right">{pct.toFixed(1)}%</span>
-                  </div>
+        {plan !== "premium" ? (
+          <LockedOverlay message="Desbloqueie o ranking Top 5 Clientes" targetPlan="premium">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-baseline gap-2">
+                  <h3 className="text-sm font-bold text-gray-900">Top 5 Clientes</h3>
+                  <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-md">{top5Pct.toFixed(0)}% da receita</span>
                 </div>
-              );
-            }) : (
-              <div className="text-center py-8">
-                <Store className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">Sem clientes ativos no período.</p>
+                <span className="text-xs font-semibold text-gray-400">{formatCurrency(top5Revenue)}</span>
               </div>
-            )}
-          </div>
-          <div className="mt-4 pt-3 border-t border-gray-100">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-gray-400">Outros {totalClientes - 5 > 0 ? totalClientes - 5 : 0} clientes</span>
-                <span className="text-[11px] text-gray-300 font-bold bg-gray-50 px-1.5 py-0.5 rounded">{(100 - top5Pct).toFixed(0)}%</span>
+              <div className="flex-1 flex items-center justify-center py-8">
+                <Store className="w-8 h-8 text-gray-300" />
               </div>
-              <span className="text-[11px] font-medium text-gray-400 tabular-nums">{formatCurrency(receitaPotencial - top5Revenue)}</span>
+              <div className="mt-4 pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-gray-400">Outros {totalClientes - 5 > 0 ? totalClientes - 5 : 0} clientes</span>
+                    <span className="text-[11px] text-gray-300 font-bold bg-gray-50 px-1.5 py-0.5 rounded">{(100 - top5Pct).toFixed(0)}%</span>
+                  </div>
+                  <span className="text-[11px] font-medium text-gray-400 tabular-nums">{formatCurrency(receitaPotencial - top5Revenue)}</span>
+                </div>
+              </div>
+            </div>
+          </LockedOverlay>
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-baseline gap-2">
+                <h3 className="text-sm font-bold text-gray-900">Top 5 Clientes</h3>
+                <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-md">{top5Pct.toFixed(0)}% da receita</span>
+              </div>
+              <span className="text-xs font-semibold text-gray-400">{formatCurrency(top5Revenue)}</span>
+            </div>
+            <div className="space-y-2.5 flex-1">
+              {top5.length > 0 ? top5.map((c, i) => {
+                const pct = receitaPotencial > 0 ? (c.receitaMensal / receitaPotencial) * 100 : 0;
+                return (
+                  <div key={c.id} className="group cursor-pointer">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[11px] font-bold text-gray-300 w-4 flex-shrink-0">{i + 1}</span>
+                        <p className="text-sm font-medium text-gray-700 truncate group-hover:text-gray-900 transition-colors">{c.nome}</p>
+                      </div>
+                      <div className="flex items-baseline gap-1.5 flex-shrink-0 ml-3">
+                        <span className="text-sm font-bold text-gray-900 tabular-nums">{formatCurrency(c.receitaMensal)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 pl-6">
+                      <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-700" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-[11px] font-semibold text-gray-400 tabular-nums w-10 text-right">{pct.toFixed(1)}%</span>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="text-center py-8">
+                  <Store className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">Sem clientes ativos no período.</p>
+                </div>
+              )}
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-gray-400">Outros {totalClientes - 5 > 0 ? totalClientes - 5 : 0} clientes</span>
+                  <span className="text-[11px] text-gray-300 font-bold bg-gray-50 px-1.5 py-0.5 rounded">{(100 - top5Pct).toFixed(0)}%</span>
+                </div>
+                <span className="text-[11px] font-medium text-gray-400 tabular-nums">{formatCurrency(receitaPotencial - top5Revenue)}</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Filters & Search */}

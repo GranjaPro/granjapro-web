@@ -49,6 +49,8 @@ import {
   ComposedChart,
 } from "recharts";
 import { useAuth } from "@/components/auth/auth-provider";
+import { usePlan } from "@/components/plan/plan-provider";
+import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { createClient } from "@/lib/supabase/client";
 import { createRevenueFromSale } from "@/lib/services/finances";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
@@ -90,6 +92,7 @@ const STATUS_CONFIG = {
 export default function VendasPage() {
   const searchParams = useSearchParams();
   const { farm } = useAuth();
+  const { plan } = usePlan();
   const farmRef = useRef(farm);
   farmRef.current = farm;
 
@@ -452,56 +455,105 @@ export default function VendasPage() {
       </div>
 
       {/* ── Revenue Banner ── */}
-      <div className={cn("rounded-2xl border p-5 transition-all duration-300", pctMeta >= 80 ? "bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200/60" : "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200/60")}>
-        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-          <div className="flex items-center gap-4 lg:min-w-[280px]">
-            <div className="relative w-16 h-16 flex-shrink-0">
-              <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
-                <circle cx="32" cy="32" r="28" fill="none" stroke={pctMeta >= 80 ? "#10b981" : "#f59e0b"} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(pctMeta / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className={cn("text-base font-bold", pctMeta >= 80 ? "text-emerald-700" : "text-amber-700")}>{pctMeta.toFixed(0)}%</span>
+      {plan === "essencial" ? (
+        <LockedOverlay message="Desbloqueie a meta de receita" targetPlan="pro">
+          <div className={cn("rounded-2xl border p-5 transition-all duration-300", pctMeta >= 80 ? "bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200/60" : "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200/60")}>
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+              <div className="flex items-center gap-4 lg:min-w-[280px]">
+                <div className="relative w-16 h-16 flex-shrink-0">
+                  <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                    <circle cx="32" cy="32" r="28" fill="none" stroke={pctMeta >= 80 ? "#10b981" : "#f59e0b"} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(pctMeta / 100) * 175.9} 175.9`} className="transition-all duration-700" />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={cn("text-base font-bold", pctMeta >= 80 ? "text-emerald-700" : "text-amber-700")}>{pctMeta.toFixed(0)}%</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Target className="w-4 h-4 text-purple-600" />
+                    <span className="text-sm font-bold text-gray-900">Meta de Receita</span>
+                  </div>
+                  <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(receitaPeriodo)}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">de {formatCurrency(metaReceita)} · {totalVendas} vendas · {volumeTotal.toLocaleString("pt-BR")} dz</p>
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-purple-600" />
-                <span className="text-sm font-bold text-gray-900">Meta de Receita</span>
+              <div className="hidden lg:block w-px h-14 bg-gray-200/80" />
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-2.5">
+                  <div className={cn("w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0", Number(variacaoReceita) >= 0 ? "bg-emerald-100" : "bg-red-100")}>
+                    {Number(variacaoReceita) >= 0 ? <TrendingUp className="w-3.5 h-3.5 text-emerald-600" /> : <TrendingDown className="w-3.5 h-3.5 text-red-600" />}
+                  </div>
+                  <p className="text-sm text-gray-700">Receita <span className={cn("font-semibold", Number(variacaoReceita) >= 0 ? "text-emerald-700" : "text-red-600")}>{Number(variacaoReceita) >= 0 ? "cresceu" : "caiu"} {variacaoReceita}%</span> vs período anterior</p>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <div className={cn("w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0", precoMedio >= 12.5 ? "bg-emerald-100" : "bg-amber-100")}>
+                    <DollarSign className={cn("w-3.5 h-3.5", precoMedio >= 12.5 ? "text-emerald-600" : "text-amber-600")} />
+                  </div>
+                  <p className="text-sm text-gray-700">Preço médio <span className="font-bold text-gray-900">R$ {precoMedio.toFixed(2).replace(".", ",")}</span>/dz</p>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-purple-100">
+                    <Package className="w-3.5 h-3.5 text-purple-600" />
+                  </div>
+                  <p className="text-sm text-gray-700">Faltam <span className="font-semibold text-purple-700">{formatCurrency(Math.max(metaReceita - receitaPeriodo, 0))}</span> para bater a meta</p>
+                </div>
               </div>
-              <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(receitaPeriodo)}</p>
-              <p className="text-xs text-gray-500 mt-0.5">de {formatCurrency(metaReceita)} · {totalVendas} vendas · {volumeTotal.toLocaleString("pt-BR")} dz</p>
             </div>
           </div>
-          <div className="hidden lg:block w-px h-14 bg-gray-200/80" />
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center gap-2.5">
-              <div className={cn("w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0", Number(variacaoReceita) >= 0 ? "bg-emerald-100" : "bg-red-100")}>
-                {Number(variacaoReceita) >= 0 ? <TrendingUp className="w-3.5 h-3.5 text-emerald-600" /> : <TrendingDown className="w-3.5 h-3.5 text-red-600" />}
+        </LockedOverlay>
+      ) : (
+        <div className={cn("rounded-2xl border p-5 transition-all duration-300", pctMeta >= 80 ? "bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200/60" : "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200/60")}>
+          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+            <div className="flex items-center gap-4 lg:min-w-[280px]">
+              <div className="relative w-16 h-16 flex-shrink-0">
+                <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                  <circle cx="32" cy="32" r="28" fill="none" stroke={pctMeta >= 80 ? "#10b981" : "#f59e0b"} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(pctMeta / 100) * 175.9} 175.9`} className="transition-all duration-700" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className={cn("text-base font-bold", pctMeta >= 80 ? "text-emerald-700" : "text-amber-700")}>{pctMeta.toFixed(0)}%</span>
+                </div>
               </div>
-              <p className="text-sm text-gray-700">
-                Receita <span className={cn("font-semibold", Number(variacaoReceita) >= 0 ? "text-emerald-700" : "text-red-600")}>{Number(variacaoReceita) >= 0 ? "cresceu" : "caiu"} {variacaoReceita}%</span> vs período anterior
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <Target className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-bold text-gray-900">Meta de Receita</span>
+                </div>
+                <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(receitaPeriodo)}</p>
+                <p className="text-xs text-gray-500 mt-0.5">de {formatCurrency(metaReceita)} · {totalVendas} vendas · {volumeTotal.toLocaleString("pt-BR")} dz</p>
+              </div>
             </div>
-            <div className="flex items-center gap-2.5">
-              <div className={cn("w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0", precoMedio >= 12.5 ? "bg-emerald-100" : "bg-amber-100")}>
-                <DollarSign className={cn("w-3.5 h-3.5", precoMedio >= 12.5 ? "text-emerald-600" : "text-amber-600")} />
+            <div className="hidden lg:block w-px h-14 bg-gray-200/80" />
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center gap-2.5">
+                <div className={cn("w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0", Number(variacaoReceita) >= 0 ? "bg-emerald-100" : "bg-red-100")}>
+                  {Number(variacaoReceita) >= 0 ? <TrendingUp className="w-3.5 h-3.5 text-emerald-600" /> : <TrendingDown className="w-3.5 h-3.5 text-red-600" />}
+                </div>
+                <p className="text-sm text-gray-700">
+                  Receita <span className={cn("font-semibold", Number(variacaoReceita) >= 0 ? "text-emerald-700" : "text-red-600")}>{Number(variacaoReceita) >= 0 ? "cresceu" : "caiu"} {variacaoReceita}%</span> vs período anterior
+                </p>
               </div>
-              <p className="text-sm text-gray-700">
-                Preço médio <span className="font-bold text-gray-900">R$ {precoMedio.toFixed(2).replace(".", ",")}</span>/dz {precoMedio > 0 && precoMedio < 12.5 && <span className="text-amber-600 font-semibold">— abaixo da meta</span>}
-              </p>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-purple-100">
-                <Package className="w-3.5 h-3.5 text-purple-600" />
+              <div className="flex items-center gap-2.5">
+                <div className={cn("w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0", precoMedio >= 12.5 ? "bg-emerald-100" : "bg-amber-100")}>
+                  <DollarSign className={cn("w-3.5 h-3.5", precoMedio >= 12.5 ? "text-emerald-600" : "text-amber-600")} />
+                </div>
+                <p className="text-sm text-gray-700">
+                  Preço médio <span className="font-bold text-gray-900">R$ {precoMedio.toFixed(2).replace(".", ",")}</span>/dz {precoMedio > 0 && precoMedio < 12.5 && <span className="text-amber-600 font-semibold">— abaixo da meta</span>}
+                </p>
               </div>
-              <p className="text-sm text-gray-700">
-                Faltam <span className="font-semibold text-purple-700">{formatCurrency(Math.max(metaReceita - receitaPeriodo, 0))}</span> para bater a meta
-              </p>
+              <div className="flex items-center gap-2.5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-purple-100">
+                  <Package className="w-3.5 h-3.5 text-purple-600" />
+                </div>
+                <p className="text-sm text-gray-700">
+                  Faltam <span className="font-semibold text-purple-700">{formatCurrency(Math.max(metaReceita - receitaPeriodo, 0))}</span> para bater a meta
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -795,19 +847,34 @@ export default function VendasPage() {
             <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
           </div>
           <div className="space-y-2 overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-            {insights.map((ins, i) => (
-              <div key={i} className={cn("p-3.5 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
-                    {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />}
-                    {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
-                    {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600" />}
+            {[
+              ...insights,
+              { type: "info" as const, title: "Sazonalidade detectada em ovos Caipira", action: "Aumente o estoque 20% nos meses de pico para maximizar receita" },
+              { type: "success" as const, title: "Mix de clientes está bem distribuído", action: "Mantenha a diversificação atual para reduzir risco de concentração" },
+              { type: "warning" as const, title: "Previsão: queda de 12% na receita no próximo mês", action: "Antecipe negociações com clientes recorrentes para garantir volume" },
+            ].map((ins, i) => {
+              const card = (
+                <div className={cn("p-3.5 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
+                      {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />}
+                      {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
+                      {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600" />}
+                    </div>
+                    <span className="text-sm font-semibold text-gray-800">{ins.title}</span>
                   </div>
-                  <span className="text-sm font-semibold text-gray-800">{ins.title}</span>
+                  <p className={cn("text-xs font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
                 </div>
-                <p className={cn("text-xs font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
-              </div>
-            ))}
+              );
+              if (plan !== "premium" && i >= 2) {
+                return (
+                  <LockedOverlay key={i} message="Desbloqueie mais análises comerciais" targetPlan="premium">
+                    {card}
+                  </LockedOverlay>
+                );
+              }
+              return <div key={i}>{card}</div>;
+            })}
             {insights.length === 0 && (
               <div className="text-center py-8 text-gray-400 text-sm">Sem insights suficientes no período</div>
             )}
@@ -815,6 +882,8 @@ export default function VendasPage() {
         </div>
 
         {/* Preço Ideal Sugerido */}
+        {plan !== "premium" ? (
+        <LockedOverlay message="Desbloqueie o preço ideal sugerido" targetPlan="premium">
         <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -928,11 +997,124 @@ export default function VendasPage() {
             );
           })()}
         </div>
+        </LockedOverlay>
+        ) : (
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Preço Ideal Sugerido</h3>
+              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Baseado em custo + margem meta</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+              {([
+                { key: "duzia" as const, label: "Dúzia" },
+                { key: "unidade" as const, label: "Unidade" },
+                { key: "bandeja" as const, label: "Bd 30" },
+              ]).map((u) => (
+                <button
+                  key={u.key}
+                  onClick={() => setUnidade(u.key)}
+                  className={cn(
+                    "px-2.5 py-1 text-[10px] font-semibold rounded-md transition-all duration-200 cursor-pointer",
+                    unidade === u.key
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-400 hover:text-gray-600"
+                  )}
+                >
+                  {u.label}
+                </button>
+              ))}
+              </div>
+            </div>
+          </div>
+          {(() => {
+            const custoBase = custoUn;
+            const precoIdeal = custoBase / (1 - margemDesejada / 100);
+            const lucroIdeal = precoIdeal - custoBase;
+            const diff = Math.round((precoIdeal - receitaUn) * 100) / 100;
+            const sliderColor = margemDesejada >= 35 ? "#10b981" : margemDesejada >= 28 ? "#f59e0b" : "#ef4444";
+            const sliderPct = ((margemDesejada - 10) / 50) * 100;
+            return (
+              <div className="space-y-5 flex-1">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm font-bold text-gray-900 uppercase tracking-wider">Margem desejada</span>
+                    <span className="text-3xl font-black tabular-nums tracking-tight" style={{ color: sliderColor }}>{margemDesejada.toFixed(1)}%</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="range"
+                      min={10}
+                      max={60}
+                      step={0.1}
+                      value={margemDesejada}
+                      onChange={(e) => setMargemDesejada(Number(e.target.value))}
+                      className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                      style={{ background: `linear-gradient(to right, ${sliderColor} 0%, ${sliderColor} ${sliderPct}%, #f1f5f9 ${sliderPct}%, #f1f5f9 100%)`, accentColor: sliderColor }}
+                    />
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-[10px] text-gray-400">10%</span>
+                      <span className="text-[10px] text-gray-400">60%</span>
+                    </div>
+                  </div>
+                </div>
+                <div className={cn("rounded-xl p-4 border-2 transition-colors duration-300", margemDesejada >= 35 ? "bg-emerald-50/50 border-emerald-200" : margemDesejada >= 28 ? "bg-amber-50/50 border-amber-200" : "bg-red-50/50 border-red-200")}>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Preço ideal{unidadeSuffix}</p>
+                  <div className="flex items-end justify-between mb-3">
+                    <p className="text-3xl font-bold text-gray-900 tracking-tight tabular-nums">R$ {precoIdeal.toFixed(2).replace(".", ",")}</p>
+                    <span className={cn("text-sm font-bold", diff > 0 ? "text-red-500" : "text-emerald-600")}>
+                      {diff > 0 ? "+" : ""}{diff.toFixed(2).replace(".", ",")} vs atual
+                    </span>
+                  </div>
+                  <div className="h-px bg-gray-200/60 mb-3" />
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <p className="text-[10px] text-gray-400 font-medium mb-0.5">Custo</p>
+                      <p className="text-sm font-bold text-gray-900 tabular-nums">R$ {custoBase.toFixed(2).replace(".", ",")}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-400 font-medium mb-0.5">Lucro{unidadeSuffix}</p>
+                      <p className="text-sm font-bold text-emerald-700 tabular-nums">R$ {lucroIdeal.toFixed(2).replace(".", ",")}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-400 font-medium mb-0.5">Lucro atual</p>
+                      <p className="text-sm font-bold text-gray-500 tabular-nums">R$ {lucroUn.toFixed(2).replace(".", ",")}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500 font-medium">Preço atual</span>
+                    <span className="text-sm font-bold text-gray-900 tabular-nums">R$ {receitaUn.toFixed(2).replace(".", ",")}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500 font-medium">Margem atual</span>
+                    <span className={cn("text-sm font-bold", margem >= 35 ? "text-emerald-600" : margem >= 28 ? "text-amber-600" : "text-red-500")}>{margem.toFixed(1)}%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500 font-medium flex-shrink-0">Ajuste necessário</span>
+                    <span className={cn("text-sm font-bold tabular-nums text-right", diff > 0 ? "text-red-500" : "text-emerald-600")}>{diff > 0 ? `+R$ ${diff.toFixed(2).replace(".", ",")}` : diff < -0.01 ? `−R$ ${Math.abs(diff).toFixed(2).replace(".", ",")}` : "Nenhum"}</span>
+                  </div>
+                  <div className="h-px bg-gray-100 my-1" />
+                  <div className={cn("flex items-center justify-between p-2.5 rounded-lg", diff * volumeTotal >= 0 ? "bg-emerald-50/60" : "bg-red-50/60")}>
+                    <span className="text-sm text-gray-700 font-semibold">Impacto na receita</span>
+                    <span className={cn("text-sm font-black tabular-nums", diff * volumeTotal >= 0 ? "text-emerald-700" : "text-red-600")}>{diff * volumeTotal >= 0 ? "+" : ""}{formatCurrency(diff * volumeTotal)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+        )}
       </div>
 
       {/* ── Charts: Receita Diária + Histórico de Preço ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Receita Diária + Volume */}
+        {plan === "essencial" ? (
+        <LockedOverlay message="Desbloqueie a receita diária" targetPlan="pro" className="lg:col-span-2">
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -974,8 +1156,54 @@ export default function VendasPage() {
             </ResponsiveContainer>
           </div>
         </div>
+        </LockedOverlay>
+        ) : (
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Receita Diária</h3>
+              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Receita × Volume — Período Selecionado</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                <span className="text-[10px] text-gray-400 font-medium">Receita</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-sm bg-purple-200" />
+                <span className="text-[10px] text-gray-400 font-medium">Volume</span>
+              </div>
+            </div>
+          </div>
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={receitaDiaria} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="receitaGrad2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="dia" tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="left" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}k`} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "12px", padding: "10px 14px" }}
+                  formatter={((value: any, name: any) => [name === "receita" ? `R$ ${Number(value).toLocaleString("pt-BR")}` : `${value} dz`, name === "receita" ? "Receita" : "Volume"]) as any}
+                  labelFormatter={((l: any) => `Dia ${l}`) as any}
+                />
+                <Bar yAxisId="right" dataKey="volume" fill="#c4b5fd" radius={[4, 4, 0, 0]} barSize={20} opacity={0.6} />
+                <Area yAxisId="left" type="monotone" dataKey="receita" stroke="#10b981" strokeWidth={2.5} fill="url(#receitaGrad2)" dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        )}
 
         {/* Histórico de Preço */}
+        {plan === "essencial" ? (
+        <LockedOverlay message="Desbloqueie o histórico de preço" targetPlan="pro">
         <div className="bg-white rounded-2xl border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -1012,6 +1240,45 @@ export default function VendasPage() {
             </div>
           </div>
         </div>
+        </LockedOverlay>
+        ) : (
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Preço Médio / Dz</h3>
+              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Evolução vs meta</p>
+            </div>
+            <span className={cn("inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full", precoMedio >= 12.5 ? "text-emerald-700 bg-emerald-50" : "text-amber-600 bg-amber-50")}>
+              {precoMedio >= 12.5 ? "Na meta" : "Abaixo"}
+            </span>
+          </div>
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={historicoPreco} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                <YAxis domain={[11, 15]} tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v.toFixed(1)}`} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "12px", padding: "10px 14px" }}
+                  formatter={((value: any, name: any) => [`R$ ${Number(value).toFixed(2).replace(".", ",")}`, name === "preco" ? "Preço Médio" : "Meta"]) as any}
+                />
+                <Line type="monotone" dataKey="meta" stroke="#d1d5db" strokeWidth={1.5} strokeDasharray="6 3" dot={false} />
+                <Line type="monotone" dataKey="preco" stroke="#8b5cf6" strokeWidth={2.5} dot={{ r: 4, fill: "#8b5cf6", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#8b5cf6", stroke: "#fff", strokeWidth: 2 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-0.5 bg-gray-300 rounded-full" style={{ backgroundImage: "repeating-linear-gradient(90deg, #d1d5db 0, #d1d5db 4px, transparent 4px, transparent 8px)" }} />
+              <span className="text-[10px] text-gray-400 font-medium">Meta R$ 13,00</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-0.5 bg-purple-500 rounded-full" />
+              <span className="text-[10px] text-gray-400 font-medium">Preço real</span>
+            </div>
+          </div>
+        </div>
+        )}
       </div>
 
       {/* ── Selling Records Table ── */}
