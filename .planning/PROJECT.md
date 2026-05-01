@@ -15,6 +15,15 @@ Help egg farmers simplify daily farm management and improve financial control â€
 - Dashboard and finances pages share the same date-filter source of truth.
 - Known accepted closeout gaps: missing Phase 1-3 `VERIFICATION.md` artifacts, and sale edit/delete does not sync linked revenue transactions.
 
+## Current Milestone: v1.1 Google Sign-In
+
+**Goal:** Add focused Google authentication using Supabase.
+
+**Target features:**
+- Google sign-in on login and signup pages
+- Auto-create/authenticate users through Google
+- Preserve the existing post-login app behavior after successful sign-in
+
 ## Requirements
 
 ### Validated
@@ -38,6 +47,8 @@ Help egg farmers simplify daily farm management and improve financial control â€
 ### Active
 
 - [ ] Google login authentication
+- [ ] Google sign-in available on login and signup pages
+- [ ] Auto-create/authenticate users through Google with the existing app flow
 - [ ] Decide and implement sale edit/delete revenue sync behavior
 - [ ] Replace accepted verification gaps with formal Phase 1-3 verification artifacts if needed
 - [ ] Revenue goals stored in the database instead of a hardcoded default
@@ -54,8 +65,9 @@ Help egg farmers simplify daily farm management and improve financial control â€
 
 ## Next Milestone Goals
 
-- Add Google login to the authentication flow.
-- Define the required Supabase provider configuration and user experience for social sign-in.
+- Add Google sign-in to the login and signup flows.
+- Define the required Supabase provider configuration and post-login routing for social sign-in.
+- Keep this milestone focused on Google auth without broad auth-system rewrites.
 - Decide whether accepted v1.0 gaps become follow-up work or remain documented tech debt.
 
 ## Context
@@ -93,4 +105,4 @@ Help egg farmers simplify daily farm management and improve financial control â€
 This document evolves at milestone boundaries as shipped capabilities become part of the stable product surface.
 
 ---
-*Last updated: 2026-05-01 after v1.0 milestone completion*
+*Last updated: 2026-05-01 after v1.1 milestone initialization*

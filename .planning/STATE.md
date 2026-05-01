@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: Finances Module + Calendar Sync
-current_phase: archived
-current_plan: archived
-status: completed
-last_updated: "2026-05-01T15:45:00.000Z"
+milestone: v1.1
+milestone_name: Google Sign-In
+status: planning
+last_updated: "2026-05-01T17:05:27.159Z"
+last_activity: 2026-05-01
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Granja Pro
@@ -31,26 +30,10 @@ progress:
 
 ## Current Position
 
-Milestone: v1.0 — archived
-
-**Status:** shipped with accepted gaps
-
-**Accepted gaps:**
-- Missing `VERIFICATION.md` artifacts for Phases 1-3.
-- Sale edit/delete does not sync the linked revenue transaction.
-
-**Progress Bar:**
-
-```
-Phase 1 [##########] 100%
-Phase 2 [##########] 100%
-Phase 3 [##########] 100%
-Phase 4 [##########] 100%
-```
-
-**Overall:** 4 / 4 phases complete
-
----
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-01 — Milestone v1.1 started
 
 ## Phase Summary
 
