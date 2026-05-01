@@ -38,17 +38,18 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | TBD | Pending |
-| AUTH-02 | TBD | Pending |
-| AUTH-03 | TBD | Pending |
-| AUTH-04 | TBD | Pending |
-| SIGN-01 | TBD | Pending |
+| AUTH-01 | Phase 5 — Google Entry Points & Signup Terms Gate | Planned |
+| AUTH-02 | Phase 5 — Google Entry Points & Signup Terms Gate | Planned |
+| AUTH-03 | Phase 6 — Existing Account Matching & Post-Login Continuity | Planned |
+| AUTH-04 | Phase 6 — Existing Account Matching & Post-Login Continuity | Planned |
+| SIGN-01 | Phase 5 — Google Entry Points & Signup Terms Gate | Planned |
 
 **Coverage:**
 - v1 requirements: 5 total
-- Mapped to phases: 0
-- Unmapped: 5 ⚠️
+- Mapped to phases: 5
+- Unmapped: 0
+- Coverage: 100% ✅
 
 ---
 *Requirements defined: 2026-05-01*
-*Last updated: 2026-05-01 after initial definition*
+*Last updated: 2026-05-01 after v1.1 roadmap and traceability mapping*
