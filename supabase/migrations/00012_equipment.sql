@@ -4,7 +4,7 @@
 -- ============================================
 
 create table if not exists public.equipment (
-  id uuid default uuid_generate_v4() primary key,
+  id uuid default gen_random_uuid() primary key,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null,
   farm_id uuid references public.farms(id) on delete cascade not null,
@@ -65,6 +65,7 @@ do $$ begin
 end $$;
 
 -- Auto-update updated_at
+drop trigger if exists set_equipment_updated_at on public.equipment;
 create trigger set_equipment_updated_at
   before update on public.equipment
-  for each row execute procedure public.set_updated_at();
+  for each row execute procedure public.handle_updated_at();

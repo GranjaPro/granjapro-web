@@ -1828,20 +1828,20 @@ export default function DashboardPage() {
             </div>
           </div>
           <p className="text-[11px] text-gray-400 mb-5">Últimos 6 meses</p>
-          <div className="flex-1 min-h-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={[]} margin={{ top: 5, right: 5, left: -15, bottom: 0 }} barGap={3}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-              <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dy={8} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
-              <Tooltip
-                contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px" }}
-                formatter={(value: unknown) => [`R$ ${Number(value).toLocaleString("pt-BR")}`, undefined]}
-              />
-              <Bar dataKey="receita" fill="#2d7a4f" radius={[5, 5, 0, 0]} name="Receita" />
-              <Bar dataKey="despesas" fill="#e24a4a" radius={[5, 5, 0, 0]} name="Despesas" />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="h-[200px] min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={[]} margin={{ top: 5, right: 5, left: -15, bottom: 0 }} barGap={3}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dy={8} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px" }}
+                  formatter={(value: unknown) => [`R$ ${Number(value).toLocaleString("pt-BR")}`, undefined]}
+                />
+                <Bar dataKey="receita" fill="#2d7a4f" radius={[5, 5, 0, 0]} name="Receita" />
+                <Bar dataKey="despesas" fill="#e24a4a" radius={[5, 5, 0, 0]} name="Despesas" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
