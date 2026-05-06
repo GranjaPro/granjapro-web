@@ -37,7 +37,9 @@ end $$;
 
 -- Auto-create profile on signup
 create or replace function public.handle_new_user()
-returns trigger as $$
+returns trigger
+set search_path = public, auth
+as $$
 begin
   insert into public.profiles (id, email, full_name)
   values (

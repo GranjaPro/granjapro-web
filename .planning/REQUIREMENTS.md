@@ -1,20 +1,20 @@
-# Requirements: Granja Pro — Google Sign-In
+# Requirements: Granja Pro - Google Sign-In
 
 **Defined:** 2026-05-01
-**Core Value:** Help egg farmers simplify daily farm management and improve financial control — the platform must be fast, intuitive, and useful every single day.
+**Core Value:** Help egg farmers simplify daily farm management and improve financial control - the platform must be fast, intuitive, and useful every single day.
 
 ## v1 Requirements
 
 ### Authentication
 
-- [ ] **AUTH-01**: User can start Google sign-in from the login page
-- [ ] **AUTH-02**: User can start Google sign-in from the signup page
-- [ ] **AUTH-03**: If a Google account email matches an existing account, the user is signed into the existing account instead of creating a duplicate account
-- [ ] **AUTH-04**: After successful Google sign-in, user follows the existing post-login flow already used by the app
+- [x] **AUTH-01**: User can start Google sign-in from the login page
+- [x] **AUTH-02**: User can start Google sign-in from the signup page
+- [x] **AUTH-03**: If a Google account email matches an existing account, the user is signed into the existing account instead of creating a duplicate account
+- [x] **AUTH-04**: After successful Google sign-in, user follows the existing post-login flow already used by the app
 
 ### Signup Policy
 
-- [ ] **SIGN-01**: User must accept the signup terms checkbox before starting Google sign-up from the signup page
+- [x] **SIGN-01**: User must accept the signup terms checkbox before starting Google sign-up from the signup page
 
 ## v2 Requirements
 
@@ -38,18 +38,18 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 5 — Google Entry Points & Signup Terms Gate | Planned |
-| AUTH-02 | Phase 5 — Google Entry Points & Signup Terms Gate | Planned |
-| AUTH-03 | Phase 6 — Existing Account Matching & Post-Login Continuity | Planned |
-| AUTH-04 | Phase 6 — Existing Account Matching & Post-Login Continuity | Planned |
-| SIGN-01 | Phase 5 — Google Entry Points & Signup Terms Gate | Planned |
+| AUTH-01 | Phase 5 - Google Entry Points & Signup Terms Gate | Complete |
+| AUTH-02 | Phase 5 - Google Entry Points & Signup Terms Gate | Complete |
+| AUTH-03 | Phase 6 - Existing Account Matching & Post-Login Continuity | Complete |
+| AUTH-04 | Phase 6 - Existing Account Matching & Post-Login Continuity | Complete |
+| SIGN-01 | Phase 5 - Google Entry Points & Signup Terms Gate | Complete |
 
 **Coverage:**
 - v1 requirements: 5 total
 - Mapped to phases: 5
 - Unmapped: 0
-- Coverage: 100% ✅
+- Coverage: 100%
 
 ---
 *Requirements defined: 2026-05-01*
-*Last updated: 2026-05-01 after v1.1 roadmap and traceability mapping*
+*Last updated: 2026-05-02 after closing Phase 5*

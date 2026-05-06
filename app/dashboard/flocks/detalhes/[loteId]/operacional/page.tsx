@@ -381,6 +381,7 @@ export default function OperacionalLotePage() {
           scheduledTime: newTime,
           done: false,
           doneAt: null,
+          missed: false,
           barn: null,
           notes: "",
           iconKey: newIcon,

@@ -1,4 +1,5 @@
 import { Bird, Egg, Brain, ShieldCheck, TrendingUp } from "lucide-react";
+import Link from "next/link";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,17 +13,19 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-emerald-400/8 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
 
         {/* Content */}
-        <div className="relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/10">
-              <Bird className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">Granja Pro</h1>
-              <p className="text-xs text-white/50 font-medium tracking-wide uppercase">Gestão Avícola Inteligente</p>
+        <Link href="/" className="cursor-pointer">
+          <div className="relative z-10">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/10">
+                <Bird className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold tracking-tight">Granja Pro</h1>
+                <p className="text-xs text-white/50 font-medium tracking-wide uppercase">Gestão Avícola Inteligente</p>
+              </div>
             </div>
           </div>
-        </div>
+        </Link>
 
         <div className="relative z-10 space-y-8">
           <div className="space-y-4">
