@@ -17,6 +17,7 @@
 - Roadmap archive: `.planning/milestones/v1.1-ROADMAP.md`
 - Requirements archive: `.planning/milestones/v1.1-REQUIREMENTS.md`
 - Audit: `.planning/milestones/v1.1-MILESTONE-AUDIT.md`
+- Phase artifacts: `.planning/milestones/v1.1-phases/`
 
 ---
 

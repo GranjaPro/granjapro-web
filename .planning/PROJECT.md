@@ -17,9 +17,15 @@ Help egg farmers simplify daily farm management and improve financial control â€
 - Google OAuth entry points now exist on login/signup, with signup terms gating and post-login continuity for existing accounts.
 - Known accepted closeout gaps: missing Phase 1-3 `VERIFICATION.md` artifacts, sale edit/delete does not sync linked revenue transactions, Phase 5 validation/UAT debt, and provider-level same-email identity behavior depends on live Supabase Auth settings.
 
-## Current Milestone
+## Current Milestone: v1.2 Dark Theme & Granular Permissions
 
-No active milestone. Ready to define the next development milestone.
+**Goal:** Make the dashboard use a deliberate dark theme and replace scattered plan checks with a central, enforceable permissions foundation.
+
+**Target features:**
+- Remove the "system" theme mode and make theme behavior explicit and app-controlled.
+- Add a real persisted plan field for `profiles.plan` with migration/schema alignment.
+- Centralize the Essencial, Pro, and Premium permission matrix instead of hardcoding plan checks page by page.
+- Add route/API guard foundations for Pro/Premium areas, including AI tier validation and usage persistence hooks.
 
 ## Requirements
 
@@ -47,6 +53,12 @@ No active milestone. Ready to define the next development milestone.
 
 ### Active
 
+- [ ] Dark dashboard theme without system-theme fallback
+- [ ] Persisted `profiles.plan` subscription tier in Supabase schema and migrations
+- [ ] Central permission matrix for Essencial, Pro, and Premium capabilities
+- [ ] Shared UI helpers for locked content that avoid exposing protected data unnecessarily
+- [ ] Route/API guard foundations for Pro/Premium routes and AI tiers
+- [ ] Real usage-limit foundations for users, birds, farms, tasks, insights, and AI credits
 - [ ] Decide and implement sale edit/delete revenue sync behavior
 - [ ] Replace accepted verification gaps with formal Phase 1-3 verification artifacts if needed
 - [ ] Decide whether to backfill Phase 5 validation/UAT debt or leave it as accepted milestone debt
@@ -64,9 +76,10 @@ No active milestone. Ready to define the next development milestone.
 
 ## Next Milestone Goals
 
-- Decide the next product focus before planning: subscription/plan enforcement, accepted closeout debt cleanup, revenue sync, or analytics.
-- Keep the next milestone requirements narrow enough for complete verification.
-- Decide whether accepted v1.0 and v1.1 debts become follow-up work or remain documented tech debt.
+- Implement the dark-theme foundation before broad visual polishing.
+- Turn plan gating from scattered UX-only checks into a reusable permission model.
+- Keep payment processor integration out of scope unless needed for plan persistence.
+- Leave accepted v1.0 and v1.1 closeout debts documented unless directly touched by this milestone.
 
 ## Context
 
@@ -99,10 +112,12 @@ No active milestone. Ready to define the next development milestone.
 | Revenue sync uses `reference: sale:{id}` | Creates idempotent sale-to-revenue inserts | âš  Revisit for edit/delete lifecycle |
 | Google OAuth stays provider-owned in Supabase | Avoids custom auth backend and account merge UI | Good |
 | Callback redirects sanitize `next` before dashboard routing | Prevents open redirects while preserving email confirmation flow | Good |
+| Plan gating must move behind a central permission matrix | Scattered component checks are hard to audit and easy to bypass | Active |
+| Dark theme should be app-controlled, not delegated to system preference | User requested removing the system theme mode for this milestone | Active |
 
 ## Evolution
 
 This document evolves at milestone boundaries as shipped capabilities become part of the stable product surface.
 
 ---
-*Last updated: 2026-05-06 after v1.1 milestone closeout*
+*Last updated: 2026-05-06 after v1.2 milestone initialization*
