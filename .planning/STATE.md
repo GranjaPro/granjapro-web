@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Google Sign-In
-status: Milestone ready for closeout
-last_updated: "2026-05-06T00:08:00.000Z"
-last_activity: 2026-05-06 - Phase 6 verified; v1.1 Google Sign-In is ready for milestone closeout
+status: between_milestones
+last_updated: "2026-05-06T21:40:00.000Z"
+last_activity: 2026-05-06 - v1.1 Google Sign-In closed and archived
 progress:
   total_phases: 2
   completed_phases: 2
@@ -15,8 +15,8 @@ progress:
 
 # Project State: Granja Pro
 
-**Last updated:** 2026-05-04
-**Latest shipped milestone:** v1.0 - Finances Module + Calendar Sync
+**Last updated:** 2026-05-06
+**Latest shipped milestone:** v1.1 - Google Sign-In
 
 ---
 
@@ -24,7 +24,7 @@ progress:
 
 **Core Value:** Help egg farmers simplify daily farm management and improve financial control - the platform must be fast, intuitive, and useful every single day.
 
-**Current Focus:** Close out v1.1 Google Sign-In and prepare the next development milestone.
+**Current Focus:** Start the next development milestone.
 
 ---
 
@@ -32,8 +32,8 @@ progress:
 
 Phase: 6 - Existing Account Matching & Post-Login Continuity
 Plan: 06-01 - OAuth account reuse and login continuity
-Status: Verified
-Last activity: 2026-05-06 - Phase 6 verified; v1.1 Google Sign-In is ready for milestone closeout
+Status: Between milestones
+Last activity: 2026-05-06 - v1.1 Google Sign-In closed and archived
 
 ## Phase Summary
 
@@ -54,8 +54,8 @@ Last activity: 2026-05-06 - Phase 6 verified; v1.1 Google Sign-In is ready for m
 - **Active milestone phases defined:** 2 / 2
 - **Active milestone requirements mapped:** 5 / 5
 - **Active milestone plans completed:** 2 / 2
-- **Latest shipped milestone audit:** `gaps_found` accepted at close
-- **Nyquist coverage:** 4 / 4 phases compliant for v1.0
+- **Latest shipped milestone audit:** `tech_debt` accepted at close
+- **Nyquist coverage:** v1.1 partial (Phase 6 compliant; Phase 5 validation missing and accepted as debt)
 
 ---
 
@@ -96,6 +96,15 @@ Last activity: 2026-05-06 - Phase 6 verified; v1.1 Google Sign-In is ready for m
 
 None currently recorded for milestone flow.
 
+## Deferred Items
+
+Items acknowledged and deferred at milestone close on 2026-05-06:
+
+| Category | Item | Status |
+|----------|------|--------|
+| uat_gap | Phase 05 `05-HUMAN-UAT.md` has approved skipped scenarios and 0 pending scenarios | accepted |
+| validation | Phase 05 missing `05-VALIDATION.md` | accepted |
+
 ---
 
 ## Session Continuity
@@ -103,9 +112,8 @@ None currently recorded for milestone flow.
 **To resume work:**
 
 1. Read `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`, and `.planning/STATE.md`.
-2. Read `.planning/phases/06-existing-account-matching-post-login-continuity/06-VERIFICATION.md`.
-3. Close out v1.1 with `$gsd-complete-milestone`.
-4. Start the next development milestone.
+2. Read `.planning/MILESTONES.md` and `.planning/milestones/v1.1-MILESTONE-AUDIT.md`.
+3. Start the next development milestone with `$gsd-new-milestone`.
 
 ---
-*State updated: 2026-05-06 after verifying Phase 6*
+*State updated: 2026-05-06 after closing v1.1*
