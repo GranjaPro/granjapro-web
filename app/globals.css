@@ -6,6 +6,12 @@
 
 :root {
   --radius: 0.75rem;
+  --dashboard-bg: #020617;
+  --dashboard-surface: #080f1f;
+  --dashboard-surface-soft: #0b1220;
+  --dashboard-border: rgba(148, 163, 184, 0.14);
+  --dashboard-text: #f8fafc;
+  --dashboard-muted: #94a3b8;
 }
 
 @layer base {
@@ -26,6 +32,10 @@
   body {
     @apply bg-white text-gray-900 antialiased;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  html.dashboard-dark body {
+    @apply bg-slate-950 text-slate-100;
   }
 
   button,
@@ -75,8 +85,14 @@
     background: #d4d4d8;
     border-radius: 999px;
   }
+  html.dashboard-dark .scrollbar-chat::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.35);
+  }
   .scrollbar-chat::-webkit-scrollbar-thumb:hover {
     background: #a1a1aa;
+  }
+  html.dashboard-dark .scrollbar-chat::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.55);
   }
 
   .scrollbar-thin::-webkit-scrollbar {
@@ -95,6 +111,9 @@
     scrollbar-width: thin;
     scrollbar-color: rgba(0,0,0,0.12) transparent;
   }
+  html.dashboard-dark .scrollbar-visible {
+    scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+  }
   .scrollbar-visible::-webkit-scrollbar {
     width: 4px;
   }
@@ -106,14 +125,23 @@
     background: rgba(0,0,0,0.1);
     border-radius: 999px;
   }
+  html.dashboard-dark .scrollbar-visible::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.26);
+  }
   .scrollbar-visible::-webkit-scrollbar-thumb:hover {
     background: rgba(0,0,0,0.2);
+  }
+  html.dashboard-dark .scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.42);
   }
 
   .dashboard-scroll {
     scroll-behavior: smooth;
     scrollbar-width: thin;
     scrollbar-color: rgba(0,0,0,0.08) transparent;
+  }
+  html.dashboard-dark .dashboard-scroll {
+    scrollbar-color: rgba(148, 163, 184, 0.24) transparent;
   }
   .dashboard-scroll::-webkit-scrollbar {
     width: 4px;
@@ -126,8 +154,14 @@
     background: rgba(0,0,0,0.06);
     border-radius: 999px;
   }
+  html.dashboard-dark .dashboard-scroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.22);
+  }
   .dashboard-scroll::-webkit-scrollbar-thumb:hover {
     background: rgba(0,0,0,0.14);
+  }
+  html.dashboard-dark .dashboard-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.42);
   }
   .dashboard-scroll::-webkit-scrollbar-button {
     display: none;
@@ -139,6 +173,9 @@
     scroll-behavior: smooth;
     scrollbar-width: thin;
     scrollbar-color: rgba(0,0,0,0.08) transparent;
+  }
+  html.dashboard-dark .onboarding-scroll {
+    scrollbar-color: rgba(148, 163, 184, 0.24) transparent;
   }
   .onboarding-scroll::-webkit-scrollbar {
     width: 3px;
@@ -152,8 +189,14 @@
     border-radius: 999px;
     transition: background 0.2s;
   }
+  html.dashboard-dark .onboarding-scroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.22);
+  }
   .onboarding-scroll::-webkit-scrollbar-thumb:hover {
     background: rgba(0,0,0,0.14);
+  }
+  html.dashboard-dark .onboarding-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.42);
   }
   .onboarding-scroll::-webkit-scrollbar-button {
     display: none;
@@ -170,10 +213,456 @@
     background: rgba(0,0,0,0.06);
     border-radius: 999px;
   }
+  html.dashboard-dark .onboarding-scroll *::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.22);
+  }
   .onboarding-scroll *::-webkit-scrollbar-button {
     display: none;
     height: 0;
     width: 0;
+  }
+
+  html.dashboard-dark .rounded-xl.bg-white,
+  html.dashboard-dark .rounded-2xl.bg-white,
+  html.dashboard-dark .rounded-3xl.bg-white,
+  html.dashboard-dark .rounded-xl.bg-gray-50,
+  html.dashboard-dark .rounded-2xl.bg-gray-50,
+  html.dashboard-dark .rounded-3xl.bg-gray-50,
+  html.dashboard-dark .rounded-xl.bg-gray-50\/60,
+  html.dashboard-dark .rounded-2xl.bg-gray-50\/60,
+  html.dashboard-dark .rounded-xl.bg-gray-50\/70,
+  html.dashboard-dark .rounded-2xl.bg-gray-50\/70,
+  html.dashboard-dark .rounded-xl.bg-gray-50\/80,
+  html.dashboard-dark .rounded-2xl.bg-gray-50\/80 {
+    background-color: var(--dashboard-surface);
+  }
+
+  html.dashboard-dark .bg-gray-50,
+  html.dashboard-dark .bg-gray-100,
+  html.dashboard-dark .bg-slate-50,
+  html.dashboard-dark .bg-slate-100 {
+    background-color: #0b1220;
+  }
+
+  html.dashboard-dark .bg-brand-50,
+  html.dashboard-dark .bg-brand-100,
+  html.dashboard-dark .bg-emerald-50,
+  html.dashboard-dark .bg-emerald-100,
+  html.dashboard-dark .bg-green-50,
+  html.dashboard-dark .bg-green-100,
+  html.dashboard-dark .bg-amber-50,
+  html.dashboard-dark .bg-amber-100,
+  html.dashboard-dark .bg-yellow-50,
+  html.dashboard-dark .bg-yellow-100,
+  html.dashboard-dark .bg-orange-50,
+  html.dashboard-dark .bg-orange-100,
+  html.dashboard-dark .bg-red-50,
+  html.dashboard-dark .bg-red-100,
+  html.dashboard-dark .bg-blue-50,
+  html.dashboard-dark .bg-blue-100,
+  html.dashboard-dark .bg-sky-50,
+  html.dashboard-dark .bg-sky-100,
+  html.dashboard-dark .bg-violet-50,
+  html.dashboard-dark .bg-violet-100,
+  html.dashboard-dark .bg-purple-50,
+  html.dashboard-dark .bg-purple-100,
+  html.dashboard-dark .bg-rose-50,
+  html.dashboard-dark .bg-rose-100,
+  html.dashboard-dark .bg-teal-50,
+  html.dashboard-dark .bg-teal-100,
+  html.dashboard-dark .bg-cyan-50,
+  html.dashboard-dark .bg-cyan-100,
+  html.dashboard-dark .bg-indigo-50,
+  html.dashboard-dark .bg-indigo-100,
+  html.dashboard-dark .bg-stone-50,
+  html.dashboard-dark .bg-stone-100 {
+    background-color: rgba(15, 23, 42, 0.84);
+  }
+
+  html.dashboard-dark .bg-brand-50\/60,
+  html.dashboard-dark .bg-brand-100\/80,
+  html.dashboard-dark .bg-emerald-50\/50,
+  html.dashboard-dark .bg-emerald-50\/60,
+  html.dashboard-dark .bg-emerald-50\/80,
+  html.dashboard-dark .bg-emerald-100\/80,
+  html.dashboard-dark .bg-amber-50\/50,
+  html.dashboard-dark .bg-amber-50\/60,
+  html.dashboard-dark .bg-amber-50\/80,
+  html.dashboard-dark .bg-amber-100\/80,
+  html.dashboard-dark .bg-orange-50\/50,
+  html.dashboard-dark .bg-orange-50\/80,
+  html.dashboard-dark .bg-red-50\/50,
+  html.dashboard-dark .bg-red-50\/60,
+  html.dashboard-dark .bg-red-50\/80,
+  html.dashboard-dark .bg-red-100\/80,
+  html.dashboard-dark .bg-blue-50\/50,
+  html.dashboard-dark .bg-blue-50\/60,
+  html.dashboard-dark .bg-blue-50\/80,
+  html.dashboard-dark .bg-blue-100\/80,
+  html.dashboard-dark .bg-sky-50\/50,
+  html.dashboard-dark .bg-sky-50\/60,
+  html.dashboard-dark .bg-sky-50\/80,
+  html.dashboard-dark .bg-sky-100\/80,
+  html.dashboard-dark .bg-teal-50\/50,
+  html.dashboard-dark .bg-teal-50\/60,
+  html.dashboard-dark .bg-teal-50\/80,
+  html.dashboard-dark .bg-teal-100\/80,
+  html.dashboard-dark .bg-violet-50\/50,
+  html.dashboard-dark .bg-violet-50\/80,
+  html.dashboard-dark .bg-indigo-50\/50,
+  html.dashboard-dark .bg-indigo-50\/80,
+  html.dashboard-dark .bg-gray-50\/50,
+  html.dashboard-dark .bg-gray-50\/80,
+  html.dashboard-dark .bg-gray-100\/50,
+  html.dashboard-dark .bg-gray-100\/80 {
+    background-color: rgba(15, 23, 42, 0.74);
+  }
+
+  html.dashboard-dark .rounded-xl.bg-white\/80,
+  html.dashboard-dark .rounded-2xl.bg-white\/80,
+  html.dashboard-dark .bg-white\/80 {
+    background-color: rgba(8, 15, 31, 0.92);
+  }
+
+  html.dashboard-dark [class~="bg-white"],
+  html.dashboard-dark [class~="bg-white/30"],
+  html.dashboard-dark [class~="bg-white/40"],
+  html.dashboard-dark [class~="bg-white/50"],
+  html.dashboard-dark [class~="bg-white/60"],
+  html.dashboard-dark [class~="bg-white/70"],
+  html.dashboard-dark [class~="bg-white/80"],
+  html.dashboard-dark [class~="bg-white/90"],
+  html.dashboard-dark [class~="bg-white/95"] {
+    background-color: var(--dashboard-surface) !important;
+  }
+
+  html.dashboard-dark [class~="bg-white/5"],
+  html.dashboard-dark [class~="bg-white/10"],
+  html.dashboard-dark [class~="bg-white/20"] {
+    background-color: rgba(15, 23, 42, 0.62) !important;
+  }
+
+  html.dashboard-dark .bg-white\/70 {
+    background-color: rgba(8, 15, 31, 0.86);
+  }
+
+  html.dashboard-dark [class~="from-gray-50"],
+  html.dashboard-dark [class~="from-gray-50/50"],
+  html.dashboard-dark [class~="from-gray-50/80"],
+  html.dashboard-dark [class~="from-brand-50"],
+  html.dashboard-dark [class~="from-brand-50/60"],
+  html.dashboard-dark [class~="from-brand-50/80"],
+  html.dashboard-dark [class~="from-emerald-50"],
+  html.dashboard-dark [class~="from-emerald-50/60"],
+  html.dashboard-dark [class~="from-emerald-50/80"],
+  html.dashboard-dark [class~="from-green-50"],
+  html.dashboard-dark [class~="from-green-50/60"],
+  html.dashboard-dark [class~="from-green-50/80"],
+  html.dashboard-dark [class~="from-amber-50"],
+  html.dashboard-dark [class~="from-amber-50/60"],
+  html.dashboard-dark [class~="from-amber-50/80"],
+  html.dashboard-dark [class~="from-yellow-50"],
+  html.dashboard-dark [class~="from-yellow-50/60"],
+  html.dashboard-dark [class~="from-yellow-50/80"],
+  html.dashboard-dark [class~="from-orange-50"],
+  html.dashboard-dark [class~="from-orange-50/60"],
+  html.dashboard-dark [class~="from-orange-50/80"],
+  html.dashboard-dark [class~="from-red-50"],
+  html.dashboard-dark [class~="from-red-50/60"],
+  html.dashboard-dark [class~="from-red-50/80"],
+  html.dashboard-dark [class~="from-blue-50"],
+  html.dashboard-dark [class~="from-blue-50/60"],
+  html.dashboard-dark [class~="from-blue-50/80"],
+  html.dashboard-dark [class~="from-sky-50"],
+  html.dashboard-dark [class~="from-sky-50/60"],
+  html.dashboard-dark [class~="from-sky-50/80"],
+  html.dashboard-dark [class~="from-teal-50"],
+  html.dashboard-dark [class~="from-teal-50/60"],
+  html.dashboard-dark [class~="from-teal-50/80"],
+  html.dashboard-dark [class~="from-violet-50"],
+  html.dashboard-dark [class~="from-violet-50/60"],
+  html.dashboard-dark [class~="from-violet-50/80"],
+  html.dashboard-dark [class~="from-purple-50"],
+  html.dashboard-dark [class~="from-purple-50/60"],
+  html.dashboard-dark [class~="from-purple-50/80"],
+  html.dashboard-dark [class~="from-indigo-50"],
+  html.dashboard-dark [class~="from-indigo-50/60"],
+  html.dashboard-dark [class~="from-indigo-50/80"] {
+    --tw-gradient-from: #0b1220 var(--tw-gradient-from-position);
+    --tw-gradient-to: rgba(11, 18, 32, 0) var(--tw-gradient-to-position);
+  }
+
+  html.dashboard-dark [class~="via-white"],
+  html.dashboard-dark [class~="via-gray-50"],
+  html.dashboard-dark [class~="via-gray-50/50"],
+  html.dashboard-dark [class~="via-brand-50"],
+  html.dashboard-dark [class~="via-brand-50/50"],
+  html.dashboard-dark [class~="via-emerald-50"],
+  html.dashboard-dark [class~="via-emerald-50/50"],
+  html.dashboard-dark [class~="via-emerald-50/60"],
+  html.dashboard-dark [class~="via-green-50"],
+  html.dashboard-dark [class~="via-green-50/50"],
+  html.dashboard-dark [class~="via-amber-50"],
+  html.dashboard-dark [class~="via-amber-50/50"],
+  html.dashboard-dark [class~="via-amber-50/60"],
+  html.dashboard-dark [class~="via-yellow-50"],
+  html.dashboard-dark [class~="via-yellow-50/50"],
+  html.dashboard-dark [class~="via-orange-50"],
+  html.dashboard-dark [class~="via-orange-50/50"],
+  html.dashboard-dark [class~="via-red-50"],
+  html.dashboard-dark [class~="via-red-50/50"],
+  html.dashboard-dark [class~="via-red-50/60"],
+  html.dashboard-dark [class~="via-blue-50"],
+  html.dashboard-dark [class~="via-blue-50/50"],
+  html.dashboard-dark [class~="via-sky-50"],
+  html.dashboard-dark [class~="via-sky-50/50"],
+  html.dashboard-dark [class~="via-teal-50"],
+  html.dashboard-dark [class~="via-teal-50/50"],
+  html.dashboard-dark [class~="via-violet-50"],
+  html.dashboard-dark [class~="via-violet-50/50"],
+  html.dashboard-dark [class~="via-indigo-50"],
+  html.dashboard-dark [class~="via-indigo-50/50"] {
+    --tw-gradient-via: #0f172a var(--tw-gradient-via-position);
+    --tw-gradient-to: rgba(15, 23, 42, 0) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-via), var(--tw-gradient-to);
+  }
+
+  html.dashboard-dark [class~="to-white"],
+  html.dashboard-dark [class~="to-gray-50"],
+  html.dashboard-dark [class~="to-gray-50/40"],
+  html.dashboard-dark [class~="to-brand-50"],
+  html.dashboard-dark [class~="to-brand-50/40"],
+  html.dashboard-dark [class~="to-emerald-50"],
+  html.dashboard-dark [class~="to-emerald-50/40"],
+  html.dashboard-dark [class~="to-green-50"],
+  html.dashboard-dark [class~="to-amber-50"],
+  html.dashboard-dark [class~="to-amber-50/40"],
+  html.dashboard-dark [class~="to-yellow-50"],
+  html.dashboard-dark [class~="to-orange-50"],
+  html.dashboard-dark [class~="to-orange-50/40"],
+  html.dashboard-dark [class~="to-red-50"],
+  html.dashboard-dark [class~="to-red-50/40"],
+  html.dashboard-dark [class~="to-blue-50"],
+  html.dashboard-dark [class~="to-sky-50"],
+  html.dashboard-dark [class~="to-teal-50"],
+  html.dashboard-dark [class~="to-teal-50/40"],
+  html.dashboard-dark [class~="to-violet-50"],
+  html.dashboard-dark [class~="to-indigo-50"],
+  html.dashboard-dark [class~="to-indigo-50/50"],
+  html.dashboard-dark [class~="to-purple-50"] {
+    --tw-gradient-to: #020617 var(--tw-gradient-to-position);
+  }
+
+  html.dashboard-dark .border-gray-50,
+  html.dashboard-dark .border-gray-100,
+  html.dashboard-dark .border-gray-200,
+  html.dashboard-dark .border-gray-200\/60,
+  html.dashboard-dark .border-gray-200\/80 {
+    border-color: var(--dashboard-border);
+  }
+
+  html.dashboard-dark [class~="border-white"],
+  html.dashboard-dark [class~="border-white/10"],
+  html.dashboard-dark [class~="border-white/20"],
+  html.dashboard-dark [class~="border-white/30"],
+  html.dashboard-dark [class~="border-white/40"],
+  html.dashboard-dark [class~="border-white/50"],
+  html.dashboard-dark [class~="border-white/60"],
+  html.dashboard-dark [class~="border-brand-100"],
+  html.dashboard-dark [class~="border-brand-200"],
+  html.dashboard-dark [class~="border-emerald-100"],
+  html.dashboard-dark [class~="border-emerald-200"],
+  html.dashboard-dark [class~="border-emerald-200/60"],
+  html.dashboard-dark [class~="border-green-100"],
+  html.dashboard-dark [class~="border-green-200"],
+  html.dashboard-dark [class~="border-amber-100"],
+  html.dashboard-dark [class~="border-amber-200"],
+  html.dashboard-dark [class~="border-amber-200/60"],
+  html.dashboard-dark [class~="border-yellow-100"],
+  html.dashboard-dark [class~="border-yellow-200"],
+  html.dashboard-dark [class~="border-orange-100"],
+  html.dashboard-dark [class~="border-orange-200"],
+  html.dashboard-dark [class~="border-red-100"],
+  html.dashboard-dark [class~="border-red-200"],
+  html.dashboard-dark [class~="border-red-200/60"],
+  html.dashboard-dark [class~="border-blue-100"],
+  html.dashboard-dark [class~="border-blue-200"],
+  html.dashboard-dark [class~="border-blue-200/60"],
+  html.dashboard-dark [class~="border-sky-100"],
+  html.dashboard-dark [class~="border-sky-200"],
+  html.dashboard-dark [class~="border-sky-200/60"],
+  html.dashboard-dark [class~="border-teal-100"],
+  html.dashboard-dark [class~="border-teal-200"],
+  html.dashboard-dark [class~="border-teal-200/60"],
+  html.dashboard-dark [class~="border-violet-100"],
+  html.dashboard-dark [class~="border-violet-200"],
+  html.dashboard-dark [class~="border-violet-200/60"],
+  html.dashboard-dark [class~="border-indigo-100"],
+  html.dashboard-dark [class~="border-indigo-200"],
+  html.dashboard-dark [class~="border-indigo-200/60"] {
+    border-color: var(--dashboard-border) !important;
+  }
+
+  html.dashboard-dark .text-gray-950,
+  html.dashboard-dark .text-gray-900,
+  html.dashboard-dark .text-gray-800 {
+    color: var(--dashboard-text);
+  }
+
+  html.dashboard-dark .text-gray-700,
+  html.dashboard-dark .text-gray-600 {
+    color: #cbd5e1;
+  }
+
+  html.dashboard-dark .text-gray-500,
+  html.dashboard-dark .text-gray-400 {
+    color: var(--dashboard-muted);
+  }
+
+  html.dashboard-dark input,
+  html.dashboard-dark select,
+  html.dashboard-dark textarea {
+    background-color: #020617;
+    border-color: var(--dashboard-border);
+    color: var(--dashboard-text);
+  }
+
+  html.dashboard-dark input::placeholder,
+  html.dashboard-dark textarea::placeholder {
+    color: #64748b;
+  }
+
+  html.dashboard-dark table [class~="bg-white"],
+  html.dashboard-dark thead[class~="bg-white"],
+  html.dashboard-dark [class~="sticky"][class~="bg-white"] {
+    background-color: var(--dashboard-surface);
+  }
+
+  html.dashboard-dark [class~="rounded-full"][class~="overflow-hidden"][class~="bg-gray-100"],
+  html.dashboard-dark [class~="rounded-full"][class~="overflow-hidden"][class~="bg-gray-200"],
+  html.dashboard-dark [class~="rounded-full"][class~="overflow-hidden"][class~="bg-slate-800"],
+  html.dashboard-dark [class~="rounded-full"][class~="w-full"][class~="bg-gray-100"],
+  html.dashboard-dark [class~="rounded-full"][class~="w-full"][class~="bg-gray-200"],
+  html.dashboard-dark [class~="rounded-full"][class~="w-full"][class~="bg-slate-800"],
+  html.dashboard-dark [class~="rounded-full"][class~="flex-1"][class~="bg-gray-100"],
+  html.dashboard-dark [class~="rounded-full"][class~="flex-1"][class~="bg-gray-200"],
+  html.dashboard-dark [class~="rounded-full"][class~="flex-1"][class~="bg-slate-800"] {
+    background-color: #334155 !important;
+  }
+
+  html.dashboard-dark [class~="h-1"][class~="bg-gray-100"],
+  html.dashboard-dark [class~="h-1"][class~="bg-gray-200"],
+  html.dashboard-dark [class~="h-1.5"][class~="bg-gray-100"],
+  html.dashboard-dark [class~="h-1.5"][class~="bg-gray-200"],
+  html.dashboard-dark [class~="h-2"][class~="bg-gray-100"],
+  html.dashboard-dark [class~="h-2"][class~="bg-gray-200"],
+  html.dashboard-dark [class~="h-2.5"][class~="bg-gray-100"],
+  html.dashboard-dark [class~="h-2.5"][class~="bg-gray-200"],
+  html.dashboard-dark [class~="h-8"][class~="bg-gray-100"],
+  html.dashboard-dark [class~="h-8"][class~="bg-gray-200"],
+  html.dashboard-dark [class~="h-full"][class~="bg-gray-200"][class~="transition-all"] {
+    background-color: #334155 !important;
+  }
+
+  html.dashboard-dark .recharts-cartesian-grid line {
+    stroke: #334155;
+  }
+
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-brand-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-brand-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-emerald-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-emerald-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-green-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-green-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-amber-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-amber-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-yellow-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-yellow-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-orange-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-orange-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-red-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-red-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-blue-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-blue-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-sky-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-sky-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-violet-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-violet-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-purple-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-lg"][class~="bg-purple-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-brand-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-brand-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-emerald-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-emerald-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-green-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-green-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-amber-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-amber-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-yellow-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-yellow-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-orange-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-orange-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-red-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-red-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-blue-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-blue-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-sky-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-sky-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-violet-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-violet-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-purple-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-xl"][class~="bg-purple-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-2xl"][class~="bg-brand-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-2xl"][class~="bg-brand-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-2xl"][class~="bg-emerald-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-2xl"][class~="bg-emerald-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-2xl"][class~="bg-amber-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-2xl"][class~="bg-amber-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-2xl"][class~="bg-red-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-2xl"][class~="bg-red-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-2xl"][class~="bg-blue-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-2xl"][class~="bg-blue-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-2xl"][class~="bg-purple-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-2xl"][class~="bg-purple-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-brand-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-brand-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-emerald-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-emerald-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-amber-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-amber-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-red-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-red-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-blue-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-blue-100"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-purple-50"],
+  html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-purple-100"] {
+    background-color: #334155 !important;
+  }
+
+  html.dashboard-dark .hover\:bg-gray-50:hover,
+  html.dashboard-dark .hover\:bg-gray-50\/50:hover,
+  html.dashboard-dark .hover\:bg-gray-50\/70:hover,
+  html.dashboard-dark .hover\:bg-gray-100:hover {
+    background-color: rgba(30, 41, 59, 0.92);
+  }
+
+  html.dashboard-dark .hover\:bg-white:hover,
+  html.dashboard-dark .hover\:bg-white\/20:hover,
+  html.dashboard-dark .hover\:bg-white\/50:hover,
+  html.dashboard-dark .hover\:bg-white\/60:hover,
+  html.dashboard-dark .hover\:bg-white\/80:hover {
+    background-color: rgba(30, 41, 59, 0.92) !important;
+  }
+
+  html.dashboard-dark .shadow-gray-200\/50,
+  html.dashboard-dark .shadow-gray-200\/60,
+  html.dashboard-dark .shadow-emerald-100\/40,
+  html.dashboard-dark .shadow-emerald-200\/30,
+  html.dashboard-dark .shadow-amber-100\/40,
+  html.dashboard-dark .shadow-amber-200\/30,
+  html.dashboard-dark .shadow-red-100\/40,
+  html.dashboard-dark .shadow-red-200\/30 {
+    --tw-shadow-color: rgba(0, 0, 0, 0.28);
   }
 }
 

@@ -50,7 +50,7 @@ export function UpgradePopup({ open, onClose, targetPlan }: UpgradePopupProps) {
     <ModalPortal>
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-        <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+        <div className="relative bg-white dark:bg-slate-950 rounded-2xl shadow-2xl dark:shadow-black/50 max-w-md w-full animate-in fade-in zoom-in-95 duration-200 overflow-hidden border border-transparent dark:border-white/10">
           <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-5 text-white">
             <button
               onClick={onClose}
@@ -66,14 +66,14 @@ export function UpgradePopup({ open, onClose, targetPlan }: UpgradePopupProps) {
             <p className="text-sm text-white/80 mt-1">Desbloqueie todo o potencial da sua granja</p>
           </div>
           <div className="p-6">
-            <p className="text-sm font-semibold text-gray-700 mb-4">O que você ganha:</p>
+            <p className="text-sm font-semibold text-gray-700 dark:text-slate-200 mb-4">O que você ganha:</p>
             <ul className="space-y-3">
               {plan.features.map((feature, i) => (
                 <li key={i} className="flex items-start gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Check className="w-3 h-3 text-emerald-600" />
+                  <div className="w-5 h-5 rounded-full bg-emerald-50 dark:bg-slate-900 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-300" />
                   </div>
-                  <span className="text-sm text-gray-600">{feature}</span>
+                  <span className="text-sm text-gray-600 dark:text-slate-300">{feature}</span>
                 </li>
               ))}
             </ul>
@@ -85,7 +85,7 @@ export function UpgradePopup({ open, onClose, targetPlan }: UpgradePopupProps) {
             </button>
             <button
               onClick={onClose}
-              className="w-full mt-2 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+              className="w-full mt-2 py-2 text-sm text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors cursor-pointer"
             >
               Agora não
             </button>
@@ -95,3 +95,4 @@ export function UpgradePopup({ open, onClose, targetPlan }: UpgradePopupProps) {
     </ModalPortal>
   );
 }
+

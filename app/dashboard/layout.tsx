@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,8 @@ import {
 } from "lucide-react";
 
 const OnboardingPage = dynamic(() => import("./onboarding/page"), { ssr: false });
+const DASHBOARD_THEME_KEY = "granjapro-dashboard-theme";
+type DashboardTheme = "light" | "dark";
 
 const sidebarNav = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -68,6 +70,48 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { plan } = usePlan();
   const { user, profile, farm, loading, signOut } = useAuth();
+  const [theme, setTheme] = useState<DashboardTheme>(() => {
+    if (typeof window === "undefined") return "dark";
+    return window.localStorage.getItem(DASHBOARD_THEME_KEY) === "light" ? "light" : "dark";
+  });
+
+  useEffect(() => {
+    const storedTheme = window.localStorage.getItem(DASHBOARD_THEME_KEY);
+    const nextTheme: DashboardTheme = storedTheme === "light" ? "light" : "dark";
+    setTheme(nextTheme);
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("dark", theme === "dark");
+    root.classList.toggle("dashboard-dark", theme === "dark");
+    root.style.colorScheme = theme;
+
+    return () => {
+      root.classList.remove("dark", "dashboard-dark");
+      root.style.colorScheme = "";
+    };
+  }, [theme]);
+
+  useEffect(() => {
+    function handleThemeChange(event: Event) {
+      const customEvent = event as CustomEvent<DashboardTheme>;
+      setTheme(customEvent.detail === "light" ? "light" : "dark");
+    }
+
+    function handleStorage(event: StorageEvent) {
+      if (event.key === DASHBOARD_THEME_KEY) {
+        setTheme(event.newValue === "light" ? "light" : "dark");
+      }
+    }
+
+    window.addEventListener("dashboard-theme-change", handleThemeChange);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("dashboard-theme-change", handleThemeChange);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
 
   const displayName = profile?.full_name || user?.email?.split("@")[0] || "Usuário";
   const initials = displayName
@@ -84,15 +128,15 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8faf9]">
-        <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+      <div className="min-h-screen flex items-center justify-center bg-[#f8faf9] dark:bg-slate-950">
+        <Loader2 className="w-8 h-8 animate-spin text-brand-600 dark:text-brand-400" />
       </div>
     );
   }
 
   return (
     <DateFilterProvider>
-    <div className="min-h-screen bg-[#f8faf9]">
+    <div className="min-h-screen bg-[#f8faf9] text-gray-900 dark:bg-slate-950 dark:text-slate-100">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -246,26 +290,26 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
         collapsed ? "lg:pl-[68px]" : "lg:pl-[244px]"
       )}>
         {/* Top bar */}
-        <header className="sticky top-0 z-20 bg-white/70 backdrop-blur-xl border-b border-gray-200/60">
+        <header className="sticky top-0 z-20 bg-white/70 dark:bg-slate-950/82 backdrop-blur-xl border-b border-gray-200/60 dark:border-white/10">
           <div className="flex items-center justify-between px-4 sm:px-6 h-16">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors cursor-pointer"
+                className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-white/10 transition-colors cursor-pointer"
               >
                 <Menu className="w-5 h-5" />
               </button>
             </div>
 
             <div className="flex items-center gap-2">
-              <button className="relative flex items-center justify-center w-9 h-9 rounded-xl bg-gray-100/80 text-gray-500 hover:bg-gray-100 transition-colors cursor-pointer">
+              <button className="relative flex items-center justify-center w-9 h-9 rounded-xl bg-gray-100/80 text-gray-500 hover:bg-gray-100 dark:bg-white/8 dark:text-slate-300 dark:hover:bg-white/12 transition-colors cursor-pointer">
                 <Bell className="w-[18px] h-[18px]" />
-                <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-red-500 ring-[1.5px] ring-white" />
+                <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-red-500 dark:bg-red-400 ring-[1.5px] ring-white dark:ring-slate-950" />
               </button>
-              <div className="hidden sm:block w-px h-7 bg-gray-200/80 mx-1" />
+              <div className="hidden sm:block w-px h-7 bg-gray-200/80 dark:bg-white/10 mx-1" />
               <button
                 onClick={() => setProfileOpen(true)}
-                className="hidden sm:flex items-center gap-2.5 rounded-xl px-2 py-1.5 hover:bg-gray-100/80 transition-colors cursor-pointer"
+                className="hidden sm:flex items-center gap-2.5 rounded-xl px-2 py-1.5 hover:bg-gray-100/80 dark:hover:bg-white/10 transition-colors cursor-pointer"
               >
                 {profile?.avatar_url ? (
                   <img src={profile.avatar_url} alt={displayName} className="w-8 h-8 rounded-full object-cover shadow-sm" />
@@ -275,8 +319,8 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
                   </div>
                 )}
                 <div className="text-left">
-                  <p className="text-sm font-semibold text-gray-800 leading-tight">{displayName}</p>
-                  <p className="text-[11px] text-gray-400 leading-tight">{roleName}</p>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-slate-100 leading-tight">{displayName}</p>
+                  <p className="text-[11px] text-gray-400 dark:text-slate-400 leading-tight">{roleName}</p>
                 </div>
               </button>
             </div>
@@ -293,7 +337,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
       {needsOnboarding && (
         <>
           {/* Blur layer over sidebar + header + content */}
-          <div className="fixed inset-0 z-40 backdrop-blur-[3px] bg-white/30 pointer-events-none" />
+          <div className="fixed inset-0 z-40 backdrop-blur-[3px] bg-white/30 dark:bg-slate-950/55 pointer-events-none" />
           {/* Onboarding on top */}
           <div className="fixed inset-0 z-50 overflow-hidden">
             <OnboardingPage />

@@ -626,7 +626,7 @@ export default function RacaoPage() {
                   <div className="flex items-center gap-3 sm:gap-4 lg:min-w-[280px]">
                     <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
                       <svg className="w-14 h-14 sm:w-16 sm:h-16 -rotate-90" viewBox="0 0 64 64">
-                        <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                        <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-gray-200 dark:text-[#334155]" />
                         <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(score / 100) * 175.9} 175.9`} className="transition-all duration-700" />
                       </svg>
                       <div className="absolute inset-0 flex items-center justify-center">
@@ -674,7 +674,7 @@ export default function RacaoPage() {
               <div className="flex items-center gap-3 sm:gap-4 lg:min-w-[280px]">
                 <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
                   <svg className="w-14 h-14 sm:w-16 sm:h-16 -rotate-90" viewBox="0 0 64 64">
-                    <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                    <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-gray-200 dark:text-[#334155]" />
                     <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(score / 100) * 175.9} 175.9`} className="transition-all duration-700" />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">

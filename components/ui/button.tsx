@@ -4,14 +4,14 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-950 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800",
-        outline: "border border-brand-600 text-brand-700 bg-white hover:bg-brand-50",
-        ghost: "text-gray-600 hover:bg-gray-100",
-        secondary: "bg-gray-100 text-gray-800 hover:bg-gray-200",
+        default: "bg-brand-600 text-white hover:bg-brand-500 active:bg-brand-700",
+        outline: "border border-brand-600 text-brand-700 bg-white hover:bg-brand-50 dark:border-brand-500/60 dark:bg-slate-900 dark:text-brand-200 dark:hover:bg-brand-500/12",
+        ghost: "text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white",
+        secondary: "bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700",
         danger: "bg-red-600 text-white hover:bg-red-700",
       },
       size: {

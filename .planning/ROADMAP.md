@@ -38,6 +38,17 @@
 3. Dashboard pages keep readable contrast and focus states on mobile and desktop.
 4. Public/auth pages do not regress from global theme changes.
 
+**Plans:**
+
+**Wave 1**
+- [ ] **07-01: Dashboard Dark Foundation and Shared Primitives** - Make the authenticated dashboard deterministically dark and update shared primitive defaults.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] **07-02: Remove System Theme Option and Darken Shared Overlays** - Remove visible system-theme behavior and darken profile settings, date controls, locked overlays, and upgrade popup.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] **07-03: Dashboard Page Cleanup and Theme Verification** - Selectively convert key dashboard pages and verify public/auth pages do not regress.
+
 ### Phase 8: Plan Persistence & Permission Matrix
 
 **Goal:** Add the real subscription tier field to Supabase and define the central plan/capability/limit model.
@@ -89,7 +100,7 @@
 |-----------|-------------|----------------|--------|---------|
 | v1.0 Finances Module + Calendar Sync | 1-4 | 11/11 | Shipped | 2026-05-01 |
 | v1.1 Google Sign-In | 5-6 | 2/2 | Shipped | 2026-05-06 |
-| v1.2 Dark Theme & Granular Permissions | 7-10 | 0/4 | Active | - |
+| v1.2 Dark Theme & Granular Permissions | 7-10 | 0/3 | Active | - |
 
 ---
 *Roadmap updated: 2026-05-06 after starting v1.2*

@@ -13,7 +13,6 @@ import {
   Camera,
   Sun,
   Moon,
-  Monitor,
   Users,
   Shield,
   ChevronRight,
@@ -28,6 +27,8 @@ import {
 } from "lucide-react";
 
 type Tab = "profile" | "farm" | "preferences" | "users" | "security";
+type DashboardTheme = "light" | "dark";
+const DASHBOARD_THEME_KEY = "granjapro-dashboard-theme";
 
 interface ProfileSettingsProps {
   open: boolean;
@@ -69,7 +70,7 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
   }, [farm?.id, supabase]);
 
   // Preferences
-  const [theme, setTheme] = useState<"light" | "dark" | "system">("light");
+  const [theme, setTheme] = useState<DashboardTheme>("dark");
   const [language, setLanguage] = useState("pt-BR");
   const [notifications, setNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -89,6 +90,17 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  useEffect(() => {
+    const storedTheme = window.localStorage.getItem(DASHBOARD_THEME_KEY);
+    setTheme(storedTheme === "light" ? "light" : "dark");
+  }, []);
+
+  const handleThemeChange = (nextTheme: DashboardTheme) => {
+    setTheme(nextTheme);
+    window.localStorage.setItem(DASHBOARD_THEME_KEY, nextTheme);
+    window.dispatchEvent(new CustomEvent("dashboard-theme-change", { detail: nextTheme }));
+  };
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -198,7 +210,7 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
         {/* Backdrop */}
         <div
           className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -206,11 +218,11 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
         />
 
         {/* Panel */}
-        <div className="relative w-full max-w-[920px] max-h-[90vh] min-h-[600px] bg-white rounded-2xl shadow-2xl overflow-hidden flex animate-in fade-in zoom-in-95 duration-200">
+        <div className="relative w-full max-w-[920px] max-h-[90vh] min-h-[600px] bg-white dark:bg-slate-950 rounded-2xl shadow-2xl dark:shadow-black/50 overflow-hidden flex animate-in fade-in zoom-in-95 duration-200 border border-transparent dark:border-white/10">
           {/* Sidebar tabs */}
-          <div className="w-[250px] bg-gray-50 border-r border-gray-200/80 flex flex-col flex-shrink-0">
+          <div className="w-[250px] bg-gray-50 dark:bg-slate-950 border-r border-gray-200/80 dark:border-white/10 flex flex-col flex-shrink-0">
             {/* User header */}
-            <div className="p-5 border-b border-gray-200/80">
+            <div className="p-5 border-b border-gray-200/80 dark:border-white/10">
               <div className="flex items-center gap-3">
                 <div className="relative group">
                   {avatarUrl ? (
@@ -239,8 +251,8 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
                   />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{profile?.full_name || "Usuário"}</p>
-                  <p className="text-[11px] text-gray-400 truncate">{profile?.role === "owner" ? "Proprietário" : profile?.role === "manager" ? "Gerente" : "Funcionário"}</p>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-slate-100 truncate">{profile?.full_name || "Usuário"}</p>
+                  <p className="text-[11px] text-gray-400 dark:text-slate-400 truncate">{profile?.role === "owner" ? "Proprietário" : profile?.role === "manager" ? "Gerente" : "Funcionário"}</p>
                 </div>
               </div>
             </div>
@@ -254,7 +266,7 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
                   className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all cursor-pointer ${
                     activeTab === tab.id
                       ? "bg-brand-500 text-white shadow-sm"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-800"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-800 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
                   }`}
                 >
                   <tab.icon className="w-4 h-4 flex-shrink-0" strokeWidth={1.8} />
@@ -264,10 +276,10 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
             </nav>
 
             {/* Sign out */}
-            <div className="p-3 border-t border-gray-200/80">
+            <div className="p-3 border-t border-gray-200/80 dark:border-white/10">
               <button
                 onClick={signOut}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-red-500 hover:bg-red-50 transition-all cursor-pointer"
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-red-500 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-500/10 transition-all cursor-pointer"
               >
                 <X className="w-4 h-4" strokeWidth={1.8} />
                 <span>Sair da conta</span>
@@ -278,20 +290,20 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
           {/* Content area */}
           <div className="flex-1 flex flex-col min-h-0">
             {/* Header */}
-            <div className="flex items-center justify-between px-7 py-5 border-b border-gray-200/80 flex-shrink-0">
-              <h2 className="text-lg font-semibold text-gray-800">
+            <div className="flex items-center justify-between px-7 py-5 border-b border-gray-200/80 dark:border-white/10 flex-shrink-0">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-slate-100">
                 {tabs.find((t) => t.id === activeTab)?.label}
               </h2>
               <button
                 onClick={onClose}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-4.5 h-4.5" />
               </button>
             </div>
 
             {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto p-7">
+            <div className="flex-1 overflow-y-auto p-7 dashboard-scroll">
               {/* Profile Tab */}
               {activeTab === "profile" && (
                 <div className="space-y-5">
@@ -493,30 +505,29 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
                 <div className="space-y-6">
                   {/* Theme */}
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Aparência</h3>
-                    <div className="grid grid-cols-3 gap-3">
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-200 mb-3">Aparência</h3>
+                    <div className="grid grid-cols-2 gap-3">
                       {[
                         { id: "light" as const, label: "Claro", icon: Sun },
                         { id: "dark" as const, label: "Escuro", icon: Moon },
-                        { id: "system" as const, label: "Sistema", icon: Monitor },
                       ].map((opt) => (
                         <button
                           key={opt.id}
-                          onClick={() => setTheme(opt.id)}
+                          onClick={() => handleThemeChange(opt.id)}
                           className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer ${
                             theme === opt.id
-                              ? "border-brand-500 bg-brand-50"
-                              : "border-gray-200 hover:border-gray-300 bg-white"
+                              ? "border-brand-500 bg-brand-50 dark:border-brand-400/70 dark:bg-slate-900"
+                              : "border-gray-200 hover:border-gray-300 bg-white dark:border-white/10 dark:bg-slate-950 dark:hover:border-slate-500"
                           }`}
                         >
                           <opt.icon
                             className={`w-5 h-5 ${
-                              theme === opt.id ? "text-brand-500" : "text-gray-400"
+                              theme === opt.id ? "text-brand-500 dark:text-brand-300" : "text-gray-400 dark:text-slate-500"
                             }`}
                           />
                           <span
                             className={`text-xs font-medium ${
-                              theme === opt.id ? "text-brand-600" : "text-gray-500"
+                              theme === opt.id ? "text-brand-600 dark:text-brand-200" : "text-gray-500 dark:text-slate-400"
                             }`}
                           >
                             {opt.label}

@@ -115,16 +115,16 @@ export function CalendarFilter() {
     <div className="relative" ref={calendarRef}>
       <button
         onClick={() => setCalendarOpen(!calendarOpen)}
-        className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 bg-white border border-gray-200 rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+        className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 bg-white border border-gray-200 rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer shadow-sm dark:bg-slate-950 dark:text-slate-300 dark:border-white/10 dark:hover:bg-slate-900"
       >
         <CalendarDays className="w-4 h-4" />
         {calendarLabel}
       </button>
 
       {calendarOpen && (
-        <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-gray-200 shadow-2xl p-4 z-50 w-[320px] animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-gray-200 shadow-2xl p-4 z-50 w-[320px] animate-in fade-in zoom-in-95 duration-150 dark:bg-slate-950 dark:border-white/10 dark:shadow-black/50">
           {/* Mode selector */}
-          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 mb-4">
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-slate-950 rounded-xl p-1 mb-4">
             {([
               { key: "dia" as const, label: "Dia" },
               { key: "intervalo" as const, label: "Intervalo" },
@@ -136,8 +136,8 @@ export function CalendarFilter() {
                 className={cn(
                   "flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
                   filterMode === p.key
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "bg-white text-gray-900 shadow-sm dark:bg-slate-900 dark:text-slate-100"
+                    : "text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200"
                 )}
               >
                 {p.label}
@@ -147,7 +147,7 @@ export function CalendarFilter() {
 
           {/* Range hint */}
           {filterMode === "intervalo" && (
-            <p className="text-[10px] text-gray-400 font-medium mb-2 text-center">
+            <p className="text-[10px] text-gray-400 dark:text-slate-500 font-medium mb-2 text-center">
               {!rangeStart || (rangeStart && rangeEnd) ? "Clique no dia inicial" : "Clique no dia final"}
             </p>
           )}
@@ -156,18 +156,18 @@ export function CalendarFilter() {
           <div className="flex items-center justify-between mb-3">
             <button
               onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
-              className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
+              className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
             >
-              <ChevronLeft className="w-4 h-4 text-gray-500" />
+              <ChevronLeft className="w-4 h-4 text-gray-500 dark:text-slate-400" />
             </button>
-            <span className="text-sm font-semibold text-gray-900">
+            <span className="text-sm font-semibold text-gray-900 dark:text-slate-100">
               {["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
             </span>
             <button
               onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
-              className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
+              className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
             >
-              <ChevronRight className="w-4 h-4 text-gray-500" />
+              <ChevronRight className="w-4 h-4 text-gray-500 dark:text-slate-400" />
             </button>
           </div>
 
@@ -181,7 +181,7 @@ export function CalendarFilter() {
                     onClick={() => handleMonthClick(i)}
                     className={cn(
                       "py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer",
-                      isSelected ? "bg-brand-600 text-white shadow-sm" : "text-gray-700 hover:bg-gray-100"
+                      isSelected ? "bg-brand-600 text-white shadow-sm" : "text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-white/10"
                     )}
                   >
                     {m}
@@ -193,7 +193,7 @@ export function CalendarFilter() {
             <>
               <div className="grid grid-cols-7 gap-0 mb-1">
                 {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((d) => (
-                  <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>
+                  <div key={d} className="text-center text-[10px] font-semibold text-gray-400 dark:text-slate-500 py-1">{d}</div>
                 ))}
               </div>
               <div className="grid grid-cols-7 gap-0">
@@ -212,11 +212,11 @@ export function CalendarFilter() {
                       onClick={() => handleCalDayClick(day)}
                       className={cn(
                         "h-9 text-sm font-medium transition-all duration-150 cursor-pointer relative flex items-center justify-center",
-                        inRange && !isStart && !isEnd && "bg-brand-50 text-brand-700",
+                        inRange && !isStart && !isEnd && "bg-brand-50 text-brand-700 dark:bg-slate-900 dark:text-brand-200",
                         isStart && !isSingle && "bg-brand-600 text-white rounded-l-xl",
                         isEnd && !isSingle && "bg-brand-600 text-white rounded-r-xl",
                         isSingle && "bg-brand-600 text-white rounded-xl shadow-sm",
-                        !inRange && "hover:bg-gray-100 rounded-xl",
+                        !inRange && "hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl",
                       )}
                     >
                       <span className={cn(
@@ -241,7 +241,7 @@ export function CalendarFilter() {
               setFilterMode("dia");
               setCalendarOpen(false);
             }}
-            className="w-full mt-3 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-50 rounded-xl transition-colors cursor-pointer"
+            className="w-full mt-3 py-2 text-xs font-semibold text-brand-600 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-xl transition-colors cursor-pointer"
           >
             Hoje
           </button>

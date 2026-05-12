@@ -417,7 +417,7 @@ export default function FinancasPage() {
           <div className="flex items-center gap-4 lg:min-w-[280px]">
             <div className="relative w-16 h-16 flex-shrink-0">
               <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-gray-200 dark:text-slate-700" />
                 <circle
                   cx="32" cy="32" r="28" fill="none"
                   stroke={healthColor === "emerald" ? "#10b981" : healthColor === "amber" ? "#f59e0b" : "#ef4444"}
@@ -494,7 +494,7 @@ export default function FinancasPage() {
             <div className="flex items-center gap-4 lg:min-w-[280px]">
               <div className="relative w-16 h-16 flex-shrink-0">
                 <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                  <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-gray-200 dark:text-slate-700" />
                   <circle
                     cx="32" cy="32" r="28" fill="none"
                     stroke={healthColor === "emerald" ? "#10b981" : healthColor === "amber" ? "#f59e0b" : "#ef4444"}
