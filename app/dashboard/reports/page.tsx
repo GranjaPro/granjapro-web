@@ -21,7 +21,6 @@ import {
   Info,
   Target,
   Activity,
-  Zap,
   ArrowRight,
   Loader2,
 } from "lucide-react";
@@ -1367,9 +1366,9 @@ export default function RelatoriosPage() {
             <div className="lg:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 { label: "Lucro", value: `R$ ${lucro.toLocaleString("pt-BR")}`, change: lucroChange, icon: DollarSign, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", sub: `Margem: ${margem.toFixed(1)}%` },
-                { label: "Produção", value: totalOvos.toLocaleString("pt-BR"), change: prodChange, icon: Egg, iconBg: "bg-amber-50", iconColor: "text-amber-600", sub: `Postura: ${avgPostura}%` },
+                { label: "Produção", value: totalOvos.toLocaleString("pt-BR"), change: prodChange, icon: Egg, iconBg: "bg-brand-50", iconColor: "text-brand-600", sub: `Postura: ${avgPostura}%` },
                 { label: "Mortalidade", value: `${mortalidadeRate.toFixed(2)}%`, change: mortChange, icon: Activity, iconBg: "bg-red-50", iconColor: "text-red-500", sub: `${totalMortes} óbitos` },
-                { label: "Custo/Ovo", value: `R$ ${custoPerOvo.toFixed(2)}`, change: custoChange, icon: Zap, iconBg: "bg-blue-50", iconColor: "text-blue-600", sub: "Custo de ração por ovo" },
+                { label: "Custo/Ovo", value: `R$ ${custoPerOvo.toFixed(2)}`, change: custoChange, icon: Wheat, iconBg: "bg-orange-50", iconColor: "text-orange-600", sub: "Custo de ração por ovo" },
               ].map((kpi) => {
                 const isPositive = kpi.label === "Mortalidade" ? kpi.change <= 0 : kpi.change >= 0;
                 return (

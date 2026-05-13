@@ -635,17 +635,17 @@ export default function LotesPage() {
           <input type="text" placeholder="Buscar lote ou raça..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none w-full" />
         </div>
         {!loading && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px]">
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px] dark:border-white/10 dark:bg-slate-900/80">
             <div className="flex items-center justify-between mb-5 flex-shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-red-500 flex items-center justify-center shadow-sm">
                   <AlertTriangle className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-gray-900">Alertas ativos</h3>
-                  <p className="text-[11px] text-gray-400 font-medium">
+                  <h3 className="text-base font-bold text-gray-900 dark:text-slate-100">Alertas ativos</h3>
+                  <p className="text-[11px] text-gray-400 font-medium dark:text-slate-400">
                     {urgentAlertsCount > 0 && (
-                      <span className="text-red-600 font-semibold">{urgentAlertsCount} urgente · </span>
+                      <span className="text-red-600 font-semibold dark:text-red-300">{urgentAlertsCount} urgente · </span>
                     )}
                     {visibleActiveAlerts.length} alertas no total
                   </p>
@@ -661,7 +661,7 @@ export default function LotesPage() {
             </div>
             <div className="space-y-3 overflow-y-auto flex-1 pr-1 -mr-1 py-1">
               {visibleActiveAlerts.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500">
+                <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500 dark:border-white/10 dark:text-slate-400">
                   Nenhum alerta ativo.
                 </div>
               ) : visibleActiveAlerts.map((alert, alertIdx) => {
@@ -672,16 +672,16 @@ export default function LotesPage() {
                     <LockedOverlay key={alert.id} message="Desbloqueie todos os alertas inteligentes" targetPlan="pro">
                       <div className={cn(
                         "rounded-xl p-4 border",
-                        alert.type === "danger" && "bg-red-50 border-red-200",
-                        alert.type === "warning" && "bg-amber-50 border-amber-200",
-                        alert.type === "info" && "bg-blue-50 border-blue-200"
+                        alert.type === "danger" && "bg-red-50 border-red-200 dark:!border-red-400/20 dark:!bg-red-500/10",
+                        alert.type === "warning" && "bg-amber-50 border-amber-200 dark:!border-amber-400/20 dark:!bg-amber-500/10",
+                        alert.type === "info" && "bg-blue-50 border-blue-200 dark:!border-sky-400/20 dark:!bg-sky-500/10"
                       )}>
                         <div className="flex items-start gap-3">
                           <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5", alert.type === "danger" && "bg-red-100", alert.type === "warning" && "bg-amber-100", alert.type === "info" && "bg-blue-100")}>
-                            <AlertTriangle className="w-4 h-4 text-gray-400" />
+                            <AlertTriangle className="w-4 h-4 text-gray-400 dark:text-slate-300" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-gray-600">{alert.msg}</p>
+                            <p className="text-[13px] font-semibold text-gray-600 dark:text-slate-200">{alert.msg}</p>
                           </div>
                         </div>
                       </div>
@@ -698,17 +698,17 @@ export default function LotesPage() {
                   >
                     <div
                       className={cn(
-                        "relative rounded-xl p-4 pr-12 border transition-all duration-200",
-                        alert.type === "danger" && "bg-red-50 border-red-200",
-                        alert.type === "warning" && "bg-amber-50 border-amber-200",
-                        alert.type === "info" && "bg-blue-50 border-blue-200"
+                        "relative rounded-xl p-4 pr-12 border transition-all duration-200 dark:hover:shadow-black/20",
+                        alert.type === "danger" && "bg-red-50 border-red-200 dark:!border-red-400/20 dark:!bg-red-500/10 dark:hover:!border-red-300/35 dark:hover:!bg-red-500/15",
+                        alert.type === "warning" && "bg-amber-50 border-amber-200 dark:!border-amber-400/20 dark:!bg-amber-500/10 dark:hover:!border-amber-300/35 dark:hover:!bg-amber-500/15",
+                        alert.type === "info" && "bg-blue-50 border-blue-200 dark:!border-sky-400/20 dark:!bg-sky-500/10 dark:hover:!border-sky-300/35 dark:hover:!bg-sky-500/15"
                       )}
                     >
                       <button
                         type="button"
                         aria-label="Excluir aviso"
                         onClick={() => void dismissAlert(alert)}
-                        className="absolute right-3 top-3 rounded-md p-1 text-gray-400 transition-colors hover:bg-white/70 hover:text-gray-600"
+                        className="absolute right-3 top-3 rounded-md p-1 text-gray-400 transition-colors hover:bg-white/70 hover:text-gray-600 dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-slate-200"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -716,17 +716,17 @@ export default function LotesPage() {
                         <div
                           className={cn(
                             "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
-                            alert.type === "danger" && "bg-red-100",
-                            alert.type === "warning" && "bg-amber-100",
-                            alert.type === "info" && "bg-blue-100"
+                            alert.type === "danger" && "bg-red-100 dark:bg-red-500/15",
+                            alert.type === "warning" && "bg-amber-100 dark:bg-amber-500/15",
+                            alert.type === "info" && "bg-blue-100 dark:bg-sky-500/15"
                           )}
                         >
                           <AlertTriangle
                             className={cn(
                               "w-4 h-4",
-                              alert.type === "danger" && "text-red-600",
-                              alert.type === "warning" && "text-amber-600",
-                              alert.type === "info" && "text-blue-600"
+                              alert.type === "danger" && "text-red-600 dark:text-red-300",
+                              alert.type === "warning" && "text-amber-600 dark:text-amber-300",
+                              alert.type === "info" && "text-blue-600 dark:text-sky-300"
                             )}
                           />
                         </div>
@@ -734,28 +734,28 @@ export default function LotesPage() {
                           <p
                             className={cn(
                               "text-[13px] font-semibold leading-snug",
-                              alert.type === "danger" && "text-red-800",
-                              alert.type === "warning" && "text-amber-800",
-                              alert.type === "info" && "text-blue-800"
+                              alert.type === "danger" && "text-red-800 dark:text-red-200",
+                              alert.type === "warning" && "text-amber-800 dark:text-amber-200",
+                              alert.type === "info" && "text-blue-800 dark:text-sky-200"
                             )}
                           >
                             {alert.msg}
                           </p>
                           {alert.risk && (
-                            <p className="text-[11px] text-gray-500 mt-1 leading-relaxed italic">
+                            <p className="text-[11px] text-gray-500 mt-1 leading-relaxed italic dark:text-slate-300">
                               Se ignorar: {alert.risk}
                             </p>
                           )}
                           <div className="flex items-center justify-between mt-2.5">
-                            <p className="text-[11px] text-gray-400">{alert.time}</p>
+                            <p className="text-[11px] text-gray-400 dark:text-slate-400">{alert.time}</p>
                             {alert.href ? (
                               <Link
                                 href={alert.href}
                                 className={cn(
                                   "text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors",
-                                  alert.type === "danger" && "text-white bg-red-500 hover:bg-red-600",
-                                  alert.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300",
-                                  alert.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300"
+                                  alert.type === "danger" && "text-white bg-red-500 hover:bg-red-600 dark:bg-red-400 dark:text-red-950 dark:hover:bg-red-300",
+                                  alert.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300 dark:bg-amber-300 dark:text-amber-950 dark:hover:bg-amber-200",
+                                  alert.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300 dark:bg-sky-300 dark:text-sky-950 dark:hover:bg-sky-200"
                                 )}
                               >
                                 {alert.action}
@@ -765,9 +765,9 @@ export default function LotesPage() {
                                 type="button"
                                 className={cn(
                                   "text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors",
-                                  alert.type === "danger" && "text-white bg-red-500 hover:bg-red-600",
-                                  alert.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300",
-                                  alert.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300"
+                                  alert.type === "danger" && "text-white bg-red-500 hover:bg-red-600 dark:bg-red-400 dark:text-red-950 dark:hover:bg-red-300",
+                                  alert.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300 dark:bg-amber-300 dark:text-amber-950 dark:hover:bg-amber-200",
+                                  alert.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300 dark:bg-sky-300 dark:text-sky-950 dark:hover:bg-sky-200"
                                 )}
                               >
                                 {alert.action}

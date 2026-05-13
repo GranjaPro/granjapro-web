@@ -690,9 +690,9 @@ export default function VendasPage() {
         </div>
 
         {/* Top row: 3 metrics */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
           {/* Receita */}
-          <div className="rounded-xl bg-gray-50 p-4 hover:bg-gray-100/80 transition-colors duration-200 cursor-pointer">
+          <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 hover:border-gray-200 transition-colors duration-200 cursor-pointer">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center"><DollarSign className="w-3.5 h-3.5 text-blue-600" /></div>
               <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Receita</span>
@@ -701,7 +701,7 @@ export default function VendasPage() {
             <p className="text-[10px] text-gray-400 font-medium mt-1">100% da composição</p>
           </div>
           {/* Custo */}
-          <div className="rounded-xl bg-gray-50 p-4 hover:bg-gray-100/80 transition-colors duration-200 cursor-pointer">
+          <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 hover:border-gray-200 transition-colors duration-200 cursor-pointer">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center"><Wallet className="w-3.5 h-3.5 text-red-500" /></div>
               <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Custo</span>
@@ -710,7 +710,7 @@ export default function VendasPage() {
             <p className="text-[10px] text-gray-400 font-medium mt-1">{(100 - margem).toFixed(1)}% da receita</p>
           </div>
           {/* Lucro */}
-          <div className="rounded-xl bg-emerald-50 p-4 hover:bg-emerald-100/60 transition-colors duration-200 cursor-pointer ring-1 ring-emerald-200/60">
+          <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 hover:border-gray-200 transition-colors duration-200 cursor-pointer">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center"><PiggyBank className="w-3.5 h-3.5 text-emerald-600" /></div>
               <span className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Lucro</span>
@@ -1285,7 +1285,7 @@ export default function VendasPage() {
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-5 pb-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-sm">
+            <div className="w-10 h-10 rounded-xl bg-[#101d3a] flex items-center justify-center shadow-sm">
               <ShoppingCart className="w-5 h-5 text-white" />
             </div>
             <div>

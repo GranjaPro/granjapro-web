@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import ModalPortal from "@/components/ui/modal-portal";
 import {
   Wheat,
+  Egg,
   Plus,
   Pencil,
   Trash2,
@@ -589,8 +590,8 @@ export default function RacaoPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0">
-            <Wheat className="w-5 h-5 sm:w-6 sm:h-6 text-brand-600" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0">
+            <Wheat className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
           </div>
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight truncate">Gestão de Ração</h1>
@@ -635,7 +636,7 @@ export default function RacaoPage() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <Wheat className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                        <Wheat className="w-4 h-4 text-brand-600 flex-shrink-0" />
                         <span className="text-sm font-bold text-gray-900">Saúde Alimentar</span>
                       </div>
                       <p className={cn("text-lg sm:text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
@@ -683,7 +684,7 @@ export default function RacaoPage() {
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <Wheat className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <Wheat className="w-4 h-4 text-brand-600 flex-shrink-0" />
                     <span className="text-sm font-bold text-gray-900">Saúde Alimentar</span>
                   </div>
                   <p className={cn("text-lg sm:text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
@@ -751,8 +752,8 @@ export default function RacaoPage() {
                 {/* Consumo */}
                 <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer">
                   <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
-                    <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", consumoStatus === "good" ? "bg-emerald-50" : consumoStatus === "high" ? "bg-amber-50" : "bg-red-50")}>
-                      <Wheat className={cn("w-4 h-4 sm:w-5 sm:h-5", consumoStatus === "good" ? "text-emerald-600" : consumoStatus === "high" ? "text-amber-600" : "text-red-600")} />
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0">
+                      <Wheat className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
                     </div>
                     <span className="text-xs font-semibold text-gray-500">Consumo</span>
                   </div>
@@ -1078,22 +1079,38 @@ export default function RacaoPage() {
           </div>
           {(() => {
             const financeCards = [
-              { label: "Custo/Dúzia", value: "R$ 0,52", meta: "R$ 0,48", diff: +8.3, icon: DollarSign, iconBg: "bg-red-50", iconColor: "text-red-500" },
-              { label: "Custo/kg", value: "R$ 0,44", meta: "R$ 0,42", diff: +4.8, icon: Wheat, iconBg: "bg-amber-50", iconColor: "text-amber-600" },
-              { label: "Custo/Ovo", value: "R$ 0,043", meta: "R$ 0,040", diff: +7.5, icon: Target, iconBg: "bg-violet-50", iconColor: "text-violet-600" },
-              { label: "Custo/Ave", value: "R$ 0,14", meta: "R$ 0,15", diff: -6.7, icon: Activity, iconBg: "bg-blue-50", iconColor: "text-blue-600" },
+              { label: "Custo/Dúzia", value: "R$ 0,52", meta: "R$ 0,48", diff: +8.3, icon: DollarSign, iconBg: "bg-orange-50", iconColor: "text-orange-600" },
+              { label: "Custo/kg", value: "R$ 0,44", meta: "R$ 0,42", diff: +4.8, icon: Wheat, iconBg: "bg-orange-50", iconColor: "text-orange-600" },
+              { label: "Custo/Ovo", value: "R$ 0,043", meta: "R$ 0,040", diff: +7.5, icon: Egg, iconBg: "bg-orange-50", iconColor: "text-orange-600" },
+              { label: "Custo/Ave", value: "R$ 0,14", meta: "R$ 0,15", diff: -6.7, icon: Activity, iconBg: "bg-orange-50", iconColor: "text-orange-600" },
             ];
             const grid = (
               <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-                {financeCards.map((c) => {
+                {financeCards.map((c, index) => {
                   const isOver = c.diff > 0;
                   return (
-                    <div key={c.label} className="bg-gray-50 rounded-xl p-3 flex flex-col">
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0", c.iconBg)}>
-                          <c.icon className={cn("w-3 h-3", c.iconColor)} />
+                    <div key={c.label} className="bg-gray-50 rounded-xl border border-gray-100 p-3 flex flex-col transition-colors hover:border-gray-200">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0", c.iconBg)}>
+                            <c.icon className={cn("w-3 h-3", c.iconColor)} />
+                          </div>
+                          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider leading-tight truncate">{c.label}</span>
                         </div>
-                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider leading-tight">{c.label}</span>
+                        <div className="relative group flex-shrink-0">
+                          <button className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
+                            <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
+                          </button>
+                          <div
+                            className={cn(
+                              "absolute top-7 w-52 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50",
+                              index % 2 === 0 ? "left-0" : "right-0"
+                            )}
+                          >
+                            <p className="text-[11px] font-semibold text-gray-800 mb-1">Sobre {c.label}</p>
+                            <p className="text-[10px] text-gray-500 leading-relaxed">Indicador financeiro calculado com base nos custos de ração e na produção do período.</p>
+                          </div>
+                        </div>
                       </div>
                       <p className="text-base font-bold text-gray-900">{c.value}</p>
                       <div className="flex items-center justify-between mt-auto pt-1.5">
@@ -1136,7 +1153,7 @@ export default function RacaoPage() {
                 <span className="text-[10px] font-medium text-gray-400">Consumo (kg)</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-sm bg-violet-500 flex-shrink-0" />
+                <div className="w-3 h-3 rounded-sm bg-emerald-500 flex-shrink-0" />
                 <span className="text-[10px] font-medium text-gray-400">Produção (ovos)</span>
               </div>
               <div className="flex items-center gap-1.5 relative group">
@@ -1166,8 +1183,8 @@ export default function RacaoPage() {
                       <stop offset="100%" stopColor="#2d7a4f" stopOpacity={0.7} />
                     </linearGradient>
                     <linearGradient id="gradOvosBar" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.95} />
-                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.7} />
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.95} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.7} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
@@ -1189,8 +1206,8 @@ export default function RacaoPage() {
                     <stop offset="100%" stopColor="#2d7a4f" stopOpacity={0.7} />
                   </linearGradient>
                   <linearGradient id="gradOvosBar" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.95} />
-                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.7} />
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0.7} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />

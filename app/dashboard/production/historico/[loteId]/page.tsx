@@ -182,9 +182,9 @@ export default function HistoricoLotePage() {
 
   const kpis = [
     { title: "Total Produzido", value: totalOvos.toLocaleString("pt-BR"), badge: String(registros.length) + " dias", badgeDir: "neutral" as const, icon: Egg, iconBg: "bg-brand-50", iconColor: "text-brand-600" },
-    { title: "Taxa Média", value: avgTaxa, badge: avgTaxa !== "—" && avgTaxaNum >= 90 ? "Bom" : "Atenção", badgeDir: avgTaxa !== "—" && avgTaxaNum >= 90 ? "up" as const : "down" as const, icon: TrendingUp, iconBg: "bg-blue-50", iconColor: "text-blue-600" },
+    { title: "Taxa Média", value: avgTaxa, badge: avgTaxa !== "—" && avgTaxaNum >= 90 ? "Bom" : "Atenção", badgeDir: avgTaxa !== "—" && avgTaxaNum >= 90 ? "up" as const : "down" as const, icon: TrendingUp, iconBg: "bg-violet-50", iconColor: "text-violet-600" },
     { title: "Quebrados / Sujos", value: totalQuebrados.toLocaleString("pt-BR"), badge: totalOvos > 0 ? ((totalQuebrados / totalOvos) * 100).toFixed(1) + "%" : "—", badgeDir: "neutral" as const, icon: AlertTriangle, iconBg: "bg-amber-50", iconColor: "text-amber-600" },
-    { title: "Melhor Dia", value: melhorDia, badge: "pico", badgeDir: "up" as const, icon: Activity, iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
+    { title: "Melhor Dia", value: melhorDia, badge: "pico", badgeDir: "up" as const, icon: Activity, iconBg: "bg-teal-50", iconColor: "text-teal-600" },
   ];
 
   function formatDate(dateStr: string) {

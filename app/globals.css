@@ -9,6 +9,7 @@
   --dashboard-bg: #020617;
   --dashboard-surface: #080f1f;
   --dashboard-surface-soft: #0b1220;
+  --dashboard-icon-bg: #101d3a;
   --dashboard-border: rgba(148, 163, 184, 0.14);
   --dashboard-text: #f8fafc;
   --dashboard-muted: #94a3b8;
@@ -547,7 +548,7 @@
   html.dashboard-dark [class~="rounded-full"][class~="flex-1"][class~="bg-gray-100"],
   html.dashboard-dark [class~="rounded-full"][class~="flex-1"][class~="bg-gray-200"],
   html.dashboard-dark [class~="rounded-full"][class~="flex-1"][class~="bg-slate-800"] {
-    background-color: #334155 !important;
+    background-color: #0f172a !important;
   }
 
   html.dashboard-dark [class~="h-1"][class~="bg-gray-100"],
@@ -636,7 +637,7 @@
   html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-blue-100"],
   html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-purple-50"],
   html.dashboard-dark [class~="items-center"][class~="justify-center"][class~="rounded-full"][class~="bg-purple-100"] {
-    background-color: #334155 !important;
+    background-color: var(--dashboard-icon-bg) !important;
   }
 
   html.dashboard-dark .hover\:bg-gray-50:hover,

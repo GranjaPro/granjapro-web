@@ -332,8 +332,8 @@ export default function ProducaoPage() {
         title: "Média Diária no Período",
         value: dailyAvg.toLocaleString("pt-BR"),
         icon: Activity,
-        iconBg: "bg-emerald-50",
-        iconColor: "text-emerald-600",
+        iconBg: "bg-teal-50",
+        iconColor: "text-teal-600",
         actual: dailyAvg,
         expectedVal: metaMediaSemanal,
         expectedLabel: metaMediaSemanal.toLocaleString("pt-BR"),
@@ -803,7 +803,7 @@ export default function ProducaoPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {/* Placeholder KPI cards for blur effect */}
                 {[1,2,3,4,5,6].map(n => (
-                  <div key={n} className="bg-gray-50 rounded-xl p-4">
+                  <div key={n} className="bg-gray-50 rounded-xl border border-gray-100 p-4">
                     <div className="h-4 bg-gray-200 rounded w-20 mb-3" />
                     <div className="h-6 bg-gray-200 rounded w-24 mb-2" />
                     <div className="h-3 bg-gray-100 rounded w-32" />
@@ -814,17 +814,17 @@ export default function ProducaoPage() {
           ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {/* Custo por Ovo */}
-            <div className="bg-gray-50 rounded-xl p-4">
+            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 transition-colors hover:border-gray-200">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
-                    <Egg className="w-4 h-4 text-red-500" />
+                  <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
+                    <Wheat className="w-4 h-4 text-orange-600" />
                   </div>
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Custo/Ovo</span>
                 </div>
                 <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
-                    <HelpCircle className="w-3 h-3 text-gray-500" />
+                  <button className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
+                    <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
                   </button>
                   <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
                     <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Custo/Ovo?</p>
@@ -845,7 +845,7 @@ export default function ProducaoPage() {
               </div>
             </div>
             {/* Margem */}
-            <div className="bg-gray-50 rounded-xl p-4">
+            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 transition-colors hover:border-gray-200">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
@@ -854,8 +854,8 @@ export default function ProducaoPage() {
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Margem</span>
                 </div>
                 <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
-                    <HelpCircle className="w-3 h-3 text-gray-500" />
+                  <button className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
+                    <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
                   </button>
                   <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
                     <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Margem?</p>
@@ -876,12 +876,26 @@ export default function ProducaoPage() {
               </div>
             </div>
             {/* Receita do Dia */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                  <TrendingUp className="w-4 h-4 text-emerald-600" />
+            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 transition-colors hover:border-gray-200">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0">
+                    <TrendingUp className="w-4 h-4 text-teal-600" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Receita/Dia</span>
                 </div>
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Receita/Dia</span>
+                <div className="relative group">
+                  <button className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
+                    <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
+                  </button>
+                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
+                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Receita/Dia?</p>
+                    <p className="text-[10px] text-gray-500 leading-relaxed">Receita estimada gerada pela produção do dia, considerando o volume produzido e o preço médio de venda.</p>
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <p className="text-[10px] text-gray-400">Fórmula: Ovos produzidos x Preço médio por ovo</p>
+                    </div>
+                  </div>
+                </div>
               </div>
               <p className="text-xl font-bold text-gray-900">R$ 1.520</p>
               <div className="flex items-center justify-between mt-2 gap-1">
@@ -893,7 +907,7 @@ export default function ProducaoPage() {
               </div>
             </div>
             {/* Eficiência Alimentar */}
-            <div className="bg-gray-50 rounded-xl p-4">
+            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 transition-colors hover:border-gray-200">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
@@ -902,8 +916,8 @@ export default function ProducaoPage() {
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Efic. Alimentar</span>
                 </div>
                 <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
-                    <HelpCircle className="w-3 h-3 text-gray-500" />
+                  <button className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
+                    <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
                   </button>
                   <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
                     <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Eficiência Alimentar?</p>
@@ -924,17 +938,17 @@ export default function ProducaoPage() {
               </div>
             </div>
             {/* Receita por Ave */}
-            <div className="bg-gray-50 rounded-xl p-4">
+            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 transition-colors hover:border-gray-200">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                    <CircleDollarSign className="w-4 h-4 text-blue-600" />
+                  <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0">
+                    <CircleDollarSign className="w-4 h-4 text-teal-600" />
                   </div>
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Receita/Ave</span>
                 </div>
                 <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
-                    <HelpCircle className="w-3 h-3 text-gray-500" />
+                  <button className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
+                    <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
                   </button>
                   <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
                     <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Receita/Ave?</p>
@@ -955,7 +969,7 @@ export default function ProducaoPage() {
               </div>
             </div>
             {/* Perda Diária (R$) */}
-            <div className="bg-gray-50 rounded-xl p-4">
+            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 transition-colors hover:border-gray-200">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
@@ -964,8 +978,8 @@ export default function ProducaoPage() {
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Perda/Dia</span>
                 </div>
                 <div className="relative group">
-                  <button className="w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0">
-                    <HelpCircle className="w-3 h-3 text-gray-500" />
+                  <button className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
+                    <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
                   </button>
                   <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
                     <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Perda Diária?</p>

@@ -55,12 +55,12 @@ const CREDIT_COSTS = {
 
 /* ── Suggestions with credit costs ── */
 const suggestions = [
-  { label: "Relatório de produção", description: "Resumo semanal de ovos", icon: Egg, credits: 1, prompt: "Gere um relatório resumido da produção de ovos desta semana.", tier: "simple" as const },
-  { label: "Análise de mortalidade", description: "Últimos 30 dias", icon: Skull, credits: 3, prompt: "Analise a taxa de mortalidade dos últimos 30 dias e sugira ações.", tier: "detailed" as const },
-  { label: "Custos de ração", description: "Custo médio por ave", icon: Wheat, credits: 1, prompt: "Qual o custo médio de ração por ave neste mês?", tier: "simple" as const },
-  { label: "Projeção financeira", description: "Receitas e despesas", icon: DollarSign, credits: 5, prompt: "Faça uma projeção de receita e despesas para o próximo mês.", tier: "diagnostic" as const },
-  { label: "Tendência de postura", description: "Taxa dos últimos 7 dias", icon: TrendingUp, credits: 1, prompt: "Como está a tendência da taxa de postura nos últimos 7 dias?", tier: "simple" as const },
-  { label: "Checklist diário", description: "Tarefas de hoje", icon: ClipboardList, credits: 1, prompt: "Gere um checklist das tarefas diárias para a granja hoje.", tier: "simple" as const },
+  { label: "Relatório de produção", description: "Resumo semanal de ovos", icon: Egg, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", credits: 1, prompt: "Gere um relatório resumido da produção de ovos desta semana.", tier: "simple" as const },
+  { label: "Análise de mortalidade", description: "Últimos 30 dias", icon: Skull, iconBg: "bg-red-50", iconColor: "text-red-500", credits: 3, prompt: "Analise a taxa de mortalidade dos últimos 30 dias e sugira ações.", tier: "detailed" as const },
+  { label: "Custos de ração", description: "Custo médio por ave", icon: Wheat, iconBg: "bg-orange-50", iconColor: "text-orange-600", credits: 1, prompt: "Qual o custo médio de ração por ave neste mês?", tier: "simple" as const },
+  { label: "Projeção financeira", description: "Receitas e despesas", icon: DollarSign, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", credits: 5, prompt: "Faça uma projeção de receita e despesas para o próximo mês.", tier: "diagnostic" as const },
+  { label: "Tendência de postura", description: "Taxa dos últimos 7 dias", icon: TrendingUp, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", credits: 1, prompt: "Como está a tendência da taxa de postura nos últimos 7 dias?", tier: "simple" as const },
+  { label: "Checklist diário", description: "Tarefas de hoje", icon: ClipboardList, iconBg: "bg-brand-50", iconColor: "text-brand-600", credits: 1, prompt: "Gere um checklist das tarefas diárias para a granja hoje.", tier: "simple" as const },
 ];
 
 /* ── Simple questions that skip the tier picker ── */
@@ -393,13 +393,13 @@ export default function AssistenteIAPage() {
                       <div className={cn(
                         "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200",
                         credits >= s.credits
-                          ? "bg-gradient-to-br from-violet-50 to-indigo-50 group-hover:from-violet-100 group-hover:to-indigo-100"
+                          ? s.iconBg
                           : "bg-gray-100"
                       )}>
                         <s.icon className={cn(
                           "w-[18px] h-[18px] transition-colors duration-200",
                           credits >= s.credits
-                            ? "text-violet-500 group-hover:text-violet-600"
+                            ? s.iconColor
                             : "text-gray-400"
                         )} />
                       </div>

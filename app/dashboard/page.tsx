@@ -65,28 +65,28 @@ import {
 type TaskIconKey = "egg" | "wheat" | "droplets" | "eye" | "shield" | "clipboard" | "thermometer" | "bug" | "scissors" | "scale" | "syringe" | "hammer" | "truck" | "sun" | "moon" | "zap" | "heart" | "star" | "flame" | "leaf" | "bell" | "users";
 
 const taskIconMap: Record<TaskIconKey, { icon: LucideIcon; label: string; color: string; bg: string }> = {
-  egg: { icon: Egg, label: "Ovo", color: "text-amber-700", bg: "bg-amber-50" },
-  wheat: { icon: Wheat, label: "Ração", color: "text-orange-700", bg: "bg-orange-50" },
-  droplets: { icon: Droplets, label: "Água", color: "text-blue-700", bg: "bg-blue-50" },
-  eye: { icon: Eye, label: "Inspeção", color: "text-purple-700", bg: "bg-purple-50" },
-  shield: { icon: ShieldCheck, label: "Saúde", color: "text-emerald-700", bg: "bg-emerald-50" },
-  clipboard: { icon: ClipboardList, label: "Geral", color: "text-gray-700", bg: "bg-gray-100" },
-  thermometer: { icon: Thermometer, label: "Temperatura", color: "text-red-700", bg: "bg-red-50" },
-  bug: { icon: Bug, label: "Pragas", color: "text-rose-700", bg: "bg-rose-50" },
-  scissors: { icon: Scissors, label: "Debicagem", color: "text-slate-700", bg: "bg-slate-50" },
-  scale: { icon: Scale, label: "Pesagem", color: "text-indigo-700", bg: "bg-indigo-50" },
-  syringe: { icon: Syringe, label: "Vacina", color: "text-teal-700", bg: "bg-teal-50" },
-  hammer: { icon: Hammer, label: "Manutenção", color: "text-stone-700", bg: "bg-stone-100" },
-  truck: { icon: Truck, label: "Transporte", color: "text-cyan-700", bg: "bg-cyan-50" },
-  sun: { icon: Sun, label: "Manhã", color: "text-yellow-700", bg: "bg-yellow-50" },
-  moon: { icon: Moon, label: "Noite", color: "text-violet-700", bg: "bg-violet-50" },
-  zap: { icon: Zap, label: "Elétrico", color: "text-amber-700", bg: "bg-amber-50" },
-  heart: { icon: Heart, label: "Cuidado", color: "text-pink-700", bg: "bg-pink-50" },
-  star: { icon: Star, label: "Importante", color: "text-yellow-600", bg: "bg-yellow-50" },
-  flame: { icon: Flame, label: "Urgente", color: "text-orange-700", bg: "bg-orange-50" },
-  leaf: { icon: Leaf, label: "Ambiente", color: "text-green-700", bg: "bg-green-50" },
-  bell: { icon: Bell, label: "Lembrete", color: "text-blue-700", bg: "bg-blue-50" },
-  users: { icon: Users, label: "Equipe", color: "text-violet-700", bg: "bg-violet-50" },
+  egg: { icon: Egg, label: "Ovo", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-50" },
+  wheat: { icon: Wheat, label: "Ração", color: "text-orange-700 dark:text-orange-300", bg: "bg-orange-50" },
+  droplets: { icon: Droplets, label: "Água", color: "text-blue-700 dark:text-sky-300", bg: "bg-blue-50" },
+  eye: { icon: Eye, label: "Inspeção", color: "text-purple-700 dark:text-violet-300", bg: "bg-purple-50" },
+  shield: { icon: ShieldCheck, label: "Saúde", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-50" },
+  clipboard: { icon: ClipboardList, label: "Geral", color: "text-gray-700 dark:text-slate-300", bg: "bg-gray-100" },
+  thermometer: { icon: Thermometer, label: "Temperatura", color: "text-red-700 dark:text-red-300", bg: "bg-red-50" },
+  bug: { icon: Bug, label: "Pragas", color: "text-rose-700 dark:text-rose-300", bg: "bg-rose-50" },
+  scissors: { icon: Scissors, label: "Debicagem", color: "text-slate-700 dark:text-slate-300", bg: "bg-slate-50" },
+  scale: { icon: Scale, label: "Pesagem", color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-50" },
+  syringe: { icon: Syringe, label: "Vacina", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-50" },
+  hammer: { icon: Hammer, label: "Manutenção", color: "text-stone-700 dark:text-stone-300", bg: "bg-stone-100" },
+  truck: { icon: Truck, label: "Transporte", color: "text-cyan-700 dark:text-cyan-300", bg: "bg-cyan-50" },
+  sun: { icon: Sun, label: "Manhã", color: "text-yellow-700 dark:text-yellow-300", bg: "bg-yellow-50" },
+  moon: { icon: Moon, label: "Noite", color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-50" },
+  zap: { icon: Zap, label: "Elétrico", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-50" },
+  heart: { icon: Heart, label: "Cuidado", color: "text-pink-700 dark:text-pink-300", bg: "bg-pink-50" },
+  star: { icon: Star, label: "Importante", color: "text-yellow-600 dark:text-yellow-300", bg: "bg-yellow-50" },
+  flame: { icon: Flame, label: "Urgente", color: "text-orange-700 dark:text-orange-300", bg: "bg-orange-50" },
+  leaf: { icon: Leaf, label: "Ambiente", color: "text-green-700 dark:text-green-300", bg: "bg-green-50" },
+  bell: { icon: Bell, label: "Lembrete", color: "text-blue-700 dark:text-sky-300", bg: "bg-blue-50" },
+  users: { icon: Users, label: "Equipe", color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-50" },
 };
 
 const taskCategoryOptions = [
@@ -112,9 +112,9 @@ const taskRecurrenceOptions = [
 ];
 
 const priorityConfig: Record<string, { label: string; color: string }> = {
-  alta: { label: "Alta", color: "text-red-700 bg-red-50 border-red-200" },
-  media: { label: "Média", color: "text-amber-700 bg-amber-50 border-amber-200" },
-  baixa: { label: "Baixa", color: "text-gray-600 bg-gray-50 border-gray-200" },
+  alta: { label: "Alta", color: "text-red-700 bg-red-50 border-red-200 dark:bg-red-500/15 dark:text-red-200 dark:border-red-400/25" },
+  media: { label: "Média", color: "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-500/15 dark:text-amber-200 dark:border-amber-400/25" },
+  baixa: { label: "Baixa", color: "text-gray-600 bg-gray-50 border-gray-200 dark:bg-slate-700/60 dark:text-slate-300 dark:border-white/10" },
 };
 
 const recurrenceLabel: Record<string, string> = {
@@ -723,10 +723,10 @@ export default function DashboardPage() {
         badge: "-2.1%",
         badgeDir: "up" as "up" | "down" | "neutral",
         icon: Wheat,
-        color: "amber",
-        gradient: "from-amber-500 to-amber-600",
-        lightBg: "bg-amber-50",
-        lightIcon: "text-amber-600",
+        color: "orange",
+        gradient: "from-orange-500 to-orange-600",
+        lightBg: "bg-orange-50",
+        lightIcon: "text-orange-600",
         progress: feedData.costPerEgg > 0 ? Math.min((kpiGoals.costPerEgg / feedData.costPerEgg) * 100, 100) : 0,
         reached: `R$ ${feedData.costPerEgg.toFixed(3)}`,
         goal: `R$ ${kpiGoals.costPerEgg.toFixed(3).replace(".", ",")}`,
@@ -983,17 +983,17 @@ export default function DashboardPage() {
       {/* ── PRIORITY BLOCK: Alerts + Tasks (2 columns) ── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {/* Alertas Ativos */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px]">
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px] dark:border-white/10 dark:bg-slate-900/80">
           <div className="flex items-center justify-between mb-5 flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-red-500 flex items-center justify-center shadow-sm">
                 <AlertTriangle className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-gray-900">Alertas ativos</h3>
-                <p className="text-[11px] text-gray-400 font-medium">
+                <h3 className="text-base font-bold text-gray-900 dark:text-slate-100">Alertas ativos</h3>
+                <p className="text-[11px] text-gray-400 font-medium dark:text-slate-400">
                   {dbAlerts.filter(a => a.type === "danger").length > 0 && (
-                    <span className="text-red-600 font-semibold">{dbAlerts.filter(a => a.type === "danger").length} urgente · </span>
+                    <span className="text-red-600 font-semibold dark:text-red-300">{dbAlerts.filter(a => a.type === "danger").length} urgente · </span>
                   )}
                   {dbAlerts.length} alertas no total
                 </p>
@@ -1012,17 +1012,17 @@ export default function DashboardPage() {
                   <LockedOverlay key={a.id} message="Desbloqueie todos os alertas inteligentes" targetPlan="pro">
                     <div className={cn(
                       "rounded-xl p-4 border",
-                      a.type === "danger" && "bg-red-50 border-red-200",
-                      a.type === "warning" && "bg-amber-50 border-amber-200",
-                      a.type === "info" && "bg-blue-50 border-blue-200"
+                      a.type === "danger" && "bg-red-50 border-red-200 dark:!border-red-400/20 dark:!bg-red-500/10",
+                      a.type === "warning" && "bg-amber-50 border-amber-200 dark:!border-amber-400/20 dark:!bg-amber-500/10",
+                      a.type === "info" && "bg-blue-50 border-blue-200 dark:!border-sky-400/20 dark:!bg-sky-500/10"
                     )}>
                       <div className="flex items-start gap-3">
                         <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5", a.type === "danger" && "bg-red-100", a.type === "warning" && "bg-amber-100", a.type === "info" && "bg-blue-100")}>
-                          <AlertTriangle className="w-4 h-4 text-gray-400" />
+                          <AlertTriangle className="w-4 h-4 text-gray-400 dark:text-slate-300" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-semibold text-gray-600">{a.msg}</p>
-                          <p className="text-[11px] text-gray-400 mt-1">Se ignorar: {a.risk}</p>
+                          <p className="text-[13px] font-semibold text-gray-600 dark:text-slate-200">{a.msg}</p>
+                          <p className="text-[11px] text-gray-400 mt-1 dark:text-slate-400">Se ignorar: {a.risk}</p>
                         </div>
                       </div>
                     </div>
@@ -1030,81 +1030,81 @@ export default function DashboardPage() {
                 );
               }
               return (
-              <div
-                key={a.id}
-                className={cn(
-                  "rounded-xl p-4 border transition-all duration-200 cursor-pointer hover:shadow-md hover:-translate-y-0.5",
-                  a.type === "danger" && "bg-red-50 border-red-200 hover:border-red-300",
-                  a.type === "warning" && "bg-amber-50 border-amber-200 hover:border-amber-300",
-                  a.type === "info" && "bg-blue-50 border-blue-200 hover:border-blue-300"
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
-                    a.type === "danger" && "bg-red-100",
-                    a.type === "warning" && "bg-amber-100",
-                    a.type === "info" && "bg-blue-100"
-                  )}>
-                    <AlertTriangle className={cn(
-                      "w-4 h-4",
-                      a.type === "danger" && "text-red-600",
-                      a.type === "warning" && "text-amber-600",
-                      a.type === "info" && "text-blue-600"
-                    )} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={cn(
-                      "text-[13px] font-semibold leading-snug",
-                      a.type === "danger" && "text-red-800",
-                      a.type === "warning" && "text-amber-800",
-                      a.type === "info" && "text-blue-800"
+                <div
+                  key={a.id}
+                  className={cn(
+                    "rounded-xl p-4 border transition-all duration-200 cursor-pointer hover:shadow-md hover:-translate-y-0.5 dark:hover:shadow-black/20",
+                    a.type === "danger" && "bg-red-50 border-red-200 hover:border-red-300 dark:!border-red-400/20 dark:!bg-red-500/10 dark:hover:!border-red-300/35 dark:hover:!bg-red-500/15",
+                    a.type === "warning" && "bg-amber-50 border-amber-200 hover:border-amber-300 dark:!border-amber-400/20 dark:!bg-amber-500/10 dark:hover:!border-amber-300/35 dark:hover:!bg-amber-500/15",
+                    a.type === "info" && "bg-blue-50 border-blue-200 hover:border-blue-300 dark:!border-sky-400/20 dark:!bg-sky-500/10 dark:hover:!border-sky-300/35 dark:hover:!bg-sky-500/15"
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
+                      a.type === "danger" && "bg-red-100 dark:bg-red-500/15",
+                      a.type === "warning" && "bg-amber-100 dark:bg-amber-500/15",
+                      a.type === "info" && "bg-blue-100 dark:bg-sky-500/15"
                     )}>
-                      {a.msg}
-                    </p>
-                    <p className="text-[11px] text-gray-500 mt-1 leading-relaxed italic">
-                      Se ignorar: {a.risk}
-                    </p>
-                    <div className="flex items-center justify-between mt-2.5">
-                      <p className="text-[11px] text-gray-400">{a.time}</p>
-                      {a.href ? (
-                        <Link href={a.href} className={cn(
-                          "text-[11px] font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-colors",
-                          a.type === "danger" && "text-white bg-red-500 hover:bg-red-600",
-                          a.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300",
-                          a.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300"
-                        )}>
-                          {a.action}
-                        </Link>
-                      ) : (
-                        <button className={cn(
-                          "text-[11px] font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-colors",
-                          a.type === "danger" && "text-white bg-red-500 hover:bg-red-600",
-                          a.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300",
-                          a.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300"
-                        )}>
-                          {a.action}
-                        </button>
-                      )}
+                      <AlertTriangle className={cn(
+                        "w-4 h-4",
+                        a.type === "danger" && "text-red-600 dark:text-red-300",
+                        a.type === "warning" && "text-amber-600 dark:text-amber-300",
+                        a.type === "info" && "text-blue-600 dark:text-sky-300"
+                      )} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        "text-[13px] font-semibold leading-snug",
+                        a.type === "danger" && "text-red-800 dark:text-red-200",
+                        a.type === "warning" && "text-amber-800 dark:text-amber-200",
+                        a.type === "info" && "text-blue-800 dark:text-sky-200"
+                      )}>
+                        {a.msg}
+                      </p>
+                      <p className="text-[11px] text-gray-500 mt-1 leading-relaxed italic dark:text-slate-300">
+                        Se ignorar: {a.risk}
+                      </p>
+                      <div className="flex items-center justify-between mt-2.5">
+                        <p className="text-[11px] text-gray-400 dark:text-slate-400">{a.time}</p>
+                        {a.href ? (
+                          <Link href={a.href} className={cn(
+                            "text-[11px] font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-colors",
+                            a.type === "danger" && "text-white bg-red-500 hover:bg-red-600 dark:bg-red-400 dark:text-red-950 dark:hover:bg-red-300",
+                            a.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300 dark:bg-amber-300 dark:text-amber-950 dark:hover:bg-amber-200",
+                            a.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300 dark:bg-sky-300 dark:text-sky-950 dark:hover:bg-sky-200"
+                          )}>
+                            {a.action}
+                          </Link>
+                        ) : (
+                          <button className={cn(
+                            "text-[11px] font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-colors",
+                            a.type === "danger" && "text-white bg-red-500 hover:bg-red-600 dark:bg-red-400 dark:text-red-950 dark:hover:bg-red-300",
+                            a.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300 dark:bg-amber-300 dark:text-amber-950 dark:hover:bg-amber-200",
+                            a.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300 dark:bg-sky-300 dark:text-sky-950 dark:hover:bg-sky-200"
+                          )}>
+                            {a.action}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
               );
             })}
           </div>
         </div>
 
         {/* Tarefas do Dia */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px]">
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px] dark:border-white/10 dark:bg-slate-900/80">
           <div className="flex items-center justify-between mb-5 flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-sm">
                 <CheckCircle2 className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-gray-900">Tarefas</h3>
-                <p className="text-[11px] text-gray-400 font-medium">
+                <h3 className="text-base font-bold text-gray-900 dark:text-slate-100">Tarefas</h3>
+                <p className="text-[11px] text-gray-400 font-medium dark:text-slate-400">
                   {completedTasks} de {dbTasks.length} concluídas
                 </p>
               </div>
@@ -1116,14 +1116,14 @@ export default function DashboardPage() {
               </span>
               <div className="relative w-10 h-10">
                 <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
-                  <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" strokeWidth="3" />
+                  <circle cx="18" cy="18" r="15" fill="none" className="stroke-gray-200 dark:stroke-slate-700" strokeWidth="3" />
                   <circle
-                    cx="18" cy="18" r="15" fill="none" stroke="#2d7a4f" strokeWidth="3"
+                    cx="18" cy="18" r="15" fill="none" className="stroke-brand-600 dark:stroke-brand-400" strokeWidth="3"
                     strokeLinecap="round"
                     strokeDasharray={`${(completedTasks / (dbTasks.length || 1)) * 94.2} 94.2`}
                   />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-700">
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-900 dark:text-slate-100">
                   {((completedTasks / (dbTasks.length || 1)) * 100).toFixed(0)}%
                 </span>
               </div>
@@ -1153,28 +1153,28 @@ export default function DashboardPage() {
 
               if (isMissed) {
                 return (
-                  <div key={t.id} className="bg-red-50/40 rounded-xl border border-red-100 px-4 py-3 flex items-center gap-3">
+                  <div key={t.id} className="bg-red-50/40 rounded-xl border border-red-100 px-4 py-3 flex items-center gap-3 dark:!border-red-400/20 dark:!bg-red-500/10">
                     <button onClick={(e) => { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); const dh = 120; const sb = window.innerHeight - rect.bottom; setDropdownPos({ top: sb < dh ? rect.top - dh - 4 : rect.bottom + 4, left: rect.left }); setOpenDropdown(openDropdown === t.id ? null : t.id); if (openDropdown === t.id) { setOpenDropdown(null); setDropdownPos(null); } }} className="shrink-0 cursor-pointer">
                       <XCircle className="w-5 h-5 text-red-400" />
                     </button>
-                    <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0 opacity-50", ico.bg)}>
+                    <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0 opacity-80 dark:opacity-100", ico.bg)}>
                       <TaskIcon className={cn("w-4 h-4", ico.color)} />
                     </div>
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => { setViewTask(t); setEditingTask(false); setEditTaskTitle(t.title); setEditTaskTime(t.time); setEditTaskDate(t.date); }}>
-                      <p className="text-[13px] font-medium text-red-800/70 truncate">{t.title}</p>
+                      <p className="text-[13px] font-medium text-red-800/70 truncate dark:text-red-200">{t.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[11px] text-red-400 flex items-center gap-1"><Clock className="w-3 h-3" /> {t.time}</span>
-                        <span className="text-[11px] font-medium text-red-500">não realizada</span>
+                        <span className="text-[11px] text-red-400 flex items-center gap-1 dark:text-red-300"><Clock className="w-3 h-3" /> {t.time}</span>
+                        <span className="text-[11px] font-medium text-red-500 dark:text-red-300">não realizada</span>
                       </div>
                     </div>
-                    <button onClick={() => { setTaskStatuses((prev) => ({ ...prev, [t.id]: "done" })); }} className="shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer">Marcar feita</button>
+                    <button onClick={() => { setTaskStatuses((prev) => ({ ...prev, [t.id]: "done" })); }} className="shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer dark:border-red-400/20 dark:bg-slate-950 dark:text-red-100 dark:hover:bg-red-500/15">Marcar feita</button>
                   </div>
                 );
               }
 
               if (isDone) {
                 return (
-                  <div key={t.id} className="bg-gray-50/50 rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3 opacity-70">
+                  <div key={t.id} className="bg-gray-50/50 rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3 opacity-70 dark:!border-white/10 dark:!bg-slate-800/50">
                     <button onClick={(e) => { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); const dh = 120; const sb = window.innerHeight - rect.bottom; setDropdownPos({ top: sb < dh ? rect.top - dh - 4 : rect.bottom + 4, left: rect.left }); setOpenDropdown(openDropdown === t.id ? null : t.id); if (openDropdown === t.id) { setOpenDropdown(null); setDropdownPos(null); } }} className="shrink-0 cursor-pointer">
                       <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                     </button>
@@ -1182,13 +1182,13 @@ export default function DashboardPage() {
                       <TaskIcon className={cn("w-4 h-4", ico.color)} />
                     </div>
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => { setViewTask(t); setEditingTask(false); setEditTaskTitle(t.title); setEditTaskTime(t.time); setEditTaskDate(t.date); }}>
-                      <p className="text-[13px] font-medium text-gray-500 line-through truncate">{t.title}</p>
+                      <p className="text-[13px] font-medium text-gray-500 line-through truncate dark:text-slate-400">{t.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[11px] text-gray-400 flex items-center gap-1"><Clock className="w-3 h-3" /> {t.time}</span>
+                        <span className="text-[11px] text-gray-400 flex items-center gap-1 dark:text-slate-500"><Clock className="w-3 h-3" /> {t.time}</span>
                         <span className="text-[11px] text-gray-400">· {recurrenceLabel[t.recurrence] ?? t.recurrence}</span>
                       </div>
                     </div>
-                    <button onClick={() => { setDbTasks((prev) => prev.filter((task) => task.id !== t.id)); }} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
+                    <button onClick={() => { setDbTasks((prev) => prev.filter((task) => task.id !== t.id)); }} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer dark:hover:bg-red-500/10">
                       <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
                     </button>
                   </div>
@@ -1197,26 +1197,26 @@ export default function DashboardPage() {
 
               // pending / progress / delayed
               return (
-                <div key={t.id} className={cn("bg-white rounded-xl border px-4 py-3 flex items-center gap-3 hover:shadow-sm transition-shadow", isDelayed ? "border-red-200 bg-red-50/30" : "border-gray-100")}>
+                <div key={t.id} className={cn("bg-white rounded-xl border px-4 py-3 flex items-center gap-3 hover:shadow-sm transition-shadow dark:!bg-slate-800/55 dark:hover:!bg-slate-800/80", isDelayed ? "border-red-200 bg-red-50/30 dark:!border-red-400/25 dark:!bg-red-500/10" : "border-gray-100 dark:border-white/10")}>
                   <button onClick={(e) => { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); const dh = 120; const sb = window.innerHeight - rect.bottom; setDropdownPos({ top: sb < dh ? rect.top - dh - 4 : rect.bottom + 4, left: rect.left }); setOpenDropdown(openDropdown === t.id ? null : t.id); if (openDropdown === t.id) { setOpenDropdown(null); setDropdownPos(null); } }} className="shrink-0 cursor-pointer">
-                    {isDelayed ? <AlertTriangle className="w-5 h-5 text-red-400" /> : status === "progress" ? <Clock className="w-5 h-5 text-amber-500" /> : <Circle className="w-5 h-5 text-gray-300 hover:text-brand-500 transition-colors" />}
+                    {isDelayed ? <AlertTriangle className="w-5 h-5 text-red-400 dark:text-red-300" /> : status === "progress" ? <Clock className="w-5 h-5 text-amber-500 dark:text-amber-300" /> : <Circle className="w-5 h-5 text-gray-300 hover:text-brand-500 transition-colors dark:text-slate-500 dark:hover:text-brand-300" />}
                   </button>
                   <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", ico.bg)}>
                     <TaskIcon className={cn("w-4 h-4", ico.color)} />
                   </div>
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => { setViewTask(t); setEditingTask(false); setEditTaskTitle(t.title); setEditTaskTime(t.time); setEditTaskDate(t.date); }}>
-                    <p className={cn("text-[13px] font-semibold truncate", isDelayed ? "text-red-600" : "text-gray-900")}>{t.title}</p>
+                    <p className={cn("text-[13px] font-semibold truncate", isDelayed ? "text-red-600 dark:text-red-200" : "text-gray-900 dark:text-slate-100")}>{t.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className={cn("text-[11px] flex items-center gap-1", isDelayed ? "text-red-400" : "text-gray-400")}><Clock className="w-3 h-3" /> {t.time}</span>
+                      <span className={cn("text-[11px] flex items-center gap-1", isDelayed ? "text-red-400 dark:text-red-300" : "text-gray-400 dark:text-slate-400")}><Clock className="w-3 h-3" /> {t.time}</span>
                       <span className="text-[11px] text-gray-400">· {recurrenceLabel[t.recurrence] ?? t.recurrence}</span>
-                      {isDelayed && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-100 text-red-600">Atrasada</span>}
+                      {isDelayed && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-200">Atrasada</span>}
                     </div>
                   </div>
                   <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold", pri.color)}>{pri.label}</span>
-                  <button onClick={() => { setViewTask(t); setEditingTask(true); setEditTaskTitle(t.title); setEditTaskTime(t.time); setEditTaskDate(t.date); }} className="shrink-0 p-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer">
+                  <button onClick={() => { setViewTask(t); setEditingTask(true); setEditTaskTitle(t.title); setEditTaskTime(t.time); setEditTaskDate(t.date); }} className="shrink-0 p-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer dark:hover:bg-sky-500/10">
                     <Pencil className="w-3.5 h-3.5 text-gray-400 hover:text-blue-500" />
                   </button>
-                  <button onClick={() => { setDbTasks((prev) => prev.filter((task) => task.id !== t.id)); }} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
+                  <button onClick={() => { setDbTasks((prev) => prev.filter((task) => task.id !== t.id)); }} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer dark:hover:bg-red-500/10">
                     <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
                   </button>
                 </div>
@@ -1486,92 +1486,92 @@ export default function DashboardPage() {
                 }
 
                 return (
-                <div className="space-y-4">
-                  {viewMissed && (
-                    <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200">
-                      <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                      <span className="text-xs font-semibold text-red-600">Tarefa não realizada — marcada automaticamente como não concluída</span>
-                    </div>
-                  )}
-                  {viewDelayed && (
-                    <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200">
-                      <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                      <span className="text-xs font-semibold text-red-600">Tarefa atrasada — deveria ter sido concluída em {formatDetailDate(viewTask.date)}</span>
-                    </div>
-                  )}
+                  <div className="space-y-4">
+                    {viewMissed && (
+                      <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200">
+                        <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                        <span className="text-xs font-semibold text-red-600">Tarefa não realizada — marcada automaticamente como não concluída</span>
+                      </div>
+                    )}
+                    {viewDelayed && (
+                      <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200">
+                        <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                        <span className="text-xs font-semibold text-red-600">Tarefa atrasada — deveria ter sido concluída em {formatDetailDate(viewTask.date)}</span>
+                      </div>
+                    )}
 
-                  {/* Task header with icon */}
-                  <div className="flex items-center gap-3 p-4 rounded-xl bg-gray-50 border border-gray-100">
-                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", viewMissed ? "opacity-50" : "", vIco.bg)}>
-                      <VIcon className={cn("w-5 h-5", vIco.color)} />
+                    {/* Task header with icon */}
+                    <div className="flex items-center gap-3 p-4 rounded-xl bg-gray-50 border border-gray-100">
+                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", viewMissed ? "opacity-50" : "", vIco.bg)}>
+                        <VIcon className={cn("w-5 h-5", vIco.color)} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn(
+                          "text-sm font-semibold truncate",
+                          viewMissed && "text-red-600/70",
+                          viewDelayed && !viewMissed && "text-red-600",
+                          viewDone && !viewDelayed && !viewMissed && "text-gray-400 line-through",
+                          !viewDone && !viewDelayed && !viewMissed && "text-gray-900"
+                        )}>{viewTask.title}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[11px] text-gray-400 flex items-center gap-1"><Clock className="w-3 h-3" /> {viewTask.time}</span>
+                          <span className="text-[11px] text-gray-400">· {recurrenceLabel[viewTask.recurrence] ?? viewTask.recurrence}</span>
+                        </div>
+                      </div>
+                      <span className={cn("shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold", vPri.color)}>{vPri.label}</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        "text-sm font-semibold truncate",
-                        viewMissed && "text-red-600/70",
-                        viewDelayed && !viewMissed && "text-red-600",
-                        viewDone && !viewDelayed && !viewMissed && "text-gray-400 line-through",
-                        !viewDone && !viewDelayed && !viewMissed && "text-gray-900"
-                      )}>{viewTask.title}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[11px] text-gray-400 flex items-center gap-1"><Clock className="w-3 h-3" /> {viewTask.time}</span>
-                        <span className="text-[11px] text-gray-400">· {recurrenceLabel[viewTask.recurrence] ?? viewTask.recurrence}</span>
+
+                    {/* Info grid */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Data</p>
+                        <p className={cn("text-sm font-bold", viewDelayed ? "text-red-600" : "text-gray-800")}>{formatDetailDate(viewTask.date)}</p>
+                      </div>
+                      <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Categoria</p>
+                        <p className="text-sm font-bold text-gray-800">{catLabel}</p>
                       </div>
                     </div>
-                    <span className={cn("shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold", vPri.color)}>{vPri.label}</span>
-                  </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Recorrência</p>
+                        <p className="text-sm font-bold text-gray-800">{recurrenceLabel[viewTask.recurrence] ?? viewTask.recurrence}</p>
+                      </div>
+                      <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Status</p>
+                        <span className={cn(
+                          "inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-lg",
+                          viewMissed && "bg-red-50 text-red-600",
+                          viewDelayed && !viewMissed && "bg-red-50 text-red-600",
+                          viewDone && !viewDelayed && !viewMissed && "bg-emerald-50 text-emerald-600",
+                          !viewDone && !viewDelayed && !viewMissed && taskStatuses[viewTask.id] === "progress" && "bg-amber-50 text-amber-600",
+                          !viewDone && !viewDelayed && !viewMissed && taskStatuses[viewTask.id] === "pending" && "bg-gray-100 text-gray-500",
+                        )}>
+                          {viewMissed ? "Não realizada" : viewDelayed ? "Atrasada" : viewDone ? "Concluído" : taskStatuses[viewTask.id] === "progress" ? "Em Andamento" : "Pendente"}
+                        </span>
+                      </div>
+                    </div>
 
-                  {/* Info grid */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Data</p>
-                      <p className={cn("text-sm font-bold", viewDelayed ? "text-red-600" : "text-gray-800")}>{formatDetailDate(viewTask.date)}</p>
-                    </div>
-                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Categoria</p>
-                      <p className="text-sm font-bold text-gray-800">{catLabel}</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Recorrência</p>
-                      <p className="text-sm font-bold text-gray-800">{recurrenceLabel[viewTask.recurrence] ?? viewTask.recurrence}</p>
-                    </div>
-                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Status</p>
-                      <span className={cn(
-                        "inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-lg",
-                        viewMissed && "bg-red-50 text-red-600",
-                        viewDelayed && !viewMissed && "bg-red-50 text-red-600",
-                        viewDone && !viewDelayed && !viewMissed && "bg-emerald-50 text-emerald-600",
-                        !viewDone && !viewDelayed && !viewMissed && taskStatuses[viewTask.id] === "progress" && "bg-amber-50 text-amber-600",
-                        !viewDone && !viewDelayed && !viewMissed && taskStatuses[viewTask.id] === "pending" && "bg-gray-100 text-gray-500",
-                      )}>
-                        {viewMissed ? "Não realizada" : viewDelayed ? "Atrasada" : viewDone ? "Concluído" : taskStatuses[viewTask.id] === "progress" ? "Em Andamento" : "Pendente"}
-                      </span>
+                    <div className="flex items-center gap-3 mt-2">
+                      <button
+                        onClick={() => setEditingTask(true)}
+                        className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDbTasks((prev) => prev.filter((task) => task.id !== viewTask.id));
+                          setViewTask(null);
+                        }}
+                        className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Excluir
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-3 mt-2">
-                    <button
-                      onClick={() => setEditingTask(true)}
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => {
-                        setDbTasks((prev) => prev.filter((task) => task.id !== viewTask.id));
-                        setViewTask(null);
-                      }}
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Excluir
-                    </button>
-                  </div>
-                </div>
                 );
               })()}
             </div>
@@ -1682,26 +1682,26 @@ export default function DashboardPage() {
               <Loader2 className="w-6 h-6 text-gray-300 animate-spin" />
             </div>
           ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={chartProductionData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorOvos" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2d7a4f" stopOpacity={0.2} />
-                  <stop offset="100%" stopColor="#2d7a4f" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={8} interval={chartProductionData.length > 14 ? Math.floor(chartProductionData.length / 7) : 0} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dx={-4} domain={chartYDomain} />
-              <Tooltip
-                contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                formatter={((value: any, name: any) => [formatNumber(Number(value)), String(name)]) as any}
-              />
-              <Area type="monotone" dataKey="meta" stroke="#d1d5db" strokeWidth={1.5} strokeDasharray="6 4" fill="none" dot={false} name="Meta" />
-              <Area type="monotone" dataKey="ovos" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#colorOvos)" dot={chartProductionData.length <= 14 ? { r: 4, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 } : false} activeDot={{ r: 6, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} name="Ovos" />
-            </AreaChart>
-          </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart data={chartProductionData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorOvos" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#2d7a4f" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="#2d7a4f" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={8} interval={chartProductionData.length > 14 ? Math.floor(chartProductionData.length / 7) : 0} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dx={-4} domain={chartYDomain} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
+                  labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
+                  formatter={((value: any, name: any) => [formatNumber(Number(value)), String(name)]) as any}
+                />
+                <Area type="monotone" dataKey="meta" stroke="#d1d5db" strokeWidth={1.5} strokeDasharray="6 4" fill="none" dot={false} name="Meta" />
+                <Area type="monotone" dataKey="ovos" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#colorOvos)" dot={chartProductionData.length <= 14 ? { r: 4, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 } : false} activeDot={{ r: 6, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} name="Ovos" />
+              </AreaChart>
+            </ResponsiveContainer>
           )}
         </div>
 
@@ -1780,30 +1780,30 @@ export default function DashboardPage() {
                 );
               }
               return (
-              <div
-                key={i}
-                className={cn(
-                  "rounded-xl px-4 py-3 border-l-[3px] cursor-pointer transition-colors",
-                  insight.type === "warning" && "bg-amber-50/60 border-l-amber-500 hover:bg-amber-50",
-                  insight.type === "success" && "bg-emerald-50/60 border-l-emerald-500 hover:bg-emerald-50",
-                  insight.type === "danger" && "bg-red-50/60 border-l-red-500 hover:bg-red-50",
-                  insight.type === "info" && "bg-blue-50/60 border-l-blue-500 hover:bg-blue-50"
-                )}
-              >
-                <div className="flex items-start gap-2.5">
-                  <insight.icon className={cn(
-                    "w-4 h-4 flex-shrink-0 mt-0.5",
-                    insight.type === "warning" && "text-amber-600",
-                    insight.type === "success" && "text-emerald-600",
-                    insight.type === "danger" && "text-red-600",
-                    insight.type === "info" && "text-blue-600"
-                  )} />
-                  <div>
-                    <p className="text-[13px] font-semibold text-gray-900 leading-snug">{insight.title}</p>
-                    <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{insight.detail}</p>
+                <div
+                  key={i}
+                  className={cn(
+                    "rounded-xl px-4 py-3 border-l-[3px] cursor-pointer transition-colors",
+                    insight.type === "warning" && "bg-amber-50/60 border-l-amber-500 hover:bg-amber-50",
+                    insight.type === "success" && "bg-emerald-50/60 border-l-emerald-500 hover:bg-emerald-50",
+                    insight.type === "danger" && "bg-red-50/60 border-l-red-500 hover:bg-red-50",
+                    insight.type === "info" && "bg-blue-50/60 border-l-blue-500 hover:bg-blue-50"
+                  )}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <insight.icon className={cn(
+                      "w-4 h-4 flex-shrink-0 mt-0.5",
+                      insight.type === "warning" && "text-amber-600",
+                      insight.type === "success" && "text-emerald-600",
+                      insight.type === "danger" && "text-red-600",
+                      insight.type === "info" && "text-blue-600"
+                    )} />
+                    <div>
+                      <p className="text-[13px] font-semibold text-gray-900 leading-snug">{insight.title}</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{insight.detail}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
               );
             })}
           </div>
