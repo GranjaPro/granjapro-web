@@ -18,7 +18,11 @@ create table if not exists public.profiles (
   full_name text not null,
   farm_id uuid,
   role text default 'owner' check (role in ('owner', 'manager', 'worker')),
-  avatar_url text
+  avatar_url text,
+  plan text default 'essencial' not null check (plan in ('essencial', 'pro', 'premium')),
+  trial_started_at timestamptz,
+  trial_ends_at timestamptz,
+  trial_used_at timestamptz
 );
 
 alter table public.profiles enable row level security;
@@ -41,11 +45,12 @@ returns trigger
 set search_path = public, auth
 as $$
 begin
-  insert into public.profiles (id, email, full_name)
+  insert into public.profiles (id, email, full_name, plan)
   values (
     new.id,
     new.email,
-    coalesce(new.raw_user_meta_data ->> 'full_name', split_part(new.email, '@', 1))
+    coalesce(new.raw_user_meta_data ->> 'full_name', split_part(new.email, '@', 1)),
+    'essencial'
   );
   return new;
 end;

@@ -626,6 +626,9 @@ export interface Database {
           role: "owner" | "manager" | "worker";
           avatar_url: string | null;
           plan: "essencial" | "pro" | "premium";
+          trial_started_at: string | null;
+          trial_ends_at: string | null;
+          trial_used_at: string | null;
         };
         Insert: {
           id: string;
@@ -637,6 +640,9 @@ export interface Database {
           role?: "owner" | "manager" | "worker";
           avatar_url?: string | null;
           plan?: "essencial" | "pro" | "premium";
+          trial_started_at?: string | null;
+          trial_ends_at?: string | null;
+          trial_used_at?: string | null;
         };
         Update: {
           id?: string;
@@ -648,6 +654,9 @@ export interface Database {
           role?: "owner" | "manager" | "worker";
           avatar_url?: string | null;
           plan?: "essencial" | "pro" | "premium";
+          trial_started_at?: string | null;
+          trial_ends_at?: string | null;
+          trial_used_at?: string | null;
         };
       };
     };
