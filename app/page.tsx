@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   Eye,
 } from "lucide-react";
+import { PLAN_MATRIX } from "@/lib/plans";
 
 /* ─── data ─── */
 
@@ -189,9 +190,9 @@ const pricingPlans = [
       "Controle básico de ração e estoque",
       "Acompanhamento de mortalidade",
       "Registro de vendas e clientes",
-      "Até 300 galinhas",
-      "1 usuário",
-      "🤖 Até 15 análises com IA por mês (uso básico)",
+      `Até ${PLAN_MATRIX.essencial.limits.birds} galinhas`,
+      `${PLAN_MATRIX.essencial.limits.users} usuário`,
+      `🤖 Até ${PLAN_MATRIX.essencial.limits.aiCreditsMonthly} análises com IA por mês (uso básico)`,
     ],
     excluded: [
       "Relatórios avançados",
@@ -217,9 +218,9 @@ const pricingPlans = [
       "Previsão de produção e custos",
       "Relatórios em PDF e Excel",
       "Gestão de colaboradores",
-      "🤖 Até 30 análises com IA por mês (uso frequente)",
-      "Até 1000 galinhas",
-      "Até 2 usuários",
+      `🤖 Até ${PLAN_MATRIX.pro.limits.aiCreditsMonthly} análises com IA por mês (uso frequente)`,
+      `Até ${PLAN_MATRIX.pro.limits.birds} galinhas`,
+      `Até ${PLAN_MATRIX.pro.limits.users} usuários`,
     ],
     excluded: [],
     cta: "Começar Teste Grátis",
@@ -238,8 +239,8 @@ const pricingPlans = [
       "Alertas automáticos inteligentes",
       "Gestão ilimitada de tarefas e rotinas",
       "Histórico completo ilimitado",
-      "🤖 Até 60 análises com IA por mês (uso intensivo)",
-      "Até 5 usuários",
+      `🤖 Até ${PLAN_MATRIX.premium.limits.aiCreditsMonthly} análises com IA por mês (uso intensivo)`,
+      `Até ${PLAN_MATRIX.premium.limits.users} usuários`,
       "Galinhas ilimitadas",
       "⚡ Suporte prioritário",
     ],
