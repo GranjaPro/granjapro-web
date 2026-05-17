@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Layers, Plus, Pencil, Trash2, X, Check, Search, FileText, Loader2, Bird, AlertTriangle, Sparkles, TrendingDown, CheckCircle2 } from "lucide-react";
+import { Layers, Plus, Pencil, Trash2, X, Check, Search, FileText, Loader2, Bird, AlertTriangle, TrendingDown, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { hasMinimumPlan } from "@/lib/plans";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import ModalPortal from "@/components/ui/modal-portal";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
+import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 
 type ProductionStage = "cria" | "recria" | "pre-postura" | "producao" | "pico" | "estavel" | "declinio" | "descarte";
 
@@ -153,7 +155,7 @@ const emptyForm = {
 
 export default function LotesPage() {
   const { farm, loading: authLoading } = useAuth();
-  const { plan } = usePlan();
+  const { plan, hideAdvancedFeatures } = usePlan();
 
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [barns, setBarns] = useState<Barn[]>([]);
@@ -634,8 +636,8 @@ export default function LotesPage() {
           <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
           <input type="text" placeholder="Buscar lote ou raça..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none w-full" />
         </div>
-        {!loading && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px] dark:border-white/10 dark:bg-slate-900/80">
+        {!loading && !(hideAdvancedFeatures && !hasMinimumPlan(plan, "pro")) && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px] overflow-hidden dark:border-white/10 dark:bg-slate-900/80">
             <div className="flex items-center justify-between mb-5 flex-shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-red-500 flex items-center justify-center shadow-sm">
@@ -652,42 +654,48 @@ export default function LotesPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
-                  <Sparkles className="w-3 h-3" />
-                  Pro
-                </span>
+                <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
                 <span className="text-[11px] font-bold text-white bg-red-500 px-2.5 py-1 rounded-lg">{visibleActiveAlerts.length}</span>
               </div>
             </div>
+            {plan === "essencial" ? (
+              <LockedOverlay message="Desbloqueie os alertas de controle" targetPlan="pro">
+                <div className="space-y-3 overflow-y-auto flex-1 pr-1 -mr-1 py-1">
+                  {visibleActiveAlerts.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500 dark:border-white/10 dark:text-slate-400">
+                      Nenhum alerta ativo.
+                    </div>
+                  ) : visibleActiveAlerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className={cn(
+                        "rounded-xl p-4 border",
+                        alert.type === "danger" && "bg-red-50 border-red-200 dark:!border-red-400/20 dark:!bg-red-500/10",
+                        alert.type === "warning" && "bg-amber-50 border-amber-200 dark:!border-amber-400/20 dark:!bg-amber-500/10",
+                        alert.type === "info" && "bg-blue-50 border-blue-200 dark:!border-sky-400/20 dark:!bg-sky-500/10"
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5", alert.type === "danger" && "bg-red-100", alert.type === "warning" && "bg-amber-100", alert.type === "info" && "bg-blue-100")}>
+                          <AlertTriangle className="w-4 h-4 text-gray-400 dark:text-slate-300" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-semibold text-gray-600 dark:text-slate-200">{alert.msg}</p>
+                          {alert.risk && <p className="text-[11px] text-gray-400 mt-1 dark:text-slate-400">Se ignorar: {alert.risk}</p>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </LockedOverlay>
+            ) : (
             <div className="space-y-3 overflow-y-auto flex-1 pr-1 -mr-1 py-1">
               {visibleActiveAlerts.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500 dark:border-white/10 dark:text-slate-400">
                   Nenhum alerta ativo.
                 </div>
-              ) : visibleActiveAlerts.map((alert, alertIdx) => {
+              ) : visibleActiveAlerts.map((alert) => {
                 const isClosing = closingAlertIds.includes(alert.id);
-                const isLockedAlert = plan === "essencial" && alertIdx >= 2;
-                if (isLockedAlert) {
-                  return (
-                    <LockedOverlay key={alert.id} message="Desbloqueie todos os alertas inteligentes" targetPlan="pro">
-                      <div className={cn(
-                        "rounded-xl p-4 border",
-                        alert.type === "danger" && "bg-red-50 border-red-200 dark:!border-red-400/20 dark:!bg-red-500/10",
-                        alert.type === "warning" && "bg-amber-50 border-amber-200 dark:!border-amber-400/20 dark:!bg-amber-500/10",
-                        alert.type === "info" && "bg-blue-50 border-blue-200 dark:!border-sky-400/20 dark:!bg-sky-500/10"
-                      )}>
-                        <div className="flex items-start gap-3">
-                          <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5", alert.type === "danger" && "bg-red-100", alert.type === "warning" && "bg-amber-100", alert.type === "info" && "bg-blue-100")}>
-                            <AlertTriangle className="w-4 h-4 text-gray-400 dark:text-slate-300" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-gray-600 dark:text-slate-200">{alert.msg}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </LockedOverlay>
-                  );
-                }
                 return (
                   <div
                     key={alert.id}
@@ -781,6 +789,7 @@ export default function LotesPage() {
                 );
               })}
             </div>
+            )}
           </div>
         )}
         <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1 w-fit">

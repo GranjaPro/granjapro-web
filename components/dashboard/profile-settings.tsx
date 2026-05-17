@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import ModalPortal from "@/components/ui/modal-portal";
@@ -12,7 +13,6 @@ import {
   Phone,
   Camera,
   Sun,
-  Moon,
   Users,
   Shield,
   ChevronRight,
@@ -20,13 +20,13 @@ import {
   Loader2,
   UserPlus,
   Trash2,
-  Globe,
   Bell,
   Lock,
   MapPin,
+  CreditCard,
 } from "lucide-react";
 
-type Tab = "profile" | "farm" | "preferences" | "users" | "security";
+type Tab = "profile" | "farm" | "plan" | "preferences" | "users" | "security";
 type DashboardTheme = "light" | "dark";
 const DASHBOARD_THEME_KEY = "granjapro-dashboard-theme";
 
@@ -36,6 +36,7 @@ interface ProfileSettingsProps {
 }
 
 export default function ProfileSettings({ open, onClose }: ProfileSettingsProps) {
+  const router = useRouter();
   const { user, profile, farm, signOut, refreshProfile } = useAuth();
   const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,7 +72,6 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
 
   // Preferences
   const [theme, setTheme] = useState<DashboardTheme>("dark");
-  const [language, setLanguage] = useState("pt-BR");
   const [notifications, setNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
 
@@ -100,6 +100,11 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
     setTheme(nextTheme);
     window.localStorage.setItem(DASHBOARD_THEME_KEY, nextTheme);
     window.dispatchEvent(new CustomEvent("dashboard-theme-change", { detail: nextTheme }));
+  };
+
+  const handleOpenPlanSelection = () => {
+    onClose();
+    router.push("/dashboard/select-plan");
   };
 
   const handleSaveProfile = async () => {
@@ -203,6 +208,7 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
   const tabs: { id: Tab; label: string; icon: any }[] = [
     { id: "profile", label: "Perfil", icon: User },
     { id: "farm", label: "Granja", icon: Building2 },
+    { id: "plan", label: "Plano", icon: CreditCard },
     { id: "preferences", label: "Preferências", icon: Sun },
     { id: "users", label: "Usuários", icon: Users },
     { id: "security", label: "Segurança", icon: Shield },
@@ -500,60 +506,31 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
                 </div>
               )}
 
+              {/* Plan Tab */}
+              {activeTab === "plan" && (
+                <div className="space-y-5">
+                  <div className="rounded-xl border border-brand-100 bg-brand-50 p-4 dark:border-brand-400/20 dark:bg-brand-500/10">
+                    <h3 className="text-sm font-semibold text-brand-800 dark:text-brand-100">Plano atual</h3>
+                    <p className="mt-1 text-sm text-brand-700 dark:text-brand-200">
+                      {profile?.plan ? profile.plan.charAt(0).toUpperCase() + profile.plan.slice(1) : "Sem plano ativo"}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-brand-700/80 dark:text-brand-200/80">
+                      Voce pode revisar beneficios, iniciar o teste disponivel ou alterar o plano a qualquer momento.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleOpenPlanSelection}
+                    className="flex h-11 items-center gap-2 rounded-xl bg-brand-500 px-5 text-sm font-medium text-white transition-colors hover:bg-brand-600 cursor-pointer"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    Ver e alterar plano
+                  </button>
+                </div>
+              )}
+
               {/* Preferences Tab */}
               {activeTab === "preferences" && (
                 <div className="space-y-6">
-                  {/* Theme */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-200 mb-3">Aparência</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      {[
-                        { id: "light" as const, label: "Claro", icon: Sun },
-                        { id: "dark" as const, label: "Escuro", icon: Moon },
-                      ].map((opt) => (
-                        <button
-                          key={opt.id}
-                          onClick={() => handleThemeChange(opt.id)}
-                          className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer ${
-                            theme === opt.id
-                              ? "border-brand-500 bg-brand-50 dark:border-brand-400/70 dark:bg-slate-900"
-                              : "border-gray-200 hover:border-gray-300 bg-white dark:border-white/10 dark:bg-slate-950 dark:hover:border-slate-500"
-                          }`}
-                        >
-                          <opt.icon
-                            className={`w-5 h-5 ${
-                              theme === opt.id ? "text-brand-500 dark:text-brand-300" : "text-gray-400 dark:text-slate-500"
-                            }`}
-                          />
-                          <span
-                            className={`text-xs font-medium ${
-                              theme === opt.id ? "text-brand-600 dark:text-brand-200" : "text-gray-500 dark:text-slate-400"
-                            }`}
-                          >
-                            {opt.label}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Language */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Idioma</h3>
-                    <div className="relative">
-                      <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <select
-                        value={language}
-                        onChange={(e) => setLanguage(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all bg-white cursor-pointer"
-                      >
-                        <option value="pt-BR">Português (Brasil)</option>
-                        <option value="en">English</option>
-                        <option value="es">Español</option>
-                      </select>
-                    </div>
-                  </div>
-
                   {/* Notifications */}
                   <div>
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">Notificações</h3>

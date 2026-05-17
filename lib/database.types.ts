@@ -625,7 +625,7 @@ export interface Database {
           farm_id: string | null;
           role: "owner" | "manager" | "worker";
           avatar_url: string | null;
-          plan: "essencial" | "pro" | "premium";
+          plan: "essencial" | "pro" | "premium" | null;
           trial_started_at: string | null;
           trial_ends_at: string | null;
           trial_used_at: string | null;
@@ -639,7 +639,7 @@ export interface Database {
           farm_id?: string | null;
           role?: "owner" | "manager" | "worker";
           avatar_url?: string | null;
-          plan?: "essencial" | "pro" | "premium";
+          plan?: "essencial" | "pro" | "premium" | null;
           trial_started_at?: string | null;
           trial_ends_at?: string | null;
           trial_used_at?: string | null;
@@ -653,7 +653,7 @@ export interface Database {
           farm_id?: string | null;
           role?: "owner" | "manager" | "worker";
           avatar_url?: string | null;
-          plan?: "essencial" | "pro" | "premium";
+          plan?: "essencial" | "pro" | "premium" | null;
           trial_started_at?: string | null;
           trial_ends_at?: string | null;
           trial_used_at?: string | null;

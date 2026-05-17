@@ -16,7 +16,6 @@ import {
   Pill,
   Search,
   Zap,
-  Sparkles,
   Lightbulb,
   TrendingUp,
   ArrowUpRight,
@@ -47,8 +46,11 @@ import {
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
+import { hasMinimumPlan } from "@/lib/plans";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
+import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
 
 /* ── Types ── */
 type RegistroTipo = "Vacinação" | "Tratamento" | "Inspeção";
@@ -276,7 +278,9 @@ function formatMonthLabel(date: Date) {
 export default function SaudePage() {
   const searchParams = useSearchParams();
   const { farm, loading: authLoading } = useAuth();
-  const { plan } = usePlan();
+  const { plan, hideAdvancedFeatures } = usePlan();
+  const showHealthProFeatures = !(hideAdvancedFeatures && !hasMinimumPlan(plan, "pro"));
+  const showHealthPremiumFeatures = !(hideAdvancedFeatures && !hasMinimumPlan(plan, "premium"));
 
   const [registros, setRegistros] = useState<RegistroSaude[]>([]);
   const [agenda, setAgenda] = useState<AgendaVacina[]>([]);
@@ -898,9 +902,13 @@ export default function SaudePage() {
       </div>
 
       {/* ── Evolução do lote ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div className={cn(
+        "grid grid-cols-1 gap-4",
+        showHealthProFeatures && showHealthPremiumFeatures && "lg:grid-cols-4",
+        showHealthProFeatures && !showHealthPremiumFeatures && "lg:grid-cols-3"
+      )}>
       {plan === "essencial" ? (
-        <LockedOverlay message="Desbloqueie a evolução do lote" targetPlan="pro" className="lg:col-span-2">
+        <LockedOverlay message="Desbloqueie a evolução do lote" targetPlan="pro" className="lg:col-span-2" preserveFirstChild>
           <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -912,6 +920,7 @@ export default function SaudePage() {
             </div>
           </div>
           <div className="flex items-center gap-2 overflow-x-auto">
+            <RequiredPlanBadge requiredPlan="pro" />
             {[
               { id: "7d", label: "Últimos 7 dias" },
               { id: "30d", label: "Últimos 30 dias" },
@@ -1030,6 +1039,7 @@ export default function SaudePage() {
               </div>
             </div>
             <div className="flex items-center gap-2 overflow-x-auto">
+              <RequiredPlanBadge requiredPlan="pro" />
               {[
                 { id: "7d", label: "Últimos 7 dias" },
                 { id: "30d", label: "Últimos 30 dias" },
@@ -1138,6 +1148,7 @@ export default function SaudePage() {
       )}
 
       {/* AI Insights — under Cobertura Vacinal */}
+      {showHealthPremiumFeatures && (
       <div className="lg:col-span-1 bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -1147,13 +1158,16 @@ export default function SaudePage() {
               <p className="text-[11px] text-gray-400 font-medium">Baseado nos dados do período</p>
             </div>
           </div>
-          <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Pro</span>
+          <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0 px-2 py-0.5 text-[10px]" />
         </div>
+        {plan !== "premium" ? (
+          <AssistantLockedPreview lockedMessage="Desbloqueie o Assistente Sanitário" />
+        ) : (
         <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
           {insights.map((ins, i) => {
-            if (plan === "essencial" && i >= 2) {
+            if (plan !== "premium" && i >= 2) {
               return (
-                <LockedOverlay key={i} message="Desbloqueie o Assistente Sanitário" targetPlan="pro">
+                <LockedOverlay key={i} message="Desbloqueie o Assistente Sanitário" targetPlan="premium">
                   <div className={cn("p-3 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
                     <div className="flex items-center gap-2 mb-1">
                       <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
@@ -1183,8 +1197,10 @@ export default function SaudePage() {
             );
           })}
         </div>
+        )}
       </div>
 
+      )}
       {/* Vaccination Schedule — under Última Inspeção */}
       <div className="lg:col-span-1 bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
         <div className="flex items-center justify-between mb-4">
@@ -1224,10 +1240,10 @@ export default function SaudePage() {
       </div>
 
       {/* ── Charts Row — moved above (Mortalidade 2/3 + Cobertura 1/3) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className={cn("grid grid-cols-1 gap-4", showHealthProFeatures && "lg:grid-cols-3")}>
         {/* Mortalidade */}
         {plan === "essencial" ? (
-          <LockedOverlay message="Desbloqueie o gráfico Mortalidade x Taxa" targetPlan="pro" className="lg:col-span-2">
+          <LockedOverlay message="Desbloqueie o gráfico Mortalidade x Taxa" targetPlan="pro" className="lg:col-span-2" preserveFirstChild>
             <div className="bg-white rounded-2xl border border-gray-100 p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -1235,7 +1251,7 @@ export default function SaudePage() {
                   <p className="text-xs text-gray-400 mt-0.5">Período selecionado</p>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30"><Sparkles className="w-3 h-3" />Pro</span>
+                  <RequiredPlanBadge requiredPlan="pro" />
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-red-500" /><span className="text-[10px] font-medium text-gray-400">Mortes</span></div>
                     <div className="flex items-center gap-1.5"><div className="w-5 h-[3px] rounded-full bg-amber-500" /><span className="text-[10px] font-medium text-gray-400">Taxa (%)</span></div>
@@ -1253,7 +1269,7 @@ export default function SaudePage() {
                 <p className="text-xs text-gray-400 mt-0.5">Período selecionado</p>
               </div>
               <div className="flex items-center gap-4">
-                <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30"><Sparkles className="w-3 h-3" />Pro</span>
+                <RequiredPlanBadge requiredPlan="pro" />
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-red-500" /><span className="text-[10px] font-medium text-gray-400">Mortes</span></div>
                   <div className="flex items-center gap-1.5"><div className="w-5 h-[3px] rounded-full bg-amber-500" /><span className="text-[10px] font-medium text-gray-400">Taxa (%)</span></div>

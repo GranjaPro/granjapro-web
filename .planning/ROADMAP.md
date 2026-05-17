@@ -53,7 +53,7 @@
 
 **Goal:** Add the real subscription tier field to Supabase and define the central plan/capability/limit model.
 
-**Requirements:** PLAN-01, PLAN-02, PLAN-03, PLAN-04, PERM-01, PERM-04, AI-03
+**Requirements:** PLAN-01, PLAN-02, PLAN-03, PLAN-04, PLAN-05, PERM-01, PERM-04, PERM-06, AI-03
 
 **Success criteria:**
 1. Supabase migrations/schema include `profiles.plan` with valid allowed values and `essencial` default.
@@ -61,6 +61,10 @@
 3. TypeScript plan handling is schema-aligned and defensive against invalid data.
 4. A central permission/limit matrix defines capabilities for Essencial, Pro, and Premium.
 5. Limits for users, birds, farms, tasks, insights, and AI credits are represented in one reusable model.
+6. Users without an active plan cannot see dashboard navigation or app routes before selecting a plan.
+7. Active trials show in-app notices and expired trials clear `profiles.plan` to `null`.
+8. Workers and Reports have an authenticated Pro/Premium route guard foundation.
+9. Sidebar and header plan labels reflect the user's active persisted plan.
 
 ### Phase 9: UI Permission Integration
 

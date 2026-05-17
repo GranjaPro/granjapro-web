@@ -20,7 +20,6 @@ import {
   HelpCircle,
   Search,
   Zap,
-  Sparkles,
   Lightbulb,
   Target,
   Activity,
@@ -52,8 +51,11 @@ import { getProductionByDateRange } from "@/lib/services/production";
 import { getBarns } from "@/lib/services/barns";
 import { getFlocks } from "@/lib/services/flocks";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
+import { hasMinimumPlan } from "@/lib/plans";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
+import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
 
 /* ── Types ── */
 type TipoRacao = "milho" | "soja" | "comercial" | "custom";
@@ -160,7 +162,9 @@ function TableSkeleton() {
 type ModalMode = "add" | "edit" | null;
 
 export default function RacaoPage() {
-  const { plan } = usePlan();
+  const { plan, hideAdvancedFeatures } = usePlan();
+  const showProFeatures = !hideAdvancedFeatures || hasMinimumPlan(plan, "pro");
+  const showPremiumFeatures = !hideAdvancedFeatures || hasMinimumPlan(plan, "premium");
   const searchParams = useSearchParams();
   const [registros, setRegistros] = useState<RegistroRacao[]>([]);
   const [estoque, setEstoque] = useState<ItemEstoque[]>([]);
@@ -874,8 +878,10 @@ export default function RacaoPage() {
       </div>
 
       {/* Chart + Assistente + Financeiro — aligned under KPIs */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 sm:gap-4">
+      {(showProFeatures || showPremiumFeatures) && (
+      <div className={cn("grid grid-cols-1 gap-3 sm:gap-4", showPremiumFeatures ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
         {/* Consumo Ração x Água — under Consumo + Produção KPIs (2 cols) */}
+        {showProFeatures && (
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
           {plan === "essencial" ? (
             <>
@@ -889,7 +895,7 @@ export default function RacaoPage() {
                     <p className="text-[11px] text-gray-400">Comparativo diário</p>
                   </div>
                 </div>
-                <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Pro</span>
+                <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
               </div>
               <LockedOverlay message="Desbloqueie o comparativo de consumo" targetPlan="pro">
                 <div className="h-[200px] bg-gray-50 rounded-xl flex items-end justify-around px-4 pb-4 pt-2 gap-2">
@@ -1017,7 +1023,10 @@ export default function RacaoPage() {
           )}
         </div>
 
+        )}
+
         {/* Assistente de Granja — under Eficiência */}
+        {showPremiumFeatures && (
         <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -1027,11 +1036,14 @@ export default function RacaoPage() {
                 <p className="text-[11px] text-gray-400 font-medium">Baseado nos dados do período</p>
               </div>
             </div>
-            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
+            <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0 px-2 py-0.5 text-[10px]" />
           </div>
+          {plan !== "premium" ? (
+            <AssistantLockedPreview lockedMessage="Desbloqueie o Assistente de Granja" />
+          ) : (
           <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
             {insights.map((ins, i) => {
-              if (plan === "essencial" && i >= 2) {
+              if (false) {
                 return (
                   <LockedOverlay key={i} message="Desbloqueie o Assistente de Granja" targetPlan="premium">
                     <div className={cn("p-3 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
@@ -1063,9 +1075,12 @@ export default function RacaoPage() {
               );
             })}
           </div>
+          )}
         </div>
+        )}
 
         {/* Resumo Financeiro — compact 2x2 grid, under Estoque */}
+        {showProFeatures && (
         <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col overflow-hidden">
           <div className="flex items-center gap-2 mb-3 flex-shrink-0">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-sm flex-shrink-0">
@@ -1075,7 +1090,7 @@ export default function RacaoPage() {
               <h3 className="text-sm font-bold text-gray-900">Resumo Financeiro</h3>
               <p className="text-[11px] text-gray-400 font-medium">Indicadores de custo e receita</p>
             </div>
-            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Pro</span>
+            <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0 px-2 py-0.5 text-[10px]" />
           </div>
           {(() => {
             const financeCards = [
@@ -1132,11 +1147,14 @@ export default function RacaoPage() {
             ) : grid;
           })()}
         </div>
+        )}
       </div>
+      )}
 
       {/* Charts Row — 2/3 + 1/3 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+      <div className={cn("grid grid-cols-1 gap-3 sm:gap-4", showProFeatures ? "lg:grid-cols-3" : "lg:grid-cols-1")}>
         {/* Combined Chart — Consumo + Produção + Eficiência — 2/3 */}
+        {showProFeatures && (
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
             <div>
@@ -1144,10 +1162,7 @@ export default function RacaoPage() {
               <p className="text-xs text-gray-400 mt-0.5">Comparativo dos últimos 7 dias</p>
             </div>
             <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
-              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
-                <Sparkles className="w-3 h-3" />
-                Pro
-              </span>
+              <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 rounded-sm bg-brand-600 flex-shrink-0" />
                 <span className="text-[10px] font-medium text-gray-400">Consumo (kg)</span>
@@ -1234,6 +1249,7 @@ export default function RacaoPage() {
             </ResponsiveContainer>
           )}
         </div>
+        )}
 
         {/* Consumo por Tipo — 1/3 */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 flex flex-col">

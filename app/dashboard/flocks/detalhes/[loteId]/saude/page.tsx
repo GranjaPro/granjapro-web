@@ -13,12 +13,12 @@ import {
   Loader2,
   Pill,
   ShieldCheck,
-  Sparkles,
   Syringe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
+import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 
 type RecordType = "vaccination" | "treatment" | "inspection";
 type RecordStatus = "completed" | "in_progress" | "scheduled" | "upcoming";
@@ -671,9 +671,7 @@ export default function SaudeLotePage() {
             <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
               {sintomasAtivos.length}
             </span>
-            <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
-              <Sparkles className="w-3 h-3" />Pro
-            </span>
+            <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
           </div>
 
           {sintomasAtivos.length === 0 ? (

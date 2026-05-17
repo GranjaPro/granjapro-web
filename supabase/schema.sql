@@ -18,7 +18,7 @@ create table public.profiles (
   farm_id uuid,
   role text default 'owner' check (role in ('owner', 'manager', 'worker')),
   avatar_url text,
-  plan text default 'essencial' not null check (plan in ('essencial', 'pro', 'premium')),
+  plan text check (plan in ('essencial', 'pro', 'premium')),
   trial_started_at timestamptz,
   trial_ends_at timestamptz,
   trial_used_at timestamptz
@@ -40,12 +40,23 @@ returns trigger
 set search_path = public, auth
 as $$
 begin
-  insert into public.profiles (id, email, full_name, plan)
+  insert into public.profiles (
+    id,
+    email,
+    full_name,
+    plan,
+    trial_started_at,
+    trial_ends_at,
+    trial_used_at
+  )
   values (
     new.id,
     new.email,
     coalesce(new.raw_user_meta_data ->> 'full_name', split_part(new.email, '@', 1)),
-    'essencial'
+    'premium',
+    now(),
+    now() + interval '7 days',
+    now()
   );
   return new;
 end;

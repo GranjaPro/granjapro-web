@@ -30,7 +30,6 @@ import {
   ShieldAlert,
   Minus,
   Zap,
-  Sparkles,
   Lightbulb,
   Crown,
   Trophy,
@@ -45,8 +44,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
+import { hasMinimumPlan } from "@/lib/plans";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
+import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
 import { createClient } from "@/lib/supabase/client";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 
@@ -105,7 +107,7 @@ const tipoOptions: ClienteTipo[] = ["market", "restaurant", "distributor", "dire
 
 export default function ClientesPage() {
   const { farm } = useAuth();
-  const { plan } = usePlan();
+  const { plan, hideAdvancedFeatures } = usePlan();
   const farmRef = useRef(farm);
   farmRef.current = farm;
   
@@ -928,6 +930,7 @@ export default function ClientesPage() {
       {/* ── Assistente de Granja + Top 5 ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Assistente Comercial */}
+        {!(hideAdvancedFeatures && !hasMinimumPlan(plan, "premium")) && (
         <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
@@ -937,8 +940,11 @@ export default function ClientesPage() {
                 <p className="text-[11px] text-gray-400 font-medium">Análise comercial dos últimos 30 dias</p>
               </div>
             </div>
-            <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
+            <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
           </div>
+          {plan !== "premium" ? (
+            <AssistantLockedPreview lockedMessage="Desbloqueie o Assistente de Granja" />
+          ) : (
           <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
             {insightsComerciais.length > 0 ? insightsComerciais.map((ins, i) => {
               if (plan !== "premium" && i >= 2) {
@@ -1025,18 +1031,23 @@ export default function ClientesPage() {
               </>
             )}
           </div>
+          )}
         </div>
+        )}
 
         {/* Top 5 Clientes */}
         {plan !== "premium" ? (
-          <LockedOverlay message="Desbloqueie o ranking Top 5 Clientes" targetPlan="premium">
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
+          <LockedOverlay message="Desbloqueie o ranking Top 5 Clientes" targetPlan="premium" className="h-full" preserveFirstChild>
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col h-full min-h-[310px]">
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-baseline gap-2">
                   <h3 className="text-sm font-bold text-gray-900">Top 5 Clientes</h3>
                   <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-md">{top5Pct.toFixed(0)}% da receita</span>
                 </div>
-                <span className="text-xs font-semibold text-gray-400">{formatCurrency(top5Revenue)}</span>
+                <div className="flex items-center gap-2">
+                  <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
+                  <span className="text-xs font-semibold text-gray-400">{formatCurrency(top5Revenue)}</span>
+                </div>
               </div>
               <div className="flex-1 flex items-center justify-center py-8">
                 <Store className="w-8 h-8 text-gray-300" />
@@ -1053,13 +1064,16 @@ export default function ClientesPage() {
             </div>
           </LockedOverlay>
         ) : (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col h-full min-h-[310px]">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-baseline gap-2">
                 <h3 className="text-sm font-bold text-gray-900">Top 5 Clientes</h3>
                 <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-md">{top5Pct.toFixed(0)}% da receita</span>
               </div>
-              <span className="text-xs font-semibold text-gray-400">{formatCurrency(top5Revenue)}</span>
+              <div className="flex items-center gap-2">
+                <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
+                <span className="text-xs font-semibold text-gray-400">{formatCurrency(top5Revenue)}</span>
+              </div>
             </div>
             <div className="space-y-2.5 flex-1">
               {top5.length > 0 ? top5.map((c, i) => {

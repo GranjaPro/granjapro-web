@@ -16,7 +16,6 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
-  Sparkles,
   Thermometer,
   Droplets,
   Sun,
@@ -30,6 +29,7 @@ import { createClient } from "@/lib/supabase/client";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { UpgradePopup } from "@/components/plan/upgrade-popup";
+import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 
 type DbStatus = "active" | "maintenance" | "inactive";
 type SistemaAvicola = "gaiola" | "caipira" | "organico" | "cage-free";
@@ -648,9 +648,7 @@ export default function BarnsPage() {
                     <Thermometer className="w-4 h-4 text-gray-400" />
                     Condições Ambientais
                     <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Opcional</span>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 border border-amber-500/25">
-                      <Sparkles className="w-2.5 h-2.5" />Pro
-                    </span>
+                    <RequiredPlanBadge requiredPlan="pro" className="px-1.5 py-0.5 text-[10px]" />
                   </span>
                   {showEnvironmental ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                 </button>

@@ -30,6 +30,7 @@ The app already has a visual plan-gating concept through `components/plan/plan-p
 - [ ] **PLAN-02**: New profiles created by auth signup receive a valid default plan without relying on manual database edits.
 - [ ] **PLAN-03**: TypeScript database types and runtime plan parsing stay aligned with the database schema.
 - [ ] **PLAN-04**: The app handles missing, null, or invalid plan values defensively by falling back to `essencial`.
+- [ ] **PLAN-05**: Expired free trials clear the active plan to `null` and return the user to plan selection before showing dashboard navigation.
 
 ### Permission Matrix
 
@@ -38,6 +39,7 @@ The app already has a visual plan-gating concept through `components/plan/plan-p
 - [ ] **PERM-03**: Menu items, locked components, and upgrade prompts read from the same plan/capability definitions.
 - [ ] **PERM-04**: The permission matrix documents limits for users, birds, farms, tasks, insights, and AI credits even when some limits are only enforcement foundations in this milestone.
 - [ ] **PERM-05**: In-app upgrade messaging uses the same plan names and pricing as the public landing page.
+- [ ] **PERM-06**: Authenticated users with valid plans can reach plan selection from the dashboard navigation and user preferences.
 
 ### Guards and Data Exposure
 
@@ -79,12 +81,14 @@ The app already has a visual plan-gating concept through `components/plan/plan-p
 | PLAN-02 | Phase 8 | Planned |
 | PLAN-03 | Phase 8 | Planned |
 | PLAN-04 | Phase 8 | Planned |
+| PLAN-05 | Phase 8 | Planned |
 | PERM-01 | Phase 8 | Planned |
 | PERM-02 | Phase 9 | Planned |
 | PERM-03 | Phase 9 | Planned |
 | PERM-04 | Phase 8 | Planned |
 | PERM-05 | Phase 9 | Planned |
-| SEC-01 | Phase 10 | Planned |
+| PERM-06 | Phase 8 | Planned |
+| SEC-01 | Phase 8/10 | Planned |
 | SEC-02 | Phase 9 | Planned |
 | SEC-03 | Phase 10 | Planned |
 | SEC-04 | Phase 10 | Planned |

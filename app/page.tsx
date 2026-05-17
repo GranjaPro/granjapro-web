@@ -8,6 +8,7 @@ import {
   Wheat,
   ArrowRight,
   ChevronDown,
+  Check,
   Menu,
   X,
   Zap,
@@ -192,7 +193,7 @@ const pricingPlans = [
       "Registro de vendas e clientes",
       `Até ${PLAN_MATRIX.essencial.limits.birds} galinhas`,
       `${PLAN_MATRIX.essencial.limits.users} usuário`,
-      `🤖 Até ${PLAN_MATRIX.essencial.limits.aiCreditsMonthly} análises com IA por mês (uso básico)`,
+      `Até ${PLAN_MATRIX.essencial.limits.aiCreditsMonthly} análises com IA por mês (uso básico)`,
     ],
     excluded: [
       "Relatórios avançados",
@@ -210,15 +211,15 @@ const pricingPlans = [
     price: "66,90",
     features: [
       "Tudo do ESSENCIAL +",
-      "💰 Cálculo de lucro automático (custo por ovo e por galinha)",
-      "⚠️ Alertas quando sua produção cair",
-      "🧠 IA que analisa sua granja e sugere melhorias",
+      "Cálculo de lucro automático (custo por ovo e por galinha)",
+      "Alertas quando sua produção cair",
+      "IA que analisa sua granja e sugere melhorias",
       "Comparação semanal e mensal",
       "Controle por lote e período",
       "Previsão de produção e custos",
       "Relatórios em PDF e Excel",
       "Gestão de colaboradores",
-      `🤖 Até ${PLAN_MATRIX.pro.limits.aiCreditsMonthly} análises com IA por mês (uso frequente)`,
+      `Até ${PLAN_MATRIX.pro.limits.aiCreditsMonthly} análises com IA por mês (uso frequente)`,
       `Até ${PLAN_MATRIX.pro.limits.birds} galinhas`,
       `Até ${PLAN_MATRIX.pro.limits.users} usuários`,
     ],
@@ -233,16 +234,16 @@ const pricingPlans = [
     price: "99,90",
     features: [
       "Tudo do PROFISSIONAL +",
-      "🧠 IA avançada com análises contínuas",
-      "📊 Comparação com outras granjas",
-      "🏆 Ranking de desempenho",
+      "IA avançada com análises contínuas",
+      "Comparação com outras granjas",
+      "Ranking de desempenho",
       "Alertas automáticos inteligentes",
       "Gestão ilimitada de tarefas e rotinas",
       "Histórico completo ilimitado",
-      `🤖 Até ${PLAN_MATRIX.premium.limits.aiCreditsMonthly} análises com IA por mês (uso intensivo)`,
+      `Até ${PLAN_MATRIX.premium.limits.aiCreditsMonthly} análises com IA por mês (uso intensivo)`,
       `Até ${PLAN_MATRIX.premium.limits.users} usuários`,
       "Galinhas ilimitadas",
-      "⚡ Suporte prioritário",
+      "Suporte prioritário",
     ],
     excluded: [],
     cta: "Começar Grátis",
@@ -384,6 +385,7 @@ function PricingSection() {
             const isEssencial = plan.name === "ESSENCIAL";
             const isPro = plan.highlighted;
             const isPremium = plan.name === "PREMIUM";
+            const matrixPlan = PLAN_MATRIX[isEssencial ? "essencial" : isPremium ? "premium" : "pro"];
 
             return (
               <AnimatedSection key={plan.name} delay={i * 120}>
@@ -429,7 +431,11 @@ function PricingSection() {
                     </p>
                     <p className={`text-xs mt-2 rounded-lg px-3 py-1.5 inline-block ${isPro ? "text-gray-600 bg-gray-100" : isPremium ? "text-white/80 bg-white/10" : "text-white/50 bg-white/[0.05]"
                       }`}>
-                      {plan.tagline}
+                      {isEssencial
+                        ? "Ideal para quem esta comecando a organizar a producao"
+                        : isPremium
+                          ? "Para produtores que querem escalar e profissionalizar a operacao"
+                          : "Para quem quer tomar decisoes e ganhar mais com a granja"}
                     </p>
                   </div>
 
@@ -484,7 +490,7 @@ function PricingSection() {
                   </Link>
 
                   <div className="space-y-3 flex-1">
-                    {plan.features.map((feature) => {
+                    {matrixPlan.benefits.map((feature) => {
                       const isTitle = feature.startsWith("Tudo do ");
                       return isTitle ? (
                         <p key={feature} className={`text-sm font-bold uppercase tracking-wide pb-1 border-b ${isPro ? "text-brand-700 border-brand-200" : isPremium ? "text-brand-300 border-brand-400/20" : "text-white/50 border-white/10"
@@ -493,7 +499,7 @@ function PricingSection() {
                         </p>
                       ) : (
                         <div key={feature} className="flex items-start gap-2">
-                          <span className={`text-sm font-bold flex-shrink-0 ${isPro ? "text-brand-600" : isPremium ? "text-brand-400" : "text-white/25"}`}>•</span>
+                          <Check className={`mt-0.5 h-4 w-4 flex-shrink-0 ${isPro ? "text-brand-600" : isPremium ? "text-brand-400" : "text-brand-300"}`} />
                           <span className={`text-sm leading-snug ${isPro ? "text-gray-600" : isPremium ? "text-white/75" : "text-white/50"}`}>
                             {feature}
                           </span>
@@ -502,22 +508,6 @@ function PricingSection() {
                     })}
                   </div>
 
-                  {plan.excluded.length > 0 && (
-                    <div className="mt-6 pt-5 border-t border-white/[0.06]">
-                      <p className="flex items-center gap-2 text-sm font-semibold text-white/40 mb-3">
-                        <X className="w-4 h-4 text-red-400/50" />
-                        Não inclui
-                      </p>
-                      <div className="space-y-2.5">
-                        {plan.excluded.map((item) => (
-                          <div key={item} className="flex items-center gap-3">
-                            <span className="w-1.5 h-1.5 rounded-full bg-white/15 flex-shrink-0" />
-                            <span className="text-sm text-white/30">{item}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </AnimatedSection>
             );

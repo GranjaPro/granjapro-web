@@ -1,7 +1,10 @@
 "use client";
 
-import { X, Sparkles, Check } from "lucide-react";
+import { useState } from "react";
+import { X, Sparkles, Check, Loader2, AlertCircle } from "lucide-react";
 import ModalPortal from "@/components/ui/modal-portal";
+import { useAuth } from "@/components/auth/auth-provider";
+import { createClient } from "@/lib/supabase/client";
 import type { PlanType } from "./plan-provider";
 
 interface UpgradePopupProps {
@@ -42,9 +45,43 @@ const planFeatures: Record<string, { title: string; price: string; features: str
 };
 
 export function UpgradePopup({ open, onClose, targetPlan }: UpgradePopupProps) {
+  const { user, refreshProfile } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   if (!open) return null;
 
   const plan = planFeatures[targetPlan];
+
+  async function activatePlan() {
+    if (!user) {
+      setError("Entre novamente para ativar o plano.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    const supabase = createClient();
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({
+        plan: targetPlan,
+        trial_started_at: null,
+        trial_ends_at: null,
+      })
+      .eq("id", user.id);
+
+    if (updateError) {
+      setError("Nao foi possivel salvar sua escolha. Tente novamente.");
+      setSubmitting(false);
+      return;
+    }
+
+    await refreshProfile();
+    setSubmitting(false);
+    onClose();
+  }
 
   return (
     <ModalPortal>
@@ -67,6 +104,12 @@ export function UpgradePopup({ open, onClose, targetPlan }: UpgradePopupProps) {
           </div>
           <div className="p-6">
             <p className="text-sm font-semibold text-gray-700 dark:text-slate-200 mb-4">O que você ganha:</p>
+            {error && (
+              <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-400/30 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:bg-red-500/10 dark:text-red-200">
+                <AlertCircle className="h-4 w-4" />
+                {error}
+              </div>
+            )}
             <ul className="space-y-3">
               {plan.features.map((feature, i) => (
                 <li key={i} className="flex items-start gap-2.5">
@@ -78,14 +121,17 @@ export function UpgradePopup({ open, onClose, targetPlan }: UpgradePopupProps) {
               ))}
             </ul>
             <button
-              onClick={onClose}
-              className="w-full mt-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-sm hover:opacity-90 transition-opacity cursor-pointer shadow-lg shadow-amber-500/25"
+              onClick={activatePlan}
+              disabled={submitting}
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 py-3 text-sm font-bold text-white shadow-lg shadow-amber-500/25 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
             >
+              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
               Ativar plano {plan.title}
             </button>
             <button
               onClick={onClose}
-              className="w-full mt-2 py-2 text-sm text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors cursor-pointer"
+              disabled={submitting}
+              className="w-full mt-2 py-2 text-sm text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             >
               Agora não
             </button>

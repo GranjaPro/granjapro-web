@@ -27,7 +27,6 @@ import {
   CheckSquare,
   Minus,
   Loader2,
-  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -35,6 +34,7 @@ import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { createClient } from "@/lib/supabase/client";
 import { getFinancialSummaryInRange } from "@/lib/services/finances";
 import { getFarmBirdCount } from "@/lib/services/farms";
+import { hasMinimumPlan } from "@/lib/plans";
 import { formatNumber, formatCurrency } from "@/lib/utils";
 import {
   AreaChart,
@@ -55,6 +55,7 @@ import ModalPortal from "@/components/ui/modal-portal";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { UpgradePopup } from "@/components/plan/upgrade-popup";
+import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import {
   X, Pencil, Trash2, Droplets, Eye, ShieldCheck, Thermometer, Bug, Scissors,
   Scale, Syringe, Hammer, Truck, Sun, Moon, Heart, Star, Flame, Leaf, Bell,
@@ -150,9 +151,16 @@ const setupAlerts = [
 
 export default function DashboardPage() {
   const { profile, farm } = useAuth();
-  const { plan } = usePlan();
+  const { plan, hideAdvancedFeatures } = usePlan();
   const supabase = createClient();
   const [showTaskUpgrade, setShowTaskUpgrade] = useState(false);
+  const shouldHideAdvancedFeature = useCallback(
+    (requiredPlan: "pro" | "premium") => hideAdvancedFeatures && !hasMinimumPlan(plan, requiredPlan),
+    [hideAdvancedFeatures, plan]
+  );
+  const showDashboardAlerts = !shouldHideAdvancedFeature("pro");
+  const showDashboardTasks = !shouldHideAdvancedFeature("premium");
+  const showDashboardAssistant = !shouldHideAdvancedFeature("premium");
 
   // Real data state — start empty, filled by Supabase fetch
   const [farmData, setFarmData] = useState({
@@ -981,9 +989,11 @@ export default function DashboardPage() {
       })()}
 
       {/* ── PRIORITY BLOCK: Alerts + Tasks (2 columns) ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      {(showDashboardAlerts || showDashboardTasks) && (
+      <div className={cn("grid grid-cols-1 gap-4", showDashboardAlerts && showDashboardTasks && "xl:grid-cols-2")}>
         {/* Alertas Ativos */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px] dark:border-white/10 dark:bg-slate-900/80">
+        {showDashboardAlerts && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px] overflow-hidden dark:border-white/10 dark:bg-slate-900/80">
           <div className="flex items-center justify-between mb-5 flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-red-500 flex items-center justify-center shadow-sm">
@@ -1000,35 +1010,39 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Pro</span>
+              <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
               <span className="text-[11px] font-bold text-white bg-red-500 px-2.5 py-1 rounded-lg">{dbAlerts.length}</span>
             </div>
           </div>
-          <div className="space-y-3 overflow-y-auto flex-1 dashboard-scroll pr-1 -mr-1 py-1">
-            {dbAlerts.map((a, idx) => {
-              const isLocked = plan === "essencial" && idx >= 2;
-              if (isLocked) {
-                return (
-                  <LockedOverlay key={a.id} message="Desbloqueie todos os alertas inteligentes" targetPlan="pro">
-                    <div className={cn(
+          {plan === "essencial" ? (
+            <LockedOverlay message="Desbloqueie os alertas de controle" targetPlan="pro">
+              <div className="space-y-3 overflow-y-auto flex-1 dashboard-scroll pr-1 -mr-1 py-1">
+                {dbAlerts.map((a) => (
+                  <div
+                    key={a.id}
+                    className={cn(
                       "rounded-xl p-4 border",
                       a.type === "danger" && "bg-red-50 border-red-200 dark:!border-red-400/20 dark:!bg-red-500/10",
                       a.type === "warning" && "bg-amber-50 border-amber-200 dark:!border-amber-400/20 dark:!bg-amber-500/10",
                       a.type === "info" && "bg-blue-50 border-blue-200 dark:!border-sky-400/20 dark:!bg-sky-500/10"
-                    )}>
-                      <div className="flex items-start gap-3">
-                        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5", a.type === "danger" && "bg-red-100", a.type === "warning" && "bg-amber-100", a.type === "info" && "bg-blue-100")}>
-                          <AlertTriangle className="w-4 h-4 text-gray-400 dark:text-slate-300" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-semibold text-gray-600 dark:text-slate-200">{a.msg}</p>
-                          <p className="text-[11px] text-gray-400 mt-1 dark:text-slate-400">Se ignorar: {a.risk}</p>
-                        </div>
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5", a.type === "danger" && "bg-red-100", a.type === "warning" && "bg-amber-100", a.type === "info" && "bg-blue-100")}>
+                        <AlertTriangle className="w-4 h-4 text-gray-400 dark:text-slate-300" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-gray-600 dark:text-slate-200">{a.msg}</p>
+                        <p className="text-[11px] text-gray-400 mt-1 dark:text-slate-400">Se ignorar: {a.risk}</p>
                       </div>
                     </div>
-                  </LockedOverlay>
-                );
-              }
+                  </div>
+                ))}
+              </div>
+            </LockedOverlay>
+          ) : (
+          <div className="space-y-3 overflow-y-auto flex-1 dashboard-scroll pr-1 -mr-1 py-1">
+            {dbAlerts.map((a) => {
               return (
                 <div
                   key={a.id}
@@ -1093,10 +1107,13 @@ export default function DashboardPage() {
               );
             })}
           </div>
+          )}
         </div>
+        )}
 
         {/* Tarefas do Dia */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px] dark:border-white/10 dark:bg-slate-900/80">
+        {showDashboardTasks && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px] overflow-hidden dark:border-white/10 dark:bg-slate-900/80">
           <div className="flex items-center justify-between mb-5 flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-sm">
@@ -1110,37 +1127,62 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
-                <Sparkles className="w-3 h-3" />
-                Premium
-              </span>
-              <div className="relative w-10 h-10">
-                <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
-                  <circle cx="18" cy="18" r="15" fill="none" className="stroke-gray-200 dark:stroke-slate-700" strokeWidth="3" />
-                  <circle
-                    cx="18" cy="18" r="15" fill="none" className="stroke-brand-600 dark:stroke-brand-400" strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeDasharray={`${(completedTasks / (dbTasks.length || 1)) * 94.2} 94.2`}
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-900 dark:text-slate-100">
-                  {((completedTasks / (dbTasks.length || 1)) * 100).toFixed(0)}%
-                </span>
-              </div>
-              <button
-                onClick={() => {
-                  if (plan !== "premium" && dbTasks.length >= 2) {
-                    setShowTaskUpgrade(true);
-                  } else {
-                    setShowNewTask(true);
-                  }
-                }}
-                className="inline-flex items-center gap-1.5 text-xs text-brand-600 font-semibold hover:text-brand-700 cursor-pointer transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
+              <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
+              {plan === "premium" && (
+                <>
+                  <div className="relative w-10 h-10">
+                    <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
+                      <circle cx="18" cy="18" r="15" fill="none" className="stroke-gray-200 dark:stroke-slate-700" strokeWidth="3" />
+                      <circle
+                        cx="18" cy="18" r="15" fill="none" className="stroke-brand-600 dark:stroke-brand-400" strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeDasharray={`${(completedTasks / (dbTasks.length || 1)) * 94.2} 94.2`}
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-900 dark:text-slate-100">
+                      {((completedTasks / (dbTasks.length || 1)) * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowNewTask(true)}
+                    className="inline-flex items-center gap-1.5 text-xs text-brand-600 font-semibold hover:text-brand-700 cursor-pointer transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
             </div>
           </div>
+          {plan !== "premium" ? (
+            <LockedOverlay message="Desbloqueie as tarefas" targetPlan="premium">
+          <div className="space-y-2 overflow-y-auto flex-1 dashboard-scroll pr-1 -mr-1 py-1 min-h-[260px]">
+            {(dbTasks.length > 0 ? dbTasks : [
+              { id: "locked-task-1", title: "Coletar ovos", time: "06:00", iconKey: "egg" },
+              { id: "locked-task-2", title: "Alimentar aves", time: "07:00", iconKey: "wheat" },
+              { id: "locked-task-3", title: "Inspeção sanitária", time: "10:00", iconKey: "eye" },
+            ]).map((t) => {
+              const status = taskStatuses[t.id] ?? "pending";
+              const isMissed = status === "missed";
+              const isDone = status === "done";
+              const ico = taskIconMap[t.iconKey as TaskIconKey] ?? taskIconMap.clipboard;
+              const TaskIcon = ico.icon;
+
+              return (
+                <div key={t.id} className={cn("rounded-xl border px-4 py-3 flex items-center gap-3", isMissed ? "bg-red-50/40 border-red-100" : "bg-white border-gray-100")}>
+                  {isDone ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : isMissed ? <XCircle className="w-5 h-5 text-red-400" /> : <Circle className="w-5 h-5 text-gray-300" />}
+                  <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", ico.bg)}>
+                    <TaskIcon className={cn("w-4 h-4", ico.color)} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium text-gray-600 truncate">{t.title}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{t.time}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+            </LockedOverlay>
+          ) : (
           <div className="space-y-2 overflow-y-auto flex-1 dashboard-scroll pr-1 -mr-1 py-1">
             {dbTasks.map((t) => {
               const status = taskStatuses[t.id] ?? "pending";
@@ -1223,8 +1265,11 @@ export default function DashboardPage() {
               );
             })}
           </div>
+          )}
         </div>
+        )}
       </div>
+      )}
 
       {/* Task Status Dropdown (portal) */}
       {openDropdown !== null && dropdownPos && (
@@ -1660,9 +1705,9 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Production Chart + AI Insights ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      <div className={cn("grid grid-cols-1 gap-4", showDashboardAssistant && "xl:grid-cols-3")}>
         {/* Chart */}
-        <div className="xl:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
+        <div className={cn("bg-white rounded-2xl border border-gray-100 p-6", showDashboardAssistant && "xl:col-span-2")}>
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-sm font-bold text-gray-900">{chartTitle}</h3>
             <div className="flex items-center gap-4">
@@ -1706,6 +1751,7 @@ export default function DashboardPage() {
         </div>
 
         {/* AI Performance Insights */}
+        {showDashboardAssistant && (
         <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
@@ -1717,12 +1763,53 @@ export default function DashboardPage() {
                 <p className="text-[11px] text-gray-400 font-medium">Baseado nos últimos 7 dias</p>
               </div>
             </div>
-            <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
-              <Sparkles className="w-3 h-3" />
-              Premium
-            </span>
+            <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
           </div>
 
+          {plan !== "premium" ? (
+            <LockedOverlay message="Desbloqueie o Assistente de Granja" targetPlan="premium">
+          <div className="space-y-3 flex-1">
+            {[
+              {
+                type: "warning" as const,
+                icon: TrendingDown,
+                title: "ProduÃ§Ã£o caiu 2.2% esta semana",
+                detail: "Seg-Ter tiveram queda acentuada. GalpÃ£o 2 Ã© o principal responsÃ¡vel.",
+              },
+              {
+                type: "success" as const,
+                icon: TrendingUp,
+                title: "Lucro aumentou 8.5% no mÃªs",
+                detail: "Receita cresceu mais que despesas. Margem atual: " + profitMargin + "%.",
+              },
+              {
+                type: "danger" as const,
+                icon: AlertTriangle,
+                title: "Custo de raÃ§Ã£o subiu 5.3%",
+                detail: "Estoque para apenas 3 dias. Considere negociar com fornecedor.",
+              },
+            ].map((insight, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "rounded-xl px-4 py-3 border-l-[3px]",
+                  insight.type === "warning" && "bg-amber-50/60 border-l-amber-500",
+                  insight.type === "success" && "bg-emerald-50/60 border-l-emerald-500",
+                  insight.type === "danger" && "bg-red-50/60 border-l-red-500"
+                )}
+              >
+                <div className="flex items-start gap-2.5">
+                  <insight.icon className="w-4 h-4 flex-shrink-0 mt-0.5 text-gray-400" />
+                  <div>
+                    <p className="text-[13px] font-semibold text-gray-600">{insight.title}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{insight.detail}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+            </LockedOverlay>
+          ) : (
           <div className="space-y-3 flex-1">
             {/* Insight items */}
             {[
@@ -1807,7 +1894,9 @@ export default function DashboardPage() {
               );
             })}
           </div>
+          )}
         </div>
+        )}
       </div>
 
       {/* ── Financial Row: Revenue Chart + Expense Breakdown + Profit Summary ── */}

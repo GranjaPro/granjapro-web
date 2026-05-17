@@ -36,6 +36,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { cn } from "@/lib/utils";
 
 type EventType = "vacina" | "medicamento" | "inspecao" | "sintoma" | "mortalidade";
@@ -927,10 +928,7 @@ export default function HistoricoSanitarioPage() {
               </p>
             </div>
           </div>
-          <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-600 border border-amber-500/30 flex-shrink-0">
-            <Sparkles className="w-3 h-3" />
-            Pro
-          </span>
+          <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {mockPatterns.map((p) => {

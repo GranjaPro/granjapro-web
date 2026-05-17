@@ -19,7 +19,7 @@ where plan is null
 
 alter table public.profiles
   alter column plan set default 'essencial',
-  alter column plan set not null;
+  alter column plan drop not null;
 
 alter table public.profiles
   drop constraint if exists profiles_plan_check;

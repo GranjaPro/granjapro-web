@@ -22,7 +22,6 @@ import {
   ChevronRight,
   Search,
   BarChart3,
-  Sparkles,
   Zap,
   HelpCircle,
   Wheat,
@@ -32,6 +31,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { AssistantCard } from "@/components/dashboard/assistant-card";
 import {
   AreaChart,
   Area,
@@ -45,8 +45,10 @@ import {
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
+import { hasMinimumPlan } from "@/lib/plans";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
+import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 
 /* ── Interfaces ── */
 interface Lote {
@@ -74,7 +76,9 @@ type ModalMode = "add" | "edit" | null;
 export default function ProducaoPage() {
   const searchParams = useSearchParams();
   const { farm, loading: authLoading } = useAuth();
-  const { plan } = usePlan();
+  const { plan, hideAdvancedFeatures } = usePlan();
+  const showProductionFinancial = !(hideAdvancedFeatures && !hasMinimumPlan(plan, "pro"));
+  const showProductionAssistant = !(hideAdvancedFeatures && !hasMinimumPlan(plan, "premium"));
 
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [registros, setRegistros] = useState<Registro[]>([]);
@@ -702,24 +706,15 @@ export default function ProducaoPage() {
       </div>
 
       {/* AI Insights + Trend Chart */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {(showProductionAssistant || showProductionFinancial) && (
+      <div className={cn("grid grid-cols-1 gap-4", showProductionAssistant && showProductionFinancial && "lg:grid-cols-2")}>
         {/* Assistente de Granja */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm">
-                <Zap className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900">Assistente de Granja</h3>
-                <p className="text-[11px] text-gray-400 font-medium">Baseado nos dados do período</p>
-              </div>
-            </div>
-            <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
-              <Sparkles className="w-3 h-3" />
-              Premium
-            </span>
-          </div>
+        {showProductionAssistant && (
+        <AssistantCard
+          subtitle="Baseado nos dados do período"
+          lockedMessage="Desbloqueie o Assistente de Granja"
+          className="p-5"
+        >
           {(() => {
             const displayInsights = insights.length > 0 ? insights : [
               { type: "warning" as const, title: "Taxa de postura abaixo da meta", action: "Verificar idade dos lotes e ajustar manejo alimentar" },
@@ -784,19 +779,18 @@ export default function ProducaoPage() {
               </div>
             );
           })()}
-        </div>
+        </AssistantCard>
+        )}
 
         {/* Financial Production Metrics */}
+        {showProductionFinancial && (
         <div className="bg-white rounded-2xl border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Resumo Financeiro</h3>
               <p className="text-[11px] text-gray-400 font-medium">Indicadores de custo e receita</p>
             </div>
-            <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
-              <Sparkles className="w-3 h-3" />
-              Pro
-            </span>
+            <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
           </div>
           {plan === "essencial" ? (
             <LockedOverlay message="Desbloqueie o resumo financeiro da sua produção" targetPlan="pro">
@@ -1002,12 +996,14 @@ export default function ProducaoPage() {
           </div>
           )}
         </div>
+        )}
       </div>
+      )}
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className={cn("grid grid-cols-1 gap-4", showProductionFinancial && "lg:grid-cols-3")}>
         {/* Production Curve — 2/3 width */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
+        <div className={cn("bg-white rounded-2xl border border-gray-100 p-6", showProductionFinancial && "lg:col-span-2")}>
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Curva de Produção</h3>
@@ -1057,9 +1053,12 @@ export default function ProducaoPage() {
 
         {/* Production by Lote — 1/3 */}
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
-          <div className="mb-6">
-            <h3 className="text-sm font-bold text-gray-900">Produção por Lote</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Taxa de postura por lote</p>
+          <div className="mb-6 flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Produção por Lote</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Taxa de postura por lote</p>
+            </div>
+            <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
           </div>
           {plan === "essencial" ? (
             <LockedOverlay message="Veja sua produção por lote" targetPlan="pro">
@@ -1133,7 +1132,7 @@ export default function ProducaoPage() {
       </div>
 
       {/* Quality + Breakdown Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className={cn("grid grid-cols-1 gap-4", showProductionFinancial && "lg:grid-cols-2")}>
         {/* Quality Breakdown */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-1">
@@ -1181,10 +1180,13 @@ export default function ProducaoPage() {
               <h3 className="text-sm font-bold text-gray-900">Desempenho dos Lotes</h3>
               <p className="text-xs text-gray-400 mt-0.5">Status de cada lote ativo</p>
             </div>
-            <Link href="/dashboard/flocks" className="text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors flex items-center gap-1 cursor-pointer">
-              Ver todos
-              <ChevronRight className="w-3 h-3" />
-            </Link>
+            <div className="flex items-center gap-2">
+              <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
+              <Link href="/dashboard/flocks" className="text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors flex items-center gap-1 cursor-pointer">
+                Ver todos
+                <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
           </div>
           {plan === "essencial" ? (
             <LockedOverlay message="Veja o desempenho dos seus lotes" targetPlan="pro">

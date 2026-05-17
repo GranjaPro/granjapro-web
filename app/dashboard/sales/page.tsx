@@ -18,7 +18,6 @@ import {
   Check,
   X,
   Plus,
-  Sparkles,
   Hash,
   Zap,
   Lightbulb,
@@ -49,8 +48,11 @@ import {
   ComposedChart,
 } from "recharts";
 import { useAuth } from "@/components/auth/auth-provider";
+import { hasMinimumPlan } from "@/lib/plans";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
+import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
 import { createClient } from "@/lib/supabase/client";
 import { createRevenueFromSale } from "@/lib/services/finances";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
@@ -92,7 +94,9 @@ const STATUS_CONFIG = {
 export default function VendasPage() {
   const searchParams = useSearchParams();
   const { farm } = useAuth();
-  const { plan } = usePlan();
+  const { plan, hideAdvancedFeatures } = usePlan();
+  const showSalesProFeatures = !(hideAdvancedFeatures && !hasMinimumPlan(plan, "pro"));
+  const showSalesPremiumFeatures = !(hideAdvancedFeatures && !hasMinimumPlan(plan, "premium"));
   const farmRef = useRef(farm);
   farmRef.current = farm;
 
@@ -833,8 +837,10 @@ export default function VendasPage() {
       </div>
 
       {/* ── AI Insights ── */}
+      {showSalesPremiumFeatures && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Assistente de Granja */}
+        {showSalesPremiumFeatures && (
         <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
@@ -844,8 +850,16 @@ export default function VendasPage() {
                 <p className="text-[11px] text-gray-400 font-medium">Análise comercial — Período Selecionado</p>
               </div>
             </div>
-            <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
+            <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
           </div>
+          {plan !== "premium" ? (
+            <AssistantLockedPreview
+              lockedMessage="Desbloqueie o Assistente de Granja"
+              overlayClassName="flex-1"
+              className="h-full min-h-[360px] flex flex-col"
+              itemClassName="flex-1"
+            />
+          ) : (
           <div className="space-y-2 overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
             {[
               ...insights,
@@ -879,11 +893,13 @@ export default function VendasPage() {
               <div className="text-center py-8 text-gray-400 text-sm">Sem insights suficientes no período</div>
             )}
           </div>
+          )}
         </div>
+        )}
 
         {/* Preço Ideal Sugerido */}
         {plan !== "premium" ? (
-        <LockedOverlay message="Desbloqueie o preço ideal sugerido" targetPlan="premium">
+        <LockedOverlay message="Desbloqueie o preço ideal sugerido" targetPlan="premium" preserveFirstChild>
         <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -891,7 +907,7 @@ export default function VendasPage() {
               <p className="text-[11px] text-gray-400 font-medium mt-0.5">Baseado em custo + margem meta</p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
+              <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
               <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
               {([
                 { key: "duzia" as const, label: "Dúzia" },
@@ -1006,7 +1022,7 @@ export default function VendasPage() {
               <p className="text-[11px] text-gray-400 font-medium mt-0.5">Baseado em custo + margem meta</p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
+              <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
               <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
               {([
                 { key: "duzia" as const, label: "Dúzia" },
@@ -1109,19 +1125,22 @@ export default function VendasPage() {
         </div>
         )}
       </div>
+      )}
 
       {/* ── Charts: Receita Diária + Histórico de Preço ── */}
+      {showSalesProFeatures && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Receita Diária + Volume */}
         {plan === "essencial" ? (
-        <LockedOverlay message="Desbloqueie a receita diária" targetPlan="pro" className="lg:col-span-2">
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5">
+        <LockedOverlay message="Desbloqueie a receita diária" targetPlan="pro" className="lg:col-span-2 h-full" preserveFirstChild>
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5 h-full min-h-[360px]">
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Receita Diária</h3>
               <p className="text-[11px] text-gray-400 font-medium mt-0.5">Receita × Volume — Período Selecionado</p>
             </div>
             <div className="flex items-center gap-3">
+              <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                 <span className="text-[10px] text-gray-400 font-medium">Receita</span>
@@ -1158,13 +1177,14 @@ export default function VendasPage() {
         </div>
         </LockedOverlay>
         ) : (
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5 h-full min-h-[360px]">
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Receita Diária</h3>
               <p className="text-[11px] text-gray-400 font-medium mt-0.5">Receita × Volume — Período Selecionado</p>
             </div>
             <div className="flex items-center gap-3">
+              <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                 <span className="text-[10px] text-gray-400 font-medium">Receita</span>
@@ -1203,16 +1223,19 @@ export default function VendasPage() {
 
         {/* Histórico de Preço */}
         {plan === "essencial" ? (
-        <LockedOverlay message="Desbloqueie o histórico de preço" targetPlan="pro">
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <LockedOverlay message="Desbloqueie o histórico de preço" targetPlan="pro" className="h-full" preserveFirstChild>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 h-full min-h-[360px]">
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Preço Médio / Dz</h3>
               <p className="text-[11px] text-gray-400 font-medium mt-0.5">Evolução vs meta</p>
             </div>
-            <span className={cn("inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full", precoMedio >= 12.5 ? "text-emerald-700 bg-emerald-50" : "text-amber-600 bg-amber-50")}>
-              {precoMedio >= 12.5 ? "Na meta" : "Abaixo"}
-            </span>
+            <div className="flex items-center gap-2">
+              <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
+              <span className={cn("inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full", precoMedio >= 12.5 ? "text-emerald-700 bg-emerald-50" : "text-amber-600 bg-amber-50")}>
+                {precoMedio >= 12.5 ? "Na meta" : "Abaixo"}
+              </span>
+            </div>
           </div>
           <div className="h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -1242,15 +1265,18 @@ export default function VendasPage() {
         </div>
         </LockedOverlay>
         ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 h-full min-h-[360px]">
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Preço Médio / Dz</h3>
               <p className="text-[11px] text-gray-400 font-medium mt-0.5">Evolução vs meta</p>
             </div>
-            <span className={cn("inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full", precoMedio >= 12.5 ? "text-emerald-700 bg-emerald-50" : "text-amber-600 bg-amber-50")}>
-              {precoMedio >= 12.5 ? "Na meta" : "Abaixo"}
-            </span>
+            <div className="flex items-center gap-2">
+              <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
+              <span className={cn("inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full", precoMedio >= 12.5 ? "text-emerald-700 bg-emerald-50" : "text-amber-600 bg-amber-50")}>
+                {precoMedio >= 12.5 ? "Na meta" : "Abaixo"}
+              </span>
+            </div>
           </div>
           <div className="h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -1280,6 +1306,7 @@ export default function VendasPage() {
         </div>
         )}
       </div>
+      )}
 
       {/* ── Selling Records Table ── */}
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">

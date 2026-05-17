@@ -19,7 +19,6 @@ import {
   Search,
   Minus,
   Eye,
-  Sparkles,
   Zap,
   AlertTriangle,
   TrendingUp,
@@ -47,8 +46,11 @@ import {
 } from "recharts";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
+import { hasMinimumPlan } from "@/lib/plans";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
+import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 
 interface RegistroMortalidade {
@@ -99,7 +101,9 @@ const causaHexColors: Record<string, string> = {
 export default function MortalidadePage() {
   const searchParams = useSearchParams();
   const { farm } = useAuth();
-  const { plan } = usePlan();
+  const { plan, hideAdvancedFeatures } = usePlan();
+  const showMortalityProFeatures = !(hideAdvancedFeatures && !hasMinimumPlan(plan, "pro"));
+  const showMortalityPremiumFeatures = !(hideAdvancedFeatures && !hasMinimumPlan(plan, "premium"));
   const farmRef = useRef(farm);
   farmRef.current = farm;
 
@@ -561,8 +565,9 @@ export default function MortalidadePage() {
       </div>
 
       {/* ── AI Insights + Causas de Mortalidade ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className={cn("grid grid-cols-1 gap-4", showMortalityPremiumFeatures && "lg:grid-cols-2")}>
         {/* AI Insights */}
+        {showMortalityPremiumFeatures && (
         <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
@@ -572,8 +577,11 @@ export default function MortalidadePage() {
                 <p className="text-[11px] text-gray-400 font-medium">Baseado no período</p>
               </div>
             </div>
-            <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0"><Sparkles className="w-3 h-3" />Premium</span>
+            <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
           </div>
+          {plan !== "premium" ? (
+            <AssistantLockedPreview lockedMessage="Desbloqueie a análise de mortalidade" />
+          ) : (
           <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
             {insights.map((ins, i) => (
               <div key={i} className={cn("p-3.5 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
@@ -612,7 +620,9 @@ export default function MortalidadePage() {
               </div>
             )}
           </div>
+          )}
         </div>
+        )}
 
         {/* Causas Pie Chart */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5">
@@ -660,10 +670,10 @@ export default function MortalidadePage() {
       </div>
 
       {/* ── Charts Row — 2/3 + 1/3 ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className={cn("grid grid-cols-1 gap-4", showMortalityProFeatures && "lg:grid-cols-3")}>
         {/* Mortalidade x Taxa Composed Chart */}
         {plan === "essencial" ? (
-        <LockedOverlay message="Desbloqueie o gráfico Mortalidade x Taxa" targetPlan="pro" className="lg:col-span-2">
+        <LockedOverlay message="Desbloqueie o gráfico Mortalidade x Taxa" targetPlan="pro" className="lg:col-span-2" preserveFirstChild>
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -671,7 +681,7 @@ export default function MortalidadePage() {
               <p className="text-xs text-gray-400 mt-0.5">Últimos 7 dias</p>
             </div>
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30"><Sparkles className="w-3 h-3" />Pro</span>
+              <RequiredPlanBadge requiredPlan="pro" />
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-red-500" /><span className="text-[10px] font-medium text-gray-400">Mortes</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-5 h-[3px] rounded-full bg-amber-500" /><span className="text-[10px] font-medium text-gray-400">Taxa (%)</span></div>
@@ -714,7 +724,7 @@ export default function MortalidadePage() {
               <p className="text-xs text-gray-400 mt-0.5">Últimos 7 dias</p>
             </div>
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30"><Sparkles className="w-3 h-3" />Pro</span>
+              <RequiredPlanBadge requiredPlan="pro" />
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-red-500" /><span className="text-[10px] font-medium text-gray-400">Mortes</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-5 h-[3px] rounded-full bg-amber-500" /><span className="text-[10px] font-medium text-gray-400">Taxa (%)</span></div>

@@ -33,12 +33,14 @@ import {
   ShieldCheck,
   Scale,
   CircleDollarSign,
-  Loader2,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
+import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
+import { hasMinimumPlan } from "@/lib/plans";
 import { cn } from "@/lib/utils";
 import { getTransactionsByDateRange, getFinancialSummaryInRange, createTransaction, updateTransaction, deleteTransaction, type FinancialTransaction, type FinancialSummaryData } from "@/lib/services/finances";
 import { getFarmBirdCount } from "@/lib/services/farms";
@@ -78,7 +80,9 @@ interface TransactionRow {
 
 export default function FinancasPage() {
   const { farm } = useAuth();
-  const { plan } = usePlan();
+  const { plan, hideAdvancedFeatures } = usePlan();
+  const showFinancesProFeatures = !(hideAdvancedFeatures && !hasMinimumPlan(plan, "pro"));
+  const showFinancesPremiumFeatures = !(hideAdvancedFeatures && !hasMinimumPlan(plan, "premium"));
   const { dateRange, filterMode } = useDateFilter();
 
   const [transactionRows, setTransactionRows] = useState<TransactionRow[]>([]);
@@ -372,15 +376,6 @@ export default function FinancasPage() {
 
   return (
     <div className="space-y-6 relative">
-      {loading && (
-        <div className="absolute inset-0 z-[55] flex items-start justify-center pt-32 bg-white/60 backdrop-blur-[2px] transition-all duration-300">
-          <div className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-white shadow-xl border border-gray-100">
-            <Loader2 className="w-10 h-10 animate-spin text-brand-600" />
-            <p className="text-sm font-bold text-gray-600 tracking-tight">Carregando dados financeiros...</p>
-          </div>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -560,7 +555,7 @@ export default function FinancasPage() {
       )}
 
       {/* Main KPI Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-4", showFinancesProFeatures ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
         <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 col-span-1">
           <div className="flex items-center justify-between mb-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
@@ -696,16 +691,20 @@ export default function FinancasPage() {
       </div>
 
       {/* AI Insight */}
-      {plan !== "premium" ? (
-        <LockedOverlay message="Desbloqueie o Assistente Financeiro" targetPlan="premium">
-          <div className="bg-gradient-to-r from-amber-50 via-orange-50/50 to-white border border-amber-200/60 rounded-2xl p-5">
+      {showFinancesPremiumFeatures && plan !== "premium" ? (
+        <div className="bg-gradient-to-r from-amber-50 via-orange-50/50 to-white border border-amber-200/60 rounded-2xl p-5 flex flex-col">
+          <div className="mb-5">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-sm shadow-amber-400/30">
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold text-gray-900 mb-2">Assistente Financeiro</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <h3 className="text-sm font-bold text-gray-900">Assistente Financeiro</h3>
+                  <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
+                </div>
+                <p className="text-[11px] text-gray-400 font-medium">Análise financeira do período</p>
+                <div className="hidden">
                   <div className="flex items-start gap-2 p-3 rounded-xl bg-white/60 border border-amber-100">
                     <TrendingDown className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                     <div>
@@ -721,15 +720,20 @@ export default function FinancasPage() {
                     </div>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-2 p-2.5 rounded-xl bg-brand-50/50 border border-brand-100">
+                <div className="hidden">
                   <ArrowRight className="w-4 h-4 text-brand-600 flex-shrink-0" />
                   <p className="text-xs text-brand-800 font-medium">Sugestão: Negocie preços fixos com Mercado Central e Supermercado BH para proteger a margem</p>
                 </div>
               </div>
             </div>
           </div>
-        </LockedOverlay>
-      ) : (
+          <AssistantLockedPreview
+            lockedMessage="Desbloqueie o Assistente Financeiro"
+            className="grid grid-cols-1 md:grid-cols-2 gap-3"
+            itemClassName="bg-white/60 border border-amber-100 border-l-amber-500"
+          />
+        </div>
+      ) : showFinancesPremiumFeatures ? (
         <div className="bg-gradient-to-r from-amber-50 via-orange-50/50 to-white border border-amber-200/60 rounded-2xl p-5">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-sm shadow-amber-400/30">
@@ -760,10 +764,10 @@ export default function FinancasPage() {
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className={cn("grid grid-cols-1 gap-6", showFinancesProFeatures && "lg:grid-cols-2")}>
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-sm font-bold text-gray-900">Receita vs Despesa {filterMode === "intervalo" ? "Semanal" : filterMode === "mes" ? "Mensal" : "Diária"}</h3>
@@ -802,17 +806,27 @@ export default function FinancasPage() {
         </div>
 
         {plan === "essencial" ? (
-          <LockedOverlay message="Desbloqueie o fluxo de caixa mensal" targetPlan="pro">
+          <LockedOverlay message="Desbloqueie o fluxo de caixa mensal" targetPlan="pro" preserveFirstChild>
             <div className="bg-white rounded-2xl border border-gray-100 p-6">
-              <h3 className="text-sm font-bold text-gray-900 mb-1">Fluxo de Caixa Mensal</h3>
-              <p className="text-xs text-gray-400 mb-4">Receita, despesa e lucro por mês</p>
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Fluxo de Caixa Mensal</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Receita, despesa e lucro por mês</p>
+                </div>
+                <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
+              </div>
               <div className="h-[240px]" />
             </div>
           </LockedOverlay>
         ) : (
           <div className="bg-white rounded-2xl border border-gray-100 p-6">
-            <h3 className="text-sm font-bold text-gray-900 mb-1">Fluxo de Caixa Mensal</h3>
-            <p className="text-xs text-gray-400 mb-4">Receita, despesa e lucro por mês</p>
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Fluxo de Caixa Mensal</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Receita, despesa e lucro por mês</p>
+              </div>
+              <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
+            </div>
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={fluxoMensalData} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -839,8 +853,8 @@ export default function FinancasPage() {
       </div>
 
       {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-100 p-6">
+      <div className={cn("grid grid-cols-1 gap-6", showFinancesProFeatures ? "lg:grid-cols-12" : "lg:grid-cols-2")}>
+        <div className={cn("bg-white rounded-2xl border border-gray-100 p-6", showFinancesProFeatures && "lg:col-span-3")}>
           <h3 className="text-sm font-bold text-gray-900 mb-1">Despesas — {periodoLabel}</h3>
           <p className="text-2xl font-bold text-gray-900 tracking-tight mb-3">{formatCurrency(totalDespesasFiltradas)}</p>
           <ResponsiveContainer width="100%" height={180}>
@@ -869,7 +883,7 @@ export default function FinancasPage() {
           </div>
         </div>
 
-        <div className="lg:col-span-4 bg-white rounded-2xl border border-gray-100 p-6">
+        <div className={cn("bg-white rounded-2xl border border-gray-100 p-6", showFinancesProFeatures && "lg:col-span-4")}>
           <h3 className="text-sm font-bold text-gray-900 mb-5">Detalhamento — {periodoLabel}</h3>
           <div className="space-y-3">
             {despesasFiltradas.map((d) => (
@@ -895,29 +909,31 @@ export default function FinancasPage() {
         </div>
 
         {plan === "essencial" ? (
-          <LockedOverlay message="Desbloqueie as receitas por categoria" targetPlan="pro" className="lg:col-span-5">
-            <div className="bg-white rounded-2xl border border-gray-100 p-6">
+          <LockedOverlay message="Desbloqueie as receitas por categoria" targetPlan="pro" className="lg:col-span-5 h-full" preserveFirstChild>
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 h-full min-h-[304px]">
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h3 className="text-sm font-bold text-gray-900">Receitas por Categoria</h3>
                   <p className="text-xs text-gray-400 mt-0.5">Receita por categoria — {periodoLabel}</p>
                 </div>
+                <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
                 <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
                   {(["Cliente", "Lote", "Galpão"]).map((label) => (
                     <span key={label} className="px-3 py-1 text-[11px] font-semibold rounded-lg text-gray-500">{label}</span>
                   ))}
                 </div>
               </div>
-              <div className="h-[160px]" />
+              <div className="h-[214px]" />
             </div>
           </LockedOverlay>
         ) : (
-          <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-100 p-6">
+          <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-100 p-6 h-full min-h-[304px]">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h3 className="text-sm font-bold text-gray-900">Receitas por Categoria</h3>
                 <p className="text-xs text-gray-400 mt-0.5">Receita por categoria — {periodoLabel}</p>
               </div>
+              <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
               <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
                 {([
                   { key: "cliente" as const, label: "Cliente" },
@@ -981,19 +997,29 @@ export default function FinancasPage() {
       </div>
 
       {/* Price History */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className={cn("grid grid-cols-1 gap-6", showFinancesProFeatures && "lg:grid-cols-3")}>
         {plan === "essencial" ? (
-          <LockedOverlay message="Desbloqueie o histórico de preço" targetPlan="pro" className="lg:col-span-2">
-            <div className="bg-white rounded-2xl border border-gray-100 p-6">
-              <h3 className="text-sm font-bold text-gray-900 mb-1">Histórico de Preço / Dúzia</h3>
-              <p className="text-xs text-gray-400 mb-4">Evolução do preço médio por dúzia</p>
+          <LockedOverlay message="Desbloqueie o histórico de preço" targetPlan="pro" className="lg:col-span-2 h-full" preserveFirstChild>
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 h-full min-h-[320px]">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Histórico de Preço / Dúzia</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Evolução do preço médio por dúzia</p>
+                </div>
+                <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
+              </div>
               <div className="h-[200px]" />
             </div>
           </LockedOverlay>
         ) : (
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
-            <h3 className="text-sm font-bold text-gray-900 mb-1">Histórico de Preço / Dúzia</h3>
-            <p className="text-xs text-gray-400 mb-4">Evolução do preço médio por dúzia</p>
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6 h-full min-h-[320px]">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Histórico de Preço / Dúzia</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Evolução do preço médio por dúzia</p>
+              </div>
+              <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
+            </div>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={historicoPrecosData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -1009,7 +1035,7 @@ export default function FinancasPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col h-full min-h-[320px]">
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-sm font-bold text-gray-900">Resumo de Hoje</h3>
             <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
