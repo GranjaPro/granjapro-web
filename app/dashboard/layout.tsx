@@ -94,13 +94,13 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const { plan, hideAdvancedFeatures, setHideAdvancedFeatures } = usePlan();
   const { user, profile, farm, loading, signOut, refreshProfile } = useAuth();
   const [theme, setTheme] = useState<DashboardTheme>(() => {
-    if (typeof window === "undefined") return "dark";
-    return window.localStorage.getItem(DASHBOARD_THEME_KEY) === "light" ? "light" : "dark";
+    if (typeof window === "undefined") return "light";
+    return window.localStorage.getItem(DASHBOARD_THEME_KEY) === "dark" ? "dark" : "light";
   });
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem(DASHBOARD_THEME_KEY);
-    const nextTheme: DashboardTheme = storedTheme === "light" ? "light" : "dark";
+    const nextTheme: DashboardTheme = storedTheme === "dark" ? "dark" : "light";
     setTheme(nextTheme);
   }, []);
 
@@ -119,12 +119,12 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     function handleThemeChange(event: Event) {
       const customEvent = event as CustomEvent<DashboardTheme>;
-      setTheme(customEvent.detail === "light" ? "light" : "dark");
+      setTheme(customEvent.detail === "dark" ? "dark" : "light");
     }
 
     function handleStorage(event: StorageEvent) {
       if (event.key === DASHBOARD_THEME_KEY) {
-        setTheme(event.newValue === "light" ? "light" : "dark");
+        setTheme(event.newValue === "dark" ? "dark" : "light");
       }
     }
 
