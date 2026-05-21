@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: completed
-last_updated: "2026-05-13T21:24:24.889Z"
-last_activity: 2026-05-13 -- Phase 08 marked complete
+status: planning
+last_updated: "2026-05-21T20:50:30.7316522-03:00"
+last_activity: 2026-05-21 -- Phase 07 accepted complete; advancing to Phase 09
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 3
-  percent: 50
+  completed_plans: 6
+  percent: 67
 ---
 
 # Project State: Granja Pro
@@ -24,16 +24,16 @@ progress:
 
 **Core Value:** Help egg farmers simplify daily farm management and improve financial control - the platform must be fast, intuitive, and useful every single day.
 
-**Current Focus:** Phase 08 — Plan Persistence & Permission Matrix
+**Current Focus:** Phase 09 - UI Permission Integration
 
 ---
 
 ## Current Position
 
-Phase: 08 — COMPLETE
-Plan: 3 of 3
-Status: Phase 08 complete
-Last activity: 2026-05-13 -- Phase 08 marked complete
+Phase: 09 - READY TO DISCUSS
+Plan: 0 of 0
+Status: Phase 09 ready for discussion
+Last activity: 2026-05-21 -- Phase 07 accepted complete; advancing to Phase 09
 
 ## Phase Summary
 
@@ -45,7 +45,7 @@ Last activity: 2026-05-13 -- Phase 08 marked complete
 | 4 - Charts, CRUD & Revenue Sync | Live charts, transaction management, sales auto-sync | Completed |
 | 5 - Google Entry Points & Signup Terms Gate | Add Google entry points on login/signup and enforce the signup terms gate before Google sign-up | Completed |
 | 6 - Existing Account Matching & Post-Login Continuity | Reuse same-email accounts and preserve the current post-login routing/onboarding behavior | Completed |
-| 7 - Dark Theme Foundation | Make the dashboard use an app-controlled dark theme and remove system-theme behavior | Ready to execute |
+| 7 - Dark Theme Foundation | Make the dashboard use an app-controlled dark theme and remove system-theme behavior | Completed |
 | 8 - Plan Persistence & Permission Matrix | Add the real subscription tier field and central plan/capability/limit model | Completed |
 | 9 - UI Permission Integration | Replace scattered component-level plan checks with shared permission helpers | Planned |
 | 10 - Route, API & AI Usage Guards | Add guard foundations for Pro/Premium routes and AI tiers | Planned |
@@ -57,7 +57,7 @@ Last activity: 2026-05-13 -- Phase 08 marked complete
 - **Phases completed:** 6 / 10 overall
 - **Active milestone phases defined:** 4 / 4
 - **Active milestone requirements mapped:** 21 / 21
-- **Active milestone plans completed:** 3 / 6
+- **Active milestone plans completed:** 6 / 6
 - **Latest shipped milestone audit:** `tech_debt` accepted at close
 - **Nyquist coverage:** v1.1 partial (Phase 6 compliant; Phase 5 validation missing and accepted as debt)
 
@@ -106,7 +106,7 @@ Last activity: 2026-05-13 -- Phase 08 marked complete
 - [x] Create v1.2 roadmap with phases 7-10.
 - [x] Discuss Phase 7 dark theme foundation.
 - [x] Plan Phase 7 dark theme foundation.
-- [ ] Execute Phase 7 dark theme foundation plans 07-01 through 07-03.
+- [x] Execute Phase 7 dark theme foundation plans 07-01 through 07-03.
 - [ ] Decide whether the accepted v1.0 closeout gaps become a separate follow-up milestone.
 
 ### Blockers
@@ -129,8 +129,8 @@ Items acknowledged and deferred at milestone close on 2026-05-06:
 **To resume work:**
 
 1. Read `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`, and `.planning/STATE.md`.
-2. Execute Phase 7 with `$gsd-execute-phase 7`.
+2. Discuss Phase 9 with `$gsd-discuss-phase 9`.
 3. Keep v1.2 scope focused on dark theme, plan persistence, central permissions, and route/API guard foundations.
 
 ---
-*State updated: 2026-05-07 after planning Phase 7*
+*State updated: 2026-05-21 after accepting Phase 7 complete and advancing to Phase 9*
