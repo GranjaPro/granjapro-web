@@ -904,14 +904,15 @@ export default function SaudePage() {
       {/* ── Evolução do lote ── */}
       <div className={cn(
         "grid grid-cols-1 gap-4",
-        showHealthProFeatures && showHealthPremiumFeatures && "lg:grid-cols-4",
-        showHealthProFeatures && !showHealthPremiumFeatures && "lg:grid-cols-3"
+        showHealthProFeatures && showHealthPremiumFeatures && "lg:grid-cols-2 xl:grid-cols-4",
+        showHealthProFeatures && !showHealthPremiumFeatures && "lg:grid-cols-2 xl:grid-cols-3"
       )}>
       {plan === "essencial" ? (
         <LockedOverlay message="Desbloqueie a evolução do lote" targetPlan="pro" className="lg:col-span-2" preserveFirstChild>
           <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-2">
+        <div className="mb-4">
+          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center">
               <TrendingUp className="w-4 h-4 text-brand-600" />
             </div>
@@ -919,8 +920,9 @@ export default function SaudePage() {
               <h3 className="text-sm font-bold text-gray-900">Evolução do lote</h3>
             </div>
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto">
-            <RequiredPlanBadge requiredPlan="pro" />
+          <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {[
               { id: "7d", label: "Últimos 7 dias" },
               { id: "30d", label: "Últimos 30 dias" },
@@ -1029,8 +1031,9 @@ export default function SaudePage() {
         </LockedOverlay>
       ) : (
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-2">
+          <div className="mb-4">
+            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center">
                 <TrendingUp className="w-4 h-4 text-brand-600" />
               </div>
@@ -1038,8 +1041,9 @@ export default function SaudePage() {
                 <h3 className="text-sm font-bold text-gray-900">Evolução do lote</h3>
               </div>
             </div>
-            <div className="flex items-center gap-2 overflow-x-auto">
-              <RequiredPlanBadge requiredPlan="pro" />
+            <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               {[
                 { id: "7d", label: "Últimos 7 dias" },
                 { id: "30d", label: "Últimos 30 dias" },
