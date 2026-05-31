@@ -89,18 +89,20 @@
 **Wave 3** *(blocked on Wave 2 completion)*
 - [x] **09-03: AI Usage Meter Integration and Upgrade Copy Finalization** - Move AI usage displays to central metadata and remove pricing/copy drift.
 
-### Phase 10: Route, API & AI Usage Guards
+### Phase 10: Route Guards & Permission States
 
-**Goal:** Add guard foundations so Pro/Premium routes and AI tiers are not only protected by client-side UX.
+**Goal:** Add guard foundations so Pro/Premium dashboard routes are protected by server-side checks and not only client-side UX.
 
-**Requirements:** SEC-01, SEC-03, SEC-04, AI-01, AI-02, AI-04
+**Requirements:** SEC-01, SEC-04
 
 **Success criteria:**
 1. Direct navigation to Pro/Premium dashboard routes is blocked for insufficient plans.
 2. Permission-denied states are clear and route users toward upgrade without breaking the dashboard shell.
-3. AI API validates the user's persisted plan before accepting detailed or diagnostic tiers.
-4. AI credit consumption has a database-backed persistence foundation.
-5. Premium AI behavior is unavailable to Essencial and Pro users through direct API calls.
+3. Access to Workers and Reports is deterministically blocked for users on the Essencial plan.
+
+**Plans:**
+- [ ] 10-01-PLAN.md — Server-Side Route Guards Foundation
+- [ ] 10-02-PLAN.md — Database Security & Trial Cleanup
 
 ## Backlog
 
@@ -114,7 +116,7 @@
 |-----------|-------------|----------------|--------|---------|
 | v1.0 Finances Module + Calendar Sync | 1-4 | 11/11 | Shipped | 2026-05-01 |
 | v1.1 Google Sign-In | 5-6 | 2/2 | Shipped | 2026-05-06 |
-| v1.2 Dark Theme & Granular Permissions | 7-10 | 9/9 | Active | - |
+| v1.2 Dark Theme & Granular Permissions | 7-10 | 9/11 | Active | - |
 
 ---
 *Roadmap updated: 2026-05-06 after starting v1.2*

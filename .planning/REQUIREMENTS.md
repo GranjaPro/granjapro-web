@@ -45,10 +45,9 @@ The app already has a visual plan-gating concept through `components/plan/plan-p
 
 - [ ] **SEC-01**: Pro/Premium dashboard routes have a shared guard that blocks direct navigation for insufficient plans.
 - [x] **SEC-02**: Locked UI regions avoid querying or rendering protected data before the user's plan has been checked when practical.
-- [ ] **SEC-03**: Server/API permission checks are added for at least the AI tier endpoint foundation so the client cannot request premium behavior by changing request payloads.
 - [ ] **SEC-04**: Permission-denied states are explicit, user-friendly, and route the user to upgrade without breaking dashboard navigation.
 
-### AI and Usage Limits
+### AI and Usage Limits (DEFERRED)
 
 - [ ] **AI-01**: AI tier access is tied to the user's persisted plan instead of trusting the client-selected tier.
 - [ ] **AI-02**: AI credit consumption has a database-backed persistence foundation instead of local-only state.
@@ -88,11 +87,11 @@ The app already has a visual plan-gating concept through `components/plan/plan-p
 | PERM-04 | Phase 8 | Planned |
 | PERM-05 | Phase 9 | Complete |
 | PERM-06 | Phase 8 | Planned |
-| SEC-01 | Phase 8/10 | Planned |
+| SEC-01 | Phase 10 | Planned |
 | SEC-02 | Phase 9 | Complete |
-| SEC-03 | Phase 10 | Planned |
+| SEC-03 | - | Deferred |
 | SEC-04 | Phase 10 | Planned |
-| AI-01 | Phase 10 | Planned |
-| AI-02 | Phase 10 | Planned |
-| AI-03 | Phase 8 | Planned |
-| AI-04 | Phase 10 | Planned |
+| AI-01 | - | Deferred |
+| AI-02 | - | Deferred |
+| AI-03 | - | Deferred |
+| AI-04 | - | Deferred |

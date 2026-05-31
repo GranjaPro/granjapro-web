@@ -48,7 +48,7 @@ Last activity: 2026-05-21 -- Phase 09 executed (plans 09-01 to 09-03 completed, 
 | 7 - Dark Theme Foundation | Make the dashboard use an app-controlled dark theme and remove system-theme behavior | Completed |
 | 8 - Plan Persistence & Permission Matrix | Add the real subscription tier field and central plan/capability/limit model | Completed |
 | 9 - UI Permission Integration | Replace scattered component-level plan checks with shared permission helpers | Completed |
-| 10 - Route, API & AI Usage Guards | Add guard foundations for Pro/Premium routes and AI tiers | Planned |
+| 10 - Route Guards & Permission States | Add guard foundations for Pro/Premium routes | Planned |
 
 ---
 

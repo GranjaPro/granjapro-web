@@ -99,3 +99,6 @@ docs/reports.md
 .gemini/
 .agent/*
 .agent/
+.agents/
+.agents/*
+
