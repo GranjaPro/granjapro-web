@@ -71,7 +71,7 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
   }, [farm?.id, supabase]);
 
   // Preferences
-  const [theme, setTheme] = useState<DashboardTheme>("dark");
+  const [theme, setTheme] = useState<DashboardTheme>("light");
   const [notifications, setNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
 
@@ -93,7 +93,7 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem(DASHBOARD_THEME_KEY);
-    setTheme(storedTheme === "light" ? "light" : "dark");
+    setTheme(storedTheme === "dark" ? "dark" : "light");
   }, []);
 
   const handleThemeChange = (nextTheme: DashboardTheme) => {
