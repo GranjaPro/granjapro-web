@@ -102,7 +102,7 @@ GranjaPro/
 │   └── migrations/               # Database migration files
 │
 ├── docs/                         # Documentation
-├── middleware.ts                 # Next.js middleware entry point
+├── proxy.ts                      # Next.js proxy entry point (middleware)
 ├── tsconfig.json                 # TypeScript config
 ├── tailwind.config.ts            # Tailwind CSS config
 ├── next.config.ts                # Next.js config

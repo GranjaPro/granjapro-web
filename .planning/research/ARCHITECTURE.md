@@ -9,7 +9,7 @@
 - `app/(auth)/login/page.tsx`
 - `app/(auth)/signup/page.tsx`
 - `app/auth/callback/route.ts`
-- `middleware.ts`
+- `proxy.ts`
 - `lib/supabase/client.ts`
 - `lib/supabase/server.ts`
 - `lib/supabase/middleware.ts`

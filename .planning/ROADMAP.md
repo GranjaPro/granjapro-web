@@ -69,7 +69,6 @@
 ### Phase 9: UI Permission Integration
 
 **Goal:** Replace scattered component-level plan checks with shared permission helpers and consistent upgrade messaging.
-
 **Requirements:** PERM-02, PERM-03, PERM-05, SEC-02
 
 **Success criteria:**
@@ -78,6 +77,17 @@
 3. Locked components avoid rendering protected data before plan checks when practical.
 4. Upgrade popup plan names and pricing match the landing page.
 5. Repeated `plan === "essencial"` and `plan !== "premium"` checks are reduced in touched areas.
+
+**Plans:**
+
+**Wave 1**
+- [x] **09-01: Shared Permission Primitives Normalization** - Standardize plan badges, lock overlay semantics, and shared shell helper usage.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [x] **09-02: Page-Level Locking and Autolayout Coherence** - Normalize locked regions and toggle-driven layout behavior across touched dashboard pages.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [x] **09-03: AI Usage Meter Integration and Upgrade Copy Finalization** - Move AI usage displays to central metadata and remove pricing/copy drift.
 
 ### Phase 10: Route, API & AI Usage Guards
 
@@ -104,7 +114,7 @@
 |-----------|-------------|----------------|--------|---------|
 | v1.0 Finances Module + Calendar Sync | 1-4 | 11/11 | Shipped | 2026-05-01 |
 | v1.1 Google Sign-In | 5-6 | 2/2 | Shipped | 2026-05-06 |
-| v1.2 Dark Theme & Granular Permissions | 7-10 | 6/6 | Active | - |
+| v1.2 Dark Theme & Granular Permissions | 7-10 | 9/9 | Active | - |
 
 ---
 *Roadmap updated: 2026-05-06 after starting v1.2*

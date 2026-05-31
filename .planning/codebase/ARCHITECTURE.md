@@ -53,7 +53,7 @@
 
 **Middleware Layer:**
 - Purpose: Session management and request-level authentication
-- Location: `middleware.ts`
+- Location: `proxy.ts`
 - Contains: Supabase session update, route protection
 - Depends on: Supabase SSR client
 - Used by: Next.js runtime for all requests

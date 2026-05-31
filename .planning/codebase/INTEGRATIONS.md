@@ -59,7 +59,7 @@
   - Session management: Cookie-based via `@supabase/ssr` with Next.js middleware
   - Client: `lib/supabase/client.ts` for browser contexts
   - Server: `lib/supabase/server.ts` for API routes and server components
-  - Middleware: `middleware.ts` + `lib/supabase/middleware.ts` for session refresh and auth checks
+  - Middleware: `proxy.ts` + `lib/supabase/middleware.ts` for session refresh and auth checks
 
 **Protected Routes:**
 - Public: `/login`, `/signup`, `/forgot-password`, `/auth/callback`, `/auth/confirm`, `/termos-de-uso`, `/politica-de-privacidade`, `/`

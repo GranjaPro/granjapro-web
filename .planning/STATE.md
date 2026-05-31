@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: planning
+status: execution
 last_updated: "2026-05-21T20:50:30.7316522-03:00"
-last_activity: 2026-05-21 -- Phase 07 accepted complete; advancing to Phase 09
+last_activity: 2026-05-21 -- Phase 09 executed (plans 09-01 to 09-03 completed, verification passed)
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-  percent: 67
+  completed_phases: 3
+  total_plans: 9
+  completed_plans: 9
+  percent: 75
 ---
 
 # Project State: Granja Pro
@@ -24,16 +24,16 @@ progress:
 
 **Core Value:** Help egg farmers simplify daily farm management and improve financial control - the platform must be fast, intuitive, and useful every single day.
 
-**Current Focus:** Phase 09 - UI Permission Integration
+**Current Focus:** Phase 10 - Route, API & AI Usage Guards
 
 ---
 
 ## Current Position
 
-Phase: 09 - READY TO DISCUSS
+Phase: 10 - READY TO DISCUSS
 Plan: 0 of 0
-Status: Phase 09 ready for discussion
-Last activity: 2026-05-21 -- Phase 07 accepted complete; advancing to Phase 09
+Status: Phase 09 completed and verified; Phase 10 ready for discussion
+Last activity: 2026-05-21 -- Phase 09 executed (plans 09-01 to 09-03 completed, verification passed)
 
 ## Phase Summary
 
@@ -47,7 +47,7 @@ Last activity: 2026-05-21 -- Phase 07 accepted complete; advancing to Phase 09
 | 6 - Existing Account Matching & Post-Login Continuity | Reuse same-email accounts and preserve the current post-login routing/onboarding behavior | Completed |
 | 7 - Dark Theme Foundation | Make the dashboard use an app-controlled dark theme and remove system-theme behavior | Completed |
 | 8 - Plan Persistence & Permission Matrix | Add the real subscription tier field and central plan/capability/limit model | Completed |
-| 9 - UI Permission Integration | Replace scattered component-level plan checks with shared permission helpers | Planned |
+| 9 - UI Permission Integration | Replace scattered component-level plan checks with shared permission helpers | Completed |
 | 10 - Route, API & AI Usage Guards | Add guard foundations for Pro/Premium routes and AI tiers | Planned |
 
 ---
@@ -129,8 +129,8 @@ Items acknowledged and deferred at milestone close on 2026-05-06:
 **To resume work:**
 
 1. Read `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`, and `.planning/STATE.md`.
-2. Discuss Phase 9 with `$gsd-discuss-phase 9`.
+2. Discuss Phase 10 with `$gsd-discuss-phase 10`.
 3. Keep v1.2 scope focused on dark theme, plan persistence, central permissions, and route/API guard foundations.
 
 ---
-*State updated: 2026-05-21 after accepting Phase 7 complete and advancing to Phase 9*
+*State updated: 2026-05-21 after executing and verifying Phase 9*

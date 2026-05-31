@@ -35,16 +35,16 @@ The app already has a visual plan-gating concept through `components/plan/plan-p
 ### Permission Matrix
 
 - [ ] **PERM-01**: A central permission matrix defines which plan can access each gated capability.
-- [ ] **PERM-02**: Existing scattered checks for Pro/Premium UI features are replaced with shared permission helpers where practical for this milestone.
-- [ ] **PERM-03**: Menu items, locked components, and upgrade prompts read from the same plan/capability definitions.
+- [x] **PERM-02**: Existing scattered checks for Pro/Premium UI features are replaced with shared permission helpers where practical for this milestone.
+- [x] **PERM-03**: Menu items, locked components, and upgrade prompts read from the same plan/capability definitions.
 - [ ] **PERM-04**: The permission matrix documents limits for users, birds, farms, tasks, insights, and AI credits even when some limits are only enforcement foundations in this milestone.
-- [ ] **PERM-05**: In-app upgrade messaging uses the same plan names and pricing as the public landing page.
+- [x] **PERM-05**: In-app upgrade messaging uses the same plan names and pricing as the public landing page.
 - [ ] **PERM-06**: Authenticated users with valid plans can reach plan selection from the dashboard navigation and user preferences.
 
 ### Guards and Data Exposure
 
 - [ ] **SEC-01**: Pro/Premium dashboard routes have a shared guard that blocks direct navigation for insufficient plans.
-- [ ] **SEC-02**: Locked UI regions avoid querying or rendering protected data before the user's plan has been checked when practical.
+- [x] **SEC-02**: Locked UI regions avoid querying or rendering protected data before the user's plan has been checked when practical.
 - [ ] **SEC-03**: Server/API permission checks are added for at least the AI tier endpoint foundation so the client cannot request premium behavior by changing request payloads.
 - [ ] **SEC-04**: Permission-denied states are explicit, user-friendly, and route the user to upgrade without breaking dashboard navigation.
 
@@ -83,13 +83,13 @@ The app already has a visual plan-gating concept through `components/plan/plan-p
 | PLAN-04 | Phase 8 | Planned |
 | PLAN-05 | Phase 8 | Planned |
 | PERM-01 | Phase 8 | Planned |
-| PERM-02 | Phase 9 | Planned |
-| PERM-03 | Phase 9 | Planned |
+| PERM-02 | Phase 9 | Complete |
+| PERM-03 | Phase 9 | Complete |
 | PERM-04 | Phase 8 | Planned |
-| PERM-05 | Phase 9 | Planned |
+| PERM-05 | Phase 9 | Complete |
 | PERM-06 | Phase 8 | Planned |
 | SEC-01 | Phase 8/10 | Planned |
-| SEC-02 | Phase 9 | Planned |
+| SEC-02 | Phase 9 | Complete |
 | SEC-03 | Phase 10 | Planned |
 | SEC-04 | Phase 10 | Planned |
 | AI-01 | Phase 10 | Planned |

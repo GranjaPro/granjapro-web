@@ -26,6 +26,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ModalPortal from "@/components/ui/modal-portal";
+import { usePlan } from "@/components/plan/plan-provider";
+import {
+  AI_MODE_META,
+  PLAN_MATRIX,
+  getAICreditCost,
+  type AIResponseMode,
+} from "@/lib/plans";
 
 /* ── Types ── */
 interface Message {
@@ -43,24 +50,17 @@ interface IntentOption {
   label: string;
   description: string;
   credits: number;
-  key: string;
+  key: AIResponseMode;
 }
-
-/* ── Credit Costs ── */
-const CREDIT_COSTS = {
-  simple: 1,
-  detailed: 3,
-  diagnostic: 5,
-} as const;
 
 /* ── Suggestions with credit costs ── */
 const suggestions = [
-  { label: "Relatório de produção", description: "Resumo semanal de ovos", icon: Egg, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", credits: 1, prompt: "Gere um relatório resumido da produção de ovos desta semana.", tier: "simple" as const },
-  { label: "Análise de mortalidade", description: "Últimos 30 dias", icon: Skull, iconBg: "bg-red-50", iconColor: "text-red-500", credits: 3, prompt: "Analise a taxa de mortalidade dos últimos 30 dias e sugira ações.", tier: "detailed" as const },
-  { label: "Custos de ração", description: "Custo médio por ave", icon: Wheat, iconBg: "bg-orange-50", iconColor: "text-orange-600", credits: 1, prompt: "Qual o custo médio de ração por ave neste mês?", tier: "simple" as const },
-  { label: "Projeção financeira", description: "Receitas e despesas", icon: DollarSign, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", credits: 5, prompt: "Faça uma projeção de receita e despesas para o próximo mês.", tier: "diagnostic" as const },
-  { label: "Tendência de postura", description: "Taxa dos últimos 7 dias", icon: TrendingUp, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", credits: 1, prompt: "Como está a tendência da taxa de postura nos últimos 7 dias?", tier: "simple" as const },
-  { label: "Checklist diário", description: "Tarefas de hoje", icon: ClipboardList, iconBg: "bg-brand-50", iconColor: "text-brand-600", credits: 1, prompt: "Gere um checklist das tarefas diárias para a granja hoje.", tier: "simple" as const },
+  { label: "Relatório de produção", description: "Resumo semanal de ovos", icon: Egg, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", credits: getAICreditCost("simple"), prompt: "Gere um relatório resumido da produção de ovos desta semana.", tier: "simple" as const },
+  { label: "Análise de mortalidade", description: "Últimos 30 dias", icon: Skull, iconBg: "bg-red-50", iconColor: "text-red-500", credits: getAICreditCost("detailed"), prompt: "Analise a taxa de mortalidade dos últimos 30 dias e sugira ações.", tier: "detailed" as const },
+  { label: "Custos de ração", description: "Custo médio por ave", icon: Wheat, iconBg: "bg-orange-50", iconColor: "text-orange-600", credits: getAICreditCost("simple"), prompt: "Qual o custo médio de ração por ave neste mês?", tier: "simple" as const },
+  { label: "Projeção financeira", description: "Receitas e despesas", icon: DollarSign, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", credits: getAICreditCost("diagnostic"), prompt: "Faça uma projeção de receita e despesas para o próximo mês.", tier: "diagnostic" as const },
+  { label: "Tendência de postura", description: "Taxa dos últimos 7 dias", icon: TrendingUp, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", credits: getAICreditCost("simple"), prompt: "Como está a tendência da taxa de postura nos últimos 7 dias?", tier: "simple" as const },
+  { label: "Checklist diário", description: "Tarefas de hoje", icon: ClipboardList, iconBg: "bg-brand-50", iconColor: "text-brand-600", credits: getAICreditCost("simple"), prompt: "Gere um checklist das tarefas diárias para a granja hoje.", tier: "simple" as const },
 ];
 
 /* ── Simple questions that skip the tier picker ── */
@@ -68,6 +68,8 @@ const SIMPLE_PATTERNS = /^(oi|ol[aá]|bom dia|boa tarde|boa noite|obrigad|valeu|
 
 
 export default function AssistenteIAPage() {
+  const { plan } = usePlan();
+  const monthlyCredits = PLAN_MATRIX[plan].limits.aiCreditsMonthly;
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -75,8 +77,8 @@ export default function AssistenteIAPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
-  const [credits, setCredits] = useState(50);
-  const [totalCredits] = useState(50);
+  const [credits, setCredits] = useState(monthlyCredits);
+  const [totalCredits, setTotalCredits] = useState(monthlyCredits);
   const [showPhotoPopup, setShowPhotoPopup] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<"50" | "100" | "200" | null>(null);
@@ -100,6 +102,11 @@ export default function AssistenteIAPage() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showPhotoPopup]);
+
+  useEffect(() => {
+    setTotalCredits(monthlyCredits);
+    setCredits(monthlyCredits);
+  }, [monthlyCredits]);
 
   useEffect(() => {
     if (!isStreaming) {
@@ -264,9 +271,9 @@ export default function AssistenteIAPage() {
       timestamp: new Date(),
       type: "intent-picker",
       intentOptions: [
-        { label: "Resumo simples", description: "Resposta rápida e direta", credits: 1, key: "simple" },
-        { label: "Análise detalhada", description: "Dados e comparativos", credits: 3, key: "detailed" },
-        { label: "Diagnóstico com recomendações", description: "Análise completa + plano de ação", credits: 5, key: "diagnostic" },
+        { label: AI_MODE_META.simple.label, description: AI_MODE_META.simple.description, credits: getAICreditCost("simple"), key: "simple" },
+        { label: AI_MODE_META.detailed.label, description: AI_MODE_META.detailed.description, credits: getAICreditCost("detailed"), key: "detailed" },
+        { label: AI_MODE_META.diagnostic.label, description: AI_MODE_META.diagnostic.description, credits: getAICreditCost("diagnostic"), key: "diagnostic" },
       ],
     };
     setMessages((prev) => [...prev, pickerMsg]);
@@ -282,8 +289,8 @@ export default function AssistenteIAPage() {
     setMessages((prev) => [...prev, noCreditsMsg]);
   }
 
-  function handleIntentSelect(messageId: number, optionKey: string) {
-    const cost = CREDIT_COSTS[optionKey as keyof typeof CREDIT_COSTS] || 1;
+  function handleIntentSelect(messageId: number, optionKey: AIResponseMode) {
+    const cost = getAICreditCost(optionKey);
 
     if (credits < cost) {
       showNoCreditsMessage();
@@ -298,7 +305,7 @@ export default function AssistenteIAPage() {
 
     // Call Claude API OUTSIDE the state updater to avoid StrictMode double-fire
     const userText = [...updated].reverse().find((m) => m.role === "user")?.content || "";
-    streamFromAPI(userText, optionKey as "simple" | "detailed" | "diagnostic", cost, updated);
+    streamFromAPI(userText, optionKey, cost, updated);
   }
 
   function handleSubmit(e: React.FormEvent) {

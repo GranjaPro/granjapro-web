@@ -97,3 +97,5 @@ docs/workes.md
 docs/reports.md
 
 .gemini/
+.agent/*
+.agent/

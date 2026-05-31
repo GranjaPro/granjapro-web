@@ -77,7 +77,7 @@
 **Build:**
 - `tsconfig.json` - TypeScript compilation settings with `@/*` path alias
 - `next.config.ts` - Next.js configuration (minimal, React strict mode enabled)
-- `middleware.ts` - Request middleware for authentication and session management
+- `proxy.ts` - Request proxy for authentication and session management
 
 **Development:**
 - No `.eslintrc` or `.prettierrc` detected - Using Next.js default linting configuration

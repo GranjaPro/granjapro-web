@@ -5,6 +5,7 @@ import { X, Sparkles, Check, Loader2, AlertCircle } from "lucide-react";
 import ModalPortal from "@/components/ui/modal-portal";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
+import { PLAN_MATRIX } from "@/lib/plans";
 import type { PlanType } from "./plan-provider";
 
 interface UpgradePopupProps {
@@ -16,7 +17,7 @@ interface UpgradePopupProps {
 const planFeatures: Record<string, { title: string; price: string; features: string[] }> = {
   pro: {
     title: "Profissional",
-    price: "R$ 69,90/mês",
+    price: PLAN_MATRIX.pro.priceMonthly.replace("/mes", "/mês"),
     features: [
       "Finanças completas (receita, despesas)",
       "Gestão de vendas e clientes",
@@ -31,7 +32,7 @@ const planFeatures: Record<string, { title: string; price: string; features: str
   },
   premium: {
     title: "Premium",
-    price: "R$ 99,90/mês",
+    price: PLAN_MATRIX.premium.priceMonthly.replace("/mes", "/mês"),
     features: [
       "Tudo do plano Profissional",
       "Assistente IA completo (detalhado + diagnóstico)",
