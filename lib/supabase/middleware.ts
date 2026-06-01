@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getPlanOrNull, isTrialExpired } from "../plans";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -51,6 +52,32 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
+  }
+
+  // Plan-based route guards (SEC-01, SEC-04)
+  if (user) {
+    const PROTECTED_ROUTES = ["/dashboard/workers", "/dashboard/reports"];
+    const isProtectedRoute = PROTECTED_ROUTES.some(
+      (route) => request.nextUrl.pathname.startsWith(route)
+    );
+
+    if (isProtectedRoute) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("plan, trial_ends_at, trial_used_at")
+        .eq("id", user.id)
+        .single();
+
+      const persistedPlan = getPlanOrNull(profile?.plan);
+      const trialExpired = isTrialExpired(profile);
+      const activePlan = trialExpired ? "essencial" : (persistedPlan || "essencial");
+
+      if (activePlan !== "pro" && activePlan !== "premium") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/dashboard/select-plan";
+        return NextResponse.redirect(url);
+      }
+    }
   }
 
   return supabaseResponse;
