@@ -43,9 +43,9 @@ The app already has a visual plan-gating concept through `components/plan/plan-p
 
 ### Guards and Data Exposure
 
-- [ ] **SEC-01**: Pro/Premium dashboard routes have a shared guard that blocks direct navigation for insufficient plans.
+- [x] **SEC-01**: Pro/Premium dashboard routes have a shared guard that blocks direct navigation for insufficient plans.
 - [x] **SEC-02**: Locked UI regions avoid querying or rendering protected data before the user's plan has been checked when practical.
-- [ ] **SEC-04**: Permission-denied states are explicit, user-friendly, and route the user to upgrade without breaking dashboard navigation.
+- [x] **SEC-04**: Permission-denied states are explicit, user-friendly, and route the user to upgrade without breaking dashboard navigation.
 
 ### AI and Usage Limits (DEFERRED)
 
