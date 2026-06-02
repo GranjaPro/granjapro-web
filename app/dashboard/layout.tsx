@@ -179,20 +179,6 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
     }
   }, [routePlanBlocked, router]);
 
-  useEffect(() => {
-    if (!profile?.id || !isTrialExpired(profile) || profile.plan === null) return;
-
-    supabase
-      .from("profiles")
-      .update({
-        plan: null,
-        trial_started_at: null,
-        trial_ends_at: null,
-      })
-      .eq("id", profile.id)
-      .then(() => refreshProfile());
-  }, [profile, refreshProfile]);
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8faf9] dark:bg-slate-950">
