@@ -30,7 +30,7 @@ The app already has a visual plan-gating concept through `components/plan/plan-p
 - [ ] **PLAN-02**: New profiles created by auth signup receive a valid default plan without relying on manual database edits.
 - [ ] **PLAN-03**: TypeScript database types and runtime plan parsing stay aligned with the database schema.
 - [ ] **PLAN-04**: The app handles missing, null, or invalid plan values defensively by falling back to `essencial`.
-- [ ] **PLAN-05**: Expired free trials clear the active plan to `null` and return the user to plan selection before showing dashboard navigation.
+- [x] **PLAN-05**: Expired free trials clear the active plan to `null` and return the user to plan selection before showing dashboard navigation.
 
 ### Permission Matrix
 
