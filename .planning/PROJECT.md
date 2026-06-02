@@ -10,22 +10,30 @@ Help egg farmers simplify daily farm management and improve financial control â€
 
 ## Current State
 
-- v1.0 **Finances Module + Calendar Sync** shipped on 2026-05-01.
+- v1.2 **Dark Theme & Granular Permissions** shipped on 2026-06-02.
 - v1.1 **Google Sign-In** shipped on 2026-05-06.
-- Financial KPIs, charts, and transaction management now use Supabase-backed data instead of mock values.
-- Dashboard and finances pages share the same date-filter source of truth.
-- Google OAuth entry points now exist on login/signup, with signup terms gating and post-login continuity for existing accounts.
-- Known accepted closeout gaps: missing Phase 1-3 `VERIFICATION.md` artifacts, sale edit/delete does not sync linked revenue transactions, Phase 5 validation/UAT debt, and provider-level same-email identity behavior depends on live Supabase Auth settings.
+- v1.0 **Finances Module + Calendar Sync** shipped on 2026-05-01.
+- Dashboard now features a native dark theme foundation.
+- Plan-based permissions are centralized in `lib/plans.ts` and enforced via root middleware and Supabase RLS policies.
+- Trial expiration vulnerability from v1.1 is resolved with server-side and database-level guards.
+- Known accepted closeout gaps: AI security guards and credit persistence deferred; pre-v1.0 verification artifacts missing; Phase 5 validation debt.
 
-## Current Milestone: v1.2 Dark Theme & Granular Permissions
+<details>
+<summary>Previous Milestone Details (v1.0 - v1.2)</summary>
 
-**Goal:** Make the dashboard use a deliberate dark theme and replace scattered plan checks with a central, enforceable permissions foundation.
+- Financial KPIs, charts, and transaction management use Supabase-backed data.
+- Dashboard and finances pages share a unified date-filter context.
+- Google Sign-In with terms gate and account continuity is fully integrated.
+- Permissons/Limits defined for Essencial, Pro, and Premium tiers.
+- Route guards protect /dashboard/workers and /dashboard/reports for Pro/Premium users.
 
-**Target features:**
-- Remove the "system" theme mode and make theme behavior explicit and app-controlled.
-- Add a real persisted plan field for `profiles.plan` with migration/schema alignment.
-- Centralize the Essencial, Pro, and Premium permission matrix instead of hardcoding plan checks page by page.
-- Add route/API guard foundations for Pro/Premium areas, including AI tier validation and usage persistence hooks.
+</details>
+
+## Next Milestone Goals
+
+- Define the core objective for v1.3 (e.g., Reports/Export, Workers Management, or Advanced Analytics).
+- Implement deferred AI security and usage limits if prioritized.
+- Address accumulated tech debt or verification gaps if requested.
 
 ## Requirements
 

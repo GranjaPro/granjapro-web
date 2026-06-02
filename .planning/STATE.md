@@ -2,21 +2,21 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: executing
-last_updated: "2026-06-02T16:54:37.407Z"
-last_activity: 2026-06-02
+status: shipped
+last_updated: "2026-06-02T18:00:00Z"
+last_activity: 2026-06-02 -- Milestone v1.2 archived and tagged.
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
+  total_phases: 10
+  completed_phases: 10
+  total_plans: 24
+  completed_plans: 24
   percent: 100
 ---
 
 # Project State: Granja Pro
 
-**Last updated:** 2026-05-07
-**Latest shipped milestone:** v1.1 - Google Sign-In
+**Last updated:** 2026-06-02
+**Latest shipped milestone:** v1.2 - Dark Theme & Granular Permissions
 
 ---
 
@@ -24,15 +24,15 @@ progress:
 
 **Core Value:** Help egg farmers simplify daily farm management and improve financial control - the platform must be fast, intuitive, and useful every single day.
 
-**Current Focus:** Phase 10 — Route Guards & Permission States
+**Current Focus:** Completed Milestone v1.2
 
 ---
 
 ## Current Position
 
-Phase: 10
-Plan: Not started
-Status: Executing Phase 10
+Phase: N/A
+Plan: N/A
+Status: Milestone v1.2 Shipped
 Last activity: 2026-06-02
 
 ## Phase Summary
@@ -48,18 +48,14 @@ Last activity: 2026-06-02
 | 7 - Dark Theme Foundation | Make the dashboard use an app-controlled dark theme and remove system-theme behavior | Completed |
 | 8 - Plan Persistence & Permission Matrix | Add the real subscription tier field and central plan/capability/limit model | Completed |
 | 9 - UI Permission Integration | Replace scattered component-level plan checks with shared permission helpers | Completed |
-| 10 - Route Guards & Permission States | Add guard foundations for Pro/Premium routes | Planned |
+| 10 - Route Guards & Permission States | Add guard foundations for Pro/Premium routes | Completed |
 
 ---
 
 ## Performance Metrics
 
-- **Phases completed:** 6 / 10 overall
-- **Active milestone phases defined:** 4 / 4
-- **Active milestone requirements mapped:** 21 / 21
-- **Active milestone plans completed:** 6 / 6
-- **Latest shipped milestone audit:** `tech_debt` accepted at close
-- **Nyquist coverage:** v1.1 partial (Phase 6 compliant; Phase 5 validation missing and accepted as debt)
+- **Phases completed:** 10 / 10 overall
+- **Latest shipped milestone audit:** `passed` (v1.2-MILESTONE-AUDIT.md)
 
 ---
 
@@ -69,58 +65,15 @@ Last activity: 2026-06-02
 
 | Decision | Rationale | Status |
 |----------|-----------|--------|
-| Keep v1.1 limited to Google login/signup entry points plus account reuse | Preserves a small, focused auth milestone | Completed |
-| Require the signup terms checkbox before Google sign-up starts | Keeps the existing signup policy intact | Completed |
-| Reuse the existing post-login routing/onboarding flow after Google auth | Avoids forked auth experiences and broad rewrites | Active |
-| Do not block phase closure on phase-level `npm run ...` checks | Keeps phase tracking focused on scoped deliverables and explicit user approval | Active |
-| v1.2 starts with dark theme before permissions integration | Reduces visual churn before replacing plan-gated UI surfaces | Active |
-| Plan enforcement must become centralized and server-aware | Current plan checks are UX-only and repeated across pages | Active |
-
-### Critical Pitfalls
-
-1. **Redirect/callback misconfiguration** - Google auth can fail between local and production environments even if the UI entry points are correct.
-2. **Duplicate-account creation** - same-email Google sign-in must resolve into the existing account path instead of creating parallel user records.
-3. **Broken onboarding continuity** - social-login users may bypass password-specific assumptions and still need to follow existing app gating.
-4. **Plan field drift** - TypeScript already expects `profiles.plan`, but migrations/schema do not define it.
-5. **Client-only gating** - blurred overlays and menu interception do not protect routes, APIs, or data queries.
-6. **AI tier spoofing** - the API currently trusts the tier submitted by the client.
+| Route guards must be server-side via Middleware | Prevents content/data loading for unauthorized users | Shipped |
+| Hardened RLS for workers table | Defense-in-depth against client bypasses | Shipped |
+| Removed client-side trial expiration logic | Secure management at the edge/database level | Shipped |
 
 ### Architecture Notes
 
-- Reuse the current Supabase + Next.js auth stack and callback behavior already present in the app.
-- Do not introduce a custom backend or new auth libraries for this milestone.
-- Google sign-in should plug into the current post-login routing/onboarding flow rather than creating a parallel path.
-- `components/plan/plan-provider.tsx` currently defaults to `essencial` and reads `profile.plan`.
-- `components/plan/locked-overlay.tsx` currently blocks by UX only and may leave blurred protected content in the DOM.
-- `app/api/ai/route.ts` currently changes behavior based on a client-submitted tier.
-
-### Todos
-
-- [x] Create the detailed implementation plan for Phase 5.
-- [x] Execute Phase 5 plan 05-01 and close the phase.
-- [x] Create the detailed implementation plan for Phase 6.
-- [x] Execute Phase 6 plan 06-01.
-- [x] Resolve the unrelated dashboard TypeScript build blocker before full automated verification.
-- [x] Run live Supabase/Google OAuth verification for AUTH-03 and AUTH-04.
-- [x] Define v1.2 requirements for dark theme and granular permissions.
-- [x] Create v1.2 roadmap with phases 7-10.
-- [x] Discuss Phase 7 dark theme foundation.
-- [x] Plan Phase 7 dark theme foundation.
-- [x] Execute Phase 7 dark theme foundation plans 07-01 through 07-03.
-- [ ] Decide whether the accepted v1.0 closeout gaps become a separate follow-up milestone.
-
-### Blockers
-
-None currently recorded for milestone flow.
-
-## Deferred Items
-
-Items acknowledged and deferred at milestone close on 2026-05-06:
-
-| Category | Item | Status |
-|----------|------|--------|
-| uat_gap | Phase 05 `05-HUMAN-UAT.md` has approved skipped scenarios and 0 pending scenarios | accepted |
-| validation | Phase 05 missing `05-VALIDATION.md` | accepted |
+- Root `middleware.ts` now orchestrates session updates and route guards.
+- `lib/supabase/middleware.ts` contains the core redirection logic based on user plan.
+- Supabase RLS policies for `workers` table now strictly enforce `plan` and `trial_ends_at`.
 
 ---
 
@@ -128,9 +81,9 @@ Items acknowledged and deferred at milestone close on 2026-05-06:
 
 **To resume work:**
 
-1. Read `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`, and `.planning/STATE.md`.
-2. Discuss Phase 10 with `$gsd-discuss-phase 10`.
-3. Keep v1.2 scope focused on dark theme, plan persistence, central permissions, and route/API guard foundations.
+1. Run `/gsd:new-milestone` to define the goals for v1.3.
+2. Consider implementing deferred AI security and usage limits.
+3. Address backlog items (Payment processor, subscription webhooks).
 
 ---
-*State updated: 2026-05-21 after executing and verifying Phase 9*
+*State updated: 2026-06-02 after shipping v1.2*
