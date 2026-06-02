@@ -33,6 +33,7 @@
 **Requirements:** THEME-01, THEME-02, THEME-03, THEME-04
 
 **Success criteria:**
+
 1. Dashboard shell, sidebar, top bar, scroll areas, modals, and common primitives render with dark-theme-safe colors.
 2. No visible "system" theme mode remains in the app experience.
 3. Dashboard pages keep readable contrast and focus states on mobile and desktop.
@@ -41,12 +42,15 @@
 **Plans:**
 
 **Wave 1**
+
 - [x] **07-01: Dashboard Dark Foundation and Shared Primitives** - Make the authenticated dashboard deterministically dark and update shared primitive defaults.
 
 **Wave 2** *(blocked on Wave 1 completion)*
+
 - [x] **07-02: Remove System Theme Option and Darken Shared Overlays** - Remove visible system-theme behavior and darken profile settings, date controls, locked overlays, and upgrade popup.
 
 **Wave 3** *(blocked on Wave 2 completion)*
+
 - [x] **07-03: Dashboard Page Cleanup and Theme Verification** - Selectively convert key dashboard pages and verify public/auth pages do not regress.
 
 ### Phase 8: Plan Persistence & Permission Matrix
@@ -56,6 +60,7 @@
 **Requirements:** PLAN-01, PLAN-02, PLAN-03, PLAN-04, PLAN-05, PERM-01, PERM-04, PERM-06, AI-03
 
 **Success criteria:**
+
 1. Supabase migrations/schema include `profiles.plan` with valid allowed values and `essencial` default.
 2. New user profile creation produces a valid plan automatically.
 3. TypeScript plan handling is schema-aligned and defensive against invalid data.
@@ -72,6 +77,7 @@
 **Requirements:** PERM-02, PERM-03, PERM-05, SEC-02
 
 **Success criteria:**
+
 1. Sidebar Pro/Premium navigation uses the central permission model.
 2. Existing locked dashboard regions use shared helpers where practical in this milestone.
 3. Locked components avoid rendering protected data before plan checks when practical.
@@ -81,12 +87,15 @@
 **Plans:**
 
 **Wave 1**
+
 - [x] **09-01: Shared Permission Primitives Normalization** - Standardize plan badges, lock overlay semantics, and shared shell helper usage.
 
 **Wave 2** *(blocked on Wave 1 completion)*
+
 - [x] **09-02: Page-Level Locking and Autolayout Coherence** - Normalize locked regions and toggle-driven layout behavior across touched dashboard pages.
 
 **Wave 3** *(blocked on Wave 2 completion)*
+
 - [x] **09-03: AI Usage Meter Integration and Upgrade Copy Finalization** - Move AI usage displays to central metadata and remove pricing/copy drift.
 
 ### Phase 10: Route Guards & Permission States
@@ -96,13 +105,15 @@
 **Requirements:** SEC-01, SEC-04
 
 **Success criteria:**
+
 1. Direct navigation to Pro/Premium dashboard routes is blocked for insufficient plans.
 2. Permission-denied states are clear and route users toward upgrade without breaking the dashboard shell.
 3. Access to Workers and Reports is deterministically blocked for users on the Essencial plan.
 
 **Plans:**
-- [ ] 10-01-PLAN.md — Server-Side Route Guards Foundation
-- [ ] 10-02-PLAN.md — Database Security & Trial Cleanup
+2/2 plans complete
+
+- [x] 10-02-PLAN.md — Database Security & Trial Cleanup
 
 ## Backlog
 
