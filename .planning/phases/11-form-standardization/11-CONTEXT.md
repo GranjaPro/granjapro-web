@@ -13,11 +13,15 @@ This phase includes:
 - Centralized Zod validation schemas for core entities (Barns, Flocks, Production, Inventory, Sales).
 - Refactoring `app/dashboard/inventory` and `app/dashboard/reports` into clean components.
 - Standardizing report data processing in `lib/services/reports.ts`.
+- **Refactoring the monolithic `profile-settings.tsx`** using the new standardized system.
+- Integration of **`react-toastify`** for global success/error notifications.
+- Standardized **`ConfirmDelete`** components to unify deletion workflows.
+- **Dirty state protection** for complex forms with user confirmation prompts.
 
 It does NOT include:
 - KPI goal customization (deferred to Phase 15).
-- Task management forms or system (deferred to Phase 13).
-- New worker management features.
+- Task management system (deferred to Phase 13).
+- Complex Supabase-to-Zod error mapping (avoiding over-engineering for MVP).
 </domain>
 
 <decisions>
@@ -30,17 +34,22 @@ It does NOT include:
 - **D-04:** Implement **Atomic Components** for forms. Provide a set of reusable fields (`FormField`, `Input`, `Select`, `Checkbox`) that can be composed within feature-specific forms.
 - **D-05:** Validation feedback should be **Real-time** (onBlur or onChange) to provide immediate guidance to the user.
 
-### UI Organization
+### UI & UX Standardization
 - **D-06:** Organize reusable dashboard components into **Feature-based Folders** under `components/dashboard/[feature]/` (e.g., `components/dashboard/inventory/InventoryTable.tsx`).
-- **D-07:** Refactor large page files (like `inventory/page.tsx` and `reports/page.tsx`) by extracting their sub-elements into these feature-based components.
+- **D-07:** Refactor large page files (like `inventory/page.tsx`, `reports/page.tsx`, and `profile-settings.tsx`) by extracting their sub-elements.
+- **D-08:** Use **`react-toastify`** for all form submission feedback. Implement a standard helper for success and error toasts.
+- **D-09:** **Automated Loading State**: Form buttons should automatically disable and show a loading indicator using the `isSubmitting` state from React Hook Form.
+- **D-10:** **Mobile Optimization**: Input components must use appropriate `inputMode` (e.g., `decimal` for quantities) and native pickers where appropriate for a better smartphone experience.
+- **D-11:** **Standardized Deletion**: Create a `ConfirmDelete` modal/button component to replace scattered "Confirmar Exclusão" logic.
+- **D-12:** **Dirty State Warning**: Implement a confirmation prompt if the user tries to close a modal or navigate away with unsaved changes: *"Você tem alterações não salvas. Deseja realmente sair?"*.
 
 ### Reports & Data Integration
-- **D-08:** Move all data fetching, transformation, and export preparation logic for reports into **`lib/services/reports.ts`**.
-- **D-09:** Ensure report components are "dumb" and only receive pre-formatted data from the service layer.
+- **D-13:** Move all data fetching, transformation, and export preparation logic for reports into **`lib/services/reports.ts`**.
+- **D-14:** Ensure report components are "dumb" and only receive pre-formatted data from the service layer.
 
 ### General Code Quality
-- **D-10:** Eliminate code repetition between similar component types (e.g., ensure all "Delete Confirmation" modals use the same shared logic and UI).
-- **D-11:** Ensure 100% database integration for components and charts that are currently using mock data or local-only state.
+- **D-15:** Eliminate code repetition between similar component types.
+- **D-16:** Ensure 100% database integration for components and charts that are currently using mock data or local-only state.
 
 </decisions>
 

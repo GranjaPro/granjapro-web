@@ -14,16 +14,23 @@ We discussed the architecture for standardizing forms across the Granja Pro dash
 - **Rationale:** This combination provides the best balance of flexibility and type safety. Atomic components allow for custom layouts while RHF + Zod handles the heavy lifting of validation and state.
 - **User Preference:** Confirmed industry standard tools.
 
-#### 2. Validation UX
-- **Selection:** Real-time (onBlur/onChange).
-- **Rationale:** Immediate feedback is crucial for a mobile-first app used in farm environments where users might be distracted or in a hurry.
+#### 2. Validation & Feedback UX
+- **Selection:** Real-time (onBlur/onChange) + `react-toastify`.
+- **Rationale:** Immediate feedback is crucial for a mobile-first app. Toastify provides a consistent way to notify users of submission results.
+- **Automated State:** Buttons will automatically reflect `isSubmitting` (spinners/disabled).
 
 #### 3. Organization & Refactoring
 - **Selection:** Feature-based folders + Service-based logic for reports.
-- **Rationale:** Moving to `components/dashboard/[feature]/` will reduce clutter in the main components folder. Extracting report logic to `lib/services/reports.ts` will significantly improve the maintainability of the currently bloated reports page.
+- **New Target:** Refactoring `profile-settings.tsx` to break down its monolithic structure using the new system.
 
-#### 4. Scope Management
-- **Deferred:** KPI customization was moved to Phase 15 to keep Phase 11 focused on the foundational form rollout. Task management forms were deferred to Phase 13.
+#### 4. Mobile & Safety Features
+- **Mobile:** Use optimized `inputMode` and native pickers for smartphones.
+- **Safety:** Implement a "Dirty State" warning: *"Você tem alterações não salvas. Deseja realmente sair?"*.
+- **Standardization:** Unified `ConfirmDelete` component for all entities.
+
+#### 5. Scope Management
+- **Deferred:** KPI customization was moved to Phase 15. Task management forms were deferred to Phase 13.
+- **Rejected:** Complex Supabase-to-Zod error mapping was rejected to avoid over-engineering the MVP.
 
 ## Decisions Captured
 
@@ -32,7 +39,10 @@ We discussed the architecture for standardizing forms across the Granja Pro dash
 - [D-03] Schemas in `lib/schemas/`.
 - [D-04] Atomic form components (`FormField`, etc.).
 - [D-06] Feature-based folder organization for UI components.
-- [D-08] Service-based logic for reports in `lib/services/reports.ts`.
+- [D-08] `react-toastify` for global notifications.
+- [D-09] Automated `isSubmitting` handling.
+- [D-11] Standardized `ConfirmDelete` component.
+- [D-12] Dirty state warning for forms.
 
 ## Noted for Later (Deferred)
 
