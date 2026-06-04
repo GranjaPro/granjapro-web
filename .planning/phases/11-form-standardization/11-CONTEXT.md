@@ -77,6 +77,7 @@ It does NOT include:
 ## Deferred Ideas
 
 - **KPI Customization**: Clicking on KPIs to adjust metrics/goals is deferred to Phase 15.
+- **Rollout Gap**: Refactoring the legacy forms for Feed, Health, Mortality, Finances, Customers, and Equipment is deferred to Phase 15 (schemas are defined in Phase 11).
 - **Task System**: Full task creation and management forms will be built in Phase 13.
 - **Notifications**: The notification system implementation remains in Phase 13.
 </deferred>
