@@ -2,24 +2,25 @@
 
 ## Milestones
 
-- Completed **v1.0 Finances Module + Calendar Sync** - Phases 1-4 (shipped 2026-05-01). Archive: `.planning/milestones/v1.0-ROADMAP.md`
-- Completed **v1.1 Google Sign-In** - Phases 5-6 (shipped 2026-05-06). Archive: `.planning/milestones/v1.1-ROADMAP.md`
+- Active **v1.3 Inventory, Tasks & UI Consolidation** - Phases 11-15. Detailed roadmap: `.planning/milestones/v1.3-ROADMAP.md`
 - Completed **v1.2 Dark Theme & Granular Permissions** - Phases 7-10 (shipped 2026-06-02). Archive: `.planning/milestones/v1.2-ROADMAP.md`
+- Completed **v1.1 Google Sign-In** - Phases 5-6 (shipped 2026-05-06). Archive: `.planning/milestones/v1.1-ROADMAP.md`
+- Completed **v1.0 Finances Module + Calendar Sync** - Phases 1-4 (shipped 2026-05-01). Archive: `.planning/milestones/v1.0-ROADMAP.md`
 
 ## Backlog
 
-- [ ] Decide whether to promote the accepted v1.0 closeout gaps into a later follow-up milestone.
-- [ ] Decide whether to backfill v1.1 Phase 5 validation/UAT debt.
-- [ ] Implement payment processor integration and subscription webhooks after plan enforcement foundations exist.
+- [ ] Implement payment processor integration and subscription webhooks.
 - [ ] Implement deferred AI security guards and credit persistence.
+- [ ] Advanced analytics (cost per egg, period comparisons).
 
 ## Progress
 
 | Milestone | Phase Range | Plans Complete | Status | Shipped |
 |-----------|-------------|----------------|--------|---------|
-| v1.0 Finances Module + Calendar Sync | 1-4 | 11/11 | Shipped | 2026-05-01 |
-| v1.1 Google Sign-In | 5-6 | 2/2 | Shipped | 2026-05-06 |
+| v1.3 Inventory, Tasks & UI Consolidation | 11-15 | 0/6 | Active | - |
 | v1.2 Dark Theme & Granular Permissions | 7-10 | 11/11 | Shipped | 2026-06-02 |
+| v1.1 Google Sign-In | 5-6 | 2/2 | Shipped | 2026-05-06 |
+| v1.0 Finances Module + Calendar Sync | 1-4 | 11/11 | Shipped | 2026-05-01 |
 
 ---
-*Roadmap updated: 2026-06-02 after shipping v1.2*
+*Roadmap updated: 2026-06-04 after planning Phase 11*
