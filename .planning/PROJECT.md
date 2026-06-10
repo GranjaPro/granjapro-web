@@ -10,12 +10,13 @@ Help egg farmers simplify daily farm management and improve financial control �
 
 ## Current State
 
+- v1.3 **Inventory, Tasks & UI Consolidation** in progress.
 - v1.2 **Dark Theme & Granular Permissions** shipped on 2026-06-02.
 - v1.1 **Google Sign-In** shipped on 2026-05-06.
 - v1.0 **Finances Module + Calendar Sync** shipped on 2026-05-01.
-- Dashboard now features a native dark theme foundation.
+- Dashboard features a native dark theme foundation.
 - Plan-based permissions are centralized in `lib/plans.ts` and enforced via root middleware and Supabase RLS policies.
-- Trial expiration vulnerability from v1.1 is resolved with server-side and database-level guards.
+- Trial expiration vulnerability is resolved with server-side and database-level guards.
 - Known accepted closeout gaps: AI security guards and credit persistence deferred; pre-v1.0 verification artifacts missing; Phase 5 validation debt.
 
 <details>
@@ -29,48 +30,49 @@ Help egg farmers simplify daily farm management and improve financial control �
 
 </details>
 
-## Next Milestone Goals
+## Next Milestone Goals (v1.3)
 
-- Define the core objective for v1.3 (e.g., Reports/Export, Workers Management, or Advanced Analytics).
-- Implement deferred AI security and usage limits if prioritized.
-- Address accumulated tech debt or verification gaps if requested.
+- **Inventory Integration**: Full database connection for the inventory management page.
+- **Form Standardization**: Centralized form components with Zod validation schemas across all registration forms.
+- **Task System**: Dedicated management for recurring and manual farm tasks.
+- **Notifications System**: In-app alerts for low stock, productivity drops, and task deadlines.
+- **Reports Refinement**: Optimized PDF/CSV exports and data integration for all report types.
+- **KPI Customization**: Interactive metrics and goals that users can personalize.
+- **Code Consolidation**: Refactor large dashboard pages into reusable, atomic components.
 
 ## Requirements
 
 ### Validated
 
-- ✓ Authentication (login, signup, password recovery) — existing
-- ✓ Onboarding wizard (farm info, barns, birds, breed) — existing
-- ✓ Farm and barn management (registration, capacity, production system) — existing
-- ✓ Flock management (breed, arrival date, bird count, barn assignment) — existing
-- ✓ Egg production tracking (daily input, broken/dirty/discarded, laying rate, trends) — existing
-- ✓ Feed management (quantity, cost, type, feed per flock, cost per egg) — existing
-- ✓ Mortality tracking (dead birds, suspected cause, mortality rate, trends) — existing
-- ✓ Health records (vaccinations, treatments, inspections) — existing
-- ✓ Customer management (markets, restaurants, distributors, direct buyers) — existing
-- ✓ Sales tracking (quantity, egg type, price, payment status) — existing
-- ✓ Dashboard with KPIs (production, laying rate, birds, mortality, financials) — existing
-- ✓ Inventory management — existing
-- ✓ Equipment management — existing
-- ✓ Financial management — Supabase-backed KPIs, charts, transaction CRUD, and sales-to-revenue create sync — v1.0
-- ✓ Shared calendar filter across dashboard surfaces — v1.0
-
-- [x] Google sign-in entry points on login and signup pages - v1.1
-- [x] Signup terms gate before Google sign-up - v1.1
-- [x] Google OAuth callback account/farm continuity and onboarding routing - v1.1
+- ✓ Authentication (login, signup, password recovery)
+- ✓ Onboarding wizard (farm info, barns, birds, breed)
+- ✓ Farm and barn management (registration, capacity, production system)
+- ✓ Flock management (breed, arrival date, bird count, barn assignment)
+- ✓ Egg production tracking (daily input, broken/dirty/discarded, laying rate, trends)
+- ✓ Feed management (quantity, cost, type, feed per flock, cost per egg)
+- ✓ Mortality tracking (dead birds, suspected cause, mortality rate, trends)
+- ✓ Health records (vaccinations, treatments, inspections)
+- ✓ Customer management (markets, restaurants, distributors, direct buyers)
+- ✓ Sales tracking (quantity, egg type, price, payment status)
+- ✓ Dashboard with KPIs (production, laying rate, birds, mortality, financials)
+- ✓ Inventory management — database integrated in v1.3
+- ✓ Equipment management
+- ✓ Financial management — Supabase-backed KPIs, charts, transaction CRUD
+- ✓ Shared calendar filter across dashboard surfaces
+- ✓ Google sign-in entry points and signup terms gate
+- ✓ Dark dashboard theme without system-theme fallback
+- ✓ Plan persistence and central permission matrix
+- ✓ Route/API guard foundations for Pro/Premium routes
 
 ### Active
 
-- [ ] Dark dashboard theme without system-theme fallback
-- [ ] Persisted `profiles.plan` subscription tier in Supabase schema and migrations
-- [ ] Central permission matrix for Essencial, Pro, and Premium capabilities
-- [ ] Shared UI helpers for locked content that avoid exposing protected data unnecessarily
-- [ ] Route/API guard foundations for Pro/Premium routes and AI tiers
-- [ ] Real usage-limit foundations for users, birds, farms, tasks, insights, and AI credits
-- [ ] Decide and implement sale edit/delete revenue sync behavior
-- [ ] Replace accepted verification gaps with formal Phase 1-3 verification artifacts if needed
-- [ ] Decide whether to backfill Phase 5 validation/UAT debt or leave it as accepted milestone debt
-- [ ] Revenue goals stored in the database instead of a hardcoded default
+- [ ] Centralized `RegistrationForm` component with Zod validation schemas
+- [ ] Inventory page full Supabase integration (CRUD + status tracking)
+- [ ] Task management in dashboard with scheduling and completion tracking
+- [ ] Real-time notification system for critical farm events
+- [ ] PDF/CSV export optimization for the Reports page
+- [ ] Clickable/Customizable KPI goals on all kpis in app
+- [ ] Page-to-component refactor for Inventory and Reports
 - [ ] Advanced analytics (cost per egg, feed-cost sync, period comparisons)
 
 ### Out of Scope
@@ -78,16 +80,8 @@ Help egg farmers simplify daily farm management and improve financial control �
 - Custom backend server — Supabase handles all backend needs
 - Real-time chat — not core to farm management
 - Mobile native app — web-first, mobile later
-- Reports/export — deferred (marked as Pro feature)
 - Workers management — deferred (marked as Pro feature)
-- Notifications/alerts system — deferred to future milestone
-
-## Next Milestone Goals
-
-- Implement the dark-theme foundation before broad visual polishing.
-- Turn plan gating from scattered UX-only checks into a reusable permission model.
-- Keep payment processor integration out of scope unless needed for plan persistence.
-- Leave accepted v1.0 and v1.1 closeout debts documented unless directly touched by this milestone.
+- Payment processor integration — using internal tier management for now
 
 ## Context
 

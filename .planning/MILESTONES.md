@@ -1,6 +1,18 @@
 # Milestones
 
-## v1.1 Google Sign-In (Shipped: 2026-05-06)
+## v1.3 Inventory, Tasks & UI Consolidation (Active)
+
+**Phases:** 11 - 15
+
+**Goals:**
+- Centralized form standardization with Zod.
+- Full database integration for Inventory and Tasks.
+- In-app notification system.
+- Optimized reports and KPI personalization.
+
+---
+
+## v1.2 Dark Theme & Granular Permissions (Shipped: 2026-06-02)
 
 **Phases completed:** 2 phases, 2 plans, 6 tasks
 
