@@ -15,7 +15,7 @@ PARE E PERGUNTE!
  - Faça perguntas claras e diretas para esclarecer a dúvida.
  - Sob nenhuma hipótese tente adivinhar regras de negócio ou preencher lacunas com suposições.
 
-1. Menos Código é Mais Resultado (KISS / YAGNI)
+3. Menos Código é Mais Resultado (KISS / YAGNI)
  - Foque em resolver o problema atual da forma mais simples e direta possível.
  - Entregue o resultado esperado escrevendo a menor quantidade de código viável.
  - Evite over-engineering (engenharia excessiva) e abstrações prematuras. Você não vai precisar disso (YAGNI - You Aren't Gonna Need It).
@@ -40,6 +40,8 @@ PARE E PERGUNTE!
  - Use sempre as melhores práticas de tipagem estática.
  - Se os tipos não existirem, crie as interfaces ou types necessários.
  - A tipagem deve ser estrita, previsível e ajudar na documentação do código.
+
+8. Ao encontrar variaveis declaradas e não utilizadas, retire do código. 
   
 ### Clean Code (Código Limpo)
 
@@ -65,21 +67,21 @@ PARE E PERGUNTE!
 
 ### Clean Architecture (Arquitetura Limpa)
 
-12. A Regra de Dependência (The Dependency Rule)
+1. A Regra de Dependência (The Dependency Rule)
  - As dependências do código-fonte devem apontar SEMPRE para dentro, em direção às regras de negócio de alto nível.
  - Camadas internas (Entidades, Casos de Uso) **não podem saber absolutamente nada** sobre camadas externas (UI, Banco de Dados, Frameworks Web, APIs externas).
 
-13. Camadas de Responsabilidade Estrita
+2. Camadas de Responsabilidade Estrita
  - **Entidades (Entities):** Regras de negócio puras (agnósticas à aplicação).
  - **Casos de Uso (Use Cases):** Orquestram o fluxo de dados para a aplicação, usando as Entidades.
  - **Adaptadores (Interface Adapters):** Controllers, Presenters e Gateways (Repositories) que convertem dados do formato do Core para o formato da Web/Banco de Dados e vice-versa.
  - **Detalhes (Frameworks & Drivers):** Bibliotecas, rotas web, ORMs. Mantenha essa camada o mais fina possível.
 
-14. Frameworks e Bancos de Dados são Detalhes
+3. Frameworks e Bancos de Dados são Detalhes
  - A sua arquitetura não deve depender da existência do React, Express, NestJS, Postgres ou MongoDB.
  - O "Core" da aplicação (Casos de Uso e Entidades) deve ser escrito em código puro e ser totalmente isolado de bibliotecas externas.
  - Trate o banco de dados e a interface de usuário como plug-ins que podem ser substituídos a qualquer momento sem afetar as regras de negócio.
 
-15. Inversão de Dependência (DIP) e Testabilidade Absoluta
+4. Inversão de Dependência (DIP) e Testabilidade Absoluta
  - O Core da aplicação deve definir Interfaces (Portas), e as camadas externas (como Repositórios de Banco de Dados) devem implementar essas interfaces (Adaptadores).
  - Regras de negócio devem ser 100% testáveis de forma isolada, sem precisar subir um servidor web, conectar a um banco de dados real ou renderizar uma UI. Use mocks e stubs para injetar dependências nos testes.

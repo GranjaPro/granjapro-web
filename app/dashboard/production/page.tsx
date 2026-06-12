@@ -6,7 +6,6 @@ import ModalPortal from "@/components/ui/modal-portal";
 import {
   Egg,
   TrendingUp,
-  TrendingDown,
   AlertTriangle,
   Activity,
   Plus,
@@ -22,7 +21,6 @@ import {
   ChevronRight,
   Search,
   BarChart3,
-  Zap,
   HelpCircle,
   Wheat,
   CircleDollarSign,
