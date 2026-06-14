@@ -339,6 +339,47 @@ create policy "Users can delete feed consumption in their farm"
   ));
 
 -- ============================================
+-- 6b. WATER CONSUMPTION
+-- ============================================
+create table public.water_consumption (
+  id uuid default uuid_generate_v4() primary key,
+  created_at timestamptz default now() not null,
+  farm_id uuid references public.farms on delete cascade not null,
+  barn_id uuid references public.barns on delete set null,
+  flock_id uuid references public.flocks on delete set null,
+  date date not null,
+  quantity_liters numeric(10,2) not null
+);
+
+alter table public.water_consumption enable row level security;
+
+create policy "Users can view water consumption of their farm"
+  on public.water_consumption for select
+  using (farm_id in (
+    select id from public.farms where owner_id = auth.uid()
+    union
+    select farm_id from public.profiles where id = auth.uid()
+  ));
+
+create policy "Users can insert water consumption in their farm"
+  on public.water_consumption for insert
+  with check (farm_id in (
+    select id from public.farms where owner_id = auth.uid()
+  ));
+
+create policy "Users can update water consumption in their farm"
+  on public.water_consumption for update
+  using (farm_id in (
+    select id from public.farms where owner_id = auth.uid()
+  ));
+
+create policy "Users can delete water consumption in their farm"
+  on public.water_consumption for delete
+  using (farm_id in (
+    select id from public.farms where owner_id = auth.uid()
+  ));
+
+-- ============================================
 -- 7. MORTALITY
 -- ============================================
 create table public.mortality (
@@ -651,6 +692,8 @@ create index idx_flocks_farm_id on public.flocks(farm_id);
 create index idx_flocks_barn_id on public.flocks(barn_id);
 create index idx_egg_production_farm_date on public.egg_production(farm_id, date);
 create index idx_feed_consumption_farm_date on public.feed_consumption(farm_id, date);
+create index idx_water_consumption_farm_date on public.water_consumption(farm_id, date);
+create index idx_water_consumption_flock_id on public.water_consumption(flock_id);
 create index idx_mortality_farm_date on public.mortality(farm_id, date);
 create index idx_financial_farm_date on public.financial_transactions(farm_id, date);
 create index idx_customers_farm_id on public.customers(farm_id);

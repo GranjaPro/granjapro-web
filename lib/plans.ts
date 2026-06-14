@@ -11,7 +11,8 @@ export type CapabilityKey =
   | "environmental_conditions"
   | "advanced_insights"
   | "farm_management"
-  | "task_management";
+  | "task_management"
+  | "water_management";
 
 type LimitValue = number | null | "limited" | "expanded" | "basic" | "advanced" | "complete";
 
@@ -65,6 +66,11 @@ export const CAPABILITIES: Record<
   task_management: {
     minimumPlan: "essencial",
     label: "Tarefas e rotinas",
+  },
+  water_management: {
+    minimumPlan: "pro",
+    label: "Consumo de Agua",
+    routes: ["/dashboard/agua"],
   },
 };
 
