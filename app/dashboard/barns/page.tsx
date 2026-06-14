@@ -150,9 +150,8 @@ const emptyForm = {
   light_intensity: "",
 };
 
-const supabase = createClient();
-
 export default function BarnsPage() {
+  const supabase = createClient();
   const { farm } = useAuth();
   const { plan } = usePlan();
   const [showEnvUpgrade, setShowEnvUpgrade] = useState(false);

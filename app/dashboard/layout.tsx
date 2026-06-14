@@ -12,7 +12,6 @@ import {
   requiresPlanSelection,
   type PlanType,
 } from "@/lib/plans";
-import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/auth/auth-provider";
 import ProfileSettings from "@/components/dashboard/profile-settings";
 import { DateFilterProvider } from "@/components/date-filter";
@@ -51,7 +50,6 @@ import {
 
 const OnboardingPage = dynamic(() => import("./onboarding/page"), { ssr: false });
 const DASHBOARD_THEME_KEY = "granjapro-dashboard-theme";
-const supabase = createClient();
 type DashboardTheme = "light" | "dark";
 type SidebarNavItem =
   | { type: "divider" }
