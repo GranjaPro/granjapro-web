@@ -43,9 +43,11 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  ReferenceLine,
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import { getFeedByDateRange, createFeedRecord, updateFeedRecord, deleteFeedRecord } from "@/lib/services/feed";
+import { getWaterByDateRange, type WaterConsumptionRow } from "@/lib/services/water";
 import { getFeedInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem } from "@/lib/services/inventory";
 import { getProductionByDateRange } from "@/lib/services/production";
 import { getBarns } from "@/lib/services/barns";
@@ -67,6 +69,7 @@ interface RegistroRacao {
   tipo: TipoRacao;
   aviario: string;
   barn_id: string | null;
+  flock_id: string | null;
   consumoKg: number;
   custoRS: number;
   qtdGalinhas: number;
@@ -95,6 +98,14 @@ interface Flock {
   id: string;
   code: string;
   breed: string;
+}
+
+interface DailyEfficiencyPoint {
+  dia: string;
+  kg: number;
+  ovos: number;
+  eficiencia: number;
+  consumoAveG: number;
 }
 
 const tipoLabel: Record<TipoRacao, string> = {
@@ -161,6 +172,10 @@ function TableSkeleton() {
 
 type ModalMode = "add" | "edit" | null;
 
+function getTodayDateInputValue() {
+  return new Date().toISOString().split("T")[0];
+}
+
 export default function RacaoPage() {
   const { plan, hideAdvancedFeatures } = usePlan();
   const showProFeatures = !hideAdvancedFeatures || hasMinimumPlan(plan, "pro");
@@ -189,7 +204,8 @@ export default function RacaoPage() {
   // Dynamic Data States
   const [monthlyRS, setMonthlyRS] = useState<{ mes: string; valor: number }[]>([]);
   const [monthlyKg, setMonthlyKg] = useState<{ mes: string; valor: number }[]>([]);
-  const [dailyChart, setDailyChart] = useState<any[]>([]);
+  const [dailyChart, setDailyChart] = useState<DailyEfficiencyPoint[]>([]);
+  const [waterRecords, setWaterRecords] = useState<WaterConsumptionRow[]>([]);
   const [distType, setDistType] = useState<{ tipo: string; kg: number; pct: number; color: string }[]>([]);
 
   const calculateMonthly = useCallback((data: any[], key: string) => {
@@ -214,8 +230,8 @@ export default function RacaoPage() {
     return Object.entries(map).map(([mes, valor]) => ({ mes, valor }));
   }, []);
 
-  const mapDailyEfficiency = useCallback((feed: any[], prod: any[]) => {
-    const last7Days: any[] = [];
+  const mapDailyEfficiency = useCallback((feed: any[], prod: any[], birdCount: number) => {
+    const last7Days: DailyEfficiencyPoint[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
@@ -229,7 +245,8 @@ export default function RacaoPage() {
         dia: displayDate,
         kg: dayFeed,
         ovos: dayProd,
-        eficiencia: dayProd > 0 ? (dayFeed / dayProd) : 0
+        eficiencia: dayProd > 0 ? (dayFeed / dayProd) : 0,
+        consumoAveG: birdCount > 0 ? (dayFeed * 1000) / birdCount : 0,
       });
     }
     return last7Days;
@@ -269,12 +286,13 @@ export default function RacaoPage() {
 
       const { startDate, endDate } = dateRange;
 
-      const [feedData, prodData, inventoryData, barnsData, flocksData] = await Promise.all([
+      const [feedData, prodData, inventoryData, barnsData, flocksData, waterData] = await Promise.all([
         getFeedByDateRange(profile.farm_id, startDate, endDate),
         getProductionByDateRange(profile.farm_id, startDate, endDate),
         getFeedInventory(profile.farm_id),
         getBarns(profile.farm_id),
         getFlocks(profile.farm_id),
+        showProFeatures ? getWaterByDateRange(profile.farm_id, startDate, endDate) : Promise.resolve([]),
       ]);
 
       setBarns(barnsData.map((b: any) => ({
@@ -282,6 +300,8 @@ export default function RacaoPage() {
         name: b.name,
         current_birds: b.current_birds || 0
       })));
+      const totalBirds = barnsData.reduce((sum: number, barn: Barn) => sum + (barn.current_birds || 0), 0);
+      setWaterRecords(waterData);
 
       setFlocks((flocksData || []).map((f: any) => ({
         id: f.id,
@@ -303,6 +323,7 @@ export default function RacaoPage() {
           tipo,
           aviario: d.barns?.name || "Geral",
           barn_id: d.barn_id,
+          flock_id: d.flock_id,
           consumoKg: Number(d.quantity_kg),
           custoRS: Number(d.cost),
           qtdGalinhas: d.barns?.current_birds || 1000 
@@ -334,7 +355,7 @@ export default function RacaoPage() {
       // Transformers
       setMonthlyRS(calculateMonthly(feedData, 'cost'));
       setMonthlyKg(calculateMonthly(feedData, 'quantity_kg'));
-      setDailyChart(mapDailyEfficiency(feedData, prodData));
+      setDailyChart(mapDailyEfficiency(feedData, prodData, totalBirds));
       setDistType(calculateDistribution(feedData));
 
     } catch (err: any) {
@@ -343,7 +364,7 @@ export default function RacaoPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [calculateMonthly, mapDailyEfficiency, calculateDistribution, dateRange]);
+  }, [calculateMonthly, mapDailyEfficiency, calculateDistribution, dateRange, showProFeatures]);
 
   useEffect(() => {
     loadData();
@@ -361,7 +382,7 @@ export default function RacaoPage() {
   }, []);
 
   const [editing, setEditing] = useState<RegistroRacao | null>(null);
-  const [form, setForm] = useState({ data: new Date().toISOString().split("T")[0], tipo: "comercial" as TipoRacao, aviario: "", barn_id: "", flock_id: "", consumoKg: "", custoRS: "", qtdGalinhas: "", consumoAguaLt: "" });
+  const [form, setForm] = useState({ data: getTodayDateInputValue(), tipo: "comercial" as TipoRacao, aviario: "", barn_id: "", flock_id: "", consumoKg: "", custoRS: "", qtdGalinhas: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<string | number | null>(null);
 
   const avgConsumoPorGalinha = useMemo(() => registros.length > 0 ? (registros.reduce((s, r) => s + (r.qtdGalinhas > 0 ? r.consumoKg / r.qtdGalinhas : 0), 0) / registros.length * 1000) : 0, [registros]);
@@ -388,6 +409,8 @@ export default function RacaoPage() {
 
     const metaConsumoDiario = avgConsumoDiario > 0 ? Math.round(avgConsumoDiario) : 0;
     const metaConsumoPorGalinha = 120;
+    const minConsumoPorGalinha = 110;
+    const maxConsumoPorGalinha = 130;
     const metaCustoOvo = 0.04;
 
     const diffConsumo = metaConsumoDiario > 0 ? ((consumoHoje / metaConsumoDiario) * 100) - 100 : 0;
@@ -434,13 +457,27 @@ export default function RacaoPage() {
         iconColor: "text-blue-600",
         actual: avgConsumoPorGalinha,
         expectedVal: metaConsumoPorGalinha,
-        expectedLabel: metaConsumoPorGalinha + " g",
+        expectedLabel: `${minConsumoPorGalinha}-${maxConsumoPorGalinha} g`,
         unit: "g",
-        progress: avgConsumoPorGalinha > 0 ? Math.min((avgConsumoPorGalinha / (metaConsumoPorGalinha * 1.3)) * 100, 100) : 0,
-        progressColor: avgConsumoPorGalinha <= metaConsumoPorGalinha ? "bg-emerald-500" : avgConsumoPorGalinha <= metaConsumoPorGalinha * 1.1 ? "bg-amber-500" : "bg-red-500",
+        progress: avgConsumoPorGalinha > 0 ? Math.min((avgConsumoPorGalinha / maxConsumoPorGalinha) * 100, 100) : 0,
+        progressColor:
+          avgConsumoPorGalinha === 0
+            ? "bg-gray-300"
+            : avgConsumoPorGalinha < minConsumoPorGalinha
+              ? "bg-amber-500"
+              : avgConsumoPorGalinha <= maxConsumoPorGalinha
+                ? "bg-emerald-500"
+                : "bg-red-500",
         diff: diffConsumoGalinha,
         diffLabel: avgConsumoPorGalinha > 0 ? `${diffConsumoGalinha > 0 ? "+" : ""}${diffConsumoGalinha.toFixed(1)}%` : "—",
-        subtitle: "Padrão: 110-130g",
+        subtitle:
+          avgConsumoPorGalinha === 0
+            ? "Sem dados"
+            : avgConsumoPorGalinha < minConsumoPorGalinha
+              ? "Abaixo da meta 110-130g"
+              : avgConsumoPorGalinha <= maxConsumoPorGalinha
+                ? "Ideal: 110-130g"
+                : "Acima da meta 110-130g",
       },
       {
         title: "Custo / Ovo",
@@ -499,7 +536,7 @@ export default function RacaoPage() {
   }, [registros, searchQuery]);
 
   function openAdd() {
-    setForm({ data: "", tipo: "comercial", aviario: "", barn_id: "", flock_id: "", consumoKg: "", custoRS: "", qtdGalinhas: "", consumoAguaLt: "" });
+    setForm({ data: getTodayDateInputValue(), tipo: "comercial", aviario: "", barn_id: "", flock_id: "", consumoKg: "", custoRS: "", qtdGalinhas: "" });
     setEditing(null);
     setModal("add");
   }
@@ -510,11 +547,10 @@ export default function RacaoPage() {
       tipo: r.tipo,
       aviario: r.aviario,
       barn_id: r.barn_id ?? "",
-      flock_id: (r as any).flock_id ?? "",
+      flock_id: r.flock_id ?? "",
       consumoKg: String(r.consumoKg),
       custoRS: String(r.custoRS),
       qtdGalinhas: String(r.qtdGalinhas),
-      consumoAguaLt: String((r as any).consumoAguaLt ?? ""),
     });
     setEditing(r);
     setModal("edit");
@@ -528,7 +564,8 @@ export default function RacaoPage() {
       const payload = {
         farm_id: farmId,
         date: form.data,
-        barn_id: form.barn_id,
+        barn_id: form.barn_id || null,
+        flock_id: form.flock_id || null,
         quantity_kg: Number(form.consumoKg) || 0,
         cost: Number(form.custoRS) || 0,
         feed_type: tipoLabel[form.tipo] || "Ração Postura",
@@ -933,10 +970,12 @@ export default function RacaoPage() {
                   const dateStr = d.toISOString().split("T")[0];
                   const dayRegistros = registros.filter(r => r.data === dateStr);
                   const racaoKg = dayRegistros.reduce((s, r) => s + r.consumoKg, 0);
-                  const aguaLt = racaoKg > 0 ? Math.round(racaoKg * (1.8 + Math.random() * 0.4)) : Math.round(180 + Math.random() * 60);
+                  const aguaLt = waterRecords
+                    .filter((record) => record.date === dateStr)
+                    .reduce((sum, record) => sum + Number(record.quantity_liters), 0);
                   return {
                     date: d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-                    racao: racaoKg || Math.round(100 + Math.random() * 40),
+                    racao: racaoKg,
                     agua: aguaLt,
                   };
                 });
@@ -952,10 +991,12 @@ export default function RacaoPage() {
                 const prefix = `${year}-${monthStr}`;
                 const monthRegistros = registros.filter(r => r.data.startsWith(prefix));
                 const racaoKg = monthRegistros.reduce((s, r) => s + r.consumoKg, 0);
-                const aguaLt = racaoKg > 0 ? Math.round(racaoKg * (1.8 + Math.random() * 0.4)) : Math.round((2800 + Math.random() * 800));
+                const aguaLt = waterRecords
+                  .filter((record) => record.date.startsWith(prefix))
+                  .reduce((sum, record) => sum + Number(record.quantity_liters), 0);
                 return {
                   date: `${monthNames[month]}/${String(year).slice(2)}`,
-                  racao: racaoKg || Math.round(2800 + Math.random() * 600),
+                  racao: racaoKg,
                   agua: aguaLt,
                 };
               });
@@ -1205,10 +1246,12 @@ export default function RacaoPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
                   <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11, fontWeight: 500 }} dy={10} />
                   <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 10 }} dx={-4} domain={[0, 'auto']} />
-                  <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 10, fontWeight: 600 }} dx={4} domain={[0, 'auto']} tickFormatter={(v: number) => v.toFixed(2)} />
+                  <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 10, fontWeight: 600 }} dx={4} domain={[0, 'auto']} tickFormatter={(v: number) => `${v.toFixed(0)}g`} />
+                  <ReferenceLine yAxisId="right" y={110} stroke="#10b981" strokeDasharray="4 4" />
+                  <ReferenceLine yAxisId="right" y={130} stroke="#ef4444" strokeDasharray="4 4" />
                   <Bar yAxisId="left" dataKey="kg" fill="url(#gradConsumoBar)" radius={[4, 4, 0, 0]} barSize={14} name="kg" />
                   <Bar yAxisId="left" dataKey="ovos" fill="url(#gradOvosBar)" radius={[4, 4, 0, 0]} barSize={14} name="ovos" />
-                  <Line yAxisId="right" type="monotone" dataKey="eficiencia" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} name="eficiencia" />
+                  <Line yAxisId="right" type="monotone" dataKey="consumoAveG" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} name="consumoAveG" />
                 </ComposedChart>
               </ResponsiveContainer>
             </LockedOverlay>
@@ -1228,7 +1271,9 @@ export default function RacaoPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
                 <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11, fontWeight: 500 }} dy={10} />
                 <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 10 }} dx={-4} domain={[0, 'auto']} />
-                <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 10, fontWeight: 600 }} dx={4} domain={[0, 'auto']} tickFormatter={(v: number) => v.toFixed(2)} />
+                <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: "#d97706", fontSize: 10, fontWeight: 600 }} dx={4} domain={[0, 'auto']} tickFormatter={(v: number) => `${v.toFixed(0)}g`} />
+                <ReferenceLine yAxisId="right" y={110} stroke="#10b981" strokeDasharray="4 4" label={{ value: "110g", position: "right", fill: "#059669", fontSize: 10 }} />
+                <ReferenceLine yAxisId="right" y={130} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "130g", position: "right", fill: "#dc2626", fontSize: 10 }} />
                 <Tooltip
                   contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
                   labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px", fontSize: "14px" }}
@@ -1237,14 +1282,14 @@ export default function RacaoPage() {
                     const n = String(name);
                     if (n === "kg") return [Number(value) + " kg", "Consumo"];
                     if (n === "ovos") return [Number(value).toLocaleString("pt-BR") + " ovos", "Produção"];
-                    if (n === "eficiencia") return [Number(value).toFixed(3) + " kg/ovo", "Eficiência"];
+                    if (n === "consumoAveG") return [Number(value).toFixed(0) + " g/ave", "Consumo / ave"];
                     return [value, name];
                   }) as any}
                   cursor={{ fill: "rgba(45, 122, 79, 0.04)" }}
                 />
                 <Bar yAxisId="left" dataKey="kg" fill="url(#gradConsumoBar)" radius={[4, 4, 0, 0]} barSize={14} name="kg" />
                 <Bar yAxisId="left" dataKey="ovos" fill="url(#gradOvosBar)" radius={[4, 4, 0, 0]} barSize={14} name="ovos" />
-                <Line yAxisId="right" type="monotone" dataKey="eficiencia" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="eficiencia" />
+                <Line yAxisId="right" type="monotone" dataKey="consumoAveG" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="consumoAveG" />
               </ComposedChart>
             </ResponsiveContainer>
           )}
@@ -1585,15 +1630,9 @@ export default function RacaoPage() {
                   </p>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Consumo Ração (kg)</label>
-                  <input type="number" value={form.consumoKg} onChange={(e) => setForm({ ...form, consumoKg: e.target.value })} placeholder="120" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Consumo Água (L)</label>
-                  <input type="number" value={form.consumoAguaLt} onChange={(e) => setForm({ ...form, consumoAguaLt: e.target.value })} placeholder="250" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Consumo Ração (kg)</label>
+                <input type="number" value={form.consumoKg} onChange={(e) => setForm({ ...form, consumoKg: e.target.value })} placeholder="120" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 pt-2">
