@@ -23,6 +23,19 @@ export async function getWaterByDateRange(
   return data;
 }
 
+export async function getWaterByFlock(farmId: string, flockId: string): Promise<WaterConsumptionRow[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("water_consumption")
+    .select("*")
+    .eq("farm_id", farmId)
+    .eq("flock_id", flockId)
+    .order("date", { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
 export async function createWaterRecord(record: WaterConsumptionInsert): Promise<WaterConsumptionRow> {
   const supabase = createClient();
   const { data, error } = await supabase
