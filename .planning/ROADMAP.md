@@ -44,6 +44,8 @@ Detailed phase goals live in `.planning/milestones/v1.3-ROADMAP.md`.
 
 ### Phase 15: Real Health History Page
 
+- Plan: `.planning/phases/15-real-health-history-page/15-01-PLAN.md`
+
 ### Phase 16: Flock Tasks CRUD
 
 ### Phase 17: Dashboard Checklist and Alerts
