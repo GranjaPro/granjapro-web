@@ -64,6 +64,9 @@ Help egg farmers simplify daily farm management and improve financial control. T
 - ✓ Dark dashboard theme without system-theme fallback
 - ✓ Plan persistence and central permission matrix
 - ✓ Route/API guard foundations for Pro/Premium routes
+- ✓ Dedicated water consumption module with CRUD, KPIs, and chart visualization (Pro/Premium only)
+- ✓ Feed daily target indicators (110g-130g) and real water comparison chart integration
+
 
 ### Active
 
@@ -123,10 +126,13 @@ Help egg farmers simplify daily farm management and improve financial control. T
 | Plan gating must move behind a central permission matrix | Scattered component checks are hard to audit and easy to bypass | Active |
 | Dark theme should be app-controlled, not delegated to system preference | User requested removing the system theme mode for this milestone | Active |
 | Inventory specialization | Splits generic table into Storage Locations, Feed, Vaccines, and Packaging | Active |
+| Separate Feed and Water pages | Separates concerns and avoids overloading the feed page UI | Active |
+| Real water data comparison chart gating | Protects Pro-only water metrics from leaking while keeping the chart on the feed page | Active |
+| Dedicated water consumption table | Keeps water metrics decoupled from feed logging for cleaner schema design | Active |
 
 ## Evolution
 
 This document evolves at milestone boundaries as shipped capabilities become part of the stable product surface.
 
 ---
-*Last updated: 2026-06-14 after v1.3 milestone scope alignment*
+*Last updated: 2026-06-14 after Phase 13 UAT completion*
