@@ -1,9 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import {
   AI_MODE_META,
   PLAN_MATRIX,
@@ -12,8 +10,6 @@ import {
 } from "@/lib/plans";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
-
-const supabase = createClient();
 
 const PLAN_SELECTION_COPY = {
   essencial: {
@@ -34,51 +30,42 @@ const PLAN_SELECTION_COPY = {
 } satisfies Record<PlanType, { badge: string; description: string; tagline: string }>;
 
 export default function SelectPlanPage() {
-  const router = useRouter();
-  const { user, profile, loading, refreshProfile } = useAuth();
+  const { user, loading } = useAuth();
   const [submitting, setSubmitting] = useState<PlanType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const plans = useMemo(() => PLAN_TYPES.map((plan) => ({ key: plan, ...PLAN_MATRIX[plan] })), []);
 
-  async function finishSelection(payload: {
-    plan: PlanType;
-    trial_started_at?: string | null;
-    trial_ends_at?: string | null;
-    trial_used_at?: string | null;
-  }) {
+  async function selectPlan(plan: PlanType) {
     if (!user) {
       setError("Entre novamente para selecionar um plano.");
       return;
     }
 
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({
-        plan: payload.plan,
-        trial_started_at: payload.trial_started_at ?? null,
-        trial_ends_at: payload.trial_ends_at ?? null,
-        ...(payload.trial_used_at !== undefined ? { trial_used_at: payload.trial_used_at } : {}),
-      })
-      .eq("id", user.id);
+    setError(null);
+    setSubmitting(plan);
 
-    if (updateError) {
-      setError("Nao foi possivel salvar sua escolha. Tente novamente.");
+    const response = await fetch("/api/stripe/checkout", {
+      body: JSON.stringify({
+        billingCycle: "monthly",
+        plan,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+    const checkout = (await response.json()) as {
+      error?: string;
+      url?: string;
+    };
+
+    if (!response.ok || !checkout.url) {
+      setError(checkout.error ?? "Nao foi possivel iniciar o checkout. Tente novamente.");
       setSubmitting(null);
       return;
     }
 
-    await refreshProfile();
-    router.push("/dashboard");
-  }
-
-  async function selectPlan(plan: PlanType) {
-    setError(null);
-    setSubmitting(plan);
-    await finishSelection({
-      plan,
-      trial_started_at: null,
-      trial_ends_at: null,
-    });
+    window.location.href = checkout.url;
   }
 
   if (loading) {
@@ -103,7 +90,7 @@ export default function SelectPlanPage() {
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
               Seu teste gratis terminou ou sua conta esta sem plano ativo. Escolha um plano para voltar ao dashboard.
-              Nesta fase nao ha cobranca, Stripe ou cadastro de cartao.
+              Voce sera redirecionado para o checkout seguro da Stripe.
             </p>
           </div>
         </div>

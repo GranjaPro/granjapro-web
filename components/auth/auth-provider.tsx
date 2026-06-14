@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
 import type { Tables } from "@/lib/database.types";
 
@@ -24,9 +25,11 @@ const AuthContext = createContext<AuthContextType>({
   refreshProfile: async () => {},
 });
 
-const supabase = createClient();
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const supabase = useMemo<SupabaseClient | null>(
+    () => (hasSupabaseConfig() ? createClient() : null),
+    []
+  );
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Tables<"profiles"> | null>(null);
   const [farm, setFarm] = useState<Tables<"farms"> | null>(null);
@@ -39,6 +42,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const farmRef = useRef<Tables<"farms"> | null>(null);
 
   const loadUserData = useCallback(async (currentUser: User) => {
+    if (!supabase) return false;
+
     let foundFarm = false;
     try {
       const { data: profileData } = await supabase
@@ -84,13 +89,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error("Error loading user data:", err);
     }
     return foundFarm;
-  }, []);
+  }, [supabase]);
 
   // Onboarding is now rendered as an overlay in the dashboard layout
   // No redirect needed — layout checks `farm` state directly
   const checkOnboarding = useCallback((_foundFarm: boolean) => {}, []);
 
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     let active = true;
 
     supabase.auth.getUser().then(async ({ data: { user: currentUser } }) => {
@@ -148,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadUserData, checkOnboarding]);
 
   const refreshProfile = useCallback(async () => {
-    if (!user) return;
+    if (!user || !supabase) return;
     try {
       const { data: profileData } = await supabase
         .from("profiles")
@@ -171,15 +181,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Error refreshing profile:", err);
     }
-  }, [user]);
+  }, [user, supabase]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    if (supabase) await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
     setFarm(null);
     window.location.href = "/login";
-  }, []);
+  }, [supabase]);
 
   return (
     <AuthContext.Provider value={{ user, profile, farm, loading, signOut, refreshProfile }}>

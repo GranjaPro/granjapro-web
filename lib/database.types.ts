@@ -615,6 +615,50 @@ export interface Database {
           resolved?: boolean;
         };
       };
+      billing_subscriptions: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          user_id: string;
+          stripe_customer_id: string;
+          stripe_subscription_id: string;
+          stripe_price_id: string;
+          plan: "essencial" | "pro" | "premium";
+          billing_cycle: "monthly" | "yearly";
+          status: string;
+          current_period_end: string | null;
+          cancel_at_period_end: boolean;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          user_id: string;
+          stripe_customer_id: string;
+          stripe_subscription_id: string;
+          stripe_price_id: string;
+          plan: "essencial" | "pro" | "premium";
+          billing_cycle: "monthly" | "yearly";
+          status: string;
+          current_period_end?: string | null;
+          cancel_at_period_end?: boolean;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          user_id?: string;
+          stripe_customer_id?: string;
+          stripe_subscription_id?: string;
+          stripe_price_id?: string;
+          plan?: "essencial" | "pro" | "premium";
+          billing_cycle?: "monthly" | "yearly";
+          status?: string;
+          current_period_end?: string | null;
+          cancel_at_period_end?: boolean;
+        };
+      };
       profiles: {
         Row: {
           id: string;
