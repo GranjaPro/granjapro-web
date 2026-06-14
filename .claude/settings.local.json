@@ -160,7 +160,9 @@
       "Bash(grep -A5 \"requirements:\" .planning/phases/04-charts-crud-revenue-sync/*-PLAN.md)",
       "Skill(gsd:execute-phase)",
       "Skill(gsd:execute-phase:*)",
-      "Bash(echo \"---EXIT:$?---\")"
+      "Bash(echo \"---EXIT:$?---\")",
+      "Bash(git -C \"C:\\\\Users\\\\Bernardo Timo\\\\OneDrive\\\\Desktop\\\\GranjaPro\" diff app/dashboard/select-plan/page.tsx)",
+      "Bash(git -C \"C:\\\\Users\\\\Bernardo Timo\\\\OneDrive\\\\Desktop\\\\GranjaPro\" diff app/dashboard/layout.tsx)"
     ]
   }
 }

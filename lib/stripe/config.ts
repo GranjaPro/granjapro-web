@@ -20,8 +20,8 @@ export function getStripeClient() {
   return stripeClient;
 }
 
-export function getAppUrl() {
-  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+export function getAppUrl(requestOrigin?: string) {
+  return process.env.NEXT_PUBLIC_APP_URL || requestOrigin || "http://localhost:3000";
 }
 
 export function getStripePriceId(plan: PlanType, billingCycle: BillingCycle) {
