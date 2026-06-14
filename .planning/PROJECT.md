@@ -32,12 +32,13 @@ Help egg farmers simplify daily farm management and improve financial control �
 
 ## Next Milestone Goals (v1.3)
 
-- **Inventory Integration**: Full database connection for the inventory management page.
+- **Inventory Re-architecture**: Full database specialization (Storage Locations, Feed, Vaccines, Packaging, and Loss logging) and UI abas-based migration.
 - **Task System**: Dedicated management for recurring and manual farm tasks.
-- **Notifications System**: In-app alerts for low stock, productivity drops, and task deadlines.
+- **Notifications System**: In-app alerts for low stock, productivity drops, task deadlines, and evaluation triggers.
 - **Stripe Payment Integration**: Subscriptions for "Essencial", "Pro", and "Premium" tiers via Stripe Checkout.
-- **Water Consumption Flow**: Unified feed and water management with real database metrics.
+- **Water Consumption Flow**: Unified feed and water management with real database metrics and lote details.
 - **Feedback Collection System**: User experience rating page and prompt triggers.
+- **RAG AI Assistant**: AI advisory copilot powered by Gemini 1.5 Flash with full-dataset RAG.
 - **Security Check Phase**: Endure RLS and webhook signature validation before July release.
 
 ## Requirements
@@ -55,7 +56,6 @@ Help egg farmers simplify daily farm management and improve financial control �
 - ✓ Customer management (markets, restaurants, distributors, direct buyers)
 - ✓ Sales tracking (quantity, egg type, price, payment status)
 - ✓ Dashboard with KPIs (production, laying rate, birds, mortality, financials)
-- ✓ Inventory management — database integrated in v1.3
 - ✓ Equipment management
 - ✓ Financial management — Supabase-backed KPIs, charts, transaction CRUD
 - ✓ Shared calendar filter across dashboard surfaces
@@ -66,13 +66,14 @@ Help egg farmers simplify daily farm management and improve financial control �
 
 ### Active
 
-- [ ] Inventory page full Supabase integration (CRUD + status tracking)
+- [ ] Specialized Inventory Database and UI Migration (Storage locations, Feed, Vaccines, and Packaging)
 - [ ] Task management in dashboard with scheduling and completion tracking
 - [ ] Real-time notification system for critical farm events
 - [ ] Real-time water details page and unified "Ração e água" flow
 - [ ] Clickable/Customizable KPI goals persisted on database
 - [ ] Stripe Payment checkout redirect flow and webhook tier updating
 - [ ] Feedback collection page and profile Settings/trigger integrations
+- [ ] Gemini 1.5 Flash AI Assistant with full farm dataset RAG
 - [ ] Pre-launch security review (RLS policies validation)
 
 ### Out of Scope
@@ -81,7 +82,7 @@ Help egg farmers simplify daily farm management and improve financial control �
 - Real-time chat — not core to farm management
 - Mobile native app — web-first, mobile later
 - Workers/Funcionários management — deferred to V2 (removed from menu)
-- Granular permission control — deferred to V1.1 (Users menu under "Em Breve")
+- Granular permission control refinement — already established in v1.2 (Users menu under "Em Breve")
 - Code refactoring/form standardization — removed from Milestone 1.3 to focus 100% on functional MVP
 - PDF/CSV report exports refinement — deferred to follow-ups
 - Advanced analytics & page-to-component refactoring — deferred to follow-ups
@@ -96,7 +97,7 @@ Help egg farmers simplify daily farm management and improve financial control �
 - Target user: farmer on smartphone, sometimes with limited connectivity and low tech familiarity.
 - UI must remain mobile-first, with large touch-friendly elements and an agritech green/earth palette.
 - The financial workflow now relies on `financial_transactions` as the single revenue/expense source for dashboard and finances reporting.
-- Key database tables: users, farms, barns, flocks, egg_production, feed_consumption, inventory, mortality, health_records, financial_transactions, customers, sales, tasks, alerts.
+- Key database tables: users, farms, barns, flocks, egg_production, feed_consumption, storage_locations, feed_inventory, vaccine_inventory, packaging_inventory, inventory_losses, health_records, financial_transactions, customers, sales, tasks, alerts.
 
 ## Constraints
 
@@ -119,10 +120,11 @@ Help egg farmers simplify daily farm management and improve financial control �
 | Callback redirects sanitize `next` before dashboard routing | Prevents open redirects while preserving email confirmation flow | Good |
 | Plan gating must move behind a central permission matrix | Scattered component checks are hard to audit and easy to bypass | Active |
 | Dark theme should be app-controlled, not delegated to system preference | User requested removing the system theme mode for this milestone | Active |
+| Especialização do Estoque | Splits generic table into Storage Locations, Feed, Vaccines, and Packaging | Active |
 
 ## Evolution
 
 This document evolves at milestone boundaries as shipped capabilities become part of the stable product surface.
 
 ---
-*Last updated: 2026-05-06 after v1.2 milestone initialization*
+*Last updated: 2026-06-14 after v1.3 milestone scope alignment*

@@ -1,35 +1,54 @@
 # Milestones
 
-## v1.3 Inventory, Tasks & UI Consolidation (Active)
+## v1.3 Functional MVP & Integrations (Active)
 
-**Phases:** 11 - 15
+**Phases:** 11 - 25
 
 **Goals:**
-- Centralized form standardization with Zod.
-- Full database integration for Inventory and Tasks.
-- In-app notification system.
-- Optimized reports and KPI personalization.
+- Stripe subscription integration and plan-based route gating.
+- Unified "Ração e água" flow and real water metrics.
+- Database-backed task checklist, alert cards, and feedbacks.
+- Persistent custom dashboard KPI goals and built-in target ranges across modules.
+- Pre-launch security review, RLS hardening, and Gemini 1.5 Flash AI assistant with RAG.
+- Full database re-architecture and UI migration for specialized inventory (Storage Locations, Feed, Vaccines, and Packaging).
 
 ---
 
 ## v1.2 Dark Theme & Granular Permissions (Shipped: 2026-06-02)
 
-**Phases completed:** 2 phases, 2 plans, 6 tasks
+**Phases completed:** 4 phases, 11 plans, ~45 tasks
 
 **Key accomplishments:**
-
-- Supabase Google OAuth callback now uses safe internal redirects, preserves dashboard farm continuity, and backfills profile farm links from owned farms.
+- Established an app-controlled dark theme across all dashboard components and charts.
+- Centralized access control and plan-based limitations in a unified permission matrix.
+- Implemented Next.js route guards and Supabase RLS policies to protect Pro/Premium features.
+- Secured trial flows with server-side validation and expiration checks.
 
 **Known deferred items at close:**
-
-- 1 accepted UAT/validation debt item. See `.planning/milestones/v1.1-MILESTONE-AUDIT.md`.
+- AI security guards and credit consumption tracking deferred.
 
 **Artifacts:**
+- Roadmap archive: `.planning/milestones/v1.2-ROADMAP.md`
+- Requirements archive: `.planning/milestones/v1.2-REQUIREMENTS.md`
+- Audit: `.planning/milestones/v1.2-MILESTONE-AUDIT.md`
+- Phase artifacts: `.planning/milestones/v1.2-phases/`
 
+---
+
+## v1.1 Google Sign-In (Shipped: 2026-05-06)
+
+**Phases completed:** 2 phases, 2 plans
+
+**Key accomplishments:**
+- Added Google sign-in buttons on login and signup pages.
+- Enforced terms acceptance checkbox before Google signup.
+- Linked accounts with matching emails automatically.
+- Preserved existing post-login routing and onboarding flows.
+
+**Artifacts:**
 - Roadmap archive: `.planning/milestones/v1.1-ROADMAP.md`
 - Requirements archive: `.planning/milestones/v1.1-REQUIREMENTS.md`
 - Audit: `.planning/milestones/v1.1-MILESTONE-AUDIT.md`
-- Phase artifacts: `.planning/milestones/v1.1-phases/`
 
 ---
 
@@ -38,7 +57,6 @@
 **Phases completed:** 4 phases, 11 plans, 7 tasks
 
 **Key accomplishments:**
-
 - Fixed the Brazil timezone date-filter bug by replacing UTC serialization in the shared date filter.
 - Centralized transaction category constants and tightened typing in the financial service layer.
 - Switched the finances page and dashboard financial KPIs from mock data to shared Supabase-backed services.
@@ -47,14 +65,13 @@
 - Added Supabase-backed transaction CRUD and sale-to-revenue create sync with duplicate prevention.
 
 **Known gaps accepted at close:**
-
 - Phases 1-3 are missing `VERIFICATION.md` artifacts, leaving 16 requirements unverified in milestone documentation.
 - Sale edit/delete does not update the linked revenue transaction created from the sale.
 
 **Artifacts:**
-
 - Roadmap archive: `.planning/milestones/v1.0-ROADMAP.md`
 - Requirements archive: `.planning/milestones/v1.0-REQUIREMENTS.md`
 - Audit: `.planning/milestones/v1.0-MILESTONE-AUDIT.md`
+
 
 ---

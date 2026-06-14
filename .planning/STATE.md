@@ -1,22 +1,22 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.3
-milestone_name: Inventory, Tasks & UI Consolidation
-status: active
-last_updated: "2026-06-04T00:00:00Z"
-last_activity: 2026-06-04 -- Phase 11 planned (6 plans created).
+milestone_name: Functional MVP & Integrations
+status: Ready for Planning
+last_updated: "2026-06-14T16:38:00.000Z"
+last_activity: 2026-06-14
 progress:
-  total_phases: 5
+  total_phases: 15
   completed_phases: 0
-  total_plans: 6
+  total_plans: 0
   completed_plans: 0
   percent: 0
 ---
 
 # Project State: Granja Pro
 
-**Last updated:** 2026-06-04
-**Current milestone:** v1.3 - Inventory, Tasks & UI Consolidation
+**Last updated:** 2026-06-14
+**Current milestone:** v1.3 - Functional MVP & Integrations
 
 ---
 
@@ -24,33 +24,42 @@ progress:
 
 **Core Value:** Help egg farmers simplify daily farm management and improve financial control - the platform must be fast, intuitive, and useful every single day.
 
-**Current Focus:** v1.3 - Inventory, Tasks & UI Consolidation
+**Current Focus:** v1.3 - Functional MVP & Integrations
 
 ---
 
 ## Current Position
 
-Phase: 11 - Form Standardization
-Plan: N/A (Planning Complete)
-Status: Ready for Execution
-Last activity: 2026-06-04
+Phase: 11 - Stripe Checkout Redirect
+Plan: N/A (Ready for Planning)
+Status: Ready for Planning
+Last activity: 2026-06-14
 
 ## Phase Summary
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| 11 | Form Standardization | Planned (6 plans) |
-| 12 | Inventory DB Integration | Pending |
-| 13 | Tasks & Notifications | Pending |
-| 14 | Reports Optimization | Pending |
-| 15 | UI Polish & KPI Goals | Pending |
-
+| 11 | Stripe Checkout Redirect | Pending |
+| 12 | Stripe Webhooks & Plan Gating | Pending |
+| 13 | Lançamento de Ração e Água | Pending |
+| 14 | Tela de Detalhes Hídricos do Lote | Pending |
+| 15 | Tela de Histórico Sanitário Real | Pending |
+| 16 | CRUD de Tarefas do Lote | Pending |
+| 17 | Checklist do Dashboard & Alertas | Pending |
+| 18 | Página de Feedback | Pending |
+| 19 | Gatilhos e Alertas de Avaliação | Pending |
+| 20 | Persistência de KPI Goals | Pending |
+| 21 | Assistente IA RAG com Gemini 1.5 Flash | Pending |
+| 22 | DB de Estoque e Locais de Armazenamento | Pending |
+| 23 | Interface de Locais de Armazenamento & Ração | Pending |
+| 24 | Interface de Vacinas e Embalagens | Pending |
+| 25 | Auditoria de Segurança e RLS | Pending |
 
 ---
 
 ## Performance Metrics
 
-- **Phases completed:** 0 / 5 for v1.3
+- **Phases completed:** 0 / 15 for v1.3
 - **Latest shipped milestone audit:** `passed` (v1.2-MILESTONE-AUDIT.md)
 
 ---
@@ -61,17 +70,18 @@ Last activity: 2026-06-04
 
 | Decision | Rationale | Status |
 |----------|-----------|--------|
-| Centralized form component | Prevents code duplication and ensures consistent validation across 10+ registration forms | Active |
-| Inventory full DB integration | Moving from partial/mock data to full Supabase CRUD | Active |
-| Task management page | Expanding the dashboard checklist into a full scheduling system | Active |
-| React Hook Form + Zod | Industry standard for type-safe, performant forms on low-end devices | Active |
+| Stripe Checkout redirect flow | Ensures PCI compliance and secure checkout redirects out-of-the-box | Active |
+| Gemini 1.5 Flash RAG via AI Studio | Provides free tier for MVP testing/dev and connects context with full farm dataset | Active |
+| Ração & Água unified flow | Connects actual water consumption metrics to the DB and charts | Active |
+| Dedicated Tasks CRUD page | Moves tasks checklist to database backing (Option B schema) | Active |
+| Feedback page and prompts | Collects user satisfaction ratings and triggers alerts for evaluations | Active |
+| Especialização do Estoque | Splits generic table into Storage Locations, Feed, Vaccines, and Packaging | Active |
 
 ### Architecture Notes
 
-- New `FormField` component uses `useFormContext` for automatic error display.
-- Zod schemas are centralized in `lib/schemas/` and verified with Vitest.
-- Reports logic moved to `lib/services/reports.ts` to simplify UI components.
-- Navigation guards implemented to prevent data loss on dirty forms.
+- API routes will be implemented under `/api/checkout` and `/api/webhooks/stripe` for Stripe.
+- Gemini API route integrates a RAG pipeline querying all farm data from the active farm.
+- RLS policies must protect the new tables (`storage_locations`, `feed_inventory`, `vaccine_inventory`, `packaging_inventory`, `inventory_losses`, `feedbacks`, `kpi_goals`).
 
 ---
 
@@ -79,5 +89,5 @@ Last activity: 2026-06-04
 
 **To resume work:**
 
-1. Review `.planning/phases/11-form-standardization/11-01-PLAN.md`.
-2. Execute Wave 1: `/gsd:execute-plan 11-01`.
+1. Run the GSD planning command/skill to plan Phase 11.
+2. Review Phase 11 plan draft (`11-01-PLAN.md`).
