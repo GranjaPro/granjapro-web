@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
@@ -34,10 +33,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Tables<"profiles"> | null>(null);
   const [farm, setFarm] = useState<Tables<"farms"> | null>(null);
   const [loading, setLoading] = useState(true);
-  const pathname = usePathname();
-  const router = useRouter();
-  const pathnameRef = useRef(pathname);
-  pathnameRef.current = pathname;
   const userRef = useRef<User | null>(null);
   const farmRef = useRef<Tables<"farms"> | null>(null);
 
@@ -103,16 +98,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let active = true;
 
-    supabase.auth.getUser().then(async ({ data: { user: currentUser } }) => {
+    supabase.auth.getUser().then(({ data: { user: currentUser } }) => {
       if (!active) return;
 
       if (currentUser) {
         userRef.current = currentUser;
         setUser(currentUser);
-        const foundFarm = await loadUserData(currentUser);
-        if (!active) return;
         setLoading(false);
-        checkOnboarding(foundFarm);
+
+        loadUserData(currentUser)
+          .then((foundFarm) => {
+            if (!active) return;
+            checkOnboarding(foundFarm);
+          })
+          .catch((err) => {
+            console.error("Error loading user data:", err);
+          });
       } else {
         setUser(null);
         setLoading(false);
@@ -135,18 +136,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (event === "SIGNED_IN") {
           const currentUser = session?.user ?? null;
-          if (!currentUser) return;
+          if (!currentUser) {
+            setLoading(false);
+            return;
+          }
           if (userRef.current?.id === currentUser.id) {
             // Same user but still check onboarding (e.g. after OAuth redirect)
             if (!farmRef.current) checkOnboarding(false);
+            setLoading(false);
             return;
           }
           userRef.current = currentUser;
           setUser(currentUser);
-          setLoading(true);
-          const foundFarm = await loadUserData(currentUser);
           setLoading(false);
-          checkOnboarding(foundFarm);
+
+          loadUserData(currentUser)
+            .then((foundFarm) => {
+              checkOnboarding(foundFarm);
+            })
+            .catch((err) => {
+              console.error("Error handling auth state:", err);
+            });
         }
       }
     );
@@ -155,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       active = false;
       subscription.unsubscribe();
     };
-  }, [loadUserData, checkOnboarding]);
+  }, [supabase, loadUserData, checkOnboarding]);
 
   const refreshProfile = useCallback(async () => {
     if (!user || !supabase) return;

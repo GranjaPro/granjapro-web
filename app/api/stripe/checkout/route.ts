@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     if (!parsedRequestBody) {
       return Response.json(
-        { error: "Plano ou periodo de cobranca invalido." },
+        { error: "Plano ou período de cobrança inválido." },
         { status: 400 }
       );
     }
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       parsedRequestBody.plan,
       parsedRequestBody.billingCycle
     );
-    const appUrl = getAppUrl();
+    const appUrl = getAppUrl(request.nextUrl.origin);
     const selectedPlan = PLAN_MATRIX[parsedRequestBody.plan];
 
     const checkoutSession = await stripe.checkout.sessions.create({
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
 
     if (!checkoutSession.url) {
       return Response.json(
-        { error: "Nao foi possivel criar o checkout." },
+        { error: "Não foi possível criar o checkout." },
         { status: 500 }
       );
     }

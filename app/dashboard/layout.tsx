@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   getPlanOrNull,
@@ -47,13 +47,14 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 const OnboardingPage = dynamic(() => import("./onboarding/page"), { ssr: false });
 const DASHBOARD_THEME_KEY = "granjapro-dashboard-theme";
 type DashboardTheme = "light" | "dark";
 type SidebarNavItem =
   | { type: "divider" }
-  | { label: string; href: string; icon: any; minimumPlan?: PlanType };
+  | { label: string; href: string; icon: LucideIcon; minimumPlan?: PlanType };
 type SidebarNavLink = Extract<SidebarNavItem, { href: string }>;
 
 const ROUTE_PLAN_REQUIREMENTS: Record<string, PlanType> = {
@@ -88,7 +89,6 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const pathname = usePathname();
-  const router = useRouter();
   const { plan, hideAdvancedFeatures, setHideAdvancedFeatures } = usePlan();
   const { user, profile, farm, loading, signOut, refreshProfile } = useAuth();
   const [theme, setTheme] = useState<DashboardTheme>(() => {
@@ -167,15 +167,15 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (needsPlanSelection) {
-      router.replace("/dashboard/select-plan");
+      window.location.replace("/dashboard/select-plan");
     }
-  }, [needsPlanSelection, router]);
+  }, [needsPlanSelection]);
 
   useEffect(() => {
     if (routePlanBlocked) {
-      router.replace("/dashboard/select-plan");
+      window.location.replace("/dashboard/select-plan");
     }
-  }, [routePlanBlocked, router]);
+  }, [routePlanBlocked]);
 
   if (loading) {
     return (
@@ -284,6 +284,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
             }
             const isActive = pathname === navItem.href;
             const isLocked = navItem.minimumPlan ? !hasMinimumPlan(plan, navItem.minimumPlan) : false;
+            const Icon = navItem.icon;
             const itemClass = cn(
               "group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-200 cursor-pointer w-full text-left",
               collapsed && "justify-center px-0",
@@ -293,7 +294,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
             );
             const itemContent = (
               <>
-                <navItem.icon
+                <Icon
                   className={cn(
                     "w-[18px] h-[18px] flex-shrink-0 transition-colors",
                     isActive ? "text-white" : "text-brand-400/70 group-hover:text-brand-300"

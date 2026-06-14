@@ -5,6 +5,16 @@ import Link from "next/link";
 import { Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
+function getLoginErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message === "Invalid login credentials"
+      ? "E-mail ou senha incorretos."
+      : error.message;
+  }
+
+  return "Nao foi possivel entrar. Tente novamente.";
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,13 +28,18 @@ export default function LoginPage() {
     setGoogleError("");
     setGoogleLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
+      });
 
-    if (error) {
+      if (error) {
+        setGoogleError("Nao foi possivel iniciar a conexao com o Google. Tente novamente.");
+        setGoogleLoading(false);
+      }
+    } catch {
       setGoogleError("Nao foi possivel iniciar a conexao com o Google. Tente novamente.");
       setGoogleLoading(false);
     }
@@ -36,23 +51,24 @@ export default function LoginPage() {
     setError("");
     setGoogleError("");
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) {
-      setError(
-        error.message === "Invalid login credentials"
-          ? "E-mail ou senha incorretos."
-          : error.message
-      );
+      if (error) {
+        setError(getLoginErrorMessage(error));
+        setLoading(false);
+        return;
+      }
+
+      window.location.href = "/dashboard";
+    } catch (error) {
+      setError(getLoginErrorMessage(error));
       setLoading(false);
-      return;
     }
-
-    window.location.href = "/dashboard";
   };
 
   return (
