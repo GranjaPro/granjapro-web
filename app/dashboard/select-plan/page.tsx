@@ -30,6 +30,17 @@ const PLAN_SELECTION_COPY = {
   },
 } satisfies Record<PlanType, { badge: string; description: string; tagline: string }>;
 
+function formatPeriodEnd(value: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
 export default function SelectPlanPage() {
   const { user, profile, loading } = useAuth();
   const [submitting, setSubmitting] = useState<PlanType | null>(null);
@@ -43,12 +54,13 @@ export default function SelectPlanPage() {
   const trialActive = isTrialActive(profile);
   const checkoutReturn = useMemo(() => {
     if (typeof window === "undefined") {
-      return { cancelled: null, sessionId: null, status: null };
+      return { cancelled: null, cancelledUntil: null, sessionId: null, status: null };
     }
 
     const params = new URLSearchParams(window.location.search);
     return {
       cancelled: params.get("cancelled"),
+      cancelledUntil: params.get("until"),
       sessionId: params.get("session_id"),
       status: params.get("checkout"),
     };
@@ -59,11 +71,14 @@ export default function SelectPlanPage() {
       setCheckoutNotice("Checkout cancelado. Você pode escolher um plano quando quiser.");
     }
     if (checkoutReturn.cancelled === "success") {
+      const formattedDate = formatPeriodEnd(checkoutReturn.cancelledUntil);
       setCheckoutNotice(
-        "Cancelamento agendado. Você mantém acesso até o fim do período atual."
+        formattedDate
+          ? `Cancelamento agendado. Você mantém acesso até ${formattedDate}.`
+          : "Cancelamento agendado. Você mantém acesso até o fim do período atual."
       );
     }
-  }, [checkoutReturn.cancelled, checkoutReturn.status]);
+  }, [checkoutReturn.cancelled, checkoutReturn.cancelledUntil, checkoutReturn.status]);
 
   useEffect(() => {
     if (checkoutReturn.status !== "success") return;
@@ -161,7 +176,11 @@ export default function SelectPlanPage() {
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
-    const result = (await response.json()) as { cancelled?: boolean; error?: string };
+    const result = (await response.json()) as {
+      cancelled?: boolean;
+      currentPeriodEnd?: string | null;
+      error?: string;
+    };
 
     if (!response.ok || !result.cancelled) {
       setError(result.error ?? "Não foi possível cancelar o plano. Tente novamente.");
@@ -170,7 +189,10 @@ export default function SelectPlanPage() {
       return;
     }
 
-    window.location.href = "/dashboard/select-plan?cancelled=success";
+    const untilParam = result.currentPeriodEnd
+      ? `&until=${encodeURIComponent(result.currentPeriodEnd)}`
+      : "";
+    window.location.href = `/dashboard/select-plan?cancelled=success${untilParam}`;
   }
 
   if (loading) {

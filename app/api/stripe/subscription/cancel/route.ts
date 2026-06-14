@@ -60,19 +60,31 @@ export async function POST(_request: NextRequest) {
       );
     }
 
+    const stripe = getStripeClient();
+
     if (subscriptionRow.cancel_at_period_end) {
-      return Response.json({ alreadyCancelled: true, cancelled: true });
+      const existing = await stripe.subscriptions.retrieve(
+        subscriptionRow.stripe_subscription_id
+      );
+      const snapshot = await syncStripeSubscription(existing);
+      return Response.json({
+        alreadyCancelled: true,
+        cancelled: true,
+        currentPeriodEnd: snapshot.currentPeriodEnd,
+      });
     }
 
-    const stripe = getStripeClient();
     const updatedSubscription = await stripe.subscriptions.update(
       subscriptionRow.stripe_subscription_id,
       { cancel_at_period_end: true }
     );
 
-    await syncStripeSubscription(updatedSubscription);
+    const snapshot = await syncStripeSubscription(updatedSubscription);
 
-    return Response.json({ cancelled: true });
+    return Response.json({
+      cancelled: true,
+      currentPeriodEnd: snapshot.currentPeriodEnd,
+    });
   } catch (error) {
     console.error("Stripe cancel error:", error);
     return Response.json(
