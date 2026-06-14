@@ -287,6 +287,35 @@ export interface Database {
           cost_per_egg?: number;
         };
       };
+      water_consumption: {
+        Row: {
+          id: string;
+          created_at: string;
+          farm_id: string;
+          barn_id: string | null;
+          flock_id: string | null;
+          date: string;
+          quantity_liters: number;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          farm_id: string;
+          barn_id?: string | null;
+          flock_id?: string | null;
+          date: string;
+          quantity_liters: number;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          farm_id?: string;
+          barn_id?: string | null;
+          flock_id?: string | null;
+          date?: string;
+          quantity_liters?: number;
+        };
+      };
       mortality: {
         Row: {
           id: string;

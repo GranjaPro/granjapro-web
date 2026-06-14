@@ -46,6 +46,8 @@ import {
   CalendarClock,
   Eye,
   EyeOff,
+  Droplets,
+  type LucideIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -60,6 +62,7 @@ type SidebarNavLink = Extract<SidebarNavItem, { href: string }>;
 const ROUTE_PLAN_REQUIREMENTS: Record<string, PlanType> = {
   "/dashboard/workers": "pro",
   "/dashboard/reports": "pro",
+  "/dashboard/agua": "pro",
 };
 
 const sidebarNav: SidebarNavItem[] = [
@@ -69,6 +72,7 @@ const sidebarNav: SidebarNavItem[] = [
   { label: "Lotes", href: "/dashboard/flocks", icon: Layers },
   { label: "Produção", href: "/dashboard/production", icon: Egg },
   { label: "Ração", href: "/dashboard/racao", icon: Wheat },
+  { label: "Água", href: "/dashboard/agua", icon: Droplets, minimumPlan: "pro" },
   { label: "Saúde", href: "/dashboard/health", icon: HeartPulse },
   { label: "Mortalidade", href: "/dashboard/mortality", icon: Skull },
   { label: "Finanças", href: "/dashboard/finances", icon: DollarSign },
