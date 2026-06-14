@@ -26,9 +26,11 @@ create index if not exists idx_billing_subscriptions_user_id
 create index if not exists idx_billing_subscriptions_customer_id
   on public.billing_subscriptions(stripe_customer_id);
 
+drop policy if exists "Users can view own billing subscriptions" on public.billing_subscriptions;
 create policy "Users can view own billing subscriptions"
   on public.billing_subscriptions for select
   using (auth.uid() = user_id);
 
+drop trigger if exists set_updated_at on public.billing_subscriptions;
 create trigger set_updated_at before update on public.billing_subscriptions
   for each row execute procedure public.handle_updated_at();

@@ -475,17 +475,24 @@ export default function AguaLotePage() {
     const targetMlPerBird = targetMlByStage[metrics.stage];
     const litersPerEggTarget = metrics.eggsPerDay > 0 ? Number((metrics.targetLitersPerDay / metrics.eggsPerDay).toFixed(3)) : null;
 
-    const buildMetaBar = (performancePercent: number | null) => {
-      if (performancePercent === null || !Number.isFinite(performancePercent)) {
+    const buildMetaBar = (valuePercent: number | null, lowerIsBetter = false) => {
+      if (valuePercent === null || !Number.isFinite(valuePercent)) {
         return { progress: 0, progressColor: "bg-gray-300", statusText: "Sem meta" };
       }
 
-      const safePercent = Math.max(0, Math.min(performancePercent, 200));
+      const safePercent = Math.max(0, Math.min(valuePercent, 200));
       const diff = safePercent - 100;
+
+      let progressColor = "bg-emerald-500";
+      if (lowerIsBetter) {
+        progressColor = safePercent <= 100 ? "bg-emerald-500" : (safePercent <= 110 ? "bg-amber-500" : "bg-red-500");
+      } else {
+        progressColor = safePercent < 100 ? (safePercent >= 90 ? "bg-amber-500" : "bg-red-500") : "bg-emerald-500";
+      }
 
       return {
         progress: Math.min((safePercent / 100) * 75, 100),
-        progressColor: safePercent < 100 ? (safePercent >= 90 ? "bg-amber-500" : "bg-red-500") : "bg-emerald-500",
+        progressColor,
         statusText:
           Math.abs(diff) < 1
             ? "Dentro"
@@ -498,7 +505,8 @@ export default function AguaLotePage() {
     const dailyMeta = buildMetaBar((metrics.litersPerDay / metrics.targetLitersPerDay) * 100);
     const perBirdMeta = buildMetaBar((metrics.mlPerBird / targetMlPerBird) * 100);
     const perEggMeta = buildMetaBar(
-      metrics.litersPerEgg !== null && litersPerEggTarget ? (litersPerEggTarget / metrics.litersPerEgg) * 100 : null,
+      metrics.litersPerEgg !== null && litersPerEggTarget ? (metrics.litersPerEgg / litersPerEggTarget) * 100 : null,
+      true,
     );
 
     return [
