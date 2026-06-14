@@ -3,7 +3,7 @@ status: complete
 phase: 13-feed-and-water-logging
 source: [13-01-SUMMARY.md, 13-02-SUMMARY.md, 13-03-SUMMARY.md]
 started: 2026-06-14T18:55:00Z
-updated: 2026-06-14T19:50:28Z
+updated: 2026-06-14T19:56:23Z
 ---
 
 ## Current Test
@@ -37,27 +37,24 @@ expected: |
   On "/dashboard/agua" as a Pro/Premium user, click to add a new water record. Enter a date, flock, barn, and water quantity (e.g. 500L), and verify that it appears in the table. Edit the record to change the quantity, verify it updates, and then delete the record, verifying it is removed.
 result: pass
 
-### 6. Water Page KPIs and Charts
+### 6. Water Page KPIs and Charts (Aesthetics aligned)
 expected: |
-  On "/dashboard/agua" as a Pro/Premium user, verify that the KPIs display the Total Water Consumption, the Average Consumption per bird (calculated dynamically based on the flock size), and the alert status. The chart should correctly render the consumption curve for the selected period.
-result: issue
-reported: "a lógica passou, mas visualmente está muito distinto do restante do site."
-severity: cosmetic
+  On "/dashboard/agua" as a Pro/Premium user, verify that:
+  1. The page layout, header spacing, and icons now match the "/dashboard/racao" page.
+  2. The CalendarFilter has been moved to the header next to the primary action button.
+  3. The KPI cards use the standard rounded-2xl border, padding, and icons bg wrapper.
+  4. The chart uses the correct theme blue fill/stroke and standard Recharts tooltip.
+  5. The records log on the right and all interactive modals are styled consistently with the rest of the site.
+result: pass
 
 ## Summary
 
 total: 6
-passed: 5
-issues: 1
+passed: 6
+issues: 0
 pending: 0
 skipped: 0
 
 ## Gaps
 
-- truth: "On \"/dashboard/agua\" as a Pro/Premium user, verify that the KPIs display the Total Water Consumption, the Average Consumption per bird (calculated dynamically based on the flock size), and the alert status. The chart should correctly render the consumption curve for the selected period."
-  status: failed
-  reason: "User reported: a lógica passou, mas visualmente está muito distinto do restante do site."
-  severity: cosmetic
-  test: 6
-  artifacts: ["app/dashboard/agua/page.tsx"]
-  missing: []
+[none yet]
