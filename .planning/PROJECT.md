@@ -2,11 +2,11 @@
 
 ## What This Is
 
-Granja Pro is a SaaS farm management platform for poultry egg producers. It serves as the daily control center of the farm — helping small and medium egg farmers monitor production, track feed and mortality, manage finances, and make better operational decisions. Mobile-first, designed for smartphone use in farm environments.
+Granja Pro is a SaaS farm management platform for poultry egg producers. It serves as the daily control center of the farm, helping small and medium egg farmers monitor production, track feed and mortality, manage finances, and make better operational decisions. Mobile-first, designed for smartphone use in farm environments.
 
 ## Core Value
 
-Help egg farmers simplify daily farm management and improve financial control — the platform must be fast, intuitive, and useful every single day.
+Help egg farmers simplify daily farm management and improve financial control. The platform must be fast, intuitive, and useful every single day.
 
 ## Current State
 
@@ -25,21 +25,22 @@ Help egg farmers simplify daily farm management and improve financial control �
 - Financial KPIs, charts, and transaction management use Supabase-backed data.
 - Dashboard and finances pages share a unified date-filter context.
 - Google Sign-In with terms gate and account continuity is fully integrated.
-- Permissons/Limits defined for Essencial, Pro, and Premium tiers.
+- Permissions and limits defined for Essencial, Pro, and Premium tiers.
 - Route guards protect /dashboard/workers and /dashboard/reports for Pro/Premium users.
 
 </details>
 
 ## Next Milestone Goals (v1.3)
 
-- **Inventory Re-architecture**: Full database specialization (Storage Locations, Feed, Vaccines, Packaging, and Loss logging) and UI abas-based migration.
+- **Inventory Re-architecture**: Full database specialization (Storage Locations, Feed, Vaccines, Packaging, and Loss logging) and tab-based UI migration.
 - **Task System**: Dedicated management for recurring and manual farm tasks.
 - **Notifications System**: In-app alerts for low stock, productivity drops, task deadlines, and evaluation triggers.
 - **Stripe Payment Integration**: Subscriptions for "Essencial", "Pro", and "Premium" tiers via Stripe Checkout.
-- **Water Consumption Flow**: Unified feed and water management with real database metrics and lote details.
+- **Water Consumption Flow**: Unified feed and water management with real database metrics and flock details.
 - **Feedback Collection System**: User experience rating page and prompt triggers.
 - **RAG AI Assistant**: AI advisory copilot powered by Gemini 1.5 Flash with full-dataset RAG.
-- **Security Check Phase**: Endure RLS and webhook signature validation before July release.
+- **Farm Assistant Production Wiring**: Replace the mocked Farm Assistant component behavior with real app data/API integration.
+- **Security Check Phase**: Ensure RLS and webhook signature validation before July release.
 
 ## Requirements
 
@@ -69,11 +70,12 @@ Help egg farmers simplify daily farm management and improve financial control �
 - [ ] Specialized Inventory Database and UI Migration (Storage locations, Feed, Vaccines, and Packaging)
 - [ ] Task management in dashboard with scheduling and completion tracking
 - [ ] Real-time notification system for critical farm events
-- [ ] Real-time water details page and unified "Ração e água" flow
+- [ ] Real-time water details page and unified feed and water flow
 - [ ] Clickable/Customizable KPI goals persisted on database
 - [ ] Stripe Payment checkout redirect flow and webhook tier updating
 - [ ] Feedback collection page and profile Settings/trigger integrations
 - [ ] Gemini 1.5 Flash AI Assistant with full farm dataset RAG
+- [ ] Farm Assistant component wired to real app data/API behavior
 - [ ] Pre-launch security review (RLS policies validation)
 
 ### Out of Scope
@@ -81,8 +83,8 @@ Help egg farmers simplify daily farm management and improve financial control �
 - Custom backend server — Supabase handles all backend needs
 - Real-time chat — not core to farm management
 - Mobile native app — web-first, mobile later
-- Workers/Funcionários management — deferred to V2 (removed from menu)
-- Granular permission control refinement — already established in v1.2 (Users menu under "Em Breve")
+- Worker management — deferred to V2 (removed from menu)
+- Granular permission control refinement — already established in v1.2 (Users menu under "Coming Soon")
 - Code refactoring/form standardization — removed from Milestone 1.3 to focus 100% on functional MVP
 - PDF/CSV report exports refinement — deferred to follow-ups
 - Advanced analytics & page-to-component refactoring — deferred to follow-ups
@@ -120,7 +122,7 @@ Help egg farmers simplify daily farm management and improve financial control �
 | Callback redirects sanitize `next` before dashboard routing | Prevents open redirects while preserving email confirmation flow | Good |
 | Plan gating must move behind a central permission matrix | Scattered component checks are hard to audit and easy to bypass | Active |
 | Dark theme should be app-controlled, not delegated to system preference | User requested removing the system theme mode for this milestone | Active |
-| Especialização do Estoque | Splits generic table into Storage Locations, Feed, Vaccines, and Packaging | Active |
+| Inventory specialization | Splits generic table into Storage Locations, Feed, Vaccines, and Packaging | Active |
 
 ## Evolution
 

@@ -2,14 +2,14 @@
 
 ## v1.3 Functional MVP & Integrations (Active)
 
-**Phases:** 11 - 25
+**Phases:** 11 - 26
 
 **Goals:**
 - Stripe subscription integration and plan-based route gating.
-- Unified "Ração e água" flow and real water metrics.
+- Unified feed and water flow with real water metrics.
 - Database-backed task checklist, alert cards, and feedbacks.
 - Persistent custom dashboard KPI goals and built-in target ranges across modules.
-- Pre-launch security review, RLS hardening, and Gemini 1.5 Flash AI assistant with RAG.
+- Pre-launch security review, RLS hardening, Gemini 1.5 Flash RAG assistant, and production wiring for the Farm Assistant component.
 - Full database re-architecture and UI migration for specialized inventory (Storage Locations, Feed, Vaccines, and Packaging).
 
 ---
