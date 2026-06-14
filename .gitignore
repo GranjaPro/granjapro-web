@@ -101,4 +101,4 @@ docs/reports.md
 .agent/
 .agents/
 .agents/*
-
+.claude/

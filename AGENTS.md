@@ -1,87 +1,132 @@
-# Diretrizes para Agentes de IA e Assistentes de Código
+## Guidelines for AI Agents and Code Assistants
 
-Este arquivo define as regras fundamentais de atuação para qualquer Inteligência Artificial (IA) interagindo com este repositório. O objetivo é manter o código limpo, funcional e alinhado com a filosofia "Get Shit Done".
+This file defines the fundamental rules of engagement for any Artificial Intelligence (AI) interacting with this repository. The goal is to keep the code clean, functional, and aligned with the "Get Shit Done" philosophy.
 
-Ao atuar neste projeto, você DEVE seguir estritamente as regras abaixo:
+When working on this project, you MUST strictly follow the rules below:
 
-1. Reutilização em Primeiro Lugar (Don't Reinvent the Wheel)
- - Antes de criar qualquer nova função, componente, classe ou arquivo, analise a base de código existente.
- - Verifique se já existe uma solução, utilitário ou padrão implementado para o problema.
- - A prioridade número um é sempre a reutilização de código.
+#### 1. Reuse First (Don't Reinvent the Wheel)
 
-2. Pergunte, Não Adivinhe! (Zero Alucinação)
-Se você identificar áreas cinzentas, requisitos mal explicados, falta de contexto ou ambiguidades na minha solicitação:
-PARE E PERGUNTE!
- - Faça perguntas claras e diretas para esclarecer a dúvida.
- - Sob nenhuma hipótese tente adivinhar regras de negócio ou preencher lacunas com suposições.
+- Before creating any new function, component, class, or file, analyze the existing codebase.
 
-3. Menos Código é Mais Resultado (KISS / YAGNI)
- - Foque em resolver o problema atual da forma mais simples e direta possível.
- - Entregue o resultado esperado escrevendo a menor quantidade de código viável.
- - Evite over-engineering (engenharia excessiva) e abstrações prematuras. Você não vai precisar disso (YAGNI - You Aren't Gonna Need It).
+- Check if a solution, utility, or pattern is already implemented for the problem.
 
-4. Modularização Sustentável
- - Escreva código modular e focado.
- - Funções e componentes devem ter uma única responsabilidade (Single Responsibility Principle).
- - Se um arquivo ou função estiver crescendo demais, divida-o de forma lógica para facilitar a manutenção e a leitura.
+- The number one priority is always code reuse.
 
-5. Passos Atômicos (Atomic Changes)
- - Faça uma alteração estrutural ou lógica de cada vez.
- - Não reescreva arquivos inteiros se a mudança for apenas em uma função ou trecho específico.
- - Mudanças pequenas, rápidas e iterativas permitem testar rápido (GSD) e evitam quebrar o que já está funcionando.
+ #### 2. Ask, Don't Guess! (Zero Hallucination)
 
-6. Testes como Contrato
- - O funcionamento da aplicação é inegociável.
- - Se alterar a lógica de um arquivo, atualize ou crie o teste correspondente na mesma iteração para garantir que a funcionalidade se mantém.
- - Não entregue código que quebre os testes existentes.
+- If you identify gray areas, poorly explained requirements, lack of context, or ambiguities in my request:
+STOP AND ASK!
 
-7. Tolerância Zero com any no TypeScript
- - Jamais utilize o tipo any em arquivos TypeScript.
- - Use sempre as melhores práticas de tipagem estática.
- - Se os tipos não existirem, crie as interfaces ou types necessários.
- - A tipagem deve ser estrita, previsível e ajudar na documentação do código.
+- Ask clear and direct questions to clarify the doubt.
 
-8. Ao encontrar variaveis declaradas e não utilizadas, retire do código. 
-  
-### Clean Code (Código Limpo)
+- Under no circumstances try to guess business rules or fill gaps with assumptions.
 
-1. Nomenclatura Intencional (Meaningful Names)
- - O nome de uma variável, função ou classe deve responder a três grandes questões: por que existe, o que faz e como é usado.
- - Evite nomes genéricos (`data`, `info`, `manager`, `utils`) ou abreviações confusas.
- - Se você precisar de um comentário para explicar o que uma variável faz, o nome está errado.
+#### 3. Less Code is More Result (KISS / YAGNI)
 
-2. Funções Minúsculas e de Propósito Único (Do One Thing)
- - Uma função deve fazer apenas UMA coisa, fazê-la bem e fazer apenas ela (Single Responsibility Principle para funções).
- - Mantenha o número de parâmetros o menor possível (idealmente 0 a 2). Se precisar de mais, encapsule-os em um objeto.
- - Separe comandos de consultas (Command Query Separation): uma função deve alterar o estado ou retornar informações, nunca os dois.
+- Focus on solving the current problem in the simplest and most direct way possible.
 
-3.  O Código é a Documentação Principal
- - O código bem escrito é autoexplicativo. Evite comentários redundantes ou que explicam "o que" o código está fazendo.
- - Use comentários APENAS para explicar o "porquê" (decisões de design, regras de negócio complexas ou motivos para não seguir um padrão).
- - Nunca deixe código comentado (morto) no repositório. O Git serve para histórico.
+- Deliver the expected result by writing the smallest viable amount of code.
 
-4.  Tratamento de Erros Limpo (Clean Error Handling)
- - Prefira lançar Exceções (Exceptions) ao invés de retornar códigos de erro ou `null`.
- - Não passe `null` como argumento de funções e evite retornar `null` (use padrões como Null Object ou Optional se aplicável).
- - Isole os blocos de tratamento de erros da lógica principal. O tratamento de erros é "uma coisa" que a função faz (ver regra 9).
+- Avoid over-engineering and premature abstractions. You aren't gonna need it (YAGNI).
 
-### Clean Architecture (Arquitetura Limpa)
+#### 4. Sustainable Modularization
 
-1. A Regra de Dependência (The Dependency Rule)
- - As dependências do código-fonte devem apontar SEMPRE para dentro, em direção às regras de negócio de alto nível.
- - Camadas internas (Entidades, Casos de Uso) **não podem saber absolutamente nada** sobre camadas externas (UI, Banco de Dados, Frameworks Web, APIs externas).
+- Write modular and focused code.
+- Functions and components must have a single responsibility (Single Responsibility Principle).
 
-2. Camadas de Responsabilidade Estrita
- - **Entidades (Entities):** Regras de negócio puras (agnósticas à aplicação).
- - **Casos de Uso (Use Cases):** Orquestram o fluxo de dados para a aplicação, usando as Entidades.
- - **Adaptadores (Interface Adapters):** Controllers, Presenters e Gateways (Repositories) que convertem dados do formato do Core para o formato da Web/Banco de Dados e vice-versa.
- - **Detalhes (Frameworks & Drivers):** Bibliotecas, rotas web, ORMs. Mantenha essa camada o mais fina possível.
+- If a file or function is growing too large, split it logically to facilitate maintenance and readability.
 
-3. Frameworks e Bancos de Dados são Detalhes
- - A sua arquitetura não deve depender da existência do React, Express, NestJS, Postgres ou MongoDB.
- - O "Core" da aplicação (Casos de Uso e Entidades) deve ser escrito em código puro e ser totalmente isolado de bibliotecas externas.
- - Trate o banco de dados e a interface de usuário como plug-ins que podem ser substituídos a qualquer momento sem afetar as regras de negócio.
+#### 5. Atomic Steps (Atomic Changes)
 
-4. Inversão de Dependência (DIP) e Testabilidade Absoluta
- - O Core da aplicação deve definir Interfaces (Portas), e as camadas externas (como Repositórios de Banco de Dados) devem implementar essas interfaces (Adaptadores).
- - Regras de negócio devem ser 100% testáveis de forma isolada, sem precisar subir um servidor web, conectar a um banco de dados real ou renderizar uma UI. Use mocks e stubs para injetar dependências nos testes.
+- Make one structural or logical change at a time.
+
+- Do not rewrite entire files if the change is only in a specific function or snippet.
+
+- Small, fast, and iterative changes allow for quick testing (GSD) and avoid breaking what is already working.
+#### 6. Tests as a Contract
+
+-The application's f unctionality is non-negotiable.
+
+- If you change the logic of a file, update or create the corresponding test in the same iteration to ensure functionality is maintained.
+
+- Do not deliver code that breaks existing tests.
+
+#### 7. Zero Tolerance for any in TypeScript
+
+- Never use the any type in TypeScript files.
+
+- Always use static typing best practices.
+
+- If types don't exist, create the necessary interfaces or types.
+
+- Typing must be strict, predictable, and help document the code.
+
+#### 8. Clean up unused code
+
+- When finding declared but unused variables, remove them from the code.
+
+### Clean Code
+
+#### 1. Meaningful Names
+
+- The name of a variable, function, or class should answer three big questions: why it exists, what it does, and how it is used.
+
+- Avoid generic names ( data, info, manager, utils) or confusing abbreviations.
+
+- If you need a comment to explain what a variable does, the name is wrong.
+
+#### 2. Tiny and Single-Purpose Functions (Do One Thing)
+
+- A function should do only ONE thing, do it well, and do only it (Single Responsibility Principle for functions).
+
+- Keep the number of parameters as small as possible (ideally 0 to 2). If you need more, encapsulate them in an object.
+
+- Separate commands from queries (Command Query Separation): a function should either change state or return information, never both.
+
+#### 3. Code is the Primary Documentation
+
+- Well-written code is self-explanatory. Avoid redundant comments or comments that explain "what" the code is doing.
+
+- Use comments ONLY to explain the "why" (design decisions, complex business rules, or reasons for not following a pattern).
+
+- Never leave commented-out (dead) code in the repository. Git serves as the history.
+
+#### 4. Clean Error Handling
+
+- Prefer throwing Exceptions rather than returning error codes or null.
+
+- Do not pass null as an argument to functions and avoid returning null (use patterns like Null Object or Optional if applicable).
+
+- Isolate error handling blocks from the main logic. Error handling is "one thing" that a function does.
+
+### Clean Architecture
+
+#### 1. The Dependency Rule
+
+- Source code dependencies must ALWAYS point inward, toward higher-level business rules.
+
+- Inner layers (Entities, Use Cases) cannot know absolutely anything about outer layers (UI, Database, Web Frameworks, external APIs).
+
+#### 2. Strict Responsibility Layers
+
+- Entities: Pure business rules (application agnostic).
+
+- Use Cases: Orchestrate the flow of data to and from the application, using the Entities.
+
+- Interface Adapters: Controllers, Presenters, and Gateways (Repositories) that convert data from the Core format to the Web/Database format and vice versa.
+
+- Details (Frameworks & Drivers): Libraries, web routes, ORMs. Keep this layer as thin as possible.
+
+#### 3. Frameworks and Databases are Details
+
+- Your architecture should not depend on the existence of React, Express, NestJS, Postgres, or MongoDB.
+
+- The application's "Core" (Use Cases and Entities) must be written in pure code and be completely isolated from external libraries.
+
+- Treat the database and user interface as plug-ins that can be replaced at any time without affecting business rules.
+
+#### 4. Dependency Inversion (DIP) and Absolute Testability
+
+- The application Core must define Interfaces (Ports), and outer layers (like Database Repositories) must implement these interfaces (Adapters).
+
+- Business rules must be 100% testable in isolation, without needing to boot up a web server, connect to a real database, or render a UI. Use mocks and stubs to inject dependencies in tests.

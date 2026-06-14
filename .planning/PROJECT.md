@@ -10,7 +10,7 @@ Help egg farmers simplify daily farm management and improve financial control �
 
 ## Current State
 
-- v1.3 **Inventory, Tasks & UI Consolidation** in progress.
+- v1.3 **Functional MVP & Integrations** in progress.
 - v1.2 **Dark Theme & Granular Permissions** shipped on 2026-06-02.
 - v1.1 **Google Sign-In** shipped on 2026-05-06.
 - v1.0 **Finances Module + Calendar Sync** shipped on 2026-05-01.
@@ -33,12 +33,12 @@ Help egg farmers simplify daily farm management and improve financial control �
 ## Next Milestone Goals (v1.3)
 
 - **Inventory Integration**: Full database connection for the inventory management page.
-- **Form Standardization**: Centralized form components with Zod validation schemas across all registration forms.
 - **Task System**: Dedicated management for recurring and manual farm tasks.
 - **Notifications System**: In-app alerts for low stock, productivity drops, and task deadlines.
-- **Reports Refinement**: Optimized PDF/CSV exports and data integration for all report types.
-- **KPI Customization**: Interactive metrics and goals that users can personalize.
-- **Code Consolidation**: Refactor large dashboard pages into reusable, atomic components.
+- **Stripe Payment Integration**: Subscriptions for "Essencial", "Pro", and "Premium" tiers via Stripe Checkout.
+- **Water Consumption Flow**: Unified feed and water management with real database metrics.
+- **Feedback Collection System**: User experience rating page and prompt triggers.
+- **Security Check Phase**: Endure RLS and webhook signature validation before July release.
 
 ## Requirements
 
@@ -66,22 +66,25 @@ Help egg farmers simplify daily farm management and improve financial control �
 
 ### Active
 
-- [ ] Centralized `RegistrationForm` component with Zod validation schemas
 - [ ] Inventory page full Supabase integration (CRUD + status tracking)
 - [ ] Task management in dashboard with scheduling and completion tracking
 - [ ] Real-time notification system for critical farm events
-- [ ] PDF/CSV export optimization for the Reports page
-- [ ] Clickable/Customizable KPI goals on all kpis in app
-- [ ] Page-to-component refactor for Inventory and Reports
-- [ ] Advanced analytics (cost per egg, feed-cost sync, period comparisons)
+- [ ] Real-time water details page and unified "Ração e água" flow
+- [ ] Clickable/Customizable KPI goals persisted on database
+- [ ] Stripe Payment checkout redirect flow and webhook tier updating
+- [ ] Feedback collection page and profile Settings/trigger integrations
+- [ ] Pre-launch security review (RLS policies validation)
 
 ### Out of Scope
 
 - Custom backend server — Supabase handles all backend needs
 - Real-time chat — not core to farm management
 - Mobile native app — web-first, mobile later
-- Workers management — deferred (marked as Pro feature)
-- Payment processor integration — using internal tier management for now
+- Workers/Funcionários management — deferred to V2 (removed from menu)
+- Granular permission control — deferred to V1.1 (Users menu under "Em Breve")
+- Code refactoring/form standardization — removed from Milestone 1.3 to focus 100% on functional MVP
+- PDF/CSV report exports refinement — deferred to follow-ups
+- Advanced analytics & page-to-component refactoring — deferred to follow-ups
 
 ## Context
 
