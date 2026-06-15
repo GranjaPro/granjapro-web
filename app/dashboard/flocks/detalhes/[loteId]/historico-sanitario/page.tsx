@@ -38,10 +38,26 @@ import {
 } from "recharts";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth/auth-provider";
+import type { Tables } from "@/lib/database.types";
 
 type EventType = "vacina" | "medicamento" | "inspecao" | "sintoma" | "mortalidade";
 type EventStatus = "concluido" | "pendente" | "atrasado" | "em_andamento";
 type TimelinePeriod = "7d" | "30d" | "latest" | "months" | "all";
+interface HealthRecordRow {
+  id: string;
+  title: string;
+  date: string;
+  type: "vaccination" | "treatment" | "inspection";
+  status: "completed" | "in_progress" | "scheduled" | "upcoming";
+  responsible: string | null;
+  notes: string | null;
+}
+type MortalityRecordRow = Pick<
+  Tables<"mortality">,
+  "id" | "date" | "dead_birds" | "cause" | "mortality_rate" | "notes"
+>;
+type TooltipFormatter = (value: unknown, name: unknown) => [string, string];
 
 interface TimelineEvent {
   id: string;
@@ -92,283 +108,6 @@ interface HealthTimelinePoint {
   mortalidade: number;
   postura: number;
 }
-
-const mockEvents: TimelineEvent[] = [
-  {
-    id: "e1",
-    date: "2026-04-05",
-    type: "sintoma",
-    title: "Leve queda de penas registrada",
-    description: "Observada em 3% das aves do galpão A",
-    employee: "Carlos Silva",
-    observation: "Possível deficiência nutricional ou ectoparasitas",
-    status: "em_andamento",
-  },
-  {
-    id: "e2",
-    date: "2026-04-03",
-    type: "inspecao",
-    title: "Inspeção semanal de rotina",
-    description: "Checklist completo — 12 itens verificados",
-    employee: "Ana Pereira",
-    observation: "Ambiência dentro do padrão. Ração consumida normalmente.",
-    status: "concluido",
-  },
-  {
-    id: "e3",
-    date: "2026-04-02",
-    type: "mortalidade",
-    title: "Pico de mortalidade detectado",
-    description: "8 aves perdidas em 24h (2x acima do padrão)",
-    employee: "Sistema",
-    observation: "Investigação iniciada — possível estresse térmico",
-    status: "em_andamento",
-  },
-  {
-    id: "e4",
-    date: "2026-03-28",
-    type: "medicamento",
-    title: "Tratamento com Enrofloxacina",
-    description: "Aplicado via água de bebida — 5 dias",
-    employee: "Dra. Márcia Lopes",
-    observation: "Prescrição para suspeita de coriza infecciosa",
-    status: "concluido",
-  },
-  {
-    id: "e5",
-    date: "2026-03-25",
-    type: "sintoma",
-    title: "Sinais respiratórios leves",
-    description: "Espirros e corrimento nasal em 5 aves",
-    employee: "Carlos Silva",
-    observation: "Isoladas para observação",
-    status: "concluido",
-  },
-  {
-    id: "e6",
-    date: "2026-03-20",
-    type: "vacina",
-    title: "Vacinação Newcastle — reforço",
-    description: "Aplicada em 100% do lote via spray",
-    employee: "Dra. Márcia Lopes",
-    observation: "Lote respondeu bem, sem reações adversas",
-    status: "concluido",
-  },
-  {
-    id: "e7",
-    date: "2026-03-15",
-    type: "inspecao",
-    title: "Inspeção semanal de rotina",
-    description: "Checklist completo — 12 itens verificados",
-    employee: "Ana Pereira",
-    status: "concluido",
-  },
-  {
-    id: "e8",
-    date: "2026-04-12",
-    type: "vacina",
-    title: "Vacinação Gumboro — agendada",
-    description: "Reforço programado via água de bebida",
-    employee: "Dra. Márcia Lopes",
-    status: "pendente",
-  },
-];
-
-const mockVaccines: VaccineRecord[] = [
-  {
-    id: "v1",
-    nome: "Newcastle",
-    dataAplicada: "2026-03-20",
-    dose: "2ª dose",
-    protocolo: "Spray — lote completo",
-    proximaDose: "2026-06-20",
-    status: "em_dia",
-    responsavel: "Dra. Márcia Lopes",
-  },
-  {
-    id: "v2",
-    nome: "Gumboro",
-    dataAplicada: "2026-02-10",
-    dose: "1ª dose",
-    protocolo: "Água de bebida",
-    proximaDose: "2026-04-12",
-    status: "proxima",
-    responsavel: "Dra. Márcia Lopes",
-  },
-  {
-    id: "v3",
-    nome: "Bronquite Infecciosa",
-    dataAplicada: "2026-01-15",
-    dose: "Única",
-    protocolo: "Spray",
-    proximaDose: "2026-04-01",
-    status: "expirada",
-    responsavel: "Dra. Márcia Lopes",
-  },
-  {
-    id: "v4",
-    nome: "Marek",
-    dataAplicada: "2025-12-01",
-    dose: "Única",
-    protocolo: "Injetável — 1 dia de vida",
-    status: "em_dia",
-    responsavel: "Incubatório",
-  },
-  {
-    id: "v5",
-    nome: "Coccidiose",
-    dataAplicada: "2026-02-20",
-    dose: "1ª dose",
-    protocolo: "Água de bebida",
-    status: "pendente",
-    responsavel: "Dra. Márcia Lopes",
-  },
-];
-
-const mockTreatments: TreatmentRecord[] = [
-  {
-    id: "t1",
-    medicamento: "Enrofloxacina 10%",
-    motivo: "Suspeita de coriza infecciosa — sintomas respiratórios",
-    inicio: "2026-03-28",
-    fim: "2026-04-01",
-    duracao: "5 dias",
-    resultado: "resolvido",
-    responsavel: "Dra. Márcia Lopes",
-  },
-  {
-    id: "t2",
-    medicamento: "Complexo vitamínico ADE",
-    motivo: "Suporte nutricional após estresse térmico",
-    inicio: "2026-03-15",
-    fim: "2026-03-22",
-    duracao: "7 dias",
-    resultado: "resolvido",
-    responsavel: "Carlos Silva",
-  },
-  {
-    id: "t3",
-    medicamento: "Amprolium",
-    motivo: "Profilaxia de coccidiose",
-    inicio: "2026-02-20",
-    fim: "2026-02-25",
-    duracao: "5 dias",
-    resultado: "resolvido",
-    responsavel: "Dra. Márcia Lopes",
-  },
-  {
-    id: "t4",
-    medicamento: "Antiparasitário tópico",
-    motivo: "Suspeita de ectoparasitas — queda de penas",
-    inicio: "2026-04-05",
-    fim: "2026-04-10",
-    duracao: "5 dias",
-    resultado: "em_tratamento",
-    responsavel: "Carlos Silva",
-  },
-];
-
-const mockInspections: InspectionRecord[] = [
-  {
-    id: "i1",
-    data: "2026-04-03",
-    responsavel: "Ana Pereira",
-    checklist: [
-      { item: "Temperatura do galpão", ok: true },
-      { item: "Ventilação", ok: true },
-      { item: "Consumo de ração", ok: true },
-      { item: "Consumo de água", ok: true },
-      { item: "Condição das camas", ok: true },
-      { item: "Comportamento das aves", ok: true },
-      { item: "Sinais clínicos", ok: false },
-      { item: "Mortalidade diária", ok: true },
-      { item: "Qualidade dos ovos", ok: true },
-      { item: "Iluminação", ok: true },
-      { item: "Biossegurança", ok: true },
-      { item: "Equipamentos", ok: true },
-    ],
-    observacao: "Leve queda de penas em algumas aves — iniciada investigação.",
-  },
-  {
-    id: "i2",
-    data: "2026-03-27",
-    responsavel: "Ana Pereira",
-    checklist: [
-      { item: "Temperatura do galpão", ok: true },
-      { item: "Ventilação", ok: true },
-      { item: "Consumo de ração", ok: true },
-      { item: "Consumo de água", ok: true },
-      { item: "Condição das camas", ok: true },
-      { item: "Comportamento das aves", ok: true },
-      { item: "Sinais clínicos", ok: true },
-      { item: "Mortalidade diária", ok: true },
-      { item: "Qualidade dos ovos", ok: true },
-      { item: "Iluminação", ok: true },
-      { item: "Biossegurança", ok: true },
-      { item: "Equipamentos", ok: true },
-    ],
-    observacao: "Lote estável, todos os parâmetros dentro do padrão.",
-  },
-  {
-    id: "i3",
-    data: "2026-03-20",
-    responsavel: "Carlos Silva",
-    checklist: [
-      { item: "Temperatura do galpão", ok: true },
-      { item: "Ventilação", ok: false },
-      { item: "Consumo de ração", ok: true },
-      { item: "Consumo de água", ok: true },
-      { item: "Condição das camas", ok: true },
-      { item: "Comportamento das aves", ok: true },
-      { item: "Sinais clínicos", ok: false },
-      { item: "Mortalidade diária", ok: false },
-      { item: "Qualidade dos ovos", ok: true },
-      { item: "Iluminação", ok: true },
-      { item: "Biossegurança", ok: true },
-      { item: "Equipamentos", ok: true },
-    ],
-    observacao: "Ventilação precária contribuiu para estresse térmico — ajuste realizado.",
-  },
-];
-
-const mockPatterns = [
-  {
-    id: "p1",
-    titulo: "Queda de postura após troca de ração",
-    descricao:
-      "Detectamos queda de 4-6% na postura sempre nas 48h seguintes a trocas de marca de ração. Última ocorrência: 2 semanas atrás.",
-    confianca: 92,
-    impacto: "alto" as const,
-    ocorrencias: 4,
-  },
-  {
-    id: "p2",
-    titulo: "Sintomas respiratórios recorrentes a cada ~28 dias",
-    descricao:
-      "Pequenos surtos de coriza aparecem em ciclos regulares. Sugere agente persistente no ambiente — avaliar protocolo de desinfecção.",
-    confianca: 78,
-    impacto: "médio" as const,
-    ocorrencias: 3,
-  },
-  {
-    id: "p3",
-    titulo: "Aumento de mortalidade após calor extremo",
-    descricao:
-      "Dias com temperatura > 32°C resultam em +60% de mortalidade nas 72h seguintes. Considerar ajuste de ventilação/nebulização.",
-    confianca: 95,
-    impacto: "alto" as const,
-    ocorrencias: 5,
-  },
-  {
-    id: "p4",
-    titulo: "Inspeções semanais reduzem alertas em 35%",
-    descricao:
-      "Semanas com inspeção no prazo têm 35% menos alertas sanitários. Manter regularidade para sustentar score.",
-    confianca: 81,
-    impacto: "baixo" as const,
-    ocorrencias: 8,
-  },
-];
 
 const eventMeta: Record<
   EventType,
@@ -493,26 +232,148 @@ function formatMonthLabel(date: Date) {
   }).replace(".", "");
 }
 
+const checklistTemplate = [
+  "Temperatura do galpao",
+  "Ventilacao",
+  "Consumo de racao",
+  "Consumo de agua",
+  "Condicao das camas",
+  "Comportamento das aves",
+  "Sinais clinicos",
+  "Mortalidade diaria",
+  "Qualidade dos ovos",
+  "Iluminacao",
+  "Biosseguranca",
+  "Equipamentos",
+] as const;
+
+const checklistKeywordMap: Record<(typeof checklistTemplate)[number], string[]> = {
+  "Temperatura do galpao": ["temperatura", "calor", "frio", "termico"],
+  Ventilacao: ["ventilacao", "poeira", "amonia", "ar"],
+  "Consumo de racao": ["racao", "alimento", "consumo"],
+  "Consumo de agua": ["agua", "bebedouro"],
+  "Condicao das camas": ["cama", "umidade", "substrato"],
+  "Comportamento das aves": ["bicagem", "canibal", "apatia", "estresse"],
+  "Sinais clinicos": ["sintoma", "coriza", "respira", "diarre", "pena", "lesao"],
+  "Mortalidade diaria": ["mortalidade", "morte", "obito"],
+  "Qualidade dos ovos": ["ovo", "casca", "postura"],
+  Iluminacao: ["luz", "iluminacao"],
+  Biosseguranca: ["biosseguranca", "desinfeccao", "visita"],
+  Equipamentos: ["equipamento", "comedouro", "nebulizador"],
+};
+
+function mapEventStatus(status: HealthRecordRow["status"]): EventStatus {
+  if (status === "completed") return "concluido";
+  if (status === "in_progress") return "em_andamento";
+  if (status === "upcoming") return "pendente";
+  return "pendente";
+}
+
+function mapHealthTypeToEventType(record: HealthRecordRow): EventType {
+  if (record.type === "vaccination") return "vacina";
+  if (record.type === "treatment") return "medicamento";
+  const source = `${record.title} ${record.notes ?? ""}`.toLowerCase();
+  return source.includes("sintoma") ? "sintoma" : "inspecao";
+}
+
+function typeLabelForHealthRecord(type: HealthRecordRow["type"]) {
+  if (type === "vaccination") return "Registro de vacinacao";
+  if (type === "treatment") return "Registro de tratamento";
+  return "Registro de inspecao";
+}
+
+function generateChecklistFromText(record: HealthRecordRow) {
+  if (record.status !== "completed") {
+    return checklistTemplate.map((item) => ({ item, ok: false }));
+  }
+
+  const source = `${record.title} ${record.notes ?? ""}`.toLowerCase();
+  return checklistTemplate.map((item) => ({
+    item,
+    ok: !checklistKeywordMap[item].some((keyword) => source.includes(keyword)),
+  }));
+}
+
+function mapTreatmentResult(status: HealthRecordRow["status"]): TreatmentRecord["resultado"] {
+  if (status === "completed") return "resolvido";
+  if (status === "in_progress") return "em_tratamento";
+  return "parcial";
+}
+
+function parseTreatmentDuration(record: HealthRecordRow) {
+  const source = record.notes ?? "";
+  const match = source.match(/(\d+)\s*(dia|dias|semana|semanas)/i);
+  if (!match) return { fim: record.date, duracao: "—" };
+
+  const amount = Number(match[1]);
+  const days = match[2].toLowerCase().startsWith("semana") ? amount * 7 : amount;
+  const endDate = addDays(new Date(`${record.date}T00:00:00`), days);
+  return {
+    fim: toIsoDate(endDate),
+    duracao: `${days} dia${days === 1 ? "" : "s"}`,
+  };
+}
+
 export default function HistoricoSanitarioPage() {
   const params = useParams();
   const loteId = params.loteId as string;
+  const { farm, loading: authLoading } = useAuth();
   const [loteCode, setLoteCode] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [healthRecords, setHealthRecords] = useState<HealthRecordRow[]>([]);
+  const [mortalityRecords, setMortalityRecords] = useState<MortalityRecordRow[]>([]);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!farm) {
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
+    const currentFarm = farm;
     (async () => {
+      setLoading(true);
       const supabase = createClient();
-      const { data } = await supabase
-        .from("flocks")
-        .select("code")
-        .eq("id", loteId)
-        .maybeSingle();
-      if (!cancelled && data?.code) setLoteCode(data.code);
+      const [flockRes, healthRes, mortalityRes] = await Promise.all([
+        supabase
+          .from("flocks")
+          .select("code")
+          .eq("id", loteId)
+          .eq("farm_id", currentFarm.id)
+          .maybeSingle(),
+        supabase
+          .from("health_records")
+          .select("id, title, date, type, status, responsible, notes")
+          .eq("farm_id", currentFarm.id)
+          .eq("flock_id", loteId)
+          .order("date", { ascending: false }),
+        supabase
+          .from("mortality")
+          .select("id, date, dead_birds, cause, mortality_rate, notes")
+          .eq("farm_id", currentFarm.id)
+          .eq("flock_id", loteId)
+          .order("date", { ascending: false }),
+      ]);
+
+      if (cancelled) return;
+      if (flockRes.error || !flockRes.data) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+
+      setLoteCode(flockRes.data.code);
+      setHealthRecords((healthRes.data as HealthRecordRow[] | null) ?? []);
+      setMortalityRecords((mortalityRes.data as MortalityRecordRow[] | null) ?? []);
+      setNotFound(false);
+      setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [loteId]);
+  }, [authLoading, farm, loteId]);
 
   const [filterType, setFilterType] = useState<"all" | EventType>("all");
   const [timelinePeriod, setTimelinePeriod] = useState<TimelinePeriod>("all");
@@ -542,9 +403,90 @@ export default function HistoricoSanitarioPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const timelineEvents = useMemo<TimelineEvent[]>(() => {
+    const healthEvents = healthRecords.map((record) => ({
+      id: record.id,
+      date: record.date,
+      type: mapHealthTypeToEventType(record),
+      title: record.title,
+      description: record.notes ?? typeLabelForHealthRecord(record.type),
+      employee: record.responsible ?? "Sistema",
+      observation: record.notes ?? undefined,
+      status: mapEventStatus(record.status),
+    }));
+    const mortalityEvents = mortalityRecords.map((record) => ({
+      id: `mortality-${record.id}`,
+      date: record.date,
+      type: "mortalidade" as const,
+      title: `Mortalidade registrada: ${record.dead_birds} aves`,
+      description: `${record.cause}${record.notes ? ` - ${record.notes}` : ""}`,
+      employee: "Sistema",
+      observation: record.notes ?? undefined,
+      status: "concluido" as const,
+    }));
+
+    return [...healthEvents, ...mortalityEvents].sort((a, b) => b.date.localeCompare(a.date));
+  }, [healthRecords, mortalityRecords]);
+
+  const vaccineRecords = useMemo<VaccineRecord[]>(
+    () =>
+      healthRecords
+        .filter((record) => record.type === "vaccination")
+        .map((record) => ({
+          id: record.id,
+          nome: record.title,
+          dataAplicada: record.date,
+          dose: record.status === "completed" ? "Aplicada" : "Programada",
+          protocolo: record.notes ?? "Registro sanitario",
+          proximaDose: record.status === "scheduled" || record.status === "upcoming" ? record.date : undefined,
+          status:
+            record.status === "completed"
+              ? "em_dia"
+              : record.status === "upcoming"
+              ? "proxima"
+              : "pendente",
+          responsavel: record.responsible ?? "Sistema",
+        })),
+    [healthRecords]
+  );
+
+  const treatmentRecords = useMemo<TreatmentRecord[]>(
+    () =>
+      healthRecords
+        .filter((record) => record.type === "treatment")
+        .map((record) => {
+          const duration = parseTreatmentDuration(record);
+          return {
+            id: record.id,
+            medicamento: record.title,
+            motivo: record.notes ?? "Tratamento registrado",
+            inicio: record.date,
+            fim: duration.fim,
+            duracao: duration.duracao,
+            resultado: mapTreatmentResult(record.status),
+            responsavel: record.responsible ?? "Sistema",
+          };
+        }),
+    [healthRecords]
+  );
+
+  const inspectionRecords = useMemo<InspectionRecord[]>(
+    () =>
+      healthRecords
+        .filter((record) => record.type === "inspection")
+        .map((record) => ({
+          id: record.id,
+          data: record.date,
+          responsavel: record.responsible ?? "Sistema",
+          checklist: generateChecklistFromText(record),
+          observacao: record.status === "completed" ? record.notes ?? "" : "Pendente",
+        })),
+    [healthRecords]
+  );
+
   const filteredEvents = useMemo(() => {
-    const latestEventDate = mockEvents[0]?.date
-      ? new Date(`${mockEvents.map((event) => event.date).sort().slice(-1)[0]}T00:00:00`)
+    const latestEventDate = timelineEvents[0]?.date
+      ? new Date(`${timelineEvents.map((event) => event.date).sort().slice(-1)[0]}T00:00:00`)
       : new Date();
 
     const latestIso = toIsoDate(latestEventDate);
@@ -557,7 +499,7 @@ export default function HistoricoSanitarioPage() {
         ? toIsoDate(startOfMonth(new Date(latestEventDate.getFullYear(), latestEventDate.getMonth() - 5, 1)))
         : latestIso;
 
-    return mockEvents
+    return timelineEvents
       .filter((e) => {
         if (timelinePeriod === "all") return true;
         if (timelinePeriod === "latest") return e.date === latestIso;
@@ -571,7 +513,7 @@ export default function HistoricoSanitarioPage() {
           e.employee.toLowerCase().includes(search.toLowerCase()),
       )
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [filterType, search, timelinePeriod]);
+  }, [filterType, search, timelineEvents, timelinePeriod]);
 
   const groupedByDate = useMemo(() => {
     const groups: Record<string, TimelineEvent[]> = {};
@@ -587,44 +529,44 @@ export default function HistoricoSanitarioPage() {
     periodFilterOptions.find((option) => option.key === timelinePeriod)?.label ?? "Tempo total";
   const filteredInspections = useMemo(() => {
     const term = inspectionSearch.trim().toLowerCase();
-    if (!term) return mockInspections;
-    return mockInspections.filter(
+    if (!term) return inspectionRecords;
+    return inspectionRecords.filter(
       (inspection) =>
         formatDate(inspection.data).toLowerCase().includes(term) ||
         inspection.data.toLowerCase().includes(term) ||
         inspection.responsavel.toLowerCase().includes(term),
     );
-  }, [inspectionSearch]);
+  }, [inspectionRecords, inspectionSearch]);
   const filteredVaccines = useMemo(() => {
     const term = vaccineSearch.trim().toLowerCase();
-    if (!term) return mockVaccines;
-    return mockVaccines.filter(
+    if (!term) return vaccineRecords;
+    return vaccineRecords.filter(
       (vaccine) =>
         vaccine.nome.toLowerCase().includes(term) ||
         vaccine.responsavel.toLowerCase().includes(term),
     );
-  }, [vaccineSearch]);
+  }, [vaccineRecords, vaccineSearch]);
   const filteredTreatments = useMemo(() => {
     const term = treatmentSearch.trim().toLowerCase();
-    if (!term) return mockTreatments;
-    return mockTreatments.filter(
+    if (!term) return treatmentRecords;
+    return treatmentRecords.filter(
       (treatment) =>
         treatment.medicamento.toLowerCase().includes(term) ||
         treatment.responsavel.toLowerCase().includes(term),
     );
-  }, [treatmentSearch]);
+  }, [treatmentRecords, treatmentSearch]);
   const shouldScrollVaccines = filteredVaccines.length > 5;
   const shouldScrollTreatments = filteredTreatments.length > 3;
 
   const healthTimeline = useMemo(() => {
     const today = startOfDay(new Date());
     const allDates = [
-      ...mockEvents.map((event) => event.date),
-      ...mockVaccines.flatMap((vaccine) =>
+      ...timelineEvents.map((event) => event.date),
+      ...vaccineRecords.flatMap((vaccine) =>
         [vaccine.dataAplicada, vaccine.proximaDose].filter(Boolean) as string[],
       ),
-      ...mockTreatments.flatMap((treatment) => [treatment.inicio, treatment.fim]),
-      ...mockInspections.map((inspection) => inspection.data),
+      ...treatmentRecords.flatMap((treatment) => [treatment.inicio, treatment.fim]),
+      ...inspectionRecords.map((inspection) => inspection.data),
     ]
       .filter(Boolean)
       .sort();
@@ -635,7 +577,7 @@ export default function HistoricoSanitarioPage() {
       const startIso = toIsoDate(start);
       const endIso = toIsoDate(end);
 
-      const bucketEvents = mockEvents.filter(
+      const bucketEvents = timelineEvents.filter(
         (event) => event.date >= startIso && event.date <= endIso,
       );
       const criticalEvents = bucketEvents.filter(
@@ -648,17 +590,17 @@ export default function HistoricoSanitarioPage() {
         (event) => event.type === "sintoma",
       ).length;
 
-      const pendingVaccines = mockVaccines.filter((vaccine) => {
+      const pendingVaccines = vaccineRecords.filter((vaccine) => {
         const dueDate = vaccine.proximaDose ?? vaccine.dataAplicada;
         return dueDate <= endIso && vaccine.status !== "em_dia";
       }).length;
 
-      const expiredVaccines = mockVaccines.filter((vaccine) => {
+      const expiredVaccines = vaccineRecords.filter((vaccine) => {
         const dueDate = vaccine.proximaDose ?? vaccine.dataAplicada;
         return dueDate <= endIso && vaccine.status === "expirada";
       }).length;
 
-      const latestInspection = [...mockInspections]
+      const latestInspection = [...inspectionRecords]
         .filter((inspection) => inspection.data <= endIso)
         .sort((a, b) => b.data.localeCompare(a.data))[0];
 
@@ -756,7 +698,7 @@ export default function HistoricoSanitarioPage() {
       const weekEnd = endOfWeek(weekStart) > today ? today : endOfWeek(weekStart);
       return buildPoint(weekStart, weekEnd, `Sem ${index + 1}`);
     });
-  }, [healthTimelineRange]);
+  }, [healthTimelineRange, inspectionRecords, timelineEvents, treatmentRecords, vaccineRecords]);
 
   const vaccineStatusMeta = {
     em_dia: { label: "Em dia", classes: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -771,6 +713,90 @@ export default function HistoricoSanitarioPage() {
     obito: { label: "Óbito", classes: "bg-red-50 text-red-700 border-red-200" },
     parcial: { label: "Parcial", classes: "bg-gray-50 text-gray-600 border-gray-200" },
   } as const;
+  const patterns = useMemo(
+    () =>
+      [
+        mortalityRecords.length > 0
+          ? {
+              id: "mortality",
+              titulo: "Mortalidade registrada no historico",
+              descricao: `${mortalityRecords.reduce((sum, record) => sum + record.dead_birds, 0)} aves registradas em ${mortalityRecords.length} ocorrencia${mortalityRecords.length === 1 ? "" : "s"}.`,
+              confianca: 100,
+              impacto: "alto" as const,
+              ocorrencias: mortalityRecords.length,
+            }
+          : null,
+        healthRecords.some((record) => record.status === "in_progress")
+          ? {
+              id: "active-health",
+              titulo: "Registros sanitarios em andamento",
+              descricao: "Existem tratamentos ou inspecoes ainda pendentes de resolucao.",
+              confianca: 100,
+              impacto: "médio" as const,
+              ocorrencias: healthRecords.filter((record) => record.status === "in_progress").length,
+            }
+          : null,
+      ].filter((pattern): pattern is NonNullable<typeof pattern> => pattern !== null),
+    [healthRecords, mortalityRecords]
+  );
+  const shouldShowPatterns = timelineEvents.length >= 3 && patterns.length > 0;
+
+  if (authLoading || loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Clock className="h-8 w-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <div className="space-y-6">
+        <Link
+          href={`/dashboard/flocks/detalhes/${loteId}`}
+          className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-600 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Voltar para Detalhes
+        </Link>
+        <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
+          <p className="text-gray-400">Dados nao encontrados.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (healthRecords.length === 0 && mortalityRecords.length === 0) {
+    return (
+      <div className="space-y-6">
+        <Link
+          href={`/dashboard/flocks/detalhes/${loteId}`}
+          className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-600 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Voltar para Detalhes
+        </Link>
+        <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
+            <HeartPulse className="h-6 w-6 text-emerald-600" />
+          </div>
+          <h1 className="text-lg font-bold text-gray-900">
+            Nenhum registro de saude encontrado para este lote
+          </h1>
+          <p className="mx-auto mt-2 max-w-xl text-sm text-gray-500">
+            Este lote ainda nao possui historico de vacinas, tratamentos, inspecoes ou
+            mortalidade. Clique abaixo para registrar a primeira ocorrencia.
+          </p>
+          <Link
+            href={`/dashboard/health?register=true&flockId=${loteId}`}
+            className="mt-6 inline-flex items-center justify-center rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+          >
+            Registrar nova ocorrencia
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -877,7 +903,7 @@ export default function HistoricoSanitarioPage() {
               formatter={((value: unknown, name: unknown) => {
                 if (name === "Score de saúde" || name === "Postura (%)") return [`${Number(value ?? 0)}%`, String(name)];
                 return [`${Number(value ?? 0).toFixed(2)}%`, String(name)];
-              }) as any}
+              }) satisfies TooltipFormatter}
             />
             <Legend
               wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
@@ -915,6 +941,7 @@ export default function HistoricoSanitarioPage() {
       </div>
 
       {/* Patterns */}
+      {shouldShowPatterns && (
       <div className="bg-gradient-to-r from-amber-50 to-amber-50/40 rounded-2xl border border-amber-200 p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -931,7 +958,7 @@ export default function HistoricoSanitarioPage() {
           <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {mockPatterns.map((p) => {
+          {patterns.map((p) => {
             const impactColor =
               p.impacto === "alto"
                 ? "text-red-600 bg-red-50 border-red-200"
@@ -969,6 +996,7 @@ export default function HistoricoSanitarioPage() {
           })}
         </div>
       </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] gap-5 items-stretch">
       {/* Timeline */}
