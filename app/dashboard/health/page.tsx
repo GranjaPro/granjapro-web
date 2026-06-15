@@ -51,6 +51,7 @@ import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
+import type { Tables } from "@/lib/database.types";
 
 /* ── Types ── */
 type RegistroTipo = "Vacinação" | "Tratamento" | "Inspeção";
@@ -102,6 +103,32 @@ interface HealthEvolutionPoint {
   mortalidade: number;
   postura: number;
 }
+
+type FlockRow = Pick<Tables<"flocks">, "id" | "code" | "bird_count" | "status">;
+type MortalityRow = Tables<"mortality">;
+interface HealthRecordRow {
+  id: string;
+  farm_id: string;
+  flock_id: string | null;
+  title: string;
+  date: string;
+  type: "vaccination" | "treatment" | "inspection";
+  status: "completed" | "in_progress" | "scheduled" | "upcoming";
+  responsible: string | null;
+  notes: string | null;
+  flocks: Pick<Tables<"flocks">, "code"> | null;
+}
+interface HealthRecordInsert {
+  farm_id: string;
+  flock_id: string | null;
+  title: string;
+  date: string;
+  type: string;
+  status: "completed" | "in_progress" | "scheduled" | "upcoming";
+  responsible: string | null;
+  notes: string | null;
+}
+type TooltipFormatter = (value: unknown, name: unknown) => [string, string];
 
 const statusRegistroConfig: Record<RegistroStatus, { bg: string; text: string }> = {
   "Concluído": { bg: "bg-emerald-50", text: "text-emerald-700" },
@@ -300,7 +327,9 @@ export default function SaudePage() {
   const [healthEvolutionRange, setHealthEvolutionRange] = useState<HealthEvolutionRange>("30d");
 
   useEffect(() => {
-    if (searchParams.get("register") === "true") openAdd();
+    if (searchParams.get("register") !== "true") return;
+    const requestedFlockId = searchParams.get("flockId") ?? searchParams.get("loteId") ?? "";
+    openAdd(undefined, requestedFlockId);
   }, [searchParams]);
 
   const [form, setForm] = useState({
@@ -363,13 +392,13 @@ export default function SaudePage() {
       if (flocksRes.error) throw flocksRes.error;
       if (mortalityRes.error) throw mortalityRes.error;
 
-      const flocksData = flocksRes.data || [];
-      const healthData = healthRes.data || [];
-      const scheduleData = scheduleRes.data || [];
-      const mortalityData = mortalityRes.data || [];
+      const flocksData = (flocksRes.data ?? []) as FlockRow[];
+      const healthData = (healthRes.data ?? []) as HealthRecordRow[];
+      const scheduleData = (scheduleRes.data ?? []) as HealthRecordRow[];
+      const mortalityData = (mortalityRes.data ?? []) as MortalityRow[];
 
       // Map flocks
-      const mappedLotes: Lote[] = flocksData.map((f: any) => ({
+      const mappedLotes: Lote[] = flocksData.map((f) => ({
         id: f.id,
         codigo: f.code,
         aves: f.bird_count,
@@ -378,7 +407,7 @@ export default function SaudePage() {
       setTotalAves(mappedLotes.reduce((s, l) => s + l.aves, 0));
 
       // Map health records
-      setRegistros(healthData.map((r: any) => ({
+      setRegistros(healthData.map((r) => ({
         id: r.id,
         titulo: r.title,
         data: r.date,
@@ -391,7 +420,7 @@ export default function SaudePage() {
       })));
 
       // Map vaccine schedule
-      setAgenda(scheduleData.map((r: any) => ({
+      setAgenda(scheduleData.map((r) => ({
         id: r.id,
         vacina: r.title,
         lote: r.flocks?.code || "Todos",
@@ -421,7 +450,9 @@ export default function SaudePage() {
       );
 
       // Vaccination coverage by month
-      const allVaccinations = [...healthData, ...scheduleData].filter((r: any) => r.type === "vaccination");
+      const allVaccinations = [...healthData, ...scheduleData].filter(
+        (r) => r.type === "vaccination"
+      );
       const monthlyVaccinations = new Map<string, { total: number; completed: number }>();
       for (const v of allVaccinations) {
         const d = new Date(v.date + "T00:00:00");
@@ -440,7 +471,7 @@ export default function SaudePage() {
             cobertura: val.total > 0 ? Math.round((val.completed / val.total) * 100) : 0,
           }))
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao carregar dados de saúde:", err);
       setError("Erro ao carregar dados de saúde.");
     }
@@ -644,11 +675,11 @@ export default function SaudePage() {
     return "inspecao";
   }
 
-  function openAdd(option?: RegistroRapidoOption) {
+  function openAdd(option?: RegistroRapidoOption, selectedFlockId = "") {
     setForm({
       titulo: "",
       data: "",
-      loteId: "",
+      loteId: selectedFlockId,
       tipo: option?.tipo ?? "Vacinação",
       registroRapido: option?.id ?? "vacinacao",
       observacao: "",
@@ -687,7 +718,7 @@ export default function SaudePage() {
           : "in_progress"
         : "completed";
 
-    const record = {
+    const record: HealthRecordInsert = {
       farm_id: farm.id,
       flock_id: form.loteId || null,
       title: form.titulo,
@@ -710,8 +741,8 @@ export default function SaudePage() {
       setShowModal(false);
       setEditing(null);
       await fetchData();
-    } catch (err: any) {
-      setError(err.message || "Erro ao salvar registro.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erro ao salvar registro.");
     }
     setSaving(false);
   }
@@ -723,7 +754,7 @@ export default function SaudePage() {
       if (delErr) throw delErr;
       setDeleteConfirm(null);
       await fetchData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao excluir registro:", err);
     }
   }
@@ -995,7 +1026,7 @@ export default function SaudePage() {
                   return [`${Number(value ?? 0)}%`, String(name)];
                 }
                 return [`${Number(value ?? 0).toFixed(2)}%`, String(name)];
-              }) as any}
+              }) satisfies TooltipFormatter}
             />
             <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} iconType="circle" />
             <Area
@@ -1116,7 +1147,7 @@ export default function SaudePage() {
                     return [`${Number(value ?? 0)}%`, String(name)];
                   }
                   return [`${Number(value ?? 0).toFixed(2)}%`, String(name)];
-                }) as any}
+                }) satisfies TooltipFormatter}
               />
               <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} iconType="circle" />
               <Area
@@ -1298,11 +1329,11 @@ export default function SaudePage() {
                   <Tooltip
                     contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
                     labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px" }}
-                    formatter={((value: any, name: any) => {
+                    formatter={((value: unknown, name: unknown) => {
                       if (name === "mortes") return [Number(value) + " aves", "Mortes"];
                       if (name === "taxa") return [(Number(value) * 100).toFixed(2) + "%", "Taxa"];
-                      return [String(value), name];
-                    }) as any}
+                      return [String(value), String(name)];
+                    }) satisfies TooltipFormatter}
                   />
                   <Bar yAxisId="left" dataKey="mortes" fill="url(#gradMortesBar)" radius={[6, 6, 0, 0]} barSize={24} name="mortes" />
                   <Line yAxisId="right" type="monotone" dataKey="taxa" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="taxa" />
