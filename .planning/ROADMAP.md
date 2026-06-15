@@ -16,7 +16,7 @@
 
 | Milestone | Phase Range | Plans Complete | Status | Shipped |
 |-----------|-------------|----------------|--------|---------|
-| v1.3 Functional MVP & Integrations | 11-26 | 4/18 | Active | - |
+| v1.3 Functional MVP & Integrations | 11-26 | 5/18 | Active | - |
 | v1.2 Dark Theme & Granular Permissions | 7-10 | 11/11 | Shipped | 2026-06-02 |
 | v1.1 Google Sign-In | 5-6 | 2/2 | Shipped | 2026-05-06 |
 | v1.0 Finances Module + Calendar Sync | 1-4 | 11/11 | Shipped | 2026-05-01 |
@@ -44,7 +44,9 @@ Detailed phase goals live in `.planning/milestones/v1.3-ROADMAP.md`.
 
 ### Phase 15: Real Health History Page
 
-- Plan: `.planning/phases/15-real-health-history-page/15-01-PLAN.md`
+**Plans:** 1/1 plans complete
+
+- [x] 15-01-PLAN.md - Real health history page
 
 ### Phase 16: Flock Tasks CRUD
 

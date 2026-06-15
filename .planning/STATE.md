@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Phase Index
 status: executing
-last_updated: "2026-06-14T23:47:09.052Z"
-last_activity: 2026-06-14 -- Phase 15 planning complete
+last_updated: "2026-06-15T00:16:06.956Z"
+last_activity: 2026-06-14 -- Phase 15 execution complete
 progress:
   total_phases: 16
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 4
-  percent: 13
+  completed_phases: 3
+  total_plans: 6
+  completed_plans: 5
+  percent: 19
 ---
 
 # Project State: Granja Pro
@@ -30,10 +30,10 @@ progress:
 
 ## Current Position
 
-Phase: 15
+Phase: 16
 Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-14 -- Phase 15 planning complete
+Status: Ready to discuss
+Last activity: 2026-06-14 -- Phase 15 execution complete
 
 ## Phase Summary
 
@@ -43,7 +43,7 @@ Last activity: 2026-06-14 -- Phase 15 planning complete
 | 12 | Stripe Webhooks & Plan Gating | Pending |
 | 13 | Feed and Water Logging | Complete |
 | 14 | Flock Water Details Page | Complete |
-| 15 | Real Health History Page | Pending |
+| 15 | Real Health History Page | Complete |
 | 16 | Flock Tasks CRUD | Pending |
 | 17 | Dashboard Checklist and Alerts | Pending |
 | 18 | Feedback Page | Pending |
@@ -60,7 +60,7 @@ Last activity: 2026-06-14 -- Phase 15 planning complete
 
 ## Performance Metrics
 
-- **Phases completed:** 2 / 16 for v1.3
+- **Phases completed:** 3 / 16 for v1.3
 - **Latest shipped milestone audit:** `passed` (v1.2-MILESTONE-AUDIT.md)
 
 ---
@@ -78,6 +78,7 @@ Last activity: 2026-06-14 -- Phase 15 planning complete
 | Dedicated Tasks CRUD page | Moves tasks checklist to database backing (Option B schema) | Active |
 | Feedback page and prompts | Collects user satisfaction ratings and triggers alerts for evaluations | Active |
 | Inventory specialization | Splits generic table into Storage Locations, Feed, Vaccines, and Packaging | Active |
+| Real flock health history | Phase 15 connects flock health and sanitary history pages to Supabase health_records and mortality with dynamic checklists | Active |
 
 ### Architecture Notes
 
@@ -95,6 +96,6 @@ Last activity: 2026-06-14 -- Phase 15 planning complete
 
 **To resume work:**
 
-1. Run the GSD planning command/skill to plan Phase 11.
-2. Review Phase 11 plan draft (`11-01-PLAN.md`).
-3. Phase 14 is complete and verified. Run `/gsd-discuss-phase 15` or `/gsd-plan-phase 15` to start Real Health History Page.
+1. Phase 15 is implemented and build-verified.
+2. Review `.planning/phases/15-real-health-history-page/15-01-SUMMARY.md` for shipped health-history behavior.
+3. Run `/gsd-discuss-phase 16` to start Flock Tasks CRUD.
