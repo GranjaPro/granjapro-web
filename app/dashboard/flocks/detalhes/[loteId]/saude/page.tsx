@@ -19,9 +19,14 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import type { Tables } from "@/lib/database.types";
 
 type RecordType = "vaccination" | "treatment" | "inspection";
 type RecordStatus = "completed" | "in_progress" | "scheduled" | "upcoming";
+type MortalityRecord = Pick<
+  Tables<"mortality">,
+  "id" | "date" | "dead_birds" | "cause" | "mortality_rate" | "notes"
+>;
 
 interface HealthRecord {
   id: string;
@@ -159,6 +164,12 @@ function extractSymptom(record: HealthRecord) {
   return parts.length > 1 ? parts[parts.length - 1] : source;
 }
 
+function calculateMortalityScore(mortalityRate: number) {
+  if (mortalityRate <= 0.02) return 100;
+  if (mortalityRate >= 0.1) return 0;
+  return Math.round((1 - (mortalityRate - 0.02) / 0.08) * 100);
+}
+
 export default function SaudeLotePage() {
   const params = useParams();
   const loteId = params.loteId as string;
@@ -166,7 +177,9 @@ export default function SaudeLotePage() {
 
   const [loading, setLoading] = useState(true);
   const [loteCode, setLoteCode] = useState("");
+  const [birdCount, setBirdCount] = useState(0);
   const [records, setRecords] = useState<HealthRecord[]>([]);
+  const [mortalityRecords, setMortalityRecords] = useState<MortalityRecord[]>([]);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
@@ -183,16 +196,22 @@ export default function SaudeLotePage() {
     async function fetchData() {
       setLoading(true);
 
-      const [flockRes, recordsRes] = await Promise.all([
+      const [flockRes, recordsRes, mortalityRes] = await Promise.all([
         supabase
           .from("flocks")
-          .select("code")
+          .select("code, bird_count")
           .eq("id", loteId)
           .eq("farm_id", currentFarm.id)
           .single(),
         supabase
           .from("health_records")
           .select("id, title, date, type, status, responsible, notes")
+          .eq("farm_id", currentFarm.id)
+          .eq("flock_id", loteId)
+          .order("date", { ascending: false }),
+        supabase
+          .from("mortality")
+          .select("id, date, dead_birds, cause, mortality_rate, notes")
           .eq("farm_id", currentFarm.id)
           .eq("flock_id", loteId)
           .order("date", { ascending: false }),
@@ -207,91 +226,10 @@ export default function SaudeLotePage() {
       }
 
       setLoteCode(flockRes.data.code);
+      setBirdCount(flockRes.data.bird_count);
       const fetched = (recordsRes.data as HealthRecord[] | null) ?? [];
-      if (flockRes.data.code === "L003" && fetched.length === 0) {
-        const today = new Date();
-        const iso = (offsetDays: number) => {
-          const d = new Date(today);
-          d.setDate(d.getDate() + offsetDays);
-          return d.toISOString().slice(0, 10);
-        };
-        setRecords([
-          {
-            id: "mock-1",
-            title: "Inspeção sanitária semanal",
-            date: iso(-3),
-            type: "inspection",
-            status: "completed",
-            responsible: "João Pereira",
-            notes: "Lote em boas condições gerais — leve queda de penas observada em algumas aves.",
-          },
-          {
-            id: "mock-2",
-            title: "Tratamento preventivo — leve queda de penas",
-            date: iso(-2),
-            type: "treatment",
-            status: "in_progress",
-            responsible: "Maria Souza",
-            notes: "Aplicação de complexo vitamínico — leve queda de penas",
-          },
-          {
-            id: "mock-3",
-            title: "Observação de comportamento — bicagem leve",
-            date: iso(-1),
-            type: "inspection",
-            status: "in_progress",
-            responsible: "João Pereira",
-            notes: "Monitoramento — bicagem leve entre aves jovens",
-          },
-          {
-            id: "mock-4",
-            title: "Vacina Newcastle (reforço)",
-            date: iso(2),
-            type: "vaccination",
-            status: "upcoming",
-            responsible: "Vet. Carlos Lima",
-            notes: "Aplicação via água de bebida",
-          },
-          {
-            id: "mock-5",
-            title: "Vacina Bronquite Infecciosa",
-            date: iso(8),
-            type: "vaccination",
-            status: "scheduled",
-            responsible: "Vet. Carlos Lima",
-            notes: null,
-          },
-          {
-            id: "mock-6",
-            title: "Vacina Gumboro (reforço)",
-            date: iso(15),
-            type: "vaccination",
-            status: "scheduled",
-            responsible: "Vet. Carlos Lima",
-            notes: null,
-          },
-          {
-            id: "mock-7",
-            title: "Vermifugação programada",
-            date: iso(22),
-            type: "vaccination",
-            status: "scheduled",
-            responsible: "Maria Souza",
-            notes: null,
-          },
-          {
-            id: "mock-8",
-            title: "Aplicação de antibiótico — coriza",
-            date: iso(-10),
-            type: "treatment",
-            status: "completed",
-            responsible: "Vet. Carlos Lima",
-            notes: "Tratamento concluído com sucesso",
-          },
-        ]);
-      } else {
-        setRecords(fetched);
-      }
+      setRecords(fetched);
+      setMortalityRecords((mortalityRes.data as MortalityRecord[] | null) ?? []);
       setNotFound(false);
       setLoading(false);
     }
@@ -355,20 +293,29 @@ export default function SaudeLotePage() {
     });
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editingRecord) return;
     const today = new Date().toISOString().slice(0, 10);
     if (editForm.date < today) return;
+    const supabase = createClient();
+    const updates = {
+      title: editForm.title,
+      date: editForm.date,
+      responsible: editForm.responsible || null,
+      notes: editForm.notes || null,
+      status: editForm.status,
+    };
+    const { error } = await supabase
+      .from("health_records")
+      .update(updates)
+      .eq("id", editingRecord.id);
+    if (error) return;
     setRecords((prev) =>
       prev.map((r) =>
         r.id === editingRecord.id
           ? {
               ...r,
-              title: editForm.title,
-              date: editForm.date,
-              responsible: editForm.responsible || null,
-              notes: editForm.notes || null,
-              status: editForm.status,
+              ...updates,
             }
           : r
       )
@@ -376,12 +323,26 @@ export default function SaudeLotePage() {
     setEditingRecord(null);
   };
 
-  const handleResolveSymptom = (symptom: string) => {
+  const handleResolveSymptom = async (symptom: string) => {
     setClosingSymptoms((prev) => [...prev, symptom]);
-    setTimeout(() => {
+    const matchingIds = records
+      .filter((record) => record.status === "in_progress" && extractSymptom(record) === symptom)
+      .map((record) => record.id);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("health_records")
+      .update({ status: "completed" })
+      .in("id", matchingIds);
+
+    if (!error) {
+      setRecords((prev) =>
+        prev.map((record) =>
+          matchingIds.includes(record.id) ? { ...record, status: "completed" } : record
+        )
+      );
       setResolvedSymptoms((prev) => [...prev, symptom]);
-      setClosingSymptoms((prev) => prev.filter((s) => s !== symptom));
-    }, 300);
+    }
+    setClosingSymptoms((prev) => prev.filter((s) => s !== symptom));
   };
 
   const sintomasAtivos = useMemo(() => {
@@ -403,9 +364,23 @@ export default function SaudeLotePage() {
   }, [agenda]);
 
   const diasUltimaInspecao = ultimaInspecao ? getDaysSince(ultimaInspecao.date) : null;
+  const sevenDaysAgo = useMemo(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 6);
+    return date.toISOString().slice(0, 10);
+  }, []);
+  const weeklyMortalityRecords = useMemo(
+    () => mortalityRecords.filter((record) => record.date >= sevenDaysAgo),
+    [mortalityRecords, sevenDaysAgo]
+  );
+  const weeklyMortalityCount = useMemo(
+    () => weeklyMortalityRecords.reduce((sum, record) => sum + record.dead_birds, 0),
+    [weeklyMortalityRecords]
+  );
+  const weeklyMortalityRate = birdCount > 0 ? weeklyMortalityCount / birdCount : 0;
 
   const healthScore = useMemo(() => {
-    if (records.length === 0) return 0;
+    if (records.length === 0 && mortalityRecords.length === 0) return 0;
     const vacPendentes = agenda.length;
     const vacScore = Math.max(0, 100 - vacPendentes * 10 - vacinasAtrasadas * 20);
     const symptomScore = Math.max(0, 100 - sintomasAtivos.length * 25);
@@ -413,8 +388,19 @@ export default function SaudeLotePage() {
       diasUltimaInspecao === null
         ? 50
         : Math.max(0, Math.min(100, (1 - (diasUltimaInspecao - 7) / 23) * 100));
-    return Math.round(vacScore * 0.35 + symptomScore * 0.4 + inspScore * 0.25);
-  }, [records, agenda.length, vacinasAtrasadas, sintomasAtivos.length, diasUltimaInspecao]);
+    const mortalityScore = calculateMortalityScore(weeklyMortalityRate);
+    return Math.round(
+      mortalityScore * 0.4 + symptomScore * 0.25 + vacScore * 0.2 + inspScore * 0.15
+    );
+  }, [
+    records.length,
+    mortalityRecords.length,
+    agenda.length,
+    vacinasAtrasadas,
+    sintomasAtivos.length,
+    diasUltimaInspecao,
+    weeklyMortalityRate,
+  ]);
 
   const scoreColor =
     healthScore >= 90 ? "#10b981" : healthScore >= 70 ? "#f59e0b" : "#ef4444";
@@ -538,6 +524,38 @@ export default function SaudeLotePage() {
     );
   }
 
+  if (records.length === 0 && mortalityRecords.length === 0) {
+    return (
+      <div className="space-y-6">
+        <Link
+          href={`/dashboard/flocks/detalhes/${loteId}`}
+          className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-600 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Voltar para Detalhes
+        </Link>
+        <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
+            <HeartPulse className="h-6 w-6 text-emerald-600" />
+          </div>
+          <h1 className="text-lg font-bold text-gray-900">
+            Nenhum registro de saude encontrado para este lote
+          </h1>
+          <p className="mx-auto mt-2 max-w-xl text-sm text-gray-500">
+            Este lote ainda nao possui historico de vacinas, tratamentos, inspecoes ou
+            mortalidade. Clique abaixo para registrar a primeira ocorrencia.
+          </p>
+          <Link
+            href={`/dashboard/health?register=true&flockId=${loteId}`}
+            className="mt-6 inline-flex items-center justify-center rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+          >
+            Registrar nova ocorrencia
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -603,6 +621,10 @@ export default function SaudeLotePage() {
               </p>
               <p className="text-xs text-gray-500 mt-0.5">
                 Sintomas: {sintomasAtivos.length} | Vacinas: {agenda.length} pendentes
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Mortalidade semanal: {weeklyMortalityCount} aves (
+                {(weeklyMortalityRate * 100).toFixed(1)}%)
               </p>
               <div className="mt-2">
                 <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">
