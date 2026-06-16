@@ -44,9 +44,10 @@ Detailed phase goals live in `.planning/milestones/v1.3-ROADMAP.md`.
 
 ### Phase 15: Real Health History Page
 
-**Plans:** 1/1 plans complete
+**Plans:** 2/2 plans complete
 
 - [x] 15-01-PLAN.md - Real health history page
+- [x] 15-02-PLAN.md - Sanitary Control Gap Closure
 
 ### Phase 16: Flock Tasks CRUD
 
