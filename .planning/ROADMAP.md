@@ -33,12 +33,12 @@ Detailed phase goals live in `.planning/milestones/v1.3-ROADMAP.md`.
 
 ### Phase 13: Feed and Water Logging
 
-**Goal:** Separar a gestão de ração e água em páginas distintas, criar a infraestrutura para consumo de água (Gated Pro/Premium) e implementar indicadores de meta de ração.
+**Goal:** Separate feed and water management into distinct pages, create the infrastructure for water consumption (Gated Pro/Premium), and implement feed target indicators.
 **Plans:** 3/3 plans complete
 
-- [x] 13-01-PLAN.md — Infraestrutura básica (DB, Serviços, Navegação)
-- [x] 13-02-PLAN.md — Atualização da página de Ração (Metas e Dados Reais)
-- [x] 13-03-PLAN.md — Implementação da nova página de Água (KPIs e CRUD)
+- [x] 13-01-PLAN.md — Basic infrastructure (DB, Services, Navigation)
+- [x] 13-02-PLAN.md — Feed page update (Targets and Real Data)
+- [x] 13-03-PLAN.md — Implementation of new Water page (KPIs and CRUD)
 
 ### Phase 14: Flock Water Details Page
 
