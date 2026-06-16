@@ -57,6 +57,19 @@ type MortalityRecordRow = Pick<
   Tables<"mortality">,
   "id" | "date" | "dead_birds" | "cause" | "mortality_rate" | "notes"
 >;
+type DailyInspectionRow = Pick<
+  Tables<"daily_inspections">,
+  | "id"
+  | "date"
+  | "responsible"
+  | "feces_aspect"
+  | "respiratory_symptoms"
+  | "behavior"
+  | "light_timer_ops"
+  | "water_chlorine_ppm"
+  | "water_ph"
+  | "notes"
+>;
 type TooltipFormatter = (value: unknown, name: unknown) => [string, string];
 
 interface TimelineEvent {
@@ -294,6 +307,26 @@ function generateChecklistFromText(record: HealthRecordRow) {
   }));
 }
 
+function generateChecklistFromDailyInspection(inspection: DailyInspectionRow) {
+  return [
+    { item: `Fezes: ${inspection.feces_aspect}`, ok: inspection.feces_aspect === "Normal" },
+    {
+      item: `Respiração: ${inspection.respiratory_symptoms}`,
+      ok: inspection.respiratory_symptoms === "None",
+    },
+    { item: `Comportamento: ${inspection.behavior}`, ok: inspection.behavior === "Normal" },
+    { item: "Timer de luz", ok: inspection.light_timer_ops },
+    {
+      item: `Cloro da água: ${inspection.water_chlorine_ppm ?? "sem medição"} ppm`,
+      ok: inspection.water_chlorine_ppm == null || inspection.water_chlorine_ppm >= 1,
+    },
+    {
+      item: `pH da água: ${inspection.water_ph ?? "sem medição"}`,
+      ok: inspection.water_ph == null || (inspection.water_ph >= 6 && inspection.water_ph <= 8),
+    },
+  ];
+}
+
 function mapTreatmentResult(status: HealthRecordRow["status"]): TreatmentRecord["resultado"] {
   if (status === "completed") return "resolvido";
   if (status === "in_progress") return "em_tratamento";
@@ -322,6 +355,7 @@ export default function HistoricoSanitarioPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [healthRecords, setHealthRecords] = useState<HealthRecordRow[]>([]);
+  const [dailyInspections, setDailyInspections] = useState<DailyInspectionRow[]>([]);
   const [mortalityRecords, setMortalityRecords] = useState<MortalityRecordRow[]>([]);
 
   useEffect(() => {
@@ -336,7 +370,7 @@ export default function HistoricoSanitarioPage() {
     (async () => {
       setLoading(true);
       const supabase = createClient();
-      const [flockRes, healthRes, mortalityRes] = await Promise.all([
+      const [flockRes, healthRes, dailyInspectionsRes, mortalityRes] = await Promise.all([
         supabase
           .from("flocks")
           .select("code")
@@ -346,6 +380,12 @@ export default function HistoricoSanitarioPage() {
         supabase
           .from("health_records")
           .select("id, title, date, type, status, responsible, notes")
+          .eq("farm_id", currentFarm.id)
+          .eq("flock_id", loteId)
+          .order("date", { ascending: false }),
+        supabase
+          .from("daily_inspections")
+          .select("id, date, responsible, feces_aspect, respiratory_symptoms, behavior, light_timer_ops, water_chlorine_ppm, water_ph, notes")
           .eq("farm_id", currentFarm.id)
           .eq("flock_id", loteId)
           .order("date", { ascending: false }),
@@ -366,6 +406,7 @@ export default function HistoricoSanitarioPage() {
 
       setLoteCode(flockRes.data.code);
       setHealthRecords((healthRes.data as HealthRecordRow[] | null) ?? []);
+      setDailyInspections((dailyInspectionsRes.data as DailyInspectionRow[] | null) ?? []);
       setMortalityRecords((mortalityRes.data as MortalityRecordRow[] | null) ?? []);
       setNotFound(false);
       setLoading(false);
@@ -424,9 +465,19 @@ export default function HistoricoSanitarioPage() {
       observation: record.notes ?? undefined,
       status: "concluido" as const,
     }));
+    const inspectionEvents = dailyInspections.map((inspection) => ({
+      id: `daily_inspection-${inspection.id}`,
+      date: inspection.date,
+      type: "inspecao" as const,
+      title: "Inspeção clínica estruturada",
+      description: `Fezes ${inspection.feces_aspect}, respiração ${inspection.respiratory_symptoms}, comportamento ${inspection.behavior}`,
+      employee: inspection.responsible ?? "Sistema",
+      observation: inspection.notes ?? undefined,
+      status: "concluido" as const,
+    }));
 
-    return [...healthEvents, ...mortalityEvents].sort((a, b) => b.date.localeCompare(a.date));
-  }, [healthRecords, mortalityRecords]);
+    return [...healthEvents, ...inspectionEvents, ...mortalityEvents].sort((a, b) => b.date.localeCompare(a.date));
+  }, [dailyInspections, healthRecords, mortalityRecords]);
 
   const vaccineRecords = useMemo<VaccineRecord[]>(
     () =>
@@ -472,16 +523,23 @@ export default function HistoricoSanitarioPage() {
 
   const inspectionRecords = useMemo<InspectionRecord[]>(
     () =>
-      healthRecords
-        .filter((record) => record.type === "inspection")
-        .map((record) => ({
+      [
+        ...dailyInspections.map((inspection) => ({
+          id: inspection.id,
+          data: inspection.date,
+          responsavel: inspection.responsible ?? "Sistema",
+          checklist: generateChecklistFromDailyInspection(inspection),
+          observacao: inspection.notes ?? "",
+        })),
+        ...healthRecords.filter((record) => record.type === "inspection").map((record) => ({
           id: record.id,
           data: record.date,
           responsavel: record.responsible ?? "Sistema",
           checklist: generateChecklistFromText(record),
           observacao: record.status === "completed" ? record.notes ?? "" : "Pendente",
         })),
-    [healthRecords]
+      ].sort((a, b) => b.data.localeCompare(a.data)),
+    [dailyInspections, healthRecords]
   );
 
   const filteredEvents = useMemo(() => {

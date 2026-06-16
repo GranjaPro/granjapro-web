@@ -27,6 +27,19 @@ type MortalityRecord = Pick<
   Tables<"mortality">,
   "id" | "date" | "dead_birds" | "cause" | "mortality_rate" | "notes"
 >;
+type DailyInspectionRecord = Pick<
+  Tables<"daily_inspections">,
+  | "id"
+  | "date"
+  | "responsible"
+  | "feces_aspect"
+  | "respiratory_symptoms"
+  | "behavior"
+  | "light_timer_ops"
+  | "water_chlorine_ppm"
+  | "water_ph"
+  | "notes"
+>;
 
 interface HealthRecord {
   id: string;
@@ -36,6 +49,12 @@ interface HealthRecord {
   status: RecordStatus;
   responsible: string | null;
   notes: string | null;
+  target_disease: string | null;
+  brand_name: string | null;
+  batch: string | null;
+  active_ingredient: string | null;
+  withdrawal_period_days: number | null;
+  disposal_destination: string | null;
 }
 
 type AgendaStatus = keyof typeof statusAgendaConfig;
@@ -170,6 +189,14 @@ function calculateMortalityScore(mortalityRate: number) {
   return Math.round((1 - (mortalityRate - 0.02) / 0.08) * 100);
 }
 
+function isDailyInspection(record: HealthRecord | DailyInspectionRecord): record is DailyInspectionRecord {
+  return "feces_aspect" in record;
+}
+
+function getInspectionNotes(record: HealthRecord | DailyInspectionRecord) {
+  return record.notes ?? "";
+}
+
 export default function SaudeLotePage() {
   const params = useParams();
   const loteId = params.loteId as string;
@@ -179,6 +206,7 @@ export default function SaudeLotePage() {
   const [loteCode, setLoteCode] = useState("");
   const [birdCount, setBirdCount] = useState(0);
   const [records, setRecords] = useState<HealthRecord[]>([]);
+  const [dailyInspections, setDailyInspections] = useState<DailyInspectionRecord[]>([]);
   const [mortalityRecords, setMortalityRecords] = useState<MortalityRecord[]>([]);
   const [notFound, setNotFound] = useState(false);
 
@@ -196,7 +224,7 @@ export default function SaudeLotePage() {
     async function fetchData() {
       setLoading(true);
 
-      const [flockRes, recordsRes, mortalityRes] = await Promise.all([
+      const [flockRes, recordsRes, dailyInspectionsRes, mortalityRes] = await Promise.all([
         supabase
           .from("flocks")
           .select("code, bird_count")
@@ -205,7 +233,13 @@ export default function SaudeLotePage() {
           .single(),
         supabase
           .from("health_records")
-          .select("id, title, date, type, status, responsible, notes")
+          .select("id, title, date, type, status, responsible, notes, target_disease, brand_name, batch, active_ingredient, withdrawal_period_days, disposal_destination")
+          .eq("farm_id", currentFarm.id)
+          .eq("flock_id", loteId)
+          .order("date", { ascending: false }),
+        supabase
+          .from("daily_inspections")
+          .select("id, date, responsible, feces_aspect, respiratory_symptoms, behavior, light_timer_ops, water_chlorine_ppm, water_ph, notes")
           .eq("farm_id", currentFarm.id)
           .eq("flock_id", loteId)
           .order("date", { ascending: false }),
@@ -229,6 +263,7 @@ export default function SaudeLotePage() {
       setBirdCount(flockRes.data.bird_count);
       const fetched = (recordsRes.data as HealthRecord[] | null) ?? [];
       setRecords(fetched);
+      setDailyInspections((dailyInspectionsRes.data as DailyInspectionRecord[] | null) ?? []);
       setMortalityRecords((mortalityRes.data as MortalityRecord[] | null) ?? []);
       setNotFound(false);
       setLoading(false);
@@ -257,8 +292,8 @@ export default function SaudeLotePage() {
   }, [records]);
 
   const ultimaInspecao = useMemo(
-    () => records.find((record) => record.type === "inspection") ?? null,
-    [records]
+    () => dailyInspections[0] ?? records.find((record) => record.type === "inspection") ?? null,
+    [dailyInspections, records]
   );
 
   const ultimoRegistroSanitario = useMemo(() => {
@@ -364,6 +399,7 @@ export default function SaudeLotePage() {
   }, [agenda]);
 
   const diasUltimaInspecao = ultimaInspecao ? getDaysSince(ultimaInspecao.date) : null;
+  const ultimaInspecaoNotes = ultimaInspecao ? getInspectionNotes(ultimaInspecao) : "";
   const sevenDaysAgo = useMemo(() => {
     const date = new Date();
     date.setDate(date.getDate() - 6);
@@ -380,7 +416,7 @@ export default function SaudeLotePage() {
   const weeklyMortalityRate = birdCount > 0 ? weeklyMortalityCount / birdCount : 0;
 
   const healthScore = useMemo(() => {
-    if (records.length === 0 && mortalityRecords.length === 0) return 0;
+    if (records.length === 0 && mortalityRecords.length === 0 && dailyInspections.length === 0) return 0;
     const vacPendentes = agenda.length;
     const vacScore = Math.max(0, 100 - vacPendentes * 10 - vacinasAtrasadas * 20);
     const symptomScore = Math.max(0, 100 - sintomasAtivos.length * 25);
@@ -394,6 +430,7 @@ export default function SaudeLotePage() {
     );
   }, [
     records.length,
+    dailyInspections.length,
     mortalityRecords.length,
     agenda.length,
     vacinasAtrasadas,
@@ -524,7 +561,7 @@ export default function SaudeLotePage() {
     );
   }
 
-  if (records.length === 0 && mortalityRecords.length === 0) {
+  if (records.length === 0 && mortalityRecords.length === 0 && dailyInspections.length === 0) {
     return (
       <div className="space-y-6">
         <Link
@@ -825,9 +862,16 @@ export default function SaudeLotePage() {
                   ? "Inspeção realizada hoje"
                   : `Há ${diasUltimaInspecao} dia${diasUltimaInspecao === 1 ? "" : "s"}`}
               </p>
-              {ultimaInspecao.notes && (
-                <p className="text-sm text-gray-600 mt-4">{ultimaInspecao.notes}</p>
-              )}
+              {isDailyInspection(ultimaInspecao) ? (
+                <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-gray-600">
+                  <span>Fezes: {ultimaInspecao.feces_aspect}</span>
+                  <span>Respiração: {ultimaInspecao.respiratory_symptoms}</span>
+                  <span>Comportamento: {ultimaInspecao.behavior}</span>
+                  <span>Luz: {ultimaInspecao.light_timer_ops ? "OK" : "Atenção"}</span>
+                </div>
+              ) : ultimaInspecaoNotes ? (
+                <p className="text-sm text-gray-600 mt-4">{ultimaInspecaoNotes}</p>
+              ) : null}
             </>
           ) : (
             <p className="text-sm text-gray-500">Sem inspeção registrada.</p>
@@ -1049,6 +1093,14 @@ export default function SaudeLotePage() {
                         <p className="text-sm font-semibold text-gray-900">{record.title}</p>
                         {record.notes && (
                           <p className="text-sm text-gray-600 mt-2">{record.notes}</p>
+                        )}
+                        {(record.brand_name || record.active_ingredient) && (
+                          <p className="text-xs text-gray-500 mt-2">
+                            {record.brand_name ?? record.active_ingredient}
+                            {record.withdrawal_period_days
+                              ? ` · carência ${record.withdrawal_period_days} dias`
+                              : ""}
+                          </p>
                         )}
                       </div>
                       <span className="text-xs text-gray-500 whitespace-nowrap">

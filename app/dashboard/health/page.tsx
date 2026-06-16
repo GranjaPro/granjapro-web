@@ -51,7 +51,7 @@ import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
-import type { Tables } from "@/lib/database.types";
+import type { Tables, TablesInsert } from "@/lib/database.types";
 
 /* ── Types ── */
 type RegistroTipo = "Vacinação" | "Tratamento" | "Inspeção";
@@ -62,6 +62,7 @@ type HealthEvolutionRange = "7d" | "30d" | "months" | "total";
 
 interface RegistroSaude {
   id: string;
+  source: "health_records" | "daily_inspections";
   titulo: string;
   data: string;
   lote: string;
@@ -70,6 +71,24 @@ interface RegistroSaude {
   status: RegistroStatus;
   observacao?: string;
   responsavel?: string;
+  targetDisease?: string;
+  brandName?: string;
+  batch?: string;
+  expiryDate?: string;
+  manufacturer?: string;
+  applicationRoute?: HealthRecordRow["application_route"];
+  doses?: number | null;
+  activeIngredient?: string;
+  dosageDilution?: string;
+  withdrawalPeriodDays?: number | null;
+  disposalDestination?: string;
+  prescriptionRef?: string;
+  fecesAspect?: DailyInspectionRow["feces_aspect"];
+  respiratorySymptoms?: DailyInspectionRow["respiratory_symptoms"];
+  behavior?: DailyInspectionRow["behavior"];
+  lightTimerOps?: boolean;
+  waterChlorinePpm?: number | null;
+  waterPh?: number | null;
 }
 
 interface AgendaVacina {
@@ -116,18 +135,25 @@ interface HealthRecordRow {
   status: "completed" | "in_progress" | "scheduled" | "upcoming";
   responsible: string | null;
   notes: string | null;
+  target_disease: string | null;
+  brand_name: string | null;
+  batch: string | null;
+  expiry_date: string | null;
+  manufacturer: string | null;
+  application_route: "water" | "ocular" | "spray" | "wing web" | "intramuscular" | "subcutaneous" | null;
+  doses: number | null;
+  active_ingredient: string | null;
+  dosage_dilution: string | null;
+  withdrawal_period_days: number | null;
+  disposal_destination: string | null;
+  prescription_ref: string | null;
   flocks: Pick<Tables<"flocks">, "code"> | null;
 }
-interface HealthRecordInsert {
-  farm_id: string;
-  flock_id: string | null;
-  title: string;
-  date: string;
-  type: string;
-  status: "completed" | "in_progress" | "scheduled" | "upcoming";
-  responsible: string | null;
-  notes: string | null;
-}
+type HealthRecordInsert = TablesInsert<"health_records">;
+type DailyInspectionInsert = TablesInsert<"daily_inspections">;
+type DailyInspectionRow = Tables<"daily_inspections"> & {
+  flocks: Pick<Tables<"flocks">, "code"> | null;
+};
 type TooltipFormatter = (value: unknown, name: unknown) => [string, string];
 
 const statusRegistroConfig: Record<RegistroStatus, { bg: string; text: string }> = {
@@ -340,6 +366,24 @@ export default function SaudePage() {
     registroRapido: "vacinacao" as RegistroRapido,
     observacao: "",
     responsavel: "",
+    targetDisease: "",
+    brandName: "",
+    batch: "",
+    expiryDate: "",
+    manufacturer: "",
+    applicationRoute: "water" as NonNullable<HealthRecordRow["application_route"]>,
+    doses: "",
+    activeIngredient: "",
+    dosageDilution: "",
+    withdrawalPeriodDays: "",
+    disposalDestination: "",
+    prescriptionRef: "",
+    fecesAspect: "Normal" as DailyInspectionRow["feces_aspect"],
+    respiratorySymptoms: "None" as DailyInspectionRow["respiratory_symptoms"],
+    behavior: "Normal" as DailyInspectionRow["behavior"],
+    lightTimerOps: true,
+    waterChlorinePpm: "",
+    waterPh: "",
   });
 
   const { dateRange } = useDateFilter();
@@ -357,12 +401,19 @@ export default function SaudePage() {
     try {
       const { startDate, endDate } = dateRange;
 
-      const [healthRes, scheduleRes, flocksRes, mortalityRes] = await Promise.all([
+      const [healthRes, inspectionsRes, scheduleRes, flocksRes, mortalityRes] = await Promise.all([
         supabase
           .from("health_records")
           .select("*, flocks(code)")
           .eq("farm_id", currentFarm.id)
           .in("status", ["completed", "in_progress"])
+          .gte("date", startDate)
+          .lte("date", endDate)
+          .order("date", { ascending: false }),
+        supabase
+          .from("daily_inspections")
+          .select("*, flocks(code)")
+          .eq("farm_id", currentFarm.id)
           .gte("date", startDate)
           .lte("date", endDate)
           .order("date", { ascending: false }),
@@ -388,12 +439,14 @@ export default function SaudePage() {
       ]);
 
       if (healthRes.error) throw healthRes.error;
+      if (inspectionsRes.error) throw inspectionsRes.error;
       if (scheduleRes.error) throw scheduleRes.error;
       if (flocksRes.error) throw flocksRes.error;
       if (mortalityRes.error) throw mortalityRes.error;
 
       const flocksData = (flocksRes.data ?? []) as FlockRow[];
       const healthData = (healthRes.data ?? []) as HealthRecordRow[];
+      const inspectionsData = (inspectionsRes.data ?? []) as DailyInspectionRow[];
       const scheduleData = (scheduleRes.data ?? []) as HealthRecordRow[];
       const mortalityData = (mortalityRes.data ?? []) as MortalityRow[];
 
@@ -407,17 +460,52 @@ export default function SaudePage() {
       setTotalAves(mappedLotes.reduce((s, l) => s + l.aves, 0));
 
       // Map health records
-      setRegistros(healthData.map((r) => ({
-        id: r.id,
-        titulo: r.title,
-        data: r.date,
-        lote: r.flocks?.code || "Todos",
-        loteId: r.flock_id,
-        tipo: typeMap[r.type] || "Inspeção",
-        status: r.status === "completed" ? "Concluído" : "Em andamento",
-        observacao: r.notes || "",
-        responsavel: r.responsible || "",
-      })));
+      setRegistros(
+        [
+          ...healthData.map((r) => ({
+            id: r.id,
+            source: "health_records" as const,
+            titulo: r.title,
+            data: r.date,
+            lote: r.flocks?.code || "Todos",
+            loteId: r.flock_id,
+            tipo: typeMap[r.type] || "Inspeção",
+            status: r.status === "completed" ? "Concluído" as const : "Em andamento" as const,
+            observacao: r.notes || "",
+            responsavel: r.responsible || "",
+            targetDisease: r.target_disease ?? "",
+            brandName: r.brand_name ?? "",
+            batch: r.batch ?? "",
+            expiryDate: r.expiry_date ?? "",
+            manufacturer: r.manufacturer ?? "",
+            applicationRoute: r.application_route,
+            doses: r.doses,
+            activeIngredient: r.active_ingredient ?? "",
+            dosageDilution: r.dosage_dilution ?? "",
+            withdrawalPeriodDays: r.withdrawal_period_days,
+            disposalDestination: r.disposal_destination ?? "",
+            prescriptionRef: r.prescription_ref ?? "",
+          })),
+          ...inspectionsData.map((inspection) => ({
+            id: inspection.id,
+            source: "daily_inspections" as const,
+            titulo: "Inspeção clínica estruturada",
+            data: inspection.date,
+            lote: inspection.flocks?.code || "Todos",
+            loteId: inspection.flock_id,
+            tipo: "Inspeção" as const,
+            status: "Concluído" as const,
+            observacao: inspection.notes || "",
+            responsavel: inspection.responsible || "",
+            fecesAspect: inspection.feces_aspect,
+            respiratorySymptoms: inspection.respiratory_symptoms,
+            behavior: inspection.behavior,
+            lightTimerOps: inspection.light_timer_ops,
+            waterChlorinePpm: inspection.water_chlorine_ppm,
+            waterPh: inspection.water_ph,
+          })),
+        ].sort((a, b) => b.data.localeCompare(a.data))
+      );
 
       // Map vaccine schedule
       setAgenda(scheduleData.map((r) => ({
@@ -660,6 +748,26 @@ export default function SaudePage() {
 
   const registroRapidoSelecionado = registroRapidoOptions.find((option) => option.id === form.registroRapido);
   const titlePlaceholder = registroRapidoSelecionado?.placeholder ?? "Ex: Newcastle — Reforço";
+  const defaultClinicalFields = {
+    targetDisease: "",
+    brandName: "",
+    batch: "",
+    expiryDate: "",
+    manufacturer: "",
+    applicationRoute: "water" as NonNullable<HealthRecordRow["application_route"]>,
+    doses: "",
+    activeIngredient: "",
+    dosageDilution: "",
+    withdrawalPeriodDays: "",
+    disposalDestination: "",
+    prescriptionRef: "",
+    fecesAspect: "Normal" as DailyInspectionRow["feces_aspect"],
+    respiratorySymptoms: "None" as DailyInspectionRow["respiratory_symptoms"],
+    behavior: "Normal" as DailyInspectionRow["behavior"],
+    lightTimerOps: true,
+    waterChlorinePpm: "",
+    waterPh: "",
+  };
 
   function inferRegistroRapido(record: RegistroSaude): RegistroRapido {
     const source = `${record.titulo} ${record.observacao || ""}`.toLowerCase();
@@ -684,6 +792,7 @@ export default function SaudePage() {
       registroRapido: option?.id ?? "vacinacao",
       observacao: "",
       responsavel: "",
+      ...defaultClinicalFields,
     });
     setEditing(null);
     setError("");
@@ -699,6 +808,24 @@ export default function SaudePage() {
       registroRapido: inferRegistroRapido(r),
       observacao: r.observacao || "",
       responsavel: r.responsavel || "",
+      targetDisease: r.targetDisease ?? "",
+      brandName: r.brandName ?? "",
+      batch: r.batch ?? "",
+      expiryDate: r.expiryDate ?? "",
+      manufacturer: r.manufacturer ?? "",
+      applicationRoute: r.applicationRoute ?? "water",
+      doses: r.doses == null ? "" : String(r.doses),
+      activeIngredient: r.activeIngredient ?? "",
+      dosageDilution: r.dosageDilution ?? "",
+      withdrawalPeriodDays: r.withdrawalPeriodDays == null ? "" : String(r.withdrawalPeriodDays),
+      disposalDestination: r.disposalDestination ?? "",
+      prescriptionRef: r.prescriptionRef ?? "",
+      fecesAspect: r.fecesAspect ?? "Normal",
+      respiratorySymptoms: r.respiratorySymptoms ?? "None",
+      behavior: r.behavior ?? "Normal",
+      lightTimerOps: r.lightTimerOps ?? true,
+      waterChlorinePpm: r.waterChlorinePpm == null ? "" : String(r.waterChlorinePpm),
+      waterPh: r.waterPh == null ? "" : String(r.waterPh),
     });
     setEditing(r);
     setError("");
@@ -718,24 +845,61 @@ export default function SaudePage() {
           : "in_progress"
         : "completed";
 
-    const record: HealthRecordInsert = {
+    const healthRecord: HealthRecordInsert = {
       farm_id: farm.id,
       flock_id: form.loteId || null,
       title: form.titulo,
       date: form.data,
-      type: typeMapReverse[form.tipo],
+      type: typeMapReverse[form.tipo] as HealthRecordInsert["type"],
       status: computedStatus,
       responsible: form.responsavel || null,
+      notes: form.observacao || null,
+      target_disease: form.tipo === "Vacinação" ? form.targetDisease || null : null,
+      brand_name: form.tipo === "Vacinação" ? form.brandName || null : null,
+      batch: form.tipo === "Vacinação" ? form.batch || null : null,
+      expiry_date: form.tipo === "Vacinação" ? form.expiryDate || null : null,
+      manufacturer: form.tipo === "Vacinação" ? form.manufacturer || null : null,
+      application_route: form.tipo === "Vacinação" ? form.applicationRoute : null,
+      doses: form.tipo === "Vacinação" && form.doses ? Number(form.doses) : null,
+      active_ingredient: form.tipo === "Tratamento" ? form.activeIngredient || null : null,
+      dosage_dilution: form.tipo === "Tratamento" ? form.dosageDilution || null : null,
+      withdrawal_period_days:
+        form.tipo === "Tratamento" && form.withdrawalPeriodDays
+          ? Number(form.withdrawalPeriodDays)
+          : null,
+      disposal_destination: form.tipo === "Tratamento" ? form.disposalDestination || null : null,
+      prescription_ref: form.tipo === "Tratamento" ? form.prescriptionRef || null : null,
+    };
+    const dailyInspection: DailyInspectionInsert = {
+      farm_id: farm.id,
+      flock_id: form.loteId || null,
+      date: form.data,
+      responsible: form.responsavel || null,
+      feces_aspect: form.fecesAspect,
+      respiratory_symptoms: form.respiratorySymptoms,
+      behavior: form.behavior,
+      light_timer_ops: form.lightTimerOps,
+      water_chlorine_ppm: form.waterChlorinePpm ? Number(form.waterChlorinePpm) : null,
+      water_ph: form.waterPh ? Number(form.waterPh) : null,
       notes: form.observacao || null,
     };
 
     const supabase = createClient();
     try {
-      if (editing) {
-        const { error: updateErr } = await supabase.from("health_records").update(record).eq("id", editing.id);
+      if (editing?.source === "daily_inspections") {
+        const { error: updateErr } = await supabase
+          .from("daily_inspections")
+          .update(dailyInspection)
+          .eq("id", editing.id);
         if (updateErr) throw updateErr;
+      } else if (editing) {
+        const { error: updateErr } = await supabase.from("health_records").update(healthRecord).eq("id", editing.id);
+        if (updateErr) throw updateErr;
+      } else if (form.tipo === "Inspeção") {
+        const { error: insertErr } = await supabase.from("daily_inspections").insert(dailyInspection);
+        if (insertErr) throw insertErr;
       } else {
-        const { error: insertErr } = await supabase.from("health_records").insert(record);
+        const { error: insertErr } = await supabase.from("health_records").insert(healthRecord);
         if (insertErr) throw insertErr;
       }
       setShowModal(false);
@@ -750,7 +914,11 @@ export default function SaudePage() {
   async function deleteRegistro(id: string) {
     const supabase = createClient();
     try {
-      const { error: delErr } = await supabase.from("health_records").delete().eq("id", id);
+      const registro = registros.find((item) => item.id === id);
+      const { error: delErr } =
+        registro?.source === "daily_inspections"
+          ? await supabase.from("daily_inspections").delete().eq("id", id)
+          : await supabase.from("health_records").delete().eq("id", id);
       if (delErr) throw delErr;
       setDeleteConfirm(null);
       await fetchData();
@@ -1486,6 +1654,58 @@ export default function SaudePage() {
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Observação</label>
                 <input type="text" value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} placeholder="Notas adicionais" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
               </div>
+              {form.tipo === "Vacinação" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl border border-brand-100 bg-brand-50/40 p-3">
+                  <input type="text" value={form.targetDisease} onChange={(e) => setForm({ ...form, targetDisease: e.target.value })} placeholder="Doença alvo" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                  <input type="text" value={form.brandName} onChange={(e) => setForm({ ...form, brandName: e.target.value })} placeholder="Nome comercial / marca" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                  <input type="text" value={form.batch} onChange={(e) => setForm({ ...form, batch: e.target.value })} placeholder="Lote da vacina" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                  <input type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                  <input type="text" value={form.manufacturer} onChange={(e) => setForm({ ...form, manufacturer: e.target.value })} placeholder="Fabricante" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                  <select value={form.applicationRoute} onChange={(e) => setForm({ ...form, applicationRoute: e.target.value as NonNullable<HealthRecordRow["application_route"]> })} className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
+                    <option value="water">Água</option>
+                    <option value="ocular">Ocular</option>
+                    <option value="spray">Spray</option>
+                    <option value="wing web">Membrana da asa</option>
+                    <option value="intramuscular">Intramuscular</option>
+                    <option value="subcutaneous">Subcutânea</option>
+                  </select>
+                  <input type="number" value={form.doses} onChange={(e) => setForm({ ...form, doses: e.target.value })} placeholder="Quantidade de doses" className="border border-gray-200 rounded-xl px-3 py-2 text-sm md:col-span-2" />
+                </div>
+              )}
+              {form.tipo === "Tratamento" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl border border-amber-100 bg-amber-50/40 p-3">
+                  <input type="text" value={form.activeIngredient} onChange={(e) => setForm({ ...form, activeIngredient: e.target.value })} placeholder="Princípio ativo" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                  <input type="text" value={form.dosageDilution} onChange={(e) => setForm({ ...form, dosageDilution: e.target.value })} placeholder="Dosagem / diluição" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                  <input type="number" value={form.withdrawalPeriodDays} onChange={(e) => setForm({ ...form, withdrawalPeriodDays: e.target.value })} placeholder="Carência (dias)" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                  <input type="text" value={form.disposalDestination} onChange={(e) => setForm({ ...form, disposalDestination: e.target.value })} placeholder="Destino de descarte" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                  <input type="text" value={form.prescriptionRef} onChange={(e) => setForm({ ...form, prescriptionRef: e.target.value })} placeholder="Receita / referência" className="border border-gray-200 rounded-xl px-3 py-2 text-sm md:col-span-2" />
+                </div>
+              )}
+              {form.tipo === "Inspeção" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl border border-sky-100 bg-sky-50/40 p-3">
+                  <select value={form.fecesAspect} onChange={(e) => setForm({ ...form, fecesAspect: e.target.value as DailyInspectionRow["feces_aspect"] })} className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
+                    <option value="Normal">Fezes normais</option>
+                    <option value="Diarrhea">Diarreia</option>
+                    <option value="Blood">Sangue</option>
+                  </select>
+                  <select value={form.respiratorySymptoms} onChange={(e) => setForm({ ...form, respiratorySymptoms: e.target.value as DailyInspectionRow["respiratory_symptoms"] })} className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
+                    <option value="None">Sem sintomas respiratórios</option>
+                    <option value="Snick">Espirro / ruído respiratório</option>
+                    <option value="Coryza">Coriza</option>
+                  </select>
+                  <select value={form.behavior} onChange={(e) => setForm({ ...form, behavior: e.target.value as DailyInspectionRow["behavior"] })} className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
+                    <option value="Normal">Comportamento normal</option>
+                    <option value="Huddled">Aglomeradas</option>
+                    <option value="Feather Pecking">Bicagem de penas</option>
+                  </select>
+                  <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={form.lightTimerOps} onChange={(e) => setForm({ ...form, lightTimerOps: e.target.checked })} />
+                    Timer de luz operando
+                  </label>
+                  <input type="number" step="0.1" value={form.waterChlorinePpm} onChange={(e) => setForm({ ...form, waterChlorinePpm: e.target.value })} placeholder="Cloro da água (ppm)" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                  <input type="number" step="0.1" value={form.waterPh} onChange={(e) => setForm({ ...form, waterPh: e.target.value })} placeholder="pH da água" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-end gap-2 pt-2">
               <button onClick={() => { setShowModal(false); setEditing(null); }} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>

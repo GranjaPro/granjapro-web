@@ -47,6 +47,7 @@ import { hasMinimumPlan } from "@/lib/plans";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import type { Tables } from "@/lib/database.types";
 
 /* ── Interfaces ── */
 interface Lote {
@@ -68,6 +69,15 @@ interface Registro {
   descartados: number;
   taxa: string;
 }
+type FlockRow = Pick<Tables<"flocks">, "id" | "code" | "breed" | "bird_count">;
+type EggProductionRow = Tables<"egg_production"> & {
+  flocks: Pick<Tables<"flocks">, "code" | "breed" | "bird_count"> | null;
+};
+type WithdrawalTreatment = Pick<
+  Tables<"health_records">,
+  "id" | "flock_id" | "date" | "title" | "active_ingredient" | "withdrawal_period_days"
+>;
+type TooltipFormatter = (value: unknown, name: unknown) => [string, string];
 
 type ModalMode = "add" | "edit" | null;
 
@@ -80,6 +90,7 @@ export default function ProducaoPage() {
 
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [registros, setRegistros] = useState<Registro[]>([]);
+  const [withdrawalTreatments, setWithdrawalTreatments] = useState<WithdrawalTreatment[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -110,7 +121,7 @@ export default function ProducaoPage() {
     try {
       const { startDate, endDate } = dateRange;
 
-      const [productionRes, flocksRes] = await Promise.all([
+      const [productionRes, flocksRes, withdrawalRes] = await Promise.all([
         supabase
           .from("egg_production")
           .select("*, flocks(code, breed, bird_count)")
@@ -123,13 +134,21 @@ export default function ProducaoPage() {
           .select("id, code, breed, bird_count, status")
           .eq("farm_id", currentFarm.id)
           .order("code"),
+        supabase
+          .from("health_records")
+          .select("id, flock_id, date, title, active_ingredient, withdrawal_period_days")
+          .eq("farm_id", currentFarm.id)
+          .eq("type", "treatment")
+          .gt("withdrawal_period_days", 0),
       ]);
 
       if (flocksRes.error) throw flocksRes.error;
       if (productionRes.error) throw productionRes.error;
+      if (withdrawalRes.error) throw withdrawalRes.error;
 
-      const flocksData = flocksRes.data || [];
-      const productionData = productionRes.data || [];
+      const flocksData = (flocksRes.data ?? []) as FlockRow[];
+      const productionData = (productionRes.data ?? []) as EggProductionRow[];
+      setWithdrawalTreatments((withdrawalRes.data as WithdrawalTreatment[] | null) ?? []);
 
       // Calculate postura per flock from latest records
       const flockPostura = new Map<string, number>();
@@ -139,7 +158,7 @@ export default function ProducaoPage() {
         }
       }
 
-      setLotes(flocksData.map((f: any) => ({
+      setLotes(flocksData.map((f) => ({
         id: f.id,
         codigo: f.code,
         raca: f.breed,
@@ -147,7 +166,7 @@ export default function ProducaoPage() {
         postura: flockPostura.has(f.id) ? `${flockPostura.get(f.id)!.toFixed(1)}%` : "—",
       })));
 
-      const mapped: Registro[] = productionData.map((r: any) => ({
+      const mapped: Registro[] = productionData.map((r) => ({
         id: r.id,
         loteId: r.flock_id || "",
         loteCodigo: r.flocks?.code || "—",
@@ -159,12 +178,24 @@ export default function ProducaoPage() {
         taxa: r.laying_rate != null ? `${Number(r.laying_rate).toFixed(1)}%` : "—",
       }));
       setRegistros(mapped);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao carregar dados de produção:", err);
       setError("Erro ao carregar dados de produção.");
     }
     setLoading(false);
   }, [dateRange]);
+
+  const activeWithdrawal = useMemo(() => {
+    if (!form.loteId || !form.data) return null;
+    return withdrawalTreatments.find((treatment) => {
+      if (treatment.flock_id !== form.loteId || !treatment.withdrawal_period_days) return false;
+      const start = treatment.date;
+      const end = new Date(`${start}T00:00:00`);
+      end.setDate(end.getDate() + treatment.withdrawal_period_days);
+      const endIso = end.toISOString().slice(0, 10);
+      return start <= form.data && form.data <= endIso;
+    }) ?? null;
+  }, [form.data, form.loteId, withdrawalTreatments]);
 
   useEffect(() => {
     if (authLoading || !farm) return;
@@ -435,7 +466,8 @@ export default function ProducaoPage() {
     const total = Number(form.total) || 0;
     const quebrados = Number(form.quebrados) || 0;
     const sujos = Number(form.sujos) || 0;
-    const descartados = Number(form.descartados) || 0;
+    const discardedInput = Number(form.descartados) || 0;
+    const descartados = activeWithdrawal ? total : discardedInput;
     const layingRate = selectedLote.aves > 0 ? (total / selectedLote.aves) * 100 : 0;
 
     setSaving(true);
@@ -464,8 +496,8 @@ export default function ProducaoPage() {
       }
       setModal(null);
       await fetchData();
-    } catch (err: any) {
-      setError(err.message || "Erro ao salvar registro.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erro ao salvar registro.");
     }
     setSaving(false);
   }
@@ -477,7 +509,7 @@ export default function ProducaoPage() {
       if (delErr) throw delErr;
       setDeleteConfirm(null);
       await fetchData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao excluir registro:", err);
     }
   }
@@ -1034,7 +1066,7 @@ export default function ProducaoPage() {
                 <Tooltip
                   contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
                   labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                  formatter={((value: any, name: any) => [Number(value).toLocaleString("pt-BR"), String(name) === "ovos" ? "Produção" : "Meta"]) as any}
+                  formatter={((value: unknown, name: unknown) => [Number(value).toLocaleString("pt-BR"), String(name) === "ovos" ? "Produção" : "Meta"]) satisfies TooltipFormatter}
                 />
                 {curvaProducao[0]?.meta > 0 && (
                   <ReferenceLine y={curvaProducao[0].meta} stroke="#d1d5db" strokeDasharray="6 4" strokeWidth={1.5} />
@@ -1435,7 +1467,10 @@ export default function ProducaoPage() {
                 <input
                   type="number"
                   value={form.total}
-                  onChange={(e) => setForm({ ...form, total: e.target.value })}
+                  onChange={(e) => {
+                    const total = e.target.value;
+                    setForm({ ...form, total, descartados: activeWithdrawal ? total : form.descartados });
+                  }}
                   placeholder="2450"
                   className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all"
                 />
@@ -1466,13 +1501,23 @@ export default function ProducaoPage() {
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Descartados</label>
                   <input
                     type="number"
-                    value={form.descartados}
-                    onChange={(e) => setForm({ ...form, descartados: e.target.value })}
+                  value={form.descartados}
+                  onChange={(e) => setForm({ ...form, descartados: activeWithdrawal ? form.total : e.target.value })}
+                  disabled={Boolean(activeWithdrawal)}
                     placeholder="5"
                     className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all"
                   />
                 </div>
               </div>
+              {activeWithdrawal && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  Este lote está em carência sanitária por tratamento com{" "}
+                  <span className="font-semibold">
+                    {activeWithdrawal.active_ingredient ?? activeWithdrawal.title}
+                  </span>
+                  . Todos os ovos devem ser descartados; ovos comercializáveis estão bloqueados.
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">

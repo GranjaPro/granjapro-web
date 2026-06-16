@@ -1,4 +1,9 @@
 import { createClient } from "@/lib/supabase/client";
+import type { TablesInsert, TablesUpdate } from "@/lib/database.types";
+
+type MortalityInsert = TablesInsert<"mortality">;
+type MortalityUpdate = TablesUpdate<"mortality">;
+export type MortalityType = TablesInsert<"mortality">["mortality_type"];
 
 export async function getTodayMortality(farmId: string) {
   const supabase = createClient();
@@ -26,7 +31,7 @@ export async function getMortalityByDateRange(farmId: string, startDate: string,
   return data;
 }
 
-export async function createMortalityRecord(record: Record<string, any>) {
+export async function createMortalityRecord(record: MortalityInsert) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("mortality")
@@ -37,7 +42,7 @@ export async function createMortalityRecord(record: Record<string, any>) {
   return data;
 }
 
-export async function updateMortalityRecord(recordId: string, updates: Record<string, any>) {
+export async function updateMortalityRecord(recordId: string, updates: MortalityUpdate) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("mortality")

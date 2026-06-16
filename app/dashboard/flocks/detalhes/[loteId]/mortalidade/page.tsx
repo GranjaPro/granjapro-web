@@ -48,6 +48,7 @@ interface RegistroMortalidade {
   galpao: string;
   observacao: string;
 }
+type TooltipFormatter = (value: unknown, name: unknown) => [string, string];
 
 const lotesMortalidade: Record<
   string,
@@ -203,7 +204,7 @@ const lotesMortalidade: Record<
   },
 };
 
-const causaOptions = ["Natural", "Doença", "Respiratório", "Predadores", "Estresse", "Desconhecido"];
+const causaOptions = ["Natural", "Doença", "Respiratório", "Predadores", "Estresse Térmico", "Canibalismo/Bicagem", "Descarte Técnico", "Desconhecido", "Outros"];
 
 export default function MortalidadeLotePage() {
   const params = useParams();
@@ -843,7 +844,7 @@ export default function MortalidadeLotePage() {
                     fontSize: "13px",
                     padding: "10px 14px",
                   }}
-                  formatter={((value: any, name: any) => [`${Number(value)} mortes`, String(name)]) as any}
+                formatter={((value: unknown, name: unknown) => [`${Number(value)} mortes`, String(name)]) satisfies TooltipFormatter}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -883,10 +884,10 @@ export default function MortalidadeLotePage() {
                 padding: "10px 14px",
               }}
               labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-              formatter={((value: any, name: any) => {
-                if (String(name) === "mortes") return [Number(value), "Mortes"];
+              formatter={((value: unknown, name: unknown) => {
+                if (String(name) === "mortes") return [String(Number(value)), "Mortes"];
                 return [`${Number(value)}%`, "Taxa"];
-              }) as any}
+              }) satisfies TooltipFormatter}
             />
             <Bar dataKey="mortes" fill="#fca5a5" radius={[6, 6, 0, 0]} name="mortes" />
             <Bar dataKey="taxa" fill="#ef4444" radius={[6, 6, 0, 0]} name="taxa" />

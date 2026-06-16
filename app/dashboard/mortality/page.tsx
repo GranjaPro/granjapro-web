@@ -52,18 +52,25 @@ import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
+import type { Tables } from "@/lib/database.types";
 
 interface RegistroMortalidade {
   id: string;
   data: string;
   quantidade: number;
   causa: string;
+  tipo: "natural" | "culling";
   loteId: string | null;
   galpaoId: string | null;
   lote: string;
   galpao: string;
   observacao: string;
 }
+type MortalityRow = Tables<"mortality"> & {
+  flocks: Pick<Tables<"flocks">, "code"> | null;
+  barns: Pick<Tables<"barns">, "name"> | null;
+};
+type TooltipFormatter = (value: unknown, name: unknown) => [string, string];
 
 interface Lote {
   id: string;
@@ -76,14 +83,16 @@ interface Barn {
   name: string;
 }
 
-const causaOptions = ["Natural", "Doença", "Respiratório", "Predadores", "Estresse", "Desconhecido", "Outros"];
+const causaOptions = ["Natural", "Doença", "Respiratório", "Predadores", "Estresse Térmico", "Canibalismo/Bicagem", "Descarte Técnico", "Desconhecido", "Outros"];
 
 const causaColor: Record<string, { badge: string }> = {
   "Natural": { badge: "bg-gray-100 text-gray-600" },
   "Doença": { badge: "bg-red-50 text-red-600" },
   "Respiratório": { badge: "bg-orange-50 text-orange-600" },
   "Predadores": { badge: "bg-amber-50 text-amber-700" },
-  "Estresse": { badge: "bg-violet-50 text-violet-600" },
+  "Estresse Térmico": { badge: "bg-violet-50 text-violet-600" },
+  "Canibalismo/Bicagem": { badge: "bg-rose-50 text-rose-600" },
+  "Descarte Técnico": { badge: "bg-slate-100 text-slate-700" },
   "Desconhecido": { badge: "bg-gray-100 text-gray-500" },
   "Outros": { badge: "bg-slate-100 text-slate-600" },
 };
@@ -93,7 +102,9 @@ const causaHexColors: Record<string, string> = {
   "Doença": "#ef4444",
   "Respiratório": "#f97316",
   "Predadores": "#f59e0b",
-  "Estresse": "#a78bfa",
+  "Estresse Térmico": "#a78bfa",
+  "Canibalismo/Bicagem": "#e11d48",
+  "Descarte Técnico": "#475569",
   "Desconhecido": "#cbd5e1",
   "Outros": "#64748b"
 };
@@ -114,7 +125,7 @@ export default function MortalidadePage() {
   
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
   const [editing, setEditing] = useState<RegistroMortalidade | null>(null);
-  const [form, setForm] = useState({ data: new Date().toISOString().split('T')[0], quantidade: "1", causa: "", loteId: "", galpaoId: "", observacao: "" });
+  const [form, setForm] = useState({ data: new Date().toISOString().split('T')[0], quantidade: "1", causa: "", tipo: "natural" as "natural" | "culling", loteId: "", galpaoId: "", observacao: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -148,11 +159,12 @@ export default function MortalidadePage() {
       if (barnsRes.data) setBarns(barnsRes.data);
 
       if (mortalityRes.data) {
-        setRegistros(mortalityRes.data.map((m: any) => ({
+        setRegistros(((mortalityRes.data as MortalityRow[] | null) ?? []).map((m) => ({
           id: m.id,
           data: m.date,
           quantidade: m.dead_birds,
           causa: m.cause,
+          tipo: m.mortality_type,
           loteId: m.flock_id,
           galpaoId: m.barn_id,
           lote: m.flocks?.code || "—",
@@ -328,7 +340,7 @@ export default function MortalidadePage() {
   }, [registros, searchQuery]);
 
   function openAdd() {
-    setForm({ data: new Date().toISOString().split('T')[0], quantidade: "1", causa: "", loteId: "", galpaoId: "", observacao: "" });
+    setForm({ data: new Date().toISOString().split('T')[0], quantidade: "1", causa: "", tipo: "natural", loteId: "", galpaoId: "", observacao: "" });
     setEditing(null);
     setModal("add");
   }
@@ -338,6 +350,7 @@ export default function MortalidadePage() {
       data: r.data,
       quantidade: String(r.quantidade),
       causa: r.causa,
+      tipo: r.tipo,
       loteId: r.loteId || "",
       galpaoId: r.galpaoId || "",
       observacao: r.observacao,
@@ -358,6 +371,7 @@ export default function MortalidadePage() {
       date: form.data,
       dead_birds: Number(form.quantidade) || 1,
       cause: form.causa,
+      mortality_type: form.tipo,
       notes: form.observacao
     };
 
@@ -644,7 +658,7 @@ export default function MortalidadePage() {
                   </Pie>
                   <Tooltip
                     contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
-                    formatter={((value: any, name: any) => [`${Number(value)} mortes`, String(name)]) as any}
+                    formatter={((value: unknown, name: unknown) => [`${Number(value)} mortes`, String(name)]) satisfies TooltipFormatter}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -704,11 +718,11 @@ export default function MortalidadePage() {
                 contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
                 labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px" }}
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={((value: any, name: any) => {
+                formatter={((value: unknown, name: unknown) => {
                   if (name === "mortes") return [Number(value) + " aves", "Mortes"];
                   if (name === "taxa") return [(Number(value)).toFixed(2) + "%", "Taxa"];
-                  return [String(value), name];
-                }) as any}
+                  return [String(value), String(name)];
+                }) satisfies TooltipFormatter}
               />
               <Bar yAxisId="left" dataKey="mortes" fill="url(#gradMortesBarMort)" radius={[6, 6, 0, 0]} barSize={24} name="mortes" />
               <Line yAxisId="right" type="monotone" dataKey="taxa" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="taxa" />
@@ -747,11 +761,11 @@ export default function MortalidadePage() {
                 contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
                 labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px" }}
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={((value: any, name: any) => {
+                formatter={((value: unknown, name: unknown) => {
                   if (name === "mortes") return [Number(value) + " aves", "Mortes"];
                   if (name === "taxa") return [(Number(value)).toFixed(2) + "%", "Taxa"];
-                  return [String(value), name];
-                }) as any}
+                  return [String(value), String(name)];
+                }) satisfies TooltipFormatter}
               />
               <Bar yAxisId="left" dataKey="mortes" fill="url(#gradMortesBarMort2)" radius={[6, 6, 0, 0]} barSize={24} name="mortes" />
               <Line yAxisId="right" type="monotone" dataKey="taxa" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: "#fff", stroke: "#f59e0b", strokeWidth: 3 }} activeDot={{ r: 7, fill: "#f59e0b", stroke: "#fff", strokeWidth: 3 }} name="taxa" />
@@ -871,6 +885,7 @@ export default function MortalidadePage() {
                   <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Qtd</th>
                   <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Lote</th>
                   <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Causa</th>
+                  <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Tipo</th>
                   <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Galpão</th>
                   <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Observação</th>
                   <th className="text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider px-6 py-3">Ações</th>
@@ -879,7 +894,7 @@ export default function MortalidadePage() {
               <tbody>
                 {filteredRegistros.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-16 text-gray-400 text-sm">
+                    <td colSpan={8} className="text-center py-16 text-gray-400 text-sm">
                       Nenhum registro encontrado.
                     </td>
                   </tr>
@@ -900,6 +915,11 @@ export default function MortalidadePage() {
                       <td className="px-6 py-4">
                         <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-lg whitespace-nowrap", causaColor[r.causa]?.badge || "bg-gray-100 text-gray-600")}>
                           {r.causa}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                          {r.tipo === "culling" ? "Descarte Técnico" : "Mortalidade Natural"}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{r.galpao}</td>
@@ -994,6 +1014,18 @@ export default function MortalidadePage() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tipo de ocorrência</label>
+                <select
+                  value={form.tipo}
+                  onChange={(e) => setForm({ ...form, tipo: e.target.value as "natural" | "culling" })}
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all bg-white cursor-pointer"
+                >
+                  <option value="natural">Mortalidade Natural</option>
+                  <option value="culling">Descarte Técnico</option>
+                </select>
               </div>
 
               <div>

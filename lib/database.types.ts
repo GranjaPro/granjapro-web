@@ -144,6 +144,53 @@ export interface Database {
           status?: string;
         };
       };
+      daily_inspections: {
+        Row: {
+          id: string;
+          created_at: string;
+          farm_id: string;
+          flock_id: string | null;
+          date: string;
+          responsible: string | null;
+          feces_aspect: "Normal" | "Diarrhea" | "Blood";
+          respiratory_symptoms: "None" | "Snick" | "Coryza";
+          behavior: "Normal" | "Huddled" | "Feather Pecking";
+          light_timer_ops: boolean;
+          water_chlorine_ppm: number | null;
+          water_ph: number | null;
+          notes: string | null;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          farm_id: string;
+          flock_id?: string | null;
+          date: string;
+          responsible?: string | null;
+          feces_aspect?: "Normal" | "Diarrhea" | "Blood";
+          respiratory_symptoms?: "None" | "Snick" | "Coryza";
+          behavior?: "Normal" | "Huddled" | "Feather Pecking";
+          light_timer_ops?: boolean;
+          water_chlorine_ppm?: number | null;
+          water_ph?: number | null;
+          notes?: string | null;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          farm_id?: string;
+          flock_id?: string | null;
+          date?: string;
+          responsible?: string | null;
+          feces_aspect?: "Normal" | "Diarrhea" | "Blood";
+          respiratory_symptoms?: "None" | "Snick" | "Coryza";
+          behavior?: "Normal" | "Huddled" | "Feather Pecking";
+          light_timer_ops?: boolean;
+          water_chlorine_ppm?: number | null;
+          water_ph?: number | null;
+          notes?: string | null;
+        };
+      };
       egg_production: {
         Row: {
           id: string;
@@ -316,6 +363,80 @@ export interface Database {
           quantity_liters?: number;
         };
       };
+      health_records: {
+        Row: {
+          id: string;
+          created_at: string;
+          farm_id: string;
+          flock_id: string | null;
+          title: string;
+          date: string;
+          type: "vaccination" | "treatment" | "inspection";
+          status: "completed" | "in_progress" | "scheduled" | "upcoming";
+          responsible: string | null;
+          notes: string | null;
+          target_disease: string | null;
+          brand_name: string | null;
+          batch: string | null;
+          expiry_date: string | null;
+          manufacturer: string | null;
+          application_route: "water" | "ocular" | "spray" | "wing web" | "intramuscular" | "subcutaneous" | null;
+          doses: number | null;
+          active_ingredient: string | null;
+          dosage_dilution: string | null;
+          withdrawal_period_days: number | null;
+          disposal_destination: string | null;
+          prescription_ref: string | null;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          farm_id: string;
+          flock_id?: string | null;
+          title: string;
+          date: string;
+          type: "vaccination" | "treatment" | "inspection";
+          status?: "completed" | "in_progress" | "scheduled" | "upcoming";
+          responsible?: string | null;
+          notes?: string | null;
+          target_disease?: string | null;
+          brand_name?: string | null;
+          batch?: string | null;
+          expiry_date?: string | null;
+          manufacturer?: string | null;
+          application_route?: "water" | "ocular" | "spray" | "wing web" | "intramuscular" | "subcutaneous" | null;
+          doses?: number | null;
+          active_ingredient?: string | null;
+          dosage_dilution?: string | null;
+          withdrawal_period_days?: number | null;
+          disposal_destination?: string | null;
+          prescription_ref?: string | null;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          farm_id?: string;
+          flock_id?: string | null;
+          title?: string;
+          date?: string;
+          type?: "vaccination" | "treatment" | "inspection";
+          status?: "completed" | "in_progress" | "scheduled" | "upcoming";
+          responsible?: string | null;
+          notes?: string | null;
+          target_disease?: string | null;
+          brand_name?: string | null;
+          batch?: string | null;
+          expiry_date?: string | null;
+          manufacturer?: string | null;
+          application_route?: "water" | "ocular" | "spray" | "wing web" | "intramuscular" | "subcutaneous" | null;
+          doses?: number | null;
+          active_ingredient?: string | null;
+          dosage_dilution?: string | null;
+          withdrawal_period_days?: number | null;
+          disposal_destination?: string | null;
+          prescription_ref?: string | null;
+        };
+      };
       mortality: {
         Row: {
           id: string;
@@ -326,6 +447,7 @@ export interface Database {
           date: string;
           dead_birds: number;
           cause: string;
+          mortality_type: "natural" | "culling";
           mortality_rate: number;
           notes: string | null;
         };
@@ -338,6 +460,7 @@ export interface Database {
           date: string;
           dead_birds: number;
           cause?: string;
+          mortality_type?: "natural" | "culling";
           mortality_rate?: number;
           notes?: string | null;
         };
@@ -350,6 +473,7 @@ export interface Database {
           date?: string;
           dead_birds?: number;
           cause?: string;
+          mortality_type?: "natural" | "culling";
           mortality_rate?: number;
           notes?: string | null;
         };
@@ -745,4 +869,8 @@ export type Tables<T extends keyof Database["public"]["Tables"]> =
 export type InsertTables<T extends keyof Database["public"]["Tables"]> =
   Database["public"]["Tables"][T]["Insert"];
 export type UpdateTables<T extends keyof Database["public"]["Tables"]> =
+  Database["public"]["Tables"][T]["Update"];
+export type TablesInsert<T extends keyof Database["public"]["Tables"]> =
+  Database["public"]["Tables"][T]["Insert"];
+export type TablesUpdate<T extends keyof Database["public"]["Tables"]> =
   Database["public"]["Tables"][T]["Update"];
