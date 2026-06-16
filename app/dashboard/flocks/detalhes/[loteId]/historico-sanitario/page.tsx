@@ -193,7 +193,10 @@ const periodFilterOptions = [
 ] as const;
 
 function toIsoDate(date: Date) {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function startOfDay(date: Date) {
@@ -354,6 +357,7 @@ export default function HistoricoSanitarioPage() {
   const [loteCode, setLoteCode] = useState("");
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [birdCount, setBirdCount] = useState(0);
   const [healthRecords, setHealthRecords] = useState<HealthRecordRow[]>([]);
   const [dailyInspections, setDailyInspections] = useState<DailyInspectionRow[]>([]);
   const [mortalityRecords, setMortalityRecords] = useState<MortalityRecordRow[]>([]);
@@ -373,7 +377,7 @@ export default function HistoricoSanitarioPage() {
       const [flockRes, healthRes, dailyInspectionsRes, mortalityRes] = await Promise.all([
         supabase
           .from("flocks")
-          .select("code")
+          .select("code, bird_count")
           .eq("id", loteId)
           .eq("farm_id", currentFarm.id)
           .maybeSingle(),
@@ -387,7 +391,7 @@ export default function HistoricoSanitarioPage() {
           .from("daily_inspections")
           .select("id, date, responsible, feces_aspect, respiratory_symptoms, behavior, light_timer_ops, water_chlorine_ppm, water_ph, notes")
           .eq("farm_id", currentFarm.id)
-          .eq("flock_id", loteId)
+          .or(`flock_id.eq.${loteId},flock_id.is.null`)
           .order("date", { ascending: false }),
         supabase
           .from("mortality")
@@ -405,6 +409,7 @@ export default function HistoricoSanitarioPage() {
       }
 
       setLoteCode(flockRes.data.code);
+      setBirdCount(flockRes.data.bird_count ?? 0);
       setHealthRecords((healthRes.data as HealthRecordRow[] | null) ?? []);
       setDailyInspections((dailyInspectionsRes.data as DailyInspectionRow[] | null) ?? []);
       setMortalityRecords((mortalityRes.data as MortalityRecordRow[] | null) ?? []);
@@ -669,13 +674,19 @@ export default function HistoricoSanitarioPage() {
       const inspectionPenalty =
         inspectionGap <= 7 ? 0 : Math.min(22, Math.round((inspectionGap - 7) * 1.4));
 
+      const mortalityDeaths = mortalityRecords
+        .filter((record) => record.date >= startIso && record.date <= endIso)
+        .reduce((sum, record) => sum + record.dead_birds, 0);
+      const mortalityRate = birdCount > 0 ? (mortalityDeaths / birdCount) * 100 : mortalityEvents * 0.2;
+
       const score = Math.max(
         38,
         Math.min(
           100,
           Math.round(
             100 -
-              criticalEvents * 12 -
+              criticalEvents * 10 -
+              mortalityRate * 18 -
               pendingVaccines * 8 -
               expiredVaccines * 10 -
               inspectionPenalty,
@@ -690,7 +701,7 @@ export default function HistoricoSanitarioPage() {
           Number(
             (
               0.12 +
-              mortalityEvents * 0.55 +
+              mortalityRate +
               symptomEvents * 0.16 +
               pendingVaccines * 0.08 +
               expiredVaccines * 0.12 +
@@ -706,7 +717,7 @@ export default function HistoricoSanitarioPage() {
           100,
           Math.round(
             94 -
-              mortalityEvents * 12 -
+              mortalityRate * 18 -
               symptomEvents * 6 -
               pendingVaccines * 2 -
               expiredVaccines * 3 -
@@ -756,7 +767,7 @@ export default function HistoricoSanitarioPage() {
       const weekEnd = endOfWeek(weekStart) > today ? today : endOfWeek(weekStart);
       return buildPoint(weekStart, weekEnd, `Sem ${index + 1}`);
     });
-  }, [healthTimelineRange, inspectionRecords, timelineEvents, treatmentRecords, vaccineRecords]);
+  }, [birdCount, healthTimelineRange, inspectionRecords, mortalityRecords, timelineEvents, vaccineRecords]);
 
   const vaccineStatusMeta = {
     em_dia: { label: "Em dia", classes: "bg-emerald-50 text-emerald-700 border-emerald-200" },

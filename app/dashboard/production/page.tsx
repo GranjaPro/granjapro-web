@@ -79,6 +79,13 @@ type WithdrawalTreatment = Pick<
 >;
 type TooltipFormatter = (value: unknown, name: unknown) => [string, string];
 
+function toIsoDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 type ModalMode = "add" | "edit" | null;
 
 export default function ProducaoPage() {
@@ -192,10 +199,17 @@ export default function ProducaoPage() {
       const start = treatment.date;
       const end = new Date(`${start}T00:00:00`);
       end.setDate(end.getDate() + treatment.withdrawal_period_days);
-      const endIso = end.toISOString().slice(0, 10);
+      const endIso = toIsoDate(end);
       return start <= form.data && form.data <= endIso;
     }) ?? null;
   }, [form.data, form.loteId, withdrawalTreatments]);
+
+  useEffect(() => {
+    if (!activeWithdrawal) return;
+    setForm((current) =>
+      current.descartados === current.total ? current : { ...current, descartados: current.total },
+    );
+  }, [activeWithdrawal, form.total]);
 
   useEffect(() => {
     if (authLoading || !farm) return;

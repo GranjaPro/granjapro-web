@@ -241,7 +241,7 @@ export default function SaudeLotePage() {
           .from("daily_inspections")
           .select("id, date, responsible, feces_aspect, respiratory_symptoms, behavior, light_timer_ops, water_chlorine_ppm, water_ph, notes")
           .eq("farm_id", currentFarm.id)
-          .eq("flock_id", loteId)
+          .or(`flock_id.eq.${loteId},flock_id.is.null`)
           .order("date", { ascending: false }),
         supabase
           .from("mortality")
@@ -299,8 +299,10 @@ export default function SaudeLotePage() {
   const ultimoRegistroSanitario = useMemo(() => {
     return (
       records.find(
-        (record) => record.status === "completed" || record.status === "in_progress"
-      ) ?? records[0] ?? null
+        (record) =>
+          record.type === "treatment" &&
+          (record.status === "completed" || record.status === "in_progress")
+      ) ?? null
     );
   }, [records]);
 
@@ -1069,7 +1071,7 @@ export default function SaudeLotePage() {
             </div>
             <div className="overflow-y-auto p-5 space-y-3">
               {(historyModal === "sanitario"
-                ? records.filter((r) => r.type !== "vaccination")
+                ? records.filter((r) => r.type === "treatment")
                 : records.filter((r) => r.type === "vaccination")
               ).map((record) => {
                 const Icon = typeIcon[record.type];
@@ -1127,7 +1129,7 @@ export default function SaudeLotePage() {
                 );
               })}
               {(historyModal === "sanitario"
-                ? records.filter((r) => r.type !== "vaccination")
+                ? records.filter((r) => r.type === "treatment")
                 : records.filter((r) => r.type === "vaccination")
               ).length === 0 && (
                 <p className="text-sm text-gray-500 text-center py-8">

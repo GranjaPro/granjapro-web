@@ -56,8 +56,9 @@ import type { Tables, TablesInsert } from "@/lib/database.types";
 /* ── Types ── */
 type RegistroTipo = "Vacinação" | "Tratamento" | "Inspeção";
 type AgendaStatus = "Próximo" | "Agendado";
-type RegistroRapido = "vacinacao" | "medicamento" | "isolamento" | "inspecao" | "sintoma" | "tratamento";
+type RegistroRapido = "vacinacao" | "medicamento" | "isolamento" | "inspecao" | "tratamento";
 type RegistroStatus = "Concluído" | "Em andamento";
+type RegistroDbStatus = HealthRecordRow["status"];
 type HealthEvolutionRange = "7d" | "30d" | "months" | "total";
 
 interface RegistroSaude {
@@ -69,6 +70,7 @@ interface RegistroSaude {
   loteId: string | null;
   tipo: RegistroTipo;
   status: RegistroStatus;
+  dbStatus?: RegistroDbStatus;
   observacao?: string;
   responsavel?: string;
   targetDisease?: string;
@@ -97,6 +99,7 @@ interface AgendaVacina {
   lote: string;
   dataVencimento: string;
   status: AgendaStatus;
+  recordId: string;
 }
 
 interface Lote {
@@ -232,16 +235,6 @@ const registroRapidoOptions: RegistroRapidoOption[] = [
     iconColor: "text-sky-600",
   },
   {
-    id: "sintoma",
-    label: "Sintoma",
-    description: "Registro de sinal clínico observado",
-    tipo: "Inspeção",
-    placeholder: "Ex: Apatia e queda de consumo",
-    icon: AlertTriangle,
-    iconBg: "bg-red-50",
-    iconColor: "text-red-500",
-  },
-  {
     id: "tratamento",
     label: "Tratamento",
     description: "Acompanhamento sanitário geral",
@@ -260,6 +253,7 @@ const mockAgendaVacina: AgendaVacina[] = [
     lote: "L001",
     dataVencimento: "2026-04-08",
     status: "Próximo",
+    recordId: "mock-agenda-1",
   },
   {
     id: "mock-agenda-2",
@@ -267,6 +261,7 @@ const mockAgendaVacina: AgendaVacina[] = [
     lote: "L003",
     dataVencimento: "2026-04-14",
     status: "Agendado",
+    recordId: "mock-agenda-2",
   },
   {
     id: "mock-agenda-3",
@@ -274,6 +269,7 @@ const mockAgendaVacina: AgendaVacina[] = [
     lote: "L002",
     dataVencimento: "2026-04-19",
     status: "Agendado",
+    recordId: "mock-agenda-3",
   },
 ];
 
@@ -337,6 +333,7 @@ export default function SaudePage() {
 
   const [registros, setRegistros] = useState<RegistroSaude[]>([]);
   const [agenda, setAgenda] = useState<AgendaVacina[]>([]);
+  const [scheduledRecords, setScheduledRecords] = useState<HealthRecordRow[]>([]);
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [mortalidadeData, setMortalidadeData] = useState<{ dia: string; mortes: number; taxa: number }[]>([]);
   const [coberturaMensal, setCoberturaMensal] = useState<{ mes: string; cobertura: number }[]>([]);
@@ -348,6 +345,7 @@ export default function SaudePage() {
 
   const [showModal, setShowModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | RegistroTipo>("all");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [editing, setEditing] = useState<RegistroSaude | null>(null);
   const [healthEvolutionRange, setHealthEvolutionRange] = useState<HealthEvolutionRange>("30d");
@@ -364,6 +362,7 @@ export default function SaudePage() {
     loteId: "",
     tipo: "Vacinação" as RegistroTipo,
     registroRapido: "vacinacao" as RegistroRapido,
+    status: "completed" as RegistroDbStatus,
     observacao: "",
     responsavel: "",
     targetDisease: "",
@@ -449,6 +448,7 @@ export default function SaudePage() {
       const inspectionsData = (inspectionsRes.data ?? []) as DailyInspectionRow[];
       const scheduleData = (scheduleRes.data ?? []) as HealthRecordRow[];
       const mortalityData = (mortalityRes.data ?? []) as MortalityRow[];
+      setScheduledRecords(scheduleData);
 
       // Map flocks
       const mappedLotes: Lote[] = flocksData.map((f) => ({
@@ -471,6 +471,7 @@ export default function SaudePage() {
             loteId: r.flock_id,
             tipo: typeMap[r.type] || "Inspeção",
             status: r.status === "completed" ? "Concluído" as const : "Em andamento" as const,
+            dbStatus: r.status,
             observacao: r.notes || "",
             responsavel: r.responsible || "",
             targetDisease: r.target_disease ?? "",
@@ -495,6 +496,7 @@ export default function SaudePage() {
             loteId: inspection.flock_id,
             tipo: "Inspeção" as const,
             status: "Concluído" as const,
+            dbStatus: "completed" as const,
             observacao: inspection.notes || "",
             responsavel: inspection.responsible || "",
             fecesAspect: inspection.feces_aspect,
@@ -514,6 +516,7 @@ export default function SaudePage() {
         lote: r.flocks?.code || "Todos",
         dataVencimento: r.date,
         status: r.status === "upcoming" ? "Próximo" : "Agendado",
+        recordId: r.id,
       })));
 
       // Map mortality data by day
@@ -629,12 +632,21 @@ export default function SaudePage() {
   }, [vacinasPendentes, tratamentosAtivos, taxaMortalidade, coberturaVacinal, agenda, registros]);
 
   const filteredRegistros = useMemo(() => {
-    if (!searchQuery.trim()) return registros;
     const q = searchQuery.toLowerCase();
-    return registros.filter(r => r.titulo.toLowerCase().includes(q) || r.lote.toLowerCase().includes(q) || r.tipo.toLowerCase().includes(q));
-  }, [registros, searchQuery]);
+    return registros.filter((r) => {
+      const matchesType = typeFilter === "all" || r.tipo === typeFilter;
+      const matchesSearch =
+        !q.trim() ||
+        r.titulo.toLowerCase().includes(q) ||
+        r.lote.toLowerCase().includes(q) ||
+        r.tipo.toLowerCase().includes(q);
+      return matchesType && matchesSearch;
+    });
+  }, [registros, searchQuery, typeFilter]);
 
-  const displayedAgenda = agenda.length > 0 ? agenda : mockAgendaVacina;
+  const hasRealVaccineRecords =
+    agenda.length > 0 || registros.some((registro) => registro.tipo === "Vacinação");
+  const displayedAgenda = hasRealVaccineRecords ? agenda : mockAgendaVacina;
   const displayedVacinasPendentes = displayedAgenda.filter((item) => item.status === "Próximo").length;
 
   const healthEvolutionData = useMemo(() => {
@@ -777,9 +789,6 @@ export default function SaudePage() {
       if (source.includes("medic") || source.includes("antib") || source.includes("suple")) return "medicamento";
       return "tratamento";
     }
-    if (source.includes("sint") || source.includes("apat") || source.includes("tosse") || source.includes("diarre")) {
-      return "sintoma";
-    }
     return "inspecao";
   }
 
@@ -790,6 +799,7 @@ export default function SaudePage() {
       loteId: selectedFlockId,
       tipo: option?.tipo ?? "Vacinação",
       registroRapido: option?.id ?? "vacinacao",
+      status: "completed",
       observacao: "",
       responsavel: "",
       ...defaultClinicalFields,
@@ -806,6 +816,7 @@ export default function SaudePage() {
       loteId: r.loteId || "",
       tipo: r.tipo,
       registroRapido: inferRegistroRapido(r),
+      status: r.dbStatus ?? (r.status === "Concluído" ? "completed" : "in_progress"),
       observacao: r.observacao || "",
       responsavel: r.responsavel || "",
       targetDisease: r.targetDisease ?? "",
@@ -832,18 +843,40 @@ export default function SaudePage() {
     setShowModal(true);
   }
 
+  function openEditHealthRecord(record: HealthRecordRow) {
+    openEdit({
+      id: record.id,
+      source: "health_records",
+      titulo: record.title,
+      data: record.date,
+      lote: record.flocks?.code || "Todos",
+      loteId: record.flock_id,
+      tipo: typeMap[record.type] || "Inspeção",
+      status: record.status === "completed" ? "Concluído" : "Em andamento",
+      dbStatus: record.status,
+      observacao: record.notes || "",
+      responsavel: record.responsible || "",
+      targetDisease: record.target_disease ?? "",
+      brandName: record.brand_name ?? "",
+      batch: record.batch ?? "",
+      expiryDate: record.expiry_date ?? "",
+      manufacturer: record.manufacturer ?? "",
+      applicationRoute: record.application_route,
+      doses: record.doses,
+      activeIngredient: record.active_ingredient ?? "",
+      dosageDilution: record.dosage_dilution ?? "",
+      withdrawalPeriodDays: record.withdrawal_period_days,
+      disposalDestination: record.disposal_destination ?? "",
+      prescriptionRef: record.prescription_ref ?? "",
+    });
+  }
+
   async function handleSave() {
     if (!farm || !form.titulo || !form.data) return;
     setSaving(true);
     setError("");
 
-    const today = new Date().toISOString().slice(0, 10);
-    const computedStatus =
-      form.data > today
-        ? form.tipo === "Vacinação"
-          ? (form.data <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) ? "upcoming" : "scheduled")
-          : "in_progress"
-        : "completed";
+    const computedStatus = form.tipo === "Inspeção" ? "completed" : form.status;
 
     const healthRecord: HealthRecordInsert = {
       farm_id: farm.id,
@@ -1422,7 +1455,25 @@ export default function SaudePage() {
             const isUrgent = a.status === "Próximo";
             return (
               <div key={a.id}>
-                <div className="flex items-center justify-between py-3 group">
+                <div
+                  role={a.recordId.startsWith("mock-") ? undefined : "button"}
+                  tabIndex={a.recordId.startsWith("mock-") ? undefined : 0}
+                  onClick={() => {
+                    const record = scheduledRecords.find((item) => item.id === a.recordId);
+                    if (record) openEditHealthRecord(record);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    const record = scheduledRecords.find((item) => item.id === a.recordId);
+                    if (!record) return;
+                    event.preventDefault();
+                    openEditHealthRecord(record);
+                  }}
+                  className={cn(
+                    "flex items-center justify-between py-3 group rounded-lg transition-colors",
+                    a.recordId.startsWith("mock-") ? "" : "cursor-pointer hover:bg-gray-50/70 px-2 -mx-2",
+                  )}
+                >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", isUrgent ? "bg-red-50" : "bg-gray-50")}>
                       <Syringe className={cn("w-4 h-4", isUrgent ? "text-red-500" : "text-gray-400")} />
@@ -1551,9 +1602,21 @@ export default function SaudePage() {
             <h3 className="text-sm font-bold text-gray-900">Registros de Saúde</h3>
             <p className="text-xs text-gray-400 mt-0.5">{registros.length} registros</p>
           </div>
-          <div className="flex items-center gap-2 bg-gray-100/80 rounded-xl px-3 py-2 w-56 transition-colors focus-within:bg-gray-100 focus-within:ring-2 focus-within:ring-brand-500/20">
-            <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-            <input type="text" placeholder="Buscar registro..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent text-xs text-gray-700 placeholder-gray-400 outline-none w-full" />
+          <div className="flex items-center gap-2">
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value as "all" | RegistroTipo)}
+              className="bg-gray-100/80 rounded-xl px-3 py-2 text-xs font-medium text-gray-700 outline-none focus:ring-2 focus:ring-brand-500/20"
+            >
+              <option value="all">Todos</option>
+              <option value="Vacinação">Vacinação</option>
+              <option value="Tratamento">Tratamento</option>
+              <option value="Inspeção">Inspeção</option>
+            </select>
+            <div className="flex items-center gap-2 bg-gray-100/80 rounded-xl px-3 py-2 w-56 transition-colors focus-within:bg-gray-100 focus-within:ring-2 focus-within:ring-brand-500/20">
+              <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+              <input type="text" placeholder="Buscar registro..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent text-xs text-gray-700 placeholder-gray-400 outline-none w-full" />
+            </div>
           </div>
         </div>
         <div className="overflow-x-auto max-h-[340px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
@@ -1654,6 +1717,21 @@ export default function SaudePage() {
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Observação</label>
                 <input type="text" value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} placeholder="Notas adicionais" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
               </div>
+              {form.tipo !== "Inspeção" && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Status</label>
+                  <select
+                    value={form.status}
+                    onChange={(e) => setForm({ ...form, status: e.target.value as RegistroDbStatus })}
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer"
+                  >
+                    <option value="completed">Concluído</option>
+                    <option value="in_progress">Em andamento</option>
+                    <option value="scheduled">Agendado</option>
+                    <option value="upcoming">Próximo</option>
+                  </select>
+                </div>
+              )}
               {form.tipo === "Vacinação" && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl border border-brand-100 bg-brand-50/40 p-3">
                   <input type="text" value={form.targetDisease} onChange={(e) => setForm({ ...form, targetDisease: e.target.value })} placeholder="Doença alvo" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />

@@ -109,6 +109,10 @@ const causaHexColors: Record<string, string> = {
   "Outros": "#64748b"
 };
 
+function getMortalityType(causa: string): "natural" | "culling" {
+  return causa === "Descarte Técnico" ? "culling" : "natural";
+}
+
 export default function MortalidadePage() {
   const searchParams = useSearchParams();
   const { farm } = useAuth();
@@ -182,6 +186,12 @@ export default function MortalidadePage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    const derivedTipo = getMortalityType(form.causa);
+    if (form.tipo === derivedTipo) return;
+    setForm((current) => ({ ...current, tipo: derivedTipo }));
+  }, [form.causa, form.tipo]);
 
 
   /* ── Computed ── */
@@ -371,7 +381,7 @@ export default function MortalidadePage() {
       date: form.data,
       dead_birds: Number(form.quantidade) || 1,
       cause: form.causa,
-      mortality_type: form.tipo,
+      mortality_type: getMortalityType(form.causa),
       notes: form.observacao
     };
 
@@ -1014,18 +1024,6 @@ export default function MortalidadePage() {
                     ))}
                   </select>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tipo de ocorrência</label>
-                <select
-                  value={form.tipo}
-                  onChange={(e) => setForm({ ...form, tipo: e.target.value as "natural" | "culling" })}
-                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all bg-white cursor-pointer"
-                >
-                  <option value="natural">Mortalidade Natural</option>
-                  <option value="culling">Descarte Técnico</option>
-                </select>
               </div>
 
               <div>
