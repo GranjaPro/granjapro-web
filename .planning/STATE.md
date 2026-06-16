@@ -3,19 +3,19 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Phase Index
 status: Planned
-last_updated: "2026-06-16T15:21:50.389Z"
+last_updated: "2026-06-16T15:32:58.000Z"
 last_activity: 2026-06-16
 progress:
-  total_phases: 16
+  total_phases: 17
   completed_phases: 3
-  total_plans: 6
+  total_plans: 7
   completed_plans: 5
-  percent: 19
+  percent: 18
 ---
 
 # Project State: Granja Pro
 
-**Last updated:** 2026-06-14
+**Last updated:** 2026-06-16
 **Current milestone:** v1.3 - Functional MVP & Integrations
 
 ---
@@ -55,12 +55,13 @@ Last activity: 2026-06-16
 | 24 | Vaccines and Packaging UI | Pending |
 | 25 | Security and RLS Audit | Pending |
 | 26 | Functional Farm Assistant | Pending |
+| 27 | Flock Mortality Page Integration | Pending |
 
 ---
 
 ## Performance Metrics
 
-- **Phases completed:** 2 / 16 for v1.3
+- **Phases completed:** 2 / 17 for v1.3
 - **Latest shipped milestone audit:** `passed` (v1.2-MILESTONE-AUDIT.md)
 
 ---
@@ -89,6 +90,7 @@ Last activity: 2026-06-16
 ### Roadmap Evolution
 
 - Phase 26 added: Functional Farm Assistant
+- Phase 27 added: Flock Mortality Page Integration
 
 ---
 
