@@ -51,6 +51,10 @@ Detailed phase goals live in `.planning/milestones/v1.3-ROADMAP.md`.
 
 ### Phase 16: Flock Tasks CRUD
 
+**Plans:** 1/1 plans complete
+
+- [x] 16-01-PLAN.md - Flock tasks CRUD
+
 ### Phase 17: Dashboard Checklist and Alerts
 
 ### Phase 18: Feedback Page
