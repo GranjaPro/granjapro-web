@@ -8,7 +8,17 @@ export { getTodayMortality, getMortalityByDateRange, createMortalityRecord, upda
 export { getMonthlyFinancials, getFinancialSummary, getTransactionsByDateRange, createTransaction, updateTransaction, deleteTransaction } from "./finances";
 export { getCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer } from "./customers";
 export { getSales, getSalesByDateRange, createSale, updateSale, deleteSale } from "./sales";
-export { getTodayTasks, getTasksByDate, createTask, updateTask, toggleTask, deleteTask } from "./tasks";
+export {
+  getTodayTasks,
+  getTasksByDate,
+  getTaskSchedule,
+  getTaskExceptions,
+  createTask,
+  updateTask,
+  setTaskOccurrenceStatus,
+  toggleTask,
+  deleteTask,
+} from "./tasks";
 export { getAlerts, getUnreadAlertCount, createAlert, markAlertAsRead, markAllAlertsAsRead, resolveAlert } from "./alerts";
 export { getEquipmentByFarm, createEquipment, updateEquipment, deleteEquipment } from "./equipment";
 export { getWorkers, createWorker, updateWorker, deleteWorker } from "./workers";

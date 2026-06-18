@@ -603,31 +603,81 @@ export interface Database {
           id: string;
           created_at: string;
           farm_id: string;
+          flock_id: string | null;
           title: string;
           done: boolean;
           scheduled_time: string | null;
           date: string;
           assigned_to: string | null;
+          category: "coleta" | "alimentacao" | "limpeza" | "inspecao" | "saude" | "geral";
+          priority: "alta" | "media" | "baixa";
+          recurrence: "diaria" | "semanal" | "mensal" | "unica";
+          notes: string | null;
         };
         Insert: {
           id?: string;
           created_at?: string;
           farm_id: string;
+          flock_id?: string | null;
           title: string;
           done?: boolean;
           scheduled_time?: string | null;
           date: string;
           assigned_to?: string | null;
+          category?: "coleta" | "alimentacao" | "limpeza" | "inspecao" | "saude" | "geral";
+          priority?: "alta" | "media" | "baixa";
+          recurrence?: "diaria" | "semanal" | "mensal" | "unica";
+          notes?: string | null;
         };
         Update: {
           id?: string;
           created_at?: string;
           farm_id?: string;
+          flock_id?: string | null;
           title?: string;
           done?: boolean;
           scheduled_time?: string | null;
           date?: string;
           assigned_to?: string | null;
+          category?: "coleta" | "alimentacao" | "limpeza" | "inspecao" | "saude" | "geral";
+          priority?: "alta" | "media" | "baixa";
+          recurrence?: "diaria" | "semanal" | "mensal" | "unica";
+          notes?: string | null;
+        };
+      };
+      task_exceptions: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          farm_id: string;
+          task_id: string;
+          occurrence_date: string;
+          status: "done" | "missed" | "skipped";
+          completed_at: string | null;
+          notes: string | null;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          farm_id: string;
+          task_id: string;
+          occurrence_date: string;
+          status: "done" | "missed" | "skipped";
+          completed_at?: string | null;
+          notes?: string | null;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          farm_id?: string;
+          task_id?: string;
+          occurrence_date?: string;
+          status?: "done" | "missed" | "skipped";
+          completed_at?: string | null;
+          notes?: string | null;
         };
       };
       equipment: {

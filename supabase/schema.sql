@@ -610,11 +610,16 @@ create table public.tasks (
   id uuid default uuid_generate_v4() primary key,
   created_at timestamptz default now() not null,
   farm_id uuid references public.farms on delete cascade not null,
+  flock_id uuid references public.flocks on delete cascade,
   title text not null,
   done boolean default false,
   scheduled_time time,
   date date not null,
-  assigned_to uuid references public.profiles on delete cascade
+  assigned_to uuid references public.profiles on delete cascade,
+  category text not null default 'geral' check (category in ('coleta', 'alimentacao', 'limpeza', 'inspecao', 'saude', 'geral')),
+  priority text not null default 'media' check (priority in ('alta', 'media', 'baixa')),
+  recurrence text not null default 'unica' check (recurrence in ('diaria', 'semanal', 'mensal', 'unica')),
+  notes text
 );
 
 alter table public.tasks enable row level security;
@@ -643,6 +648,50 @@ create policy "Users can update tasks in their farm"
 
 create policy "Users can delete tasks in their farm"
   on public.tasks for delete
+  using (farm_id in (
+    select id from public.farms where owner_id = auth.uid()
+  ));
+
+create table public.task_exceptions (
+  id uuid default uuid_generate_v4() primary key,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null,
+  farm_id uuid references public.farms on delete cascade not null,
+  task_id uuid references public.tasks on delete cascade not null,
+  occurrence_date date not null,
+  status text not null check (status in ('done', 'missed', 'skipped')),
+  completed_at timestamptz,
+  notes text,
+  unique (task_id, occurrence_date)
+);
+
+alter table public.task_exceptions enable row level security;
+
+create policy "Users can view task exceptions from owned farms"
+  on public.task_exceptions for select
+  using (farm_id in (
+    select id from public.farms where owner_id = auth.uid()
+    union
+    select farm_id from public.profiles where id = auth.uid()
+  ));
+
+create policy "Users can insert task exceptions from owned farms"
+  on public.task_exceptions for insert
+  with check (farm_id in (
+    select id from public.farms where owner_id = auth.uid()
+  ));
+
+create policy "Users can update task exceptions from owned farms"
+  on public.task_exceptions for update
+  using (farm_id in (
+    select id from public.farms where owner_id = auth.uid()
+  ))
+  with check (farm_id in (
+    select id from public.farms where owner_id = auth.uid()
+  ));
+
+create policy "Users can delete task exceptions from owned farms"
+  on public.task_exceptions for delete
   using (farm_id in (
     select id from public.farms where owner_id = auth.uid()
   ));
@@ -699,6 +748,8 @@ create index idx_financial_farm_date on public.financial_transactions(farm_id, d
 create index idx_customers_farm_id on public.customers(farm_id);
 create index idx_sales_farm_date on public.sales(farm_id, date);
 create index idx_tasks_farm_date on public.tasks(farm_id, date);
+create index idx_tasks_farm_flock_date on public.tasks(farm_id, flock_id, date);
+create index idx_task_exceptions_farm_date on public.task_exceptions(farm_id, occurrence_date);
 create index idx_alerts_farm_id on public.alerts(farm_id);
 create index idx_profiles_farm_id on public.profiles(farm_id);
 
@@ -724,6 +775,8 @@ create trigger set_updated_at before update on public.barns
 create trigger set_updated_at before update on public.flocks
   for each row execute procedure public.handle_updated_at();
 create trigger set_updated_at before update on public.customers
+  for each row execute procedure public.handle_updated_at();
+create trigger set_updated_at before update on public.task_exceptions
   for each row execute procedure public.handle_updated_at();
 
 -- ============================================

@@ -49,7 +49,23 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
-import ModalPortal from "@/components/ui/modal-portal";
+import {
+  TaskDialog,
+  type TaskCategory,
+  type TaskDialogValues,
+  type TaskPriority,
+  type TaskRecurrence,
+} from "@/components/dashboard/task-dialog";
+import {
+  createTask,
+  deleteTask as deleteTaskRecord,
+  getTaskExceptions,
+  getTaskSchedule,
+  setTaskOccurrenceStatus,
+  updateTask,
+  type TaskExceptionRow,
+  type TaskRow,
+} from "@/lib/services/tasks";
 
 interface Lote {
   id: string;
@@ -60,9 +76,6 @@ interface Lote {
   arrival_date: string;
 }
 
-type TaskCategory = "coleta" | "alimentacao" | "limpeza" | "inspecao" | "saude" | "geral";
-type TaskPriority = "alta" | "media" | "baixa";
-type TaskRecurrence = "diaria" | "semanal" | "mensal" | "unica";
 type TaskIconKey = "egg" | "wheat" | "droplets" | "eye" | "shield" | "clipboard" | "thermometer" | "bug" | "scissors" | "scale" | "syringe" | "hammer" | "truck" | "sun" | "moon" | "zap" | "heart" | "star" | "flame" | "leaf" | "bell" | "users";
 
 const taskIconMap: Record<TaskIconKey, { icon: LucideIcon; label: string; color: string; bg: string }> = {
@@ -101,6 +114,8 @@ const defaultIconForCategory: Record<TaskCategory, TaskIconKey> = {
 
 interface Task {
   id: string;
+  baseTaskId: string;
+  occurrenceDate: string;
   title: string;
   category: TaskCategory;
   priority: TaskPriority;
@@ -144,76 +159,6 @@ const recurrenceLabel: Record<TaskRecurrence, string> = {
   unica: "Única",
 };
 
-function generateMockTasks(date: Date, loteCode: string): Task[] {
-  const dayOfWeek = date.getDay();
-  const dayOfMonth = date.getDate();
-
-  const daily: Task[] = [
-    { id: "t1", title: `Coletar ovos — ${loteCode}`, category: "coleta", priority: "alta", recurrence: "diaria", scheduledTime: "06:00", done: false, doneAt: null, missed: false, barn: null, notes: "", iconKey: "egg" },
-    { id: "t2", title: `Alimentar aves — manhã`, category: "alimentacao", priority: "alta", recurrence: "diaria", scheduledTime: "07:00", done: false, doneAt: null, missed: false, barn: null, notes: "", iconKey: "sun" },
-    { id: "t3", title: "Verificar bebedouros", category: "limpeza", priority: "media", recurrence: "diaria", scheduledTime: "07:30", done: false, doneAt: null, missed: false, barn: null, notes: "", iconKey: "droplets" },
-    { id: "t4", title: "Inspeção visual do lote", category: "inspecao", priority: "media", recurrence: "diaria", scheduledTime: "08:00", done: false, doneAt: null, missed: false, barn: null, notes: "", iconKey: "eye" },
-    { id: "t5", title: "Registrar mortalidade", category: "saude", priority: "alta", recurrence: "diaria", scheduledTime: "08:30", done: false, doneAt: null, missed: false, barn: null, notes: "", iconKey: "heart" },
-    { id: "t6", title: `Alimentar aves — tarde`, category: "alimentacao", priority: "alta", recurrence: "diaria", scheduledTime: "14:00", done: false, doneAt: null, missed: false, barn: null, notes: "", iconKey: "wheat" },
-    { id: "t7", title: `Coletar ovos — ${loteCode} (tarde)`, category: "coleta", priority: "media", recurrence: "diaria", scheduledTime: "15:00", done: false, doneAt: null, missed: false, barn: null, notes: "", iconKey: "egg" },
-  ];
-
-  const weekly: Task[] = [];
-  if (dayOfWeek === 1) {
-    weekly.push({ id: "tw1", title: "Limpeza geral do galpão", category: "limpeza", priority: "alta", recurrence: "semanal", scheduledTime: "09:00", done: false, doneAt: null, missed: false, barn: null, notes: "", iconKey: "droplets" });
-    weekly.push({ id: "tw2", title: "Desinfetar bebedouros e comedouros", category: "saude", priority: "alta", recurrence: "semanal", scheduledTime: "10:00", done: false, doneAt: null, missed: false, barn: null, notes: "", iconKey: "syringe" });
-  }
-  if (dayOfWeek === 3) {
-    weekly.push({ id: "tw3", title: "Verificar temperatura e ventilação", category: "inspecao", priority: "media", recurrence: "semanal", scheduledTime: "10:00", done: false, doneAt: null, missed: false, barn: null, notes: "", iconKey: "thermometer" });
-  }
-  if (dayOfWeek === 5) {
-    weekly.push({ id: "tw4", title: "Conferir estoque de ração do lote", category: "alimentacao", priority: "media", recurrence: "semanal", scheduledTime: "11:00", done: false, doneAt: null, missed: false, barn: null, notes: "", iconKey: "wheat" });
-  }
-
-  const monthly: Task[] = [];
-  if (dayOfMonth === 1) {
-    monthly.push({ id: "tm1", title: "Manutenção preventiva dos equipamentos", category: "geral", priority: "alta", recurrence: "mensal", scheduledTime: "08:00", done: false, doneAt: null, missed: false, barn: null, notes: "", iconKey: "hammer" });
-  }
-  if (dayOfMonth === 15) {
-    monthly.push({ id: "tm2", title: "Pesagem de amostra do lote", category: "inspecao", priority: "media", recurrence: "mensal", scheduledTime: "09:00", done: false, doneAt: null, missed: false, barn: null, notes: "", iconKey: "scale" });
-  }
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(date);
-  target.setHours(0, 0, 0, 0);
-  const isPast = target < today;
-  const isToday = target.getTime() === today.getTime();
-
-  const all = [...daily, ...weekly, ...monthly];
-
-  if (isPast) {
-    // Simulate: most done, some missed
-    const missedIds = new Set(["t3", "tw3"]);
-    return all.map((t) =>
-      missedIds.has(t.id)
-        ? { ...t, done: false, missed: true }
-        : { ...t, done: true, doneAt: t.scheduledTime },
-    );
-  }
-
-  if (isToday) {
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    return all.map((t) => {
-      const [h, m] = t.scheduledTime.split(":").map(Number);
-      const taskMinutes = h * 60 + m;
-      const overdue = taskMinutes < currentMinutes - 60;
-      const autoDone = taskMinutes < currentMinutes - 30 && !overdue;
-      if (overdue) return { ...t, done: false, missed: true };
-      if (autoDone) return { ...t, done: true, doneAt: t.scheduledTime };
-      return t;
-    });
-  }
-
-  return all;
-}
-
 function generateMockAlerts(loteCode: string): FlockAlert[] {
   return [
     { id: "a1", type: "warning", message: `Consumo de ração abaixo da meta nos últimos 3 dias`, time: "08:15", dismissed: false },
@@ -228,8 +173,48 @@ function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+function toDateKey(date: Date) {
+  return date.toISOString().split("T")[0];
+}
+
 function formatDateBR(date: Date) {
   return date.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
+}
+
+function taskOccursOn(task: TaskRow, selectedDate: Date) {
+  const taskStart = new Date(`${task.date}T00:00:00`);
+  const target = new Date(selectedDate);
+  target.setHours(0, 0, 0, 0);
+
+  if (target < taskStart) return false;
+  if (task.recurrence === "diaria") return true;
+  if (task.recurrence === "semanal") return target.getDay() === taskStart.getDay();
+  if (task.recurrence === "mensal") return target.getDate() === taskStart.getDate();
+  return isSameDay(taskStart, target);
+}
+
+function completedTime(exception: TaskExceptionRow | undefined) {
+  if (!exception?.completed_at) return null;
+  return new Date(exception.completed_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function mapTaskOccurrence(task: TaskRow, selectedDateKey: string, exception: TaskExceptionRow | undefined): Task {
+  return {
+    id: `${task.id}:${selectedDateKey}`,
+    baseTaskId: task.id,
+    occurrenceDate: selectedDateKey,
+    title: task.title,
+    category: task.category,
+    priority: task.priority,
+    recurrence: task.recurrence,
+    scheduledTime: task.scheduled_time ?? "--:--",
+    done: exception?.status === "done",
+    doneAt: completedTime(exception),
+    missed: exception?.status === "missed",
+    barn: null,
+    notes: task.notes ?? "",
+    iconKey: defaultIconForCategory[task.category],
+  };
 }
 
 export default function OperacionalLotePage() {
@@ -244,9 +229,25 @@ export default function OperacionalLotePage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [alerts, setAlerts] = useState<FlockAlert[]>([]);
+  const selectedDateKey = useMemo(() => toDateKey(selectedDate), [selectedDate]);
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
   const isToday = useMemo(() => isSameDay(selectedDate, today), [selectedDate, today]);
+
+  const loadTasks = useCallback(async () => {
+    if (!farm?.id) return;
+
+    const baseTasks = await getTaskSchedule(farm.id, selectedDateKey, loteId);
+    const occurrences = baseTasks.filter((task) => taskOccursOn(task, selectedDate));
+    const exceptions = await getTaskExceptions(farm.id, selectedDateKey, occurrences.map((task) => task.id));
+    const exceptionByTaskId = new Map(exceptions.map((exception) => [exception.task_id, exception]));
+
+    setTasks(
+      occurrences
+        .map((task) => mapTaskOccurrence(task, selectedDateKey, exceptionByTaskId.get(task.id)))
+        .sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime)),
+    );
+  }, [farm?.id, loteId, selectedDate, selectedDateKey]);
 
   useEffect(() => {
     if (!farm?.id) return;
@@ -260,41 +261,44 @@ export default function OperacionalLotePage() {
       .then(({ data }) => {
         if (data) {
           setLote(data as Lote);
-          setTasks(generateMockTasks(new Date(), data.code));
           setAlerts(generateMockAlerts(data.code));
         }
         setInitialLoading(false);
       });
   }, [farm?.id, loteId]);
 
+  useEffect(() => {
+    void loadTasks();
+  }, [loadTasks]);
+
   const changeDate = useCallback((offset: number) => {
     setSelectedDate((prev) => {
       const next = new Date(prev);
       next.setDate(next.getDate() + offset);
-      if (lote) setTasks(generateMockTasks(next, lote.code));
       return next;
     });
-  }, [lote]);
+  }, []);
 
   const goToToday = useCallback(() => {
-    const now = new Date();
-    setSelectedDate(now);
-    if (lote) setTasks(generateMockTasks(now, lote.code));
-  }, [lote]);
-
-  const toggleTask = useCallback((id: string) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? { ...t, done: !t.done, missed: false, doneAt: !t.done ? new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : null }
-          : t,
-      ),
-    );
+    setSelectedDate(new Date());
   }, []);
 
-  const deleteTask = useCallback((id: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  const toggleTask = useCallback(async (task: Task) => {
+    if (!farm?.id) return;
+
+    await setTaskOccurrenceStatus({
+      farmId: farm.id,
+      taskId: task.baseTaskId,
+      occurrenceDate: task.occurrenceDate,
+      status: task.done ? "skipped" : "done",
+    });
+    await loadTasks();
+  }, [farm?.id, loadTasks]);
+
+  const deleteTask = useCallback(async (task: Task) => {
+    await deleteTaskRecord(task.baseTaskId);
+    await loadTasks();
+  }, [loadTasks]);
 
   const dismissAlert = useCallback((id: string) => {
     setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, dismissed: true } : a)));
@@ -327,21 +331,25 @@ export default function OperacionalLotePage() {
 
   // Task form (shared for add/edit)
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [newTitle, setNewTitle] = useState("");
-  const [newCategory, setNewCategory] = useState<TaskCategory>("geral");
-  const [newPriority, setNewPriority] = useState<TaskPriority>("media");
-  const [newTime, setNewTime] = useState("08:00");
-  const [newRecurrence, setNewRecurrence] = useState<TaskRecurrence>("unica");
-  const [newIcon, setNewIcon] = useState<TaskIconKey>("clipboard");
+  const [taskFormValues, setTaskFormValues] = useState<TaskDialogValues>({
+    title: "",
+    category: "geral",
+    priority: "media",
+    scheduledTime: "08:00",
+    recurrence: "unica",
+    notes: "",
+  });
 
   const resetForm = useCallback(() => {
     setEditingTask(null);
-    setNewTitle("");
-    setNewCategory("geral");
-    setNewPriority("media");
-    setNewTime("08:00");
-    setNewRecurrence("unica");
-    setNewIcon("clipboard");
+    setTaskFormValues({
+      title: "",
+      category: "geral",
+      priority: "media",
+      scheduledTime: "08:00",
+      recurrence: "unica",
+      notes: "",
+    });
   }, []);
 
   const openAddModal = useCallback(() => {
@@ -351,46 +359,47 @@ export default function OperacionalLotePage() {
 
   const openEditModal = useCallback((task: Task) => {
     setEditingTask(task);
-    setNewTitle(task.title);
-    setNewCategory(task.category);
-    setNewPriority(task.priority);
-    setNewTime(task.scheduledTime);
-    setNewRecurrence(task.recurrence);
-    setNewIcon(task.iconKey);
+    setTaskFormValues({
+      title: task.title,
+      category: task.category,
+      priority: task.priority,
+      scheduledTime: task.scheduledTime === "--:--" ? "08:00" : task.scheduledTime,
+      recurrence: task.recurrence,
+      notes: task.notes,
+    });
     setShowAddModal(true);
   }, []);
 
-  const saveTask = useCallback(() => {
-    if (!newTitle.trim()) return;
+  const saveTask = useCallback(async () => {
+    if (!farm?.id || !taskFormValues.title.trim()) return;
+
     if (editingTask) {
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === editingTask.id
-            ? { ...t, title: newTitle.trim(), category: newCategory, priority: newPriority, scheduledTime: newTime, recurrence: newRecurrence, iconKey: newIcon }
-            : t,
-        ).sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime)),
-      );
+      await updateTask(editingTask.baseTaskId, {
+        title: taskFormValues.title.trim(),
+        category: taskFormValues.category,
+        priority: taskFormValues.priority,
+        scheduled_time: taskFormValues.scheduledTime,
+        recurrence: taskFormValues.recurrence,
+        notes: taskFormValues.notes.trim() || null,
+      });
     } else {
-      setTasks((prev) =>
-        [...prev, {
-          id: `custom-${Date.now()}`,
-          title: newTitle.trim(),
-          category: newCategory,
-          priority: newPriority,
-          recurrence: newRecurrence,
-          scheduledTime: newTime,
-          done: false,
-          doneAt: null,
-          missed: false,
-          barn: null,
-          notes: "",
-          iconKey: newIcon,
-        }].sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime)),
-      );
+      await createTask({
+        farm_id: farm.id,
+        flock_id: loteId,
+        title: taskFormValues.title.trim(),
+        category: taskFormValues.category,
+        priority: taskFormValues.priority,
+        scheduled_time: taskFormValues.scheduledTime,
+        recurrence: taskFormValues.recurrence,
+        date: selectedDateKey,
+        notes: taskFormValues.notes.trim() || null,
+      });
     }
+
+    await loadTasks();
     resetForm();
     setShowAddModal(false);
-  }, [newTitle, newCategory, newPriority, newTime, newRecurrence, newIcon, editingTask, resetForm]);
+  }, [editingTask, farm?.id, loadTasks, loteId, resetForm, selectedDateKey, taskFormValues]);
 
   if (authLoading || initialLoading) {
     return (
@@ -491,7 +500,7 @@ export default function OperacionalLotePage() {
             return (
               <button
                 key={day.toISOString()}
-                onClick={() => { setSelectedDate(day); if (lote) setTasks(generateMockTasks(day, lote.code)); }}
+                onClick={() => setSelectedDate(day)}
                 className={cn(
                   "flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-xs font-medium transition-colors cursor-pointer",
                   isSelected ? "bg-brand-600 text-white" : isTodayDay ? "bg-brand-50 text-brand-700" : "hover:bg-gray-50 text-gray-600",
@@ -592,7 +601,7 @@ export default function OperacionalLotePage() {
                 const Icon = ico.icon;
                 return (
                   <div key={task.id} className="bg-white rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3 hover:shadow-sm transition-shadow">
-                    <button onClick={() => toggleTask(task.id)} className="shrink-0 cursor-pointer">
+                    <button onClick={() => void toggleTask(task)} className="shrink-0 cursor-pointer">
                       <Circle className="w-5 h-5 text-gray-300 hover:text-brand-500 transition-colors" />
                     </button>
                     <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", ico.bg)}>
@@ -609,7 +618,7 @@ export default function OperacionalLotePage() {
                     <button onClick={() => openEditModal(task)} className="shrink-0 p-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer">
                       <Pencil className="w-3.5 h-3.5 text-gray-400 hover:text-blue-500" />
                     </button>
-                    <button onClick={() => deleteTask(task.id)} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
+                    <button onClick={() => void deleteTask(task)} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
                       <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
                     </button>
                   </div>
@@ -628,7 +637,7 @@ export default function OperacionalLotePage() {
                 const Icon = ico.icon;
                 return (
                   <div key={task.id} className="bg-gray-50/50 rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3 opacity-70">
-                    <button onClick={() => toggleTask(task.id)} className="shrink-0 cursor-pointer">
+                    <button onClick={() => void toggleTask(task)} className="shrink-0 cursor-pointer">
                       <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                     </button>
                     <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", ico.bg)}>
@@ -641,7 +650,7 @@ export default function OperacionalLotePage() {
                         {task.doneAt && <span className="text-[11px] text-emerald-500">concluída às {task.doneAt}</span>}
                       </div>
                     </div>
-                    <button onClick={() => deleteTask(task.id)} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
+                    <button onClick={() => void deleteTask(task)} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
                       <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
                     </button>
                   </div>
@@ -672,7 +681,7 @@ export default function OperacionalLotePage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => toggleTask(task.id)}
+                      onClick={() => void toggleTask(task)}
                       className="shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
                     >
                       Marcar feita
@@ -693,92 +702,27 @@ export default function OperacionalLotePage() {
         )}
       </div>
 
-      {/* Add task modal */}
-      {showAddModal && (
-        <ModalPortal>
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowAddModal(false)}>
-            <div className="bg-white rounded-2xl w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between p-5 border-b border-gray-100">
-                <h3 className="text-base font-bold text-gray-900">{editingTask ? "Editar tarefa" : "Nova tarefa"}</h3>
-                <button onClick={() => setShowAddModal(false)} className="p-1 rounded-lg hover:bg-gray-100 cursor-pointer">
-                  <X className="w-4 h-4 text-gray-500" />
-                </button>
-              </div>
-              <div className="p-5 space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Título</label>
-                  <input
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder="Ex: Coletar ovos — tarde"
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Categoria</label>
-                    <select value={newCategory} onChange={(e) => setNewCategory(e.target.value as TaskCategory)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none">
-                      {Object.entries(categoryConfig).map(([k, v]) => (<option key={k} value={k}>{v.label}</option>))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Prioridade</label>
-                    <select value={newPriority} onChange={(e) => setNewPriority(e.target.value as TaskPriority)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none">
-                      {Object.entries(priorityConfig).map(([k, v]) => (<option key={k} value={k}>{v.label}</option>))}
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Horário</label>
-                    <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Recorrência</label>
-                    <select value={newRecurrence} onChange={(e) => setNewRecurrence(e.target.value as TaskRecurrence)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none">
-                      {Object.entries(recurrenceLabel).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-2">Ícone</label>
-                  <div className="grid grid-cols-7 gap-1.5 max-h-40 overflow-y-auto rounded-xl border border-gray-200 p-2">
-                    {(Object.entries(taskIconMap) as [TaskIconKey, typeof taskIconMap.egg][]).map(([key, cfg]) => {
-                      const IconOption = cfg.icon;
-                      const isSelected = newIcon === key;
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setNewIcon(key)}
-                          title={cfg.label}
-                          className={cn(
-                            "flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors cursor-pointer",
-                            isSelected ? "bg-brand-100 ring-2 ring-brand-500" : "hover:bg-gray-100",
-                          )}
-                        >
-                          <div className={cn("w-7 h-7 rounded-md flex items-center justify-center", cfg.bg)}>
-                            <IconOption className={cn("w-3.5 h-3.5", cfg.color)} />
-                          </div>
-                          <span className="text-[9px] text-gray-500 truncate w-full text-center">{cfg.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-              <div className="flex gap-3 p-5 border-t border-gray-100">
-                <button onClick={() => setShowAddModal(false)} className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
-                  Cancelar
-                </button>
-                <button onClick={saveTask} disabled={!newTitle.trim()} className="flex-1 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
-                  {editingTask ? "Salvar" : "Adicionar"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
+      <TaskDialog
+        open={showAddModal}
+        mode={editingTask ? "edit" : "create"}
+        values={taskFormValues}
+        categoryOptions={Object.entries(categoryConfig).map(([value, config]) => ({
+          value: value as TaskCategory,
+          label: config.label,
+        }))}
+        priorityOptions={Object.entries(priorityConfig).map(([value, config]) => ({
+          value: value as TaskPriority,
+          label: config.label,
+        }))}
+        recurrenceOptions={Object.entries(recurrenceLabel).map(([value, label]) => ({
+          value: value as TaskRecurrence,
+          label,
+        }))}
+        onChange={setTaskFormValues}
+        onClose={() => setShowAddModal(false)}
+        onSave={() => void saveTask()}
+      />
+
     </div>
   );
 }
