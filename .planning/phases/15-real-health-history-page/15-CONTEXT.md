@@ -1,46 +1,39 @@
 # Phase 15: Real Health History Page - Context
 
-**Gathered:** 2026-06-14
+**Gathered:** 2026-06-16
 **Status:** Ready for planning
 
 <domain>
 ## Phase Boundary
 
-Connect flock health history timeline and list views directly to the `health_records` and `mortality` tables, removing mock events and hardcoded data fallback.
+Connect flock health history timeline and list views directly to the `health_records`, `mortality`, and new `daily_inspections` tables, replacing mock events and hardcoded data fallback. Introduce full traceability for vaccinations/treatments and separate clinical inspection checklists.
 
 </domain>
 
 <decisions>
 ## Implementation Decisions
 
-### Fallback/Empty State
-- **D-01:** If a flock has no database health records and no mortality records, show a clean empty state card ("Nenhum registro de saúde encontrado para este lote").
-- **D-02:** The empty state card will feature a direct redirect button that links to the main Health page (`/dashboard/health?register=true`) with the current flock ID pre-selected in the query parameters so the user can easily log their first record.
-- **D-03:** If a flock has mortality records but no health records, the pages will render the full layout rather than the empty state, calculating the health score based on the available mortality data.
-- **D-04:** Both the flock details health dashboard (`saude/page.tsx`) and the sanitary history timeline (`historico-sanitario/page.tsx`) will share the same empty state logic and UI layout for design consistency.
-- **D-05:** In empty or low-data states, the "Padrões identificados" (Identified Patterns) card will be hidden entirely to avoid cluttering the view with insufficient context.
+### Sanitary Control and Traceability (Treatments and Vaccines)
+- **D-01:** Vaccine Traceability: The `health_records` table (when type is 'vaccination') will receive fields for target disease, brand name, batch, expiry date, manufacturer, application route (water, ocular, spray, wing web, intramuscular, subcutaneous), and number of doses.
+- **D-02:** Medication Traceability: The `health_records` table (when type is 'treatment') will receive fields for target disease/pathology, active ingredient, dosage/dilution, withdrawal period (days), disposal destination, and prescription/document reference.
+- **D-03:** Withdrawal Period Alert: The system will calculate the active egg disposal period (treatment date + withdrawal days) and display a prominent red visual banner on flock screens ("Flock under Sanitarily Withdrawal - Eggs unfit for consumption") during this interval.
 
-### Mortality Event Integration
-- **D-06:** Fetch records from the `mortality` database table for the flock and merge them into the timeline as `"mortalidade"` events to keep the history comprehensive.
-- **D-07:** Format mortality timeline events with the title `"Mortalidade registrada: X aves"` (displaying the dead bird count) and place the cause of death and notes in the description/observation field.
-- **D-08:** Calculate the weekly mortality count and mortality rate KPIs on the flock health page dynamically using database records for the active date range or the last 7 days.
-- **D-09:** Include mortality in the health score calculation with a 40% weight, reusing the existing mock logic (where rate <= 2% is a perfect score and rate >= 10% is 0) with real database metrics.
+### Daily Sanitary Checklist (Clinical Inspections)
+- **D-04:** Separate Table: Daily clinical health inspections (simple checklist) will be separated from `health_records` and stored in a new table called `daily_inspections`.
+- **D-05:** Checklist Fields: The inspection form in the Health tab will save structured data for feces aspect (Normal, Diarrhea, Blood), respiratory symptoms (None, Snick, Coryza), behavior (Normal, Huddled, Feather Pecking), light timer operation (boolean), water active chlorine (ppm), and pH.
+- **D-06:** No Text Scanning: The MVP will abandon key-phrase/regex/AI scanning proposed previously on free-text notes fields to generate the checklist, instead using the structured fields of the `daily_inspections` table directly.
 
-### Checklist Generation for Inspections
-- **D-10:** Generate a standard 12-item checklist (covering temperature, ventilation, feed, water, bedding, behaviour, clinical signs, mortality, egg quality, lighting, biosecurity, and equipment) for database inspection records, defaulting all items to "Ok" (true).
-- **D-11:** Dynamically scan the `notes` and `title` fields of inspection/treatment records for keywords (e.g. "pena", "ventilação", "sintoma") to flag specific checklist parameters as false (abnormal).
-- **D-12:** If the database status of an inspection is not 'completed' (e.g. 'in_progress', 'scheduled', or 'upcoming'), render all checklist items as unchecked/pending in the UI.
-- **D-13:** Calculate the compliance rate percentage dynamically based on the ratio of 'Ok' items to total items, displaying "Pendente" for non-completed inspections.
+### Mortality and Technical Culling Records
+- **D-07:** Mortality/Culling Differentiation: The `mortality` table will differentiate natural mortality from technical culling (removal of severely debilitated or euthanized birds) by adding a corresponding column.
+- **D-08:** Updated Causes Dropdown: The mortality cause dropdown in the flock logging screen will include: Natural, Disease, Respiratory, Predators, Heat Stress, Cannibalism/Biting, Technical Culling/Waste, Unknown, and Others.
 
-### Treatment Duration and Results
-- **D-14:** Parse treatment duration dynamically from the `notes` field (e.g., matching expressions like "5 dias" or "1 semana") and add it to the start date to compute the end date. Default to "—" (same-day event) if no duration is found.
-- **D-15:** Map database status to UI `resultado` as follows: 'completed' -> `"resolvido"`, 'in_progress' -> `"em_tratamento"`, and other statuses -> `"parcial"`.
-- **D-16:** Enable full write integration on the flock-specific health page (`saude/page.tsx`) by wiring the Edit modal to trigger actual Supabase `.update()` calls.
-- **D-17:** Implement the "Resolve symptom" action by performing an actual Supabase update to set the status of all corresponding in-progress health records that mention the resolved symptom to 'completed'.
+### MVP Scope (July 2026 Launch)
+- **D-09:** Separate Forms: The unified "Field Log" form (egg collection, consumption, and health in 1 minute) is postponed post-MVP. In the MVP, health, mortality, consumption, and egg records will be filled out in their specific modals/pages.
+- **D-10:** Fallback and History: Maintain the logic for displaying health history and KPIs based on real data from Supabase.
 
 ### the agent's Discretion
-- Standard layout styling for the empty state.
-- Keyword lists used for flagging checklist parameters (e.g., mapping "temperatura" to temperature, "ventilação" to ventilation, "ração" to feed, "água" to water, "penas" or "bicagem" or "sintoma" to clinical signs/behavior).
+- Layout and styling of the alert and withdrawal banners on the interface.
+- Implementation of basic validation in treatment and vaccination modals.
 
 </decisions>
 
@@ -49,13 +42,9 @@ Connect flock health history timeline and list views directly to the `health_rec
 
 **Downstream agents MUST read these before planning or implementing.**
 
-### Roadmap and Milestones
-- `.planning/ROADMAP.md` — Project milestones index.
-- `.planning/milestones/v1.3-ROADMAP.md` — Milestone v1.3 goals and definitions.
-
 ### Database Schema and Migrations
 - `supabase/migrations/00010_health_records.sql` — Schema definition for `health_records` table and RLS policies.
-- `supabase/migrations/00001_initial_schema.sql` — Schema definition for `mortality` and `flocks` tables.
+- `supabase/migrations/00001_initial_schema.sql` — Schema definition for `mortality`, `flocks`, and `egg_production` tables.
 
 ### Codebase Entry Points
 - `app/dashboard/flocks/detalhes/[loteId]/saude/page.tsx` — Flock health details page.
@@ -78,7 +67,7 @@ Connect flock health history timeline and list views directly to the `health_rec
 
 ### Established Patterns
 - Client component data fetching patterns inside `useEffect` using `createClient()` from `@/lib/supabase/client` and route parameters `useParams()`.
-- Recharts `ComposedChart` structure with area and line mapping for displaying dynamic scores over time.
+- Mortality causes dropdown already implemented on frontend (mortality record component).
 
 ### Integration Points
 - `/dashboard/flocks/detalhes/[loteId]/saude` page.
@@ -89,19 +78,20 @@ Connect flock health history timeline and list views directly to the `health_rec
 <specifics>
 ## Specific Ideas
 
-- Keyword mapping scans should be case-insensitive and check both `title` and `notes` properties.
-- Ensure the redirect link includes `?register=true` and `&flockId=...` or equivalent parameter to automatically select the dynamic flock on the `/dashboard/health` page.
+- The withdrawal calculation must clearly block or flag the commercialization of eggs on the active flock interface.
+- The mortality dropdown must be updated to contain the new causes.
 
 </specifics>
 
 <deferred>
 ## Deferred Ideas
 
-- None — discussion stayed within phase scope.
+### The Unified Flock Log
+- Mobile-first single page quick daily entry form (Production + Consumption + Health + Mortality in < 1 minute) postponed to a later version due to the MVP launch timeline (end of July).
 
 </deferred>
 
 ---
 
 *Phase: 15-real-health-history-page*
-*Context gathered: 2026-06-14*
+*Context gathered: 2026-06-16*

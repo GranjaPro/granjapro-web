@@ -2,10 +2,10 @@
 phase: 15
 slug: real-health-history-page
 status: approved
-reviewed_at: 2026-06-14T20:32:07-03:00
 shadcn_initialized: false
 preset: none
-created: 2026-06-14
+created: 2026-06-16
+reviewed_at: 2026-06-16
 ---
 
 # Phase 15 — UI Design Contract
@@ -18,11 +18,11 @@ created: 2026-06-14
 
 | Property | Value |
 |----------|-------|
-| Tool | manual (custom Tailwind + Radix UI) |
+| Tool | none |
 | Preset | not applicable |
-| Component library | Radix UI (Checkbox, Progress, Slot) |
-| Icon library | Lucide React |
-| Font | Inter (body) / Poppins (headings) |
+| Component library | none |
+| Icon library | lucide-react |
+| Font | Inter (Body), Poppins (Heading) |
 
 ---
 
@@ -32,11 +32,11 @@ Declared values (must be multiples of 4):
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| xs | 4px | Icon gaps, inline padding, tiny badges |
-| sm | 8px | Compact element spacing, padding inside badges, small padding |
-| md | 16px | Default element spacing, card padding, layout grid gaps |
-| lg | 24px | Section padding, modal padding |
-| xl | 32px | Layout gaps, page margins |
+| xs | 4px | Icon gaps, inline padding |
+| sm | 8px | Compact element spacing |
+| md | 16px | Default element spacing |
+| lg | 24px | Section padding |
+| xl | 32px | Layout gaps |
 | 2xl | 48px | Major section breaks |
 | 3xl | 64px | Page-level spacing |
 
@@ -48,10 +48,10 @@ Exceptions: none
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
-| Body | 14px | 400 (Regular) | 1.5 |
-| Label | 12px | 600 (Semibold) | 1.2 |
-| Heading | 20px | 600 (Semibold) | 1.2 |
-| Display | 28px | 600 (Semibold) | 1.2 |
+| Body | 14px | 400 | 1.5 |
+| Label | 12px | 600 | 1.25 |
+| Heading | 18px | 600 | 1.25 |
+| Display | 24px | 600 | 1.2 |
 
 ---
 
@@ -59,12 +59,26 @@ Exceptions: none
 
 | Role | Value | Usage |
 |------|-------|-------|
-| Dominant (60%) | `#020617` (Dark) / `#f8fafc` (Light) | Page background, page container surfaces |
-| Secondary (30%) | `#080f1f` (Dark) / `#ffffff` (Light) | Card background, sidebars, navigation panels, border colors (`rgba(148,163,184,0.14)`) |
-| Accent (10%) | `#2d7a4f` / `#10b981` (Emerald/Green) | Status indicators, active filters, health score ring, primary CTAs |
-| Destructive | `#ef4444` / `#f87171` (Red) | Delete button, warning alerts, mortality labels |
+| Dominant (60%) | Light: #ffffff, Dark: #020617 | Background, surfaces |
+| Secondary (30%) | Light: #f9fafb, Dark: #080f1f | Cards, sidebar, nav |
+| Accent (10%) | Brand: #2d7a4f / #1f5c3a | Primary buttons, active badges, progress bars |
+| Destructive | #dc2626 | Destructive buttons, withdrawal alerts, mortality metrics |
 
-Accent reserved for: Primary action buttons (CTAs), active navigation filters/tabs, the circular health score ring, and "concluido" status icons.
+Accent reserved for: Primary action buttons (CTA), active status indicators, progress bar highlight, focus rings.
+
+---
+
+## Visuals
+
+### Focal Points
+- **Primary Focal Point**: Active egg withdrawal period alert banner (warning banner styled in Destructive `#dc2626` color at the top of pages).
+- **Secondary Focal Point**: Primary action button ("Registrar Tratamento / Vacina") styled in Accent Brand color (`#2d7a4f`).
+
+### Visual Hierarchy
+1. **Critical Alert**: Active egg withdrawal period alert banner (highest priority warning).
+2. **Key Action & Stats**: Primary "Registrar..." buttons and header-level summary metrics (KPIs).
+3. **Sections & Navigation**: Section headers, navigation/filter tabs (e.g., Saúde, Histórico).
+4. **Data Lists & Logs**: Individual vaccine records, treatment logs, and checklist items in the history timeline.
 
 ---
 
@@ -72,11 +86,11 @@ Accent reserved for: Primary action buttons (CTAs), active navigation filters/ta
 
 | Element | Copy |
 |---------|------|
-| Primary CTA | `Registrar nova ocorrência` |
-| Empty state heading | `Nenhum registro de saúde encontrado para este lote` |
-| Empty state body | `Este lote ainda não possui histórico de vacinas, tratamentos, inspeções ou mortalidade. Clique abaixo para registrar a primeira ocorrência.` |
-| Error state | `Ocorreu um erro ao carregar os dados de saúde do lote. Tente novamente.` |
-| Destructive confirmation | `Resolver sintoma`: `Tem certeza que deseja marcar todos os sintomas em andamento de '{symptom}' como resolvidos (concluídos)?` |
+| Primary CTA | Registrar Tratamento / Vacina |
+| Empty state heading | Nenhum histórico sanitário |
+| Empty state body | Registre vacinas, tratamentos ou inspeções diárias para monitorar a saúde do lote. |
+| Error state | Ocorreu um erro ao carregar os dados. Por favor, tente novamente. |
+| Destructive confirmation | Remover Registro: Tem certeza que deseja excluir este registro sanitário? Esta ação não pode ser desfeita. |
 
 ---
 
@@ -85,28 +99,16 @@ Accent reserved for: Primary action buttons (CTAs), active navigation filters/ta
 | Registry | Blocks Used | Safety Gate |
 |----------|-------------|-------------|
 | shadcn official | none | not required |
-| none | none | not required |
-
----
-
-## Visual Hierarchy & Focal Points
-
-- **Primary Health Dashboard (`saude/page.tsx`):**
-  - **Focal Point:** Circular health score ring showing the numerical flock health score (e.g. 94) in the top card.
-  - **Secondary Anchor:** "Sintomas ativos" (Active Symptoms) card with warnings, followed by recommendations list.
-- **Sanitary History Page (`historico-sanitario/page.tsx`):**
-  - **Focal Point:** Chronological interactive timeline of health, vaccination, treatment, and mortality events.
-  - **Secondary Anchor:** Filter tabs/search bar at the top of the timeline to quickly slice data.
 
 ---
 
 ## Checker Sign-Off
 
-- [x] Dimension 1 Copywriting: PASS
-- [x] Dimension 2 Visuals: PASS (with recommendation addressed)
-- [x] Dimension 3 Color: PASS
-- [x] Dimension 4 Typography: PASS
-- [x] Dimension 5 Spacing: PASS
-- [x] Dimension 6 Registry Safety: PASS
+- [ ] Dimension 1 Copywriting: PASS
+- [ ] Dimension 2 Visuals: PASS
+- [ ] Dimension 3 Color: PASS
+- [ ] Dimension 4 Typography: PASS
+- [ ] Dimension 5 Spacing: PASS
+- [ ] Dimension 6 Registry Safety: PASS
 
-**Approval:** approved 2026-06-14
+**Approval:** pending

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
@@ -41,7 +41,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import type { Tables } from "@/lib/database.types";
 
-type EventType = "vacina" | "medicamento" | "inspecao" | "sintoma" | "mortalidade";
+type EventType = "vacina" | "tratamento" | "inspecao" | "sintoma" | "mortalidade";
 type EventStatus = "concluido" | "pendente" | "atrasado" | "em_andamento";
 type TimelinePeriod = "7d" | "30d" | "latest" | "months" | "all";
 interface HealthRecordRow {
@@ -133,8 +133,8 @@ const eventMeta: Record<
     text: "text-blue-600",
     ring: "ring-blue-100",
   },
-  medicamento: {
-    label: "Medicamento",
+  tratamento: {
+    label: "Tratamento",
     icon: Pill,
     bg: "bg-purple-50",
     text: "text-purple-600",
@@ -178,7 +178,7 @@ function formatDate(iso: string) {
 const eventFilterOptions = [
   { key: "all", label: "Todos" },
   { key: "vacina", label: "Vacinas" },
-  { key: "medicamento", label: "Medicamentos" },
+  { key: "tratamento", label: "Tratamentos" },
   { key: "inspecao", label: "Inspeções" },
   { key: "sintoma", label: "Sintomas" },
   { key: "mortalidade", label: "Mortalidade" },
@@ -287,7 +287,7 @@ function mapEventStatus(status: HealthRecordRow["status"]): EventStatus {
 
 function mapHealthTypeToEventType(record: HealthRecordRow): EventType {
   if (record.type === "vaccination") return "vacina";
-  if (record.type === "treatment") return "medicamento";
+  if (record.type === "treatment") return "tratamento";
   const source = `${record.title} ${record.notes ?? ""}`.toLowerCase();
   return source.includes("sintoma") ? "sintoma" : "inspecao";
 }
