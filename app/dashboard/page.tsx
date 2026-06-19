@@ -34,6 +34,16 @@ import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { createClient } from "@/lib/supabase/client";
 import { getFinancialSummaryInRange } from "@/lib/services/finances";
 import { getFarmBirdCount } from "@/lib/services/farms";
+import {
+  createTask,
+  deleteTask,
+  getTaskExceptions,
+  getTaskSchedule,
+  setTaskOccurrenceStatus,
+  updateTask,
+  type TaskExceptionRow,
+  type TaskRow,
+} from "@/lib/services/tasks";
 import { hasMinimumPlan } from "@/lib/plans";
 import { formatNumber, formatCurrency } from "@/lib/utils";
 import {
@@ -64,6 +74,26 @@ import {
 
 /* ── Task Icon Map ── */
 type TaskIconKey = "egg" | "wheat" | "droplets" | "eye" | "shield" | "clipboard" | "thermometer" | "bug" | "scissors" | "scale" | "syringe" | "hammer" | "truck" | "sun" | "moon" | "zap" | "heart" | "star" | "flame" | "leaf" | "bell" | "users";
+type TaskCategory = TaskRow["category"];
+type TaskPriority = TaskRow["priority"];
+type TaskRecurrence = TaskRow["recurrence"];
+type DashboardTaskStatus = "done" | "progress" | "pending" | "missed";
+
+interface DashboardTask {
+  id: string;
+  baseTaskId: string;
+  occurrenceDate: string;
+  title: string;
+  status: DashboardTaskStatus;
+  time: string;
+  date: string;
+  category: TaskCategory;
+  priority: TaskPriority;
+  iconKey: TaskIconKey;
+  recurrence: TaskRecurrence;
+  flockId: string | null;
+  notes: string;
+}
 
 const taskIconMap: Record<TaskIconKey, { icon: LucideIcon; label: string; color: string; bg: string }> = {
   egg: { icon: Egg, label: "Ovo", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-50" },
@@ -88,6 +118,15 @@ const taskIconMap: Record<TaskIconKey, { icon: LucideIcon; label: string; color:
   leaf: { icon: Leaf, label: "Ambiente", color: "text-green-700 dark:text-green-300", bg: "bg-green-50" },
   bell: { icon: Bell, label: "Lembrete", color: "text-blue-700 dark:text-sky-300", bg: "bg-blue-50" },
   users: { icon: Users, label: "Equipe", color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-50" },
+};
+
+const defaultIconForCategory: Record<TaskCategory, TaskIconKey> = {
+  coleta: "egg",
+  alimentacao: "wheat",
+  limpeza: "droplets",
+  inspecao: "eye",
+  saude: "shield",
+  geral: "clipboard",
 };
 
 const taskCategoryOptions = [
@@ -135,9 +174,58 @@ const quickActions = [
 
 /* ── Chart Data Type ── */
 type WeeklyDataPoint = { day: string; ovos: number; meta: number; postura: number };
+type ProductionChartRow = {
+  date: string;
+  eggs_produced: number;
+  laying_rate: number | null;
+};
 
 const todayStr = new Date().toISOString().split("T")[0];
 const yesterdayStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0]; })();
+
+function toDateKey(date: Date) {
+  return date.toISOString().split("T")[0];
+}
+
+function isSameCalendarDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function taskOccursOn(task: TaskRow, selectedDate: Date) {
+  const taskStart = new Date(`${task.date}T00:00:00`);
+  const target = new Date(selectedDate);
+  target.setHours(0, 0, 0, 0);
+
+  if (target < taskStart) return false;
+  if (task.recurrence === "diaria") return true;
+  if (task.recurrence === "semanal") return target.getDay() === taskStart.getDay();
+  if (task.recurrence === "mensal") return target.getDate() === taskStart.getDate();
+  return isSameCalendarDay(taskStart, target);
+}
+
+function mapTaskStatus(exception: TaskExceptionRow | undefined): DashboardTaskStatus {
+  if (exception?.status === "done") return "done";
+  if (exception?.status === "missed") return "missed";
+  return "pending";
+}
+
+function mapDashboardTask(task: TaskRow, selectedDateKey: string, exception: TaskExceptionRow | undefined): DashboardTask {
+  return {
+    id: `${task.id}:${selectedDateKey}`,
+    baseTaskId: task.id,
+    occurrenceDate: selectedDateKey,
+    title: task.title,
+    status: mapTaskStatus(exception),
+    time: task.scheduled_time ?? "--:--",
+    date: selectedDateKey,
+    category: task.category,
+    priority: task.priority,
+    iconKey: defaultIconForCategory[task.category],
+    recurrence: task.recurrence,
+    flockId: task.flock_id,
+    notes: task.notes ?? "",
+  };
+}
 
 /* ── Setup alerts for first-time users ── */
 const setupAlerts = [
@@ -175,9 +263,9 @@ export default function DashboardPage() {
   const [financialData, setFinancialData] = useState({
     revenue: 0, expenses: 0, profit: 0, feedCost: 0, laborCost: 0, otherExpenses: 0, revenueGoal: 0,
   });
-  const [barnsData, setBarnsData] = useState<{ id: number; name: string; birds: number; layingRate: number; status: "ok" | "warning"; createdAt: string }[]>([]);
-  const [dbTasks, setDbTasks] = useState<{ id: any; title: string; status: "done" | "progress" | "pending" | "missed"; time: string; date: string; category: string; priority: string; iconKey: TaskIconKey; recurrence: string }[]>([]);
-  const [dbAlerts, setDbAlerts] = useState<{ id: any; type: "danger" | "warning" | "info"; msg: string; time: string; action: string; risk: string; href?: string }[]>([]);
+  const [barnsData, setBarnsData] = useState<{ id: string; name: string; birds: number; layingRate: number; status: "ok" | "warning"; createdAt: string }[]>([]);
+  const [dbTasks, setDbTasks] = useState<DashboardTask[]>([]);
+  const [dbAlerts, setDbAlerts] = useState<{ id: string; type: "danger" | "warning" | "info"; msg: string; time: string; action: string; risk: string; href?: string }[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   // Chart production data
@@ -196,9 +284,25 @@ export default function DashboardPage() {
 
   // Shared calendar filter
   const { dateRange, filterMode, rangeStart, rangeEnd, selectedDate } = useDateFilter();
+  const selectedDateKey = useMemo(() => toDateKey(selectedDate), [selectedDate]);
 
   const sameDay = (a: Date, b: Date) =>
     a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+
+  const loadDashboardTasks = useCallback(async () => {
+    if (!farm?.id) return;
+
+    const baseTasks = await getTaskSchedule(farm.id, selectedDateKey);
+    const occurrences = baseTasks.filter((task) => taskOccursOn(task, selectedDate));
+    const exceptions = await getTaskExceptions(farm.id, selectedDateKey, occurrences.map((task) => task.id));
+    const exceptionByTaskId = new Map(exceptions.map((exception) => [exception.task_id, exception]));
+
+    setDbTasks(
+      occurrences
+        .map((task) => mapDashboardTask(task, selectedDateKey, exceptionByTaskId.get(task.id)))
+        .sort((a, b) => a.time.localeCompare(b.time)),
+    );
+  }, [farm?.id, selectedDate, selectedDateKey]);
 
   // Fetch real data from Supabase when farm or dateRange changes
   useEffect(() => {
@@ -209,11 +313,10 @@ export default function DashboardPage() {
 
     async function fetchDashboardData() {
       try {
-        const [prodRes, feedRes, barnsRes, tasksRes, alertsRes, flocksRes, finSummary, birdCount] = await Promise.all([
+        const [prodRes, feedRes, barnsRes, alertsRes, flocksRes, finSummary, birdCount] = await Promise.all([
           supabase.from("egg_production").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
           supabase.from("feed_consumption").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
           supabase.from("barns").select("*").eq("farm_id", farmId).order("created_at"),
-          supabase.from("tasks").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate).order("scheduled_time"),
           supabase.from("alerts").select("*").eq("farm_id", farmId).eq("read", false).order("created_at", { ascending: false }).limit(5),
           supabase.from("flocks").select("id, code, breed").eq("farm_id", farmId).order("created_at"),
           getFinancialSummaryInRange(farmId, startDate, endDate),
@@ -292,7 +395,7 @@ export default function DashboardPage() {
         // Barns (static status for now, could be improved with period stats)
         if (barnsRes.data && barnsRes.data.length > 0) {
           setBarnsData(barnsRes.data.map((b) => ({
-            id: b.id as any,
+            id: b.id,
             name: b.name,
             birds: b.current_birds,
             layingRate: 0,
@@ -301,25 +404,9 @@ export default function DashboardPage() {
           })));
         }
 
-        // Tasks for selected period
-        if (tasksRes.data) {
-          const defaultIcons: TaskIconKey[] = ["egg", "wheat", "droplets", "eye", "shield", "clipboard", "thermometer", "syringe", "scale", "heart"];
-          setDbTasks(tasksRes.data.map((t, idx) => ({
-            id: t.id as any,
-            title: t.title,
-            status: (t.done ? "done" : "pending") as "done" | "progress" | "pending" | "missed",
-            time: t.scheduled_time ?? "",
-            date: t.scheduled_date ?? t.date,
-            category: (t as any).category ?? "geral",
-            priority: (t as any).priority ?? (idx % 3 === 0 ? "alta" : idx % 3 === 1 ? "media" : "baixa"),
-            iconKey: ((t as any).icon_key ?? defaultIcons[idx % defaultIcons.length]) as TaskIconKey,
-            recurrence: (t as any).recurrence ?? "diaria",
-          })));
-        }
-
         // Alerts — show setup alerts for first-time users, real alerts otherwise
         const realAlerts = (alertsRes.data ?? []).map((a) => ({
-          id: a.id as any,
+          id: a.id,
           type: (a.type === "error" ? "danger" : a.type) as "danger" | "warning" | "info",
           msg: a.message,
           time: new Date(a.created_at).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
@@ -374,6 +461,10 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [farm, dateRange]);
 
+  useEffect(() => {
+    void loadDashboardTasks();
+  }, [loadDashboardTasks]);
+
   // Fetch chart production data based on filter
   useEffect(() => {
     if (!farm) return;
@@ -405,7 +496,7 @@ export default function DashboardPage() {
           .order("date");
 
         // Build grouped data from DB rows
-        const rows = data ?? [];
+        const rows = (data ?? []) as ProductionChartRow[];
 
         if (isMonthMode) {
           // Group by week of month
@@ -420,7 +511,7 @@ export default function DashboardPage() {
             if (!weekGroups[wk]) weekGroups[wk] = { ovos: 0, meta: 0, postura: [], days: 0 };
           }
 
-          rows.forEach((r: any) => {
+          rows.forEach((r) => {
             const d = new Date(r.date + "T12:00:00");
             const wk = getWeekOfMonth(d);
             if (!weekGroups[wk]) weekGroups[wk] = { ovos: 0, meta: 0, postura: [], days: 0 };
@@ -456,7 +547,7 @@ export default function DashboardPage() {
             cursor.setDate(cursor.getDate() + 1);
           }
 
-          rows.forEach((r: any) => {
+          rows.forEach((r) => {
             if (!grouped[r.date]) grouped[r.date] = { ovos: 0, meta: 13500, postura: [] };
             grouped[r.date].ovos += r.eggs_produced ?? 0;
             if (r.laying_rate) grouped[r.date].postura.push(Number(r.laying_rate));
@@ -532,7 +623,7 @@ export default function DashboardPage() {
   const profitMargin = financialData.revenue > 0
     ? ((financialData.profit / financialData.revenue) * 100).toFixed(1)
     : "0.0";
-  const [taskStatuses, setTaskStatuses] = useState<Record<number | string, "done" | "progress" | "pending" | "missed">>(
+  const [taskStatuses, setTaskStatuses] = useState<Record<string, DashboardTaskStatus>>(
     Object.fromEntries(dbTasks.map((t) => [t.id, t.status]))
   );
 
@@ -608,10 +699,9 @@ export default function DashboardPage() {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskTime, setNewTaskTime] = useState("");
   const [newTaskDate, setNewTaskDate] = useState("");
-  const [newTaskCategory, setNewTaskCategory] = useState("geral");
-  const [newTaskPriority, setNewTaskPriority] = useState("media");
-  const [newTaskRecurrence, setNewTaskRecurrence] = useState("unica");
-  const [newTaskIcon, setNewTaskIcon] = useState("clipboard");
+  const [newTaskCategory, setNewTaskCategory] = useState<TaskCategory>("geral");
+  const [newTaskPriority, setNewTaskPriority] = useState<TaskPriority>("media");
+  const [newTaskRecurrence, setNewTaskRecurrence] = useState<TaskRecurrence>("unica");
   const [newTaskFlockId, setNewTaskFlockId] = useState("all");
   const [viewTask, setViewTask] = useState<(typeof dbTasks)[number] | null>(null);
   const [editingTask, setEditingTask] = useState(false);
@@ -619,23 +709,66 @@ export default function DashboardPage() {
   const [editTaskTime, setEditTaskTime] = useState("");
   const [editTaskDate, setEditTaskDate] = useState("");
 
-  const handleAddTask = useCallback(() => {
-    if (!newTaskTitle.trim()) return;
-    const flockLabel = newTaskFlockId === "all" ? "Todos os lotes" : availableFlocks.find((f) => f.id === newTaskFlockId)?.code ?? "";
-    const titleWithFlock = flockLabel ? `${newTaskTitle.trim()} — ${flockLabel}` : newTaskTitle.trim();
-    const newId = Date.now();
-    setDbTasks((prev) => [...prev, { id: newId, title: titleWithFlock, status: "pending" as const, time: newTaskTime || "--:--", date: newTaskDate || todayStr, category: newTaskCategory, priority: newTaskPriority, iconKey: newTaskIcon as TaskIconKey, recurrence: newTaskRecurrence }]);
-    setTaskStatuses((prev) => ({ ...prev, [newId]: "pending" }));
+  const handleAddTask = useCallback(async () => {
+    if (!farm?.id || !newTaskTitle.trim()) return;
+
+    await createTask({
+      farm_id: farm.id,
+      flock_id: newTaskFlockId === "all" ? null : newTaskFlockId,
+      title: newTaskTitle.trim(),
+      scheduled_time: newTaskTime || null,
+      date: newTaskDate || selectedDateKey,
+      category: newTaskCategory,
+      priority: newTaskPriority,
+      recurrence: newTaskRecurrence,
+    });
+
+    await loadDashboardTasks();
     setNewTaskTitle("");
     setNewTaskTime("");
     setNewTaskDate("");
     setNewTaskCategory("geral");
     setNewTaskPriority("media");
     setNewTaskRecurrence("unica");
-    setNewTaskIcon("clipboard");
     setNewTaskFlockId("all");
     setShowNewTask(false);
-  }, [newTaskTitle, newTaskTime, newTaskDate, newTaskFlockId, availableFlocks]);
+  }, [farm?.id, loadDashboardTasks, newTaskCategory, newTaskDate, newTaskFlockId, newTaskPriority, newTaskRecurrence, newTaskTime, newTaskTitle, selectedDateKey]);
+
+  const updateDashboardTaskStatus = useCallback(async (task: DashboardTask, status: DashboardTaskStatus) => {
+    if (!farm?.id) return;
+
+    if (status === "progress" || status === "pending") {
+      setTaskStatuses((prev) => ({ ...prev, [task.id]: status }));
+      return;
+    }
+
+    await setTaskOccurrenceStatus({
+      farmId: farm.id,
+      taskId: task.baseTaskId,
+      occurrenceDate: task.occurrenceDate,
+      status,
+    });
+    await loadDashboardTasks();
+  }, [farm?.id, loadDashboardTasks]);
+
+  const removeDashboardTask = useCallback(async (task: DashboardTask) => {
+    await deleteTask(task.baseTaskId);
+    await loadDashboardTasks();
+  }, [loadDashboardTasks]);
+
+  const saveDashboardTask = useCallback(async (task: DashboardTask) => {
+    await updateTask(task.baseTaskId, {
+      title: editTaskTitle.trim() || task.title,
+      scheduled_time: editTaskTime || null,
+      date: editTaskDate || task.date,
+      category: task.category,
+      priority: task.priority,
+      recurrence: task.recurrence,
+    });
+    await loadDashboardTasks();
+    setViewTask(null);
+    setEditingTask(false);
+  }, [editTaskDate, editTaskTime, editTaskTitle, loadDashboardTasks]);
 
   const displayName = profile?.full_name?.split(" ")[0] || farmData.producer.split(" ")[0];
   const greeting = (() => {
@@ -1192,6 +1325,7 @@ export default function DashboardPage() {
               const ico = taskIconMap[t.iconKey] ?? taskIconMap.clipboard;
               const TaskIcon = ico.icon;
               const pri = priorityConfig[t.priority] ?? priorityConfig.media;
+              const flockLabel = t.flockId ? availableFlocks.find((flock) => flock.id === t.flockId)?.code ?? "Lote" : "Todos os lotes";
 
               if (isMissed) {
                 return (
@@ -1206,10 +1340,11 @@ export default function DashboardPage() {
                       <p className="text-[13px] font-medium text-red-800/70 truncate dark:text-red-200">{t.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[11px] text-red-400 flex items-center gap-1 dark:text-red-300"><Clock className="w-3 h-3" /> {t.time}</span>
+                        <span className="text-[11px] text-red-400 dark:text-red-300">· {flockLabel}</span>
                         <span className="text-[11px] font-medium text-red-500 dark:text-red-300">não realizada</span>
                       </div>
                     </div>
-                    <button onClick={() => { setTaskStatuses((prev) => ({ ...prev, [t.id]: "done" })); }} className="shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer dark:border-red-400/20 dark:bg-slate-950 dark:text-red-100 dark:hover:bg-red-500/15">Marcar feita</button>
+                    <button onClick={() => void updateDashboardTaskStatus(t, "done")} className="shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer dark:border-red-400/20 dark:bg-slate-950 dark:text-red-100 dark:hover:bg-red-500/15">Marcar feita</button>
                   </div>
                 );
               }
@@ -1227,10 +1362,11 @@ export default function DashboardPage() {
                       <p className="text-[13px] font-medium text-gray-500 line-through truncate dark:text-slate-400">{t.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[11px] text-gray-400 flex items-center gap-1 dark:text-slate-500"><Clock className="w-3 h-3" /> {t.time}</span>
+                        <span className="text-[11px] text-gray-400">· {flockLabel}</span>
                         <span className="text-[11px] text-gray-400">· {recurrenceLabel[t.recurrence] ?? t.recurrence}</span>
                       </div>
                     </div>
-                    <button onClick={() => { setDbTasks((prev) => prev.filter((task) => task.id !== t.id)); }} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer dark:hover:bg-red-500/10">
+                    <button onClick={() => void removeDashboardTask(t)} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer dark:hover:bg-red-500/10">
                       <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
                     </button>
                   </div>
@@ -1250,6 +1386,7 @@ export default function DashboardPage() {
                     <p className={cn("text-[13px] font-semibold truncate", isDelayed ? "text-red-600 dark:text-red-200" : "text-gray-900 dark:text-slate-100")}>{t.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={cn("text-[11px] flex items-center gap-1", isDelayed ? "text-red-400 dark:text-red-300" : "text-gray-400 dark:text-slate-400")}><Clock className="w-3 h-3" /> {t.time}</span>
+                      <span className={cn("text-[11px]", isDelayed ? "text-red-400 dark:text-red-300" : "text-gray-400 dark:text-slate-400")}>· {flockLabel}</span>
                       <span className="text-[11px] text-gray-400">· {recurrenceLabel[t.recurrence] ?? t.recurrence}</span>
                       {isDelayed && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-200">Atrasada</span>}
                     </div>
@@ -1258,7 +1395,7 @@ export default function DashboardPage() {
                   <button onClick={() => { setViewTask(t); setEditingTask(true); setEditTaskTitle(t.title); setEditTaskTime(t.time); setEditTaskDate(t.date); }} className="shrink-0 p-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer dark:hover:bg-sky-500/10">
                     <Pencil className="w-3.5 h-3.5 text-gray-400 hover:text-blue-500" />
                   </button>
-                  <button onClick={() => { setDbTasks((prev) => prev.filter((task) => task.id !== t.id)); }} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer dark:hover:bg-red-500/10">
+                  <button onClick={() => void removeDashboardTask(t)} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer dark:hover:bg-red-500/10">
                     <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
                   </button>
                 </div>
@@ -1290,7 +1427,8 @@ export default function DashboardPage() {
                 <button
                   key={opt.value}
                   onClick={() => {
-                    setTaskStatuses((prev) => ({ ...prev, [openDropdown]: opt.value }));
+                    const selectedTask = dbTasks.find((task) => task.id === openDropdown);
+                    if (selectedTask) void updateDashboardTaskStatus(selectedTask, opt.value);
                     setOpenDropdown(null);
                     setDropdownPos(null);
                   }}
@@ -1339,13 +1477,13 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1.5">Categoria</label>
-                    <select value={newTaskCategory} onChange={(e) => setNewTaskCategory(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none">
+                    <select value={newTaskCategory} onChange={(e) => setNewTaskCategory(e.target.value as TaskCategory)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none">
                       {taskCategoryOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
                     </select>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1.5">Prioridade</label>
-                    <select value={newTaskPriority} onChange={(e) => setNewTaskPriority(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none">
+                    <select value={newTaskPriority} onChange={(e) => setNewTaskPriority(e.target.value as TaskPriority)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none">
                       {taskPriorityOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
                     </select>
                   </div>
@@ -1357,7 +1495,7 @@ export default function DashboardPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1.5">Recorrência</label>
-                    <select value={newTaskRecurrence} onChange={(e) => setNewTaskRecurrence(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none">
+                    <select value={newTaskRecurrence} onChange={(e) => setNewTaskRecurrence(e.target.value as TaskRecurrence)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none">
                       {taskRecurrenceOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
                     </select>
                   </div>
@@ -1373,32 +1511,6 @@ export default function DashboardPage() {
                       <option value="all">Todos os lotes</option>
                       {availableFlocks.map((f) => (<option key={f.id} value={f.id}>{f.code} — {f.breed}</option>))}
                     </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-2">Ícone</label>
-                  <div className="grid grid-cols-7 gap-1.5 max-h-40 overflow-y-auto rounded-xl border border-gray-200 p-2">
-                    {(Object.entries(taskIconMap) as [TaskIconKey, typeof taskIconMap.egg][]).map(([key, cfg]) => {
-                      const IconOption = cfg.icon;
-                      const isSelected = newTaskIcon === key;
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setNewTaskIcon(key)}
-                          title={cfg.label}
-                          className={cn(
-                            "flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors cursor-pointer",
-                            isSelected ? "bg-brand-100 ring-2 ring-brand-500" : "hover:bg-gray-100",
-                          )}
-                        >
-                          <div className={cn("w-7 h-7 rounded-md flex items-center justify-center", cfg.bg)}>
-                            <IconOption className={cn("w-3.5 h-3.5", cfg.color)} />
-                          </div>
-                          <span className="text-[9px] text-gray-500 truncate w-full text-center">{cfg.label}</span>
-                        </button>
-                      );
-                    })}
                   </div>
                 </div>
               </div>
@@ -1460,13 +1572,13 @@ export default function DashboardPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Categoria</label>
-                          <select value={viewTask.category} onChange={(e) => setViewTask({ ...viewTask, category: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all">
+                          <select value={viewTask.category} onChange={(e) => setViewTask({ ...viewTask, category: e.target.value as TaskCategory })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all">
                             {taskCategoryOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
                           </select>
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Prioridade</label>
-                          <select value={viewTask.priority} onChange={(e) => setViewTask({ ...viewTask, priority: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all">
+                          <select value={viewTask.priority} onChange={(e) => setViewTask({ ...viewTask, priority: e.target.value as TaskPriority })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all">
                             {taskPriorityOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
                           </select>
                         </div>
@@ -1482,7 +1594,7 @@ export default function DashboardPage() {
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Recorrência</label>
-                          <select value={viewTask.recurrence} onChange={(e) => setViewTask({ ...viewTask, recurrence: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all">
+                          <select value={viewTask.recurrence} onChange={(e) => setViewTask({ ...viewTask, recurrence: e.target.value as TaskRecurrence })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all">
                             {taskRecurrenceOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
                           </select>
                         </div>
@@ -1509,7 +1621,7 @@ export default function DashboardPage() {
                             { value: "pending" as const, label: "Pendente", color: "bg-gray-400" },
                             { value: "missed" as const, label: "Não realizada", color: "bg-red-500" },
                           ].map((s) => (
-                            <button key={s.value} onClick={() => setTaskStatuses((prev) => ({ ...prev, [viewTask.id]: s.value }))} className={cn("flex-1 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border", taskStatuses[viewTask.id] === s.value ? `${s.color} text-white border-transparent` : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50")}>
+                            <button key={s.value} onClick={() => void updateDashboardTaskStatus(viewTask, s.value)} className={cn("flex-1 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border", taskStatuses[viewTask.id] === s.value ? `${s.color} text-white border-transparent` : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50")}>
                               {s.label}
                             </button>
                           ))}
@@ -1519,9 +1631,7 @@ export default function DashboardPage() {
                         <button onClick={() => setEditingTask(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">Cancelar</button>
                         <button
                           onClick={() => {
-                            setDbTasks((prev) => prev.map((task) => task.id === viewTask.id ? { ...task, title: editTaskTitle.trim() || task.title, time: editTaskTime || task.time, date: editTaskDate || task.date, category: viewTask.category, priority: viewTask.priority, iconKey: viewTask.iconKey, recurrence: viewTask.recurrence } : task));
-                            setViewTask({ ...viewTask, title: editTaskTitle.trim() || viewTask.title, time: editTaskTime || viewTask.time, date: editTaskDate || viewTask.date });
-                            setEditingTask(false);
+                            void saveDashboardTask(viewTask);
                           }}
                           className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors cursor-pointer shadow-sm"
                         >Salvar</button>
@@ -1607,7 +1717,7 @@ export default function DashboardPage() {
                       </button>
                       <button
                         onClick={() => {
-                          setDbTasks((prev) => prev.filter((task) => task.id !== viewTask.id));
+                          void removeDashboardTask(viewTask);
                           setViewTask(null);
                         }}
                         className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
@@ -1741,7 +1851,7 @@ export default function DashboardPage() {
                 <Tooltip
                   contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
                   labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
-                  formatter={((value: any, name: any) => [formatNumber(Number(value)), String(name)]) as any}
+                  formatter={(value, name) => [formatNumber(Number(value ?? 0)), String(name ?? "")]}
                 />
                 <Area type="monotone" dataKey="meta" stroke="#d1d5db" strokeWidth={1.5} strokeDasharray="6 4" fill="none" dot={false} name="Meta" />
                 <Area type="monotone" dataKey="ovos" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#colorOvos)" dot={chartProductionData.length <= 14 ? { r: 4, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 } : false} activeDot={{ r: 6, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} name="Ovos" />
