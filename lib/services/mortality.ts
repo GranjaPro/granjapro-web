@@ -31,6 +31,18 @@ export async function getMortalityByDateRange(farmId: string, startDate: string,
   return data;
 }
 
+export async function getMortalityByFlock(farmId: string, flockId: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("mortality")
+    .select("*")
+    .eq("farm_id", farmId)
+    .eq("flock_id", flockId)
+    .order("date", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 export async function createMortalityRecord(record: MortalityInsert) {
   const supabase = createClient();
   const { data, error } = await supabase
