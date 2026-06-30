@@ -3,15 +3,15 @@ status: testing
 phase: 27-flock-mortality-page-integration
 source: [27-01-SUMMARY.md]
 started: 2026-06-30T18:10:00-03:00
-updated: 2026-06-30T18:46:16-03:00
+updated: 2026-06-30T18:52:45-03:00
 ---
 
 ## Current Test
 
-number: 5
-name: Delete Mortality Record
+number: 6
+name: Wrong or Inaccessible Flock
 expected: |
-  Click the delete icon, confirm deletion, and the record disappears from the table. KPIs and charts recalculate for the selected flock after deletion.
+  Open the mortality URL with a flock ID that does not belong to the active farm. The page shows a not-found message instead of showing data from another farm or mock data.
 awaiting: user response
 
 ## Tests
@@ -38,7 +38,7 @@ result: pass
 
 ### 5. Delete Mortality Record
 expected: Click the delete icon, confirm deletion, and the record disappears from the table. KPIs and charts recalculate for the selected flock after deletion.
-result: [pending]
+result: pass
 
 ### 6. Wrong or Inaccessible Flock
 expected: Open the mortality URL with a flock ID that does not belong to the active farm. The page shows a not-found message instead of showing data from another farm or mock data.
@@ -47,9 +47,9 @@ result: [pending]
 ## Summary
 
 total: 6
-passed: 4
+passed: 5
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
