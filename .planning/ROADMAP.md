@@ -57,6 +57,10 @@ Detailed phase goals live in `.planning/milestones/v1.3-ROADMAP.md`.
 
 ### Phase 17: Dashboard Checklist and Alerts
 
+**Plans:** 1/1 plans complete
+
+- [x] 17-PLAN.md - Dashboard checklist and alerts
+
 ### Phase 18: Feedback Page
 
 ### Phase 19: Evaluation Triggers and Alerts
