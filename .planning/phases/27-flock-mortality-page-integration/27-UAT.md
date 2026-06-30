@@ -3,15 +3,15 @@ status: testing
 phase: 27-flock-mortality-page-integration
 source: [27-01-SUMMARY.md]
 started: 2026-06-30T18:10:00-03:00
-updated: 2026-06-30T18:43:19-03:00
+updated: 2026-06-30T18:44:54-03:00
 ---
 
 ## Current Test
 
-number: 2
-name: Register Mortality Record
+number: 4
+name: Edit Mortality Record
 expected: |
-  Click "Registrar Mortalidade", fill date, quantity, cause, optional barn/observation, and save. The modal closes and the new record appears in the table for the same flock without a page refresh.
+  Click the edit icon on a mortality record, change an editable field, and save. The table and calculated metrics reflect the updated database record.
 awaiting: user response
 
 ## Tests
@@ -23,7 +23,7 @@ evidence: User screenshot showed the flock mortality page loading with real mort
 
 ### 2. Register Mortality Record
 expected: Click "Registrar Mortalidade", fill date, quantity, cause, optional barn/observation, and save. The modal closes and the new record appears in the table for the same flock without a page refresh.
-result: [pending]
+result: pass
 
 ### 3. Dynamic KPIs and Charts
 expected: After at least one mortality record exists, the status banner, KPI cards, weekly trend chart, monthly chart, and cause summary update from the record data for the selected flock.
@@ -47,9 +47,9 @@ result: [pending]
 ## Summary
 
 total: 6
-passed: 2
+passed: 3
 issues: 0
-pending: 4
+pending: 3
 skipped: 0
 blocked: 0
 
