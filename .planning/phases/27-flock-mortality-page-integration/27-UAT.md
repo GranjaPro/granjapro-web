@@ -3,15 +3,15 @@ status: testing
 phase: 27-flock-mortality-page-integration
 source: [27-01-SUMMARY.md]
 started: 2026-06-30T18:10:00-03:00
-updated: 2026-06-30T18:32:00-03:00
+updated: 2026-06-30T18:43:19-03:00
 ---
 
 ## Current Test
 
-number: 3
-name: Dynamic KPIs and Charts
+number: 2
+name: Register Mortality Record
 expected: |
-  Retest the "Mortalidade por fase do lote" section after the fix. A mortality record registered during peak phase should appear only under `Pico (28-35 sem)`, with no proportional split across other phases.
+  Click "Registrar Mortalidade", fill date, quantity, cause, optional barn/observation, and save. The modal closes and the new record appears in the table for the same flock without a page refresh.
 awaiting: user response
 
 ## Tests
@@ -27,9 +27,10 @@ result: [pending]
 
 ### 3. Dynamic KPIs and Charts
 expected: After at least one mortality record exists, the status banner, KPI cards, weekly trend chart, monthly chart, and cause summary update from the record data for the selected flock.
-result: pending-retest
+result: pass
 issue_found: The "Mortalidade por fase do lote" section split one mortality record across multiple development phases instead of assigning the record to the flock stage at the record date.
 fix_applied: Replaced proportional phase distribution with grouping by `arrival_date`, `arrival_age_weeks`, and each mortality record date.
+evidence: User confirmed the fixed phase grouping passed after retest.
 
 ### 4. Edit Mortality Record
 expected: Click the edit icon on a mortality record, change an editable field, and save. The table and calculated metrics reflect the updated database record.
@@ -46,12 +47,12 @@ result: [pending]
 ## Summary
 
 total: 6
-passed: 1
-issues: 1
-pending: 5
+passed: 2
+issues: 0
+pending: 4
 skipped: 0
 blocked: 0
 
 ## Gaps
 
-- Retest the "Mortalidade por fase do lote" card with a mortality record registered during peak phase. The deaths should appear only under `Pico (28-35 sem)` and should not be split across other phases.
+[none]
