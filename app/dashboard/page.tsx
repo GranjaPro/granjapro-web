@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { createClient } from "@/lib/supabase/client";
+import type { Database } from "@/lib/database.types";
 import { getFinancialSummaryInRange } from "@/lib/services/finances";
 import { getFarmBirdCount } from "@/lib/services/farms";
 import {
@@ -179,9 +180,27 @@ type ProductionChartRow = {
   eggs_produced: number;
   laying_rate: number | null;
 };
+type DashboardAlertType = "danger" | "warning" | "info";
+type DashboardAlert = {
+  id: string;
+  type: DashboardAlertType;
+  msg: string;
+  time: string;
+  action: string;
+  risk: string;
+  href?: string;
+};
+type InventoryRow = Pick<Database["public"]["Tables"]["inventory"]["Row"], "id" | "name" | "quantity" | "unit" | "status">;
+type MortalityAlertRow = Pick<Database["public"]["Tables"]["mortality"]["Row"], "id" | "date" | "mortality_rate">;
+type OverdueTaskAlertRow = Pick<TaskRow, "id" | "title" | "date">;
 
 const todayStr = new Date().toISOString().split("T")[0];
 const yesterdayStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0]; })();
+const alertPriority: Record<DashboardAlertType, number> = {
+  danger: 0,
+  warning: 1,
+  info: 2,
+};
 
 function toDateKey(date: Date) {
   return date.toISOString().split("T")[0];
@@ -227,8 +246,60 @@ function mapDashboardTask(task: TaskRow, selectedDateKey: string, exception: Tas
   };
 }
 
+function formatInventoryQuantity(quantity: number, unit: string) {
+  return `${formatNumber(quantity)} ${unit}`.trim();
+}
+
+function mapInventoryAlerts(items: InventoryRow[]): DashboardAlert[] {
+  return items
+    .filter((item) => item.status === "baixo" || item.status === "alerta")
+    .map((item) => ({
+      id: `inventory-${item.id}`,
+      type: item.status === "baixo" ? "danger" : "warning",
+      msg: `Estoque ${item.status === "baixo" ? "baixo" : "em alerta"}: ${item.name} (${formatInventoryQuantity(item.quantity, item.unit)} restante)`,
+      time: "Agora",
+      action: "Ver estoque",
+      risk: "Pode faltar insumo para alimentacao e manejo.",
+      href: "/dashboard/inventory",
+    }));
+}
+
+function mapMortalityAlerts(records: MortalityAlertRow[]): DashboardAlert[] {
+  return records
+    .filter((record) => Number(record.mortality_rate) >= 0.5)
+    .map((record) => ({
+      id: `mortality-${record.id}`,
+      type: "danger",
+      msg: `Pico de mortalidade: ${formatNumber(Number(record.mortality_rate))}% em ${record.date}`,
+      time: "Ultimos 3 dias",
+      action: "Investigar",
+      risk: "Pode indicar surto sanitario ou falha de manejo.",
+      href: "/dashboard/mortality",
+    }));
+}
+
+function mapOverdueTaskAlerts(tasks: OverdueTaskAlertRow[], exceptions: TaskExceptionRow[]): DashboardAlert[] {
+  const doneTaskIds = new Set(exceptions.filter((exception) => exception.status === "done").map((exception) => exception.task_id));
+
+  return tasks
+    .filter((task) => !doneTaskIds.has(task.id))
+    .map((task) => ({
+      id: `task-${task.id}`,
+      type: "danger",
+      msg: `Tarefa atrasada: ${task.title}`,
+      time: task.date,
+      action: "Resolver",
+      risk: "Atividades pendentes podem comprometer o controle diario da granja.",
+      href: "#dashboard-tasks",
+    }));
+}
+
+function sortDashboardAlerts(alerts: DashboardAlert[]) {
+  return [...alerts].sort((a, b) => alertPriority[a.type] - alertPriority[b.type]);
+}
+
 /* ── Setup alerts for first-time users ── */
-const setupAlerts = [
+const setupAlerts: DashboardAlert[] = [
   { id: "setup-1", type: "info" as const, msg: "Registre a produção pela primeira vez", time: "Configuração", action: "Registrar", risk: "Sem dados de produção, o dashboard não poderá exibir suas métricas.", href: "/dashboard/production?register=true" },
   { id: "setup-2", type: "info" as const, msg: "Registre a ração pela primeira vez", time: "Configuração", action: "Registrar", risk: "Sem controle de ração, você não saberá o custo real por ovo.", href: "/dashboard/racao?register=true" },
   { id: "setup-3", type: "info" as const, msg: "Registre seus ganhos e gastos", time: "Configuração", action: "Registrar", risk: "Sem dados financeiros, não é possível calcular seu lucro.", href: "/dashboard/finances" },
@@ -313,12 +384,18 @@ export default function DashboardPage() {
 
     async function fetchDashboardData() {
       try {
-        const [prodRes, feedRes, barnsRes, alertsRes, flocksRes, finSummary, birdCount] = await Promise.all([
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        const threeDaysAgoStr = toDateKey(threeDaysAgo);
+
+        const [prodRes, feedRes, barnsRes, alertsRes, flocksRes, mortalityRes, overdueTasksRes, finSummary, birdCount] = await Promise.all([
           supabase.from("egg_production").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
           supabase.from("feed_consumption").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
           supabase.from("barns").select("*").eq("farm_id", farmId).order("created_at"),
           supabase.from("alerts").select("*").eq("farm_id", farmId).eq("read", false).order("created_at", { ascending: false }).limit(5),
           supabase.from("flocks").select("id, code, breed").eq("farm_id", farmId).order("created_at"),
+          supabase.from("mortality").select("id, date, mortality_rate").eq("farm_id", farmId).gte("date", threeDaysAgoStr),
+          supabase.from("tasks").select("id, title, date").eq("farm_id", farmId).eq("recurrence", "unica").lt("date", todayStr),
           getFinancialSummaryInRange(farmId, startDate, endDate),
           getFarmBirdCount(farmId),
         ]);
@@ -404,8 +481,7 @@ export default function DashboardPage() {
           })));
         }
 
-        // Alerts — show setup alerts for first-time users, real alerts otherwise
-        const realAlerts = (alertsRes.data ?? []).map((a) => ({
+        const realAlerts: DashboardAlert[] = (alertsRes.data ?? []).map((a) => ({
           id: a.id,
           type: (a.type === "error" ? "danger" : a.type) as "danger" | "warning" | "info",
           msg: a.message,
@@ -417,16 +493,25 @@ export default function DashboardPage() {
         const hasProduction = (prodRes.data?.length ?? 0) > 0;
         const hasFeed = (feedRes.data?.length ?? 0) > 0;
         const hasFinance = (finSummary.revenue > 0 || finSummary.expenses > 0);
+        const overdueTasks = overdueTasksRes.data ?? [];
 
         // Check customers & sales & inventory
-        const [custRes, salesRes, invRes] = await Promise.all([
+        const [custRes, salesRes, invRes, overdueTaskExceptionsRes] = await Promise.all([
           supabase.from("customers").select("id", { count: "exact", head: true }).eq("farm_id", farmId),
           supabase.from("sales").select("id", { count: "exact", head: true }).eq("farm_id", farmId),
-          supabase.from("feed_inventory").select("id", { count: "exact", head: true }).eq("farm_id", farmId),
+          supabase.from("inventory").select("id, name, quantity, unit, status").eq("farm_id", farmId),
+          overdueTasks.length > 0
+            ? supabase
+                .from("task_exceptions")
+                .select("*")
+                .eq("farm_id", farmId)
+                .in("task_id", overdueTasks.map((task) => task.id))
+            : Promise.resolve({ data: [] as TaskExceptionRow[], error: null }),
         ]);
         const hasCustomers = (custRes.count ?? 0) > 0;
         const hasSales = (salesRes.count ?? 0) > 0;
-        const hasInventory = (invRes.count ?? 0) > 0;
+        const inventoryItems = invRes.data ?? [];
+        const hasInventory = inventoryItems.length > 0;
 
         const pending = setupAlerts.filter((s) => {
           if (s.id === "setup-1" && hasProduction) return false;
@@ -438,7 +523,13 @@ export default function DashboardPage() {
           return true;
         });
 
-        setDbAlerts([...realAlerts, ...pending]);
+        setDbAlerts(sortDashboardAlerts([
+          ...realAlerts,
+          ...mapInventoryAlerts(inventoryItems),
+          ...mapMortalityAlerts(mortalityRes.data ?? []),
+          ...mapOverdueTaskAlerts(overdueTasks, overdueTaskExceptionsRes.data ?? []),
+          ...pending,
+        ]));
 
         // Financial summary for selected period
         setFinancialData({
@@ -1247,6 +1338,7 @@ export default function DashboardPage() {
         {/* Tarefas do Dia */}
         {showDashboardTasks && (
         <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px] overflow-hidden dark:border-white/10 dark:bg-slate-900/80">
+          <span id="dashboard-tasks" className="sr-only" aria-hidden="true" />
           <div className="flex items-center justify-between mb-5 flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-sm">
