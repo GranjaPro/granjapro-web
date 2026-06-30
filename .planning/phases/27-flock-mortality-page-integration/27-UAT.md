@@ -1,18 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 27-flock-mortality-page-integration
 source: [27-01-SUMMARY.md]
 started: 2026-06-30T18:10:00-03:00
-updated: 2026-06-30T18:52:45-03:00
+updated: 2026-06-30T18:54:24-03:00
 ---
 
 ## Current Test
 
-number: 6
-name: Wrong or Inaccessible Flock
-expected: |
-  Open the mortality URL with a flock ID that does not belong to the active farm. The page shows a not-found message instead of showing data from another farm or mock data.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -42,14 +38,14 @@ result: pass
 
 ### 6. Wrong or Inaccessible Flock
 expected: Open the mortality URL with a flock ID that does not belong to the active farm. The page shows a not-found message instead of showing data from another farm or mock data.
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 6
-passed: 5
+passed: 6
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
