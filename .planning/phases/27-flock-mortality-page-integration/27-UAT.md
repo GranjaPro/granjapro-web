@@ -3,15 +3,15 @@ status: testing
 phase: 27-flock-mortality-page-integration
 source: [27-01-SUMMARY.md]
 started: 2026-06-30T18:10:00-03:00
-updated: 2026-06-30T18:44:54-03:00
+updated: 2026-06-30T18:46:16-03:00
 ---
 
 ## Current Test
 
-number: 4
-name: Edit Mortality Record
+number: 5
+name: Delete Mortality Record
 expected: |
-  Click the edit icon on a mortality record, change an editable field, and save. The table and calculated metrics reflect the updated database record.
+  Click the delete icon, confirm deletion, and the record disappears from the table. KPIs and charts recalculate for the selected flock after deletion.
 awaiting: user response
 
 ## Tests
@@ -34,7 +34,7 @@ evidence: User confirmed the fixed phase grouping passed after retest.
 
 ### 4. Edit Mortality Record
 expected: Click the edit icon on a mortality record, change an editable field, and save. The table and calculated metrics reflect the updated database record.
-result: [pending]
+result: pass
 
 ### 5. Delete Mortality Record
 expected: Click the delete icon, confirm deletion, and the record disappears from the table. KPIs and charts recalculate for the selected flock after deletion.
@@ -47,9 +47,9 @@ result: [pending]
 ## Summary
 
 total: 6
-passed: 3
+passed: 4
 issues: 0
-pending: 3
+pending: 2
 skipped: 0
 blocked: 0
 
