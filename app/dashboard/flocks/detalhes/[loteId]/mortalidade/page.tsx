@@ -50,8 +50,12 @@ import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 
 type MortalityRow = Tables<"mortality">;
 type BarnOption = Pick<Tables<"barns">, "id" | "name">;
-type FlockDetails = Pick<Tables<"flocks">, "id" | "code" | "bird_count" | "barn_id">;
+type FlockDetails = Pick<
+  Tables<"flocks">,
+  "id" | "code" | "bird_count" | "barn_id" | "arrival_age_weeks" | "arrival_date"
+>;
 type MortalityType = MortalityRow["mortality_type"];
+type FlockMortalityStage = "inicial" | "crescimento" | "pico" | "estavel" | "declinio" | "descarte";
 
 interface RegistroMortalidade {
   id: string;
@@ -75,6 +79,14 @@ interface ChartPoint {
   label: string;
   mortes: number;
   taxa: number;
+}
+
+interface StageSummary {
+  key: FlockMortalityStage;
+  fase: string;
+  pct: number;
+  mortes: number;
+  color: string;
 }
 
 type TooltipFormatter = (value: unknown, name: unknown) => [string, string];
@@ -113,6 +125,18 @@ const causeBadges: Record<string, string> = {
   "Descarte Tecnico": "bg-slate-100 text-slate-700",
   Desconhecido: "bg-gray-100 text-gray-500",
   Outros: "bg-slate-100 text-slate-600",
+};
+
+const mortalityStageConfig: Record<
+  FlockMortalityStage,
+  { label: string; color: string }
+> = {
+  inicial: { label: "Inicial (0-6 sem)", color: "#fca5a5" },
+  crescimento: { label: "Crescimento (7-27 sem)", color: "#f87171" },
+  pico: { label: "Pico (28-35 sem)", color: "#ef4444" },
+  estavel: { label: "Estavel (36-60 sem)", color: "#dc2626" },
+  declinio: { label: "Declinio (61-80 sem)", color: "#b91c1c" },
+  descarte: { label: "Descarte (81+ sem)", color: "#7f1d1d" },
 };
 
 function toIsoDate(date: Date) {
@@ -160,6 +184,22 @@ function getMortalityRate(deadBirds: number, activeBirds: number, totalDeaths: n
   const startingBirds = activeBirds + totalDeaths;
   if (startingBirds <= 0) return 0;
   return (deadBirds / startingBirds) * 100;
+}
+
+function getAgeWeeksAtDate(arrivalDate: string, arrivalAgeWeeks: number, recordDate: string) {
+  const arrival = new Date(`${arrivalDate}T00:00:00`);
+  const record = new Date(`${recordDate}T00:00:00`);
+  const diffWeeks = Math.floor((record.getTime() - arrival.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  return Math.max(0, arrivalAgeWeeks + diffWeeks);
+}
+
+function getMortalityStage(ageWeeks: number): FlockMortalityStage {
+  if (ageWeeks <= 6) return "inicial";
+  if (ageWeeks <= 27) return "crescimento";
+  if (ageWeeks <= 35) return "pico";
+  if (ageWeeks <= 60) return "estavel";
+  if (ageWeeks <= 80) return "declinio";
+  return "descarte";
 }
 
 function getBarnName(barns: BarnOption[], barnId: string | null) {
@@ -223,7 +263,7 @@ export default function MortalidadeLotePage() {
       const [flockRes, barnsRes, mortalityRows] = await Promise.all([
         supabase
           .from("flocks")
-          .select("id, code, bird_count, barn_id")
+          .select("id, code, bird_count, barn_id, arrival_age_weeks, arrival_date")
           .eq("id", loteId)
           .eq("farm_id", farm.id)
           .maybeSingle(),
@@ -367,14 +407,30 @@ export default function MortalidadeLotePage() {
       .sort((a, b) => b.quantidade - a.quantidade);
   }, [registros, totalMortes]);
 
-  const fasesMortalidade = useMemo(() => {
-    const total = totalMortes || 0;
-    return [
-      { fase: "Inicial (0-6 sem)", pct: total > 0 ? 25 : 0, mortes: Math.round(total * 0.25), color: "#fca5a5" },
-      { fase: "Crescimento (6-18 sem)", pct: total > 0 ? 35 : 0, mortes: Math.round(total * 0.35), color: "#f87171" },
-      { fase: "Postura (18+ sem)", pct: total > 0 ? 40 : 0, mortes: Math.round(total * 0.4), color: "#ef4444" },
-    ];
-  }, [totalMortes]);
+  const fasesMortalidade = useMemo<StageSummary[]>(() => {
+    if (!flock) return [];
+
+    const grouped = new Map<FlockMortalityStage, number>();
+
+    registros.forEach((record) => {
+      const ageWeeks = getAgeWeeksAtDate(flock.arrival_date, flock.arrival_age_weeks, record.data);
+      const stage = getMortalityStage(ageWeeks);
+      grouped.set(stage, (grouped.get(stage) ?? 0) + record.quantidade);
+    });
+
+    return Object.entries(mortalityStageConfig)
+      .map(([key, config]) => {
+        const mortes = grouped.get(key as FlockMortalityStage) ?? 0;
+        return {
+          key: key as FlockMortalityStage,
+          fase: config.label,
+          pct: totalMortes > 0 ? Math.round((mortes / totalMortes) * 100) : 0,
+          mortes,
+          color: config.color,
+        };
+      })
+      .filter((stage) => stage.mortes > 0);
+  }, [flock, registros, totalMortes]);
 
   const recommendations = useMemo(() => {
     const list: { text: string; impact: "alto" | "medio" | "baixo" }[] = [];
