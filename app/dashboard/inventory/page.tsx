@@ -3,18 +3,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ModalPortal from "@/components/ui/modal-portal";
 import {
-  AlertTriangle,
+  Box,
+  CalendarDays,
   Check,
-  CheckCircle2,
   MapPin,
   Package,
   Pencil,
+  Pill,
   Plus,
   Search,
+  ShieldAlert,
   SlidersHorizontal,
   Trash2,
   Warehouse,
   Wheat,
+  Wrench,
   X,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -34,7 +37,7 @@ import {
   type StorageLocationRow,
 } from "@/lib/services/inventory";
 
-type ActiveTab = "storage" | "feed";
+type ActiveTab = "all" | "feed" | "medicine" | "equipment" | "packaging";
 type StorageModalMode = "add" | "edit" | null;
 type FeedModalMode = "add" | "edit" | null;
 type DeleteTarget =
@@ -51,7 +54,8 @@ type StorageForm = {
   category: StorageCategory;
   status: StorageStatus;
   isDefault: boolean;
-  capacity: string;
+  capacityQuantity: string;
+  capacityUnit: string;
 };
 
 type FeedForm = {
@@ -82,7 +86,8 @@ const emptyStorageForm: StorageForm = {
   category: "feed",
   status: "active",
   isDefault: false,
-  capacity: "",
+  capacityQuantity: "",
+  capacityUnit: "kg",
 };
 
 const emptyFeedForm: FeedForm = {
@@ -114,6 +119,14 @@ const storageCategoryLabels: Record<StorageCategory, string> = {
   packaging: "Embalagens",
 };
 
+const inventoryTabs: Array<{ key: ActiveTab; label: string; icon: typeof Package }> = [
+  { key: "all", label: "Todos", icon: Package },
+  { key: "feed", label: "Racao", icon: Wheat },
+  { key: "medicine", label: "Medicamentos", icon: Pill },
+  { key: "equipment", label: "Equipamentos", icon: Wrench },
+  { key: "packaging", label: "Embalagens", icon: Box },
+];
+
 const storageStatusLabels: Record<StorageStatus, string> = {
   active: "Ativo",
   inactive: "Inativo",
@@ -136,6 +149,12 @@ const lossReasonLabels: Record<LossReason, string> = {
 };
 
 const feedLocationsOnly = (location: StorageLocationRow) => location.category === "feed";
+const DEFAULT_LOCATION_NAME = "Sem local definido";
+
+type StorageCapacity = {
+  quantity: string;
+  unit: string;
+};
 
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -146,12 +165,66 @@ function numberOrUndefined(value: string) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function getFeedStockPercent(item: FeedInventoryCompatibilityRow) {
+  const minimumQuantity = Number(item.minimum_quantity);
+  const quantity = Number(item.quantity);
+  if (minimumQuantity <= 0) return quantity > 0 ? 100 : 0;
+  return Math.min(100, Math.round((quantity / minimumQuantity) * 100));
+}
+
+function daysUntil(date: string | null) {
+  if (!date) return Number.POSITIVE_INFINITY;
+  const today = new Date();
+  const target = new Date(`${date}T00:00:00`);
+  return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function parseStorageCapacity(notes: string | null): StorageCapacity {
+  if (!notes) return { quantity: "", unit: "kg" };
+
+  try {
+    const parsed: unknown = JSON.parse(notes);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "quantity" in parsed &&
+      "unit" in parsed &&
+      typeof parsed.quantity === "string" &&
+      typeof parsed.unit === "string"
+    ) {
+      return { quantity: parsed.quantity, unit: parsed.unit };
+    }
+  } catch {
+    return { quantity: notes, unit: "" };
+  }
+
+  return { quantity: notes, unit: "" };
+}
+
+function serializeStorageCapacity(form: StorageForm) {
+  if (!form.capacityQuantity.trim()) return null;
+  return JSON.stringify({
+    quantity: form.capacityQuantity.trim(),
+    unit: form.capacityUnit.trim() || "un",
+  });
+}
+
+function formatStorageCapacity(notes: string | null) {
+  const capacity = parseStorageCapacity(notes);
+  if (!capacity.quantity) return "Nao informada";
+  return `${capacity.quantity}${capacity.unit ? ` ${capacity.unit}` : ""}`;
+}
+
+function isDefaultStorageLocation(location: StorageLocationRow) {
+  return location.is_default || location.name.toLowerCase().startsWith(DEFAULT_LOCATION_NAME.toLowerCase());
+}
+
 export default function EstoquePage() {
   const { farm } = useAuth();
   const farmRef = useRef(farm);
   farmRef.current = farm;
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>("storage");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("all");
   const [search, setSearch] = useState("");
   const [storageLocations, setStorageLocations] = useState<StorageLocationRow[]>([]);
   const [feedItems, setFeedItems] = useState<FeedInventoryCompatibilityRow[]>([]);
@@ -166,6 +239,8 @@ export default function EstoquePage() {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [adjustingFeed, setAdjustingFeed] = useState<FeedInventoryCompatibilityRow | null>(null);
   const [adjustmentForm, setAdjustmentForm] = useState<AdjustmentForm>(emptyAdjustmentForm);
+  const [lowStockThreshold, setLowStockThreshold] = useState("25");
+  const [thresholdModalOpen, setThresholdModalOpen] = useState(false);
 
   const feedLocations = useMemo(() => storageLocations.filter(feedLocationsOnly), [storageLocations]);
 
@@ -192,7 +267,20 @@ export default function EstoquePage() {
     fetchData();
   }, [fetchData]);
 
-  const filteredStorage = storageLocations.filter((location) => {
+  useEffect(() => {
+    const savedThreshold = window.localStorage.getItem("inventoryLowStockThreshold");
+    if (savedThreshold) setLowStockThreshold(savedThreshold);
+  }, []);
+
+  const visibleStorageLocations = storageLocations.filter((location) => {
+    if (activeTab === "feed") return location.category === "feed";
+    if (activeTab === "medicine") return location.category === "vaccine";
+    if (activeTab === "packaging") return location.category === "packaging";
+    if (activeTab === "equipment") return false;
+    return true;
+  });
+
+  const filteredStorage = visibleStorageLocations.filter((location) => {
     const normalizedSearch = search.toLowerCase();
     return (
       location.name.toLowerCase().includes(normalizedSearch) ||
@@ -200,7 +288,8 @@ export default function EstoquePage() {
     );
   });
 
-  const filteredFeed = feedItems.filter((item) => {
+  const visibleFeedItems = activeTab === "all" || activeTab === "feed" ? feedItems : [];
+  const filteredFeed = visibleFeedItems.filter((item) => {
     const normalizedSearch = search.toLowerCase();
     return (
       item.name.toLowerCase().includes(normalizedSearch) ||
@@ -210,8 +299,18 @@ export default function EstoquePage() {
   });
 
   const totalFeedValue = feedItems.reduce((sum, item) => sum + Number(item.total_cost ?? 0), 0);
-  const lowStockCount = feedItems.filter((item) => Number(item.quantity) <= Number(item.minimum_quantity)).length;
+  const thresholdPercent = numberOrUndefined(lowStockThreshold) ?? 25;
+  const lowStockCount = feedItems.filter((item) => getFeedStockPercent(item) <= thresholdPercent).length;
   const activeStorageCount = storageLocations.filter((location) => location.status === "active").length;
+  const averageOccupancy = feedItems.length > 0
+    ? Math.round(feedItems.reduce((sum, item) => sum + getFeedStockPercent(item), 0) / feedItems.length)
+    : 0;
+  const expiringFeedItems = feedItems
+    .filter((item) => item.expiration_date)
+    .map((item) => ({ item, days: daysUntil(item.expiration_date) }))
+    .sort((left, right) => left.days - right.days);
+  const expiringSoonCount = expiringFeedItems.filter(({ days }) => days <= 30).length;
+  const alertCount = lowStockCount + expiringSoonCount;
 
   function openAddStorage() {
     setStorageForm(emptyStorageForm);
@@ -220,19 +319,21 @@ export default function EstoquePage() {
   }
 
   function openEditStorage(location: StorageLocationRow) {
+    const capacity = parseStorageCapacity(location.notes);
     setStorageForm({
       name: location.name,
       category: location.category,
       status: location.status,
       isDefault: location.is_default,
-      capacity: location.notes ?? "",
+      capacityQuantity: capacity.quantity,
+      capacityUnit: capacity.unit || "kg",
     });
     setEditingStorage(location);
     setStorageModal("edit");
   }
 
   function openAddFeed() {
-    setFeedForm({ ...emptyFeedForm, locationId: feedLocations[0]?.id ?? "" });
+    setFeedForm({ ...emptyFeedForm, locationId: "" });
     setEditingFeed(null);
     setFeedModal("add");
   }
@@ -276,7 +377,7 @@ export default function EstoquePage() {
         category: storageForm.category,
         status: storageForm.status,
         is_default: storageForm.isDefault,
-        notes: storageForm.capacity.trim() || null,
+        notes: serializeStorageCapacity(storageForm),
       };
 
       if (storageModal === "add") {
@@ -297,14 +398,14 @@ export default function EstoquePage() {
   async function saveFeedItem() {
     const currentFarm = farmRef.current;
     const trimmedName = feedForm.name.trim();
-    if (!currentFarm || !trimmedName || !feedForm.locationId) return;
+    if (!currentFarm || !trimmedName) return;
 
     setSaving(true);
     try {
       const payload = {
         farm_id: currentFarm.id,
         name: trimmedName,
-        location_id: feedForm.locationId,
+        location_id: feedForm.locationId || undefined,
         feed_category: feedForm.feedCategory.trim() || null,
         feed_type: feedForm.feedType.trim() || null,
         quantity: numberOrUndefined(feedForm.quantity) ?? 0,
@@ -340,6 +441,11 @@ export default function EstoquePage() {
     setSaving(true);
     try {
       if (deleteTarget.type === "storage") {
+        const location = storageLocations.find((item) => item.id === deleteTarget.id);
+        if (location && isDefaultStorageLocation(location)) {
+          setDeleteTarget(null);
+          return;
+        }
         await deleteStorageLocation(deleteTarget.id);
       } else {
         await deleteInventoryItem(deleteTarget.id);
@@ -377,7 +483,8 @@ export default function EstoquePage() {
     }
   }
 
-  const actionLabel = activeTab === "storage" ? "Novo Local" : "Novo Item";
+  const canCreateFeedItem = activeTab === "all" || activeTab === "feed";
+  const actionLabel = canCreateFeedItem ? "Novo Item" : "Novo Local";
 
   return (
     <div className="space-y-6">
@@ -392,30 +499,37 @@ export default function EstoquePage() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={activeTab === "storage" ? openAddStorage : openAddFeed}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={activeTab === "feed" && feedLocations.length === 0}
-        >
-          <Plus className="h-4 w-4" />
-          {actionLabel}
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={openAddStorage}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            <Warehouse className="h-4 w-4" />
+            Novo Local
+          </button>
+          <button
+            type="button"
+            onClick={canCreateFeedItem ? openAddFeed : openAddStorage}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition-colors hover:bg-brand-700"
+          >
+            <Plus className="h-4 w-4" />
+            {actionLabel}
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <MetricCard icon={Warehouse} label="Locais ativos" value={`${activeStorageCount}/${storageLocations.length}`} />
-        <MetricCard icon={Wheat} label="Itens de racao" value={String(feedItems.length)} />
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
         <MetricCard icon={Package} label="Valor em estoque" value={formatCurrency(totalFeedValue)} />
-        <MetricCard icon={AlertTriangle} label="Estoque baixo" value={String(lowStockCount)} tone={lowStockCount > 0 ? "warning" : "ok"} />
+        <MetricCard icon={Warehouse} label="Espacos" value={`${activeStorageCount}/${storageLocations.length}`} />
+        <MetricCard icon={Box} label="Ocupacao" value={`${averageOccupancy}%`} tone={averageOccupancy <= thresholdPercent ? "warning" : "neutral"} />
+        <MetricCard icon={CalendarDays} label="Vencimento" value={expiringFeedItems[0] ? `${expiringFeedItems[0].days}d` : "-"} tone={expiringSoonCount > 0 ? "warning" : "neutral"} />
+        <MetricCard icon={ShieldAlert} label="Alertas" value={String(alertCount)} tone={alertCount > 0 ? "warning" : "ok"} />
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="flex w-full gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1 sm:w-auto">
-          {[
-            { key: "storage" as const, label: "Locais", icon: Warehouse },
-            { key: "feed" as const, label: "Racao", icon: Wheat },
-          ].map((tab) => {
+          {inventoryTabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <button
@@ -438,31 +552,35 @@ export default function EstoquePage() {
           <Search className="h-4 w-4 flex-shrink-0 text-gray-400" />
           <input
             type="text"
-            placeholder={activeTab === "storage" ? "Buscar local..." : "Buscar racao..."}
+            placeholder="Buscar estoque..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             className="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
           />
         </div>
+        <button
+          type="button"
+          onClick={() => setThresholdModalOpen(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          Alerta {thresholdPercent}%
+        </button>
       </div>
 
-      {activeTab === "storage" ? (
-        <StorageTab
-          loading={loading}
-          locations={filteredStorage}
-          onEdit={openEditStorage}
-          onDelete={(location) => setDeleteTarget({ type: "storage", id: location.id, name: location.name })}
-        />
-      ) : (
-        <FeedTab
-          loading={loading}
-          items={filteredFeed}
-          locations={feedLocations}
-          onEdit={openEditFeed}
-          onAdjust={openAdjustFeed}
-          onDelete={(item) => setDeleteTarget({ type: "feed", id: item.id, name: item.name })}
-        />
-      )}
+      <InventoryContent
+        activeTab={activeTab}
+        loading={loading}
+        storageLocations={filteredStorage}
+        feedItems={filteredFeed}
+        feedLocations={feedLocations}
+        lowStockThreshold={thresholdPercent}
+        onEditStorage={openEditStorage}
+        onDeleteStorage={(location) => setDeleteTarget({ type: "storage", id: location.id, name: location.name })}
+        onEditFeed={openEditFeed}
+        onAdjustFeed={openAdjustFeed}
+        onDeleteFeed={(item) => setDeleteTarget({ type: "feed", id: item.id, name: item.name })}
+      />
 
       {storageModal && (
         <StorageLocationModal
@@ -495,6 +613,19 @@ export default function EstoquePage() {
           onChange={setAdjustmentForm}
           onClose={() => setAdjustingFeed(null)}
           onSave={saveAdjustment}
+        />
+      )}
+
+      {thresholdModalOpen && (
+        <LowStockThresholdModal
+          value={lowStockThreshold}
+          saving={saving}
+          onChange={setLowStockThreshold}
+          onClose={() => setThresholdModalOpen(false)}
+          onSave={() => {
+            window.localStorage.setItem("inventoryLowStockThreshold", lowStockThreshold);
+            setThresholdModalOpen(false);
+          }}
         />
       )}
 
@@ -548,22 +679,84 @@ function MetricCard({
   );
 }
 
+function InventoryContent({
+  activeTab,
+  loading,
+  storageLocations,
+  feedItems,
+  feedLocations,
+  lowStockThreshold,
+  onEditStorage,
+  onDeleteStorage,
+  onEditFeed,
+  onAdjustFeed,
+  onDeleteFeed,
+}: {
+  activeTab: ActiveTab;
+  loading: boolean;
+  storageLocations: StorageLocationRow[];
+  feedItems: FeedInventoryCompatibilityRow[];
+  feedLocations: StorageLocationRow[];
+  lowStockThreshold: number;
+  onEditStorage: (location: StorageLocationRow) => void;
+  onDeleteStorage: (location: StorageLocationRow) => void;
+  onEditFeed: (item: FeedInventoryCompatibilityRow) => void;
+  onAdjustFeed: (item: FeedInventoryCompatibilityRow) => void;
+  onDeleteFeed: (item: FeedInventoryCompatibilityRow) => void;
+}) {
+  if (activeTab === "medicine" || activeTab === "equipment" || activeTab === "packaging") {
+    return (
+      <StorageTab
+        loading={loading}
+        locations={storageLocations}
+        onEdit={onEditStorage}
+        onDelete={onDeleteStorage}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {activeTab === "all" && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold text-gray-900">Locais de armazenamento</h2>
+          <StorageTab loading={loading} locations={storageLocations} onEdit={onEditStorage} onDelete={onDeleteStorage} compact />
+        </section>
+      )}
+      <section className="space-y-3">
+        {activeTab === "all" && <h2 className="text-sm font-bold text-gray-900">Racao</h2>}
+        <FeedTab
+          loading={loading}
+          items={feedItems}
+          locations={feedLocations}
+          lowStockThreshold={lowStockThreshold}
+          onEdit={onEditFeed}
+          onAdjust={onAdjustFeed}
+          onDelete={onDeleteFeed}
+        />
+      </section>
+    </div>
+  );
+}
+
 function StorageTab({
   loading,
   locations,
   onEdit,
   onDelete,
+  compact = false,
 }: {
   loading: boolean;
   locations: StorageLocationRow[];
   onEdit: (location: StorageLocationRow) => void;
   onDelete: (location: StorageLocationRow) => void;
+  compact?: boolean;
 }) {
   if (loading) return <EmptyState text="Carregando locais..." />;
   if (locations.length === 0) return <EmptyState text="Nenhum local encontrado." />;
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2", compact ? "xl:grid-cols-4" : "xl:grid-cols-3")}>
       {locations.map((location) => (
         <div key={location.id} className="rounded-2xl border border-gray-100 bg-white p-5 transition-all hover:border-gray-200 hover:shadow-lg hover:shadow-gray-200/50">
           <div className="mb-4 flex items-start justify-between gap-3">
@@ -576,7 +769,11 @@ function StorageTab({
                 <p className="mt-0.5 text-xs text-gray-500">{storageCategoryLabels[location.category]}</p>
               </div>
             </div>
-            <CardActions onEdit={() => onEdit(location)} onDelete={() => onDelete(location)} />
+            <CardActions
+              onEdit={() => onEdit(location)}
+              onDelete={() => onDelete(location)}
+              deleteDisabled={isDefaultStorageLocation(location)}
+            />
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -586,7 +783,7 @@ function StorageTab({
 
           <div className="mt-4 rounded-xl bg-gray-50 px-3 py-2">
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Capacidade</p>
-            <p className="mt-1 text-sm font-semibold text-gray-800">{location.notes || "Nao informada"}</p>
+            <p className="mt-1 text-sm font-semibold text-gray-800">{formatStorageCapacity(location.notes)}</p>
           </div>
         </div>
       ))}
@@ -598,6 +795,7 @@ function FeedTab({
   loading,
   items,
   locations,
+  lowStockThreshold,
   onEdit,
   onAdjust,
   onDelete,
@@ -605,6 +803,7 @@ function FeedTab({
   loading: boolean;
   items: FeedInventoryCompatibilityRow[];
   locations: StorageLocationRow[];
+  lowStockThreshold: number;
   onEdit: (item: FeedInventoryCompatibilityRow) => void;
   onAdjust: (item: FeedInventoryCompatibilityRow) => void;
   onDelete: (item: FeedInventoryCompatibilityRow) => void;
@@ -616,7 +815,8 @@ function FeedTab({
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {items.map((item) => {
-        const isLow = Number(item.quantity) <= Number(item.minimum_quantity);
+        const stockPercent = getFeedStockPercent(item);
+        const isLow = stockPercent <= lowStockThreshold;
         return (
           <div key={item.id} className="rounded-2xl border border-gray-100 bg-white p-5 transition-all hover:border-gray-200 hover:shadow-lg hover:shadow-gray-200/50">
             <div className="mb-4 flex items-start justify-between gap-3">
@@ -649,7 +849,7 @@ function FeedTab({
             </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
-              <Badge tone={isLow ? "warning" : "ok"}>{isLow ? "Estoque baixo" : feedStatusLabels[item.status]}</Badge>
+              <Badge tone={isLow ? "warning" : "ok"}>{isLow ? `Estoque baixo (${stockPercent}%)` : feedStatusLabels[item.status]}</Badge>
               <Badge tone="muted">{item.feed_category || "Racao"}</Badge>
               {item.expiration_date && <Badge tone="muted">Vence {new Date(`${item.expiration_date}T00:00:00`).toLocaleDateString("pt-BR")}</Badge>}
             </div>
@@ -669,13 +869,27 @@ function FeedTab({
   );
 }
 
-function CardActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+function CardActions({
+  onEdit,
+  onDelete,
+  deleteDisabled = false,
+}: {
+  onEdit: () => void;
+  onDelete: () => void;
+  deleteDisabled?: boolean;
+}) {
   return (
     <div className="flex flex-shrink-0 items-center gap-1">
       <button type="button" onClick={onEdit} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-brand-50 hover:text-brand-600">
         <Pencil className="h-3.5 w-3.5" />
       </button>
-      <button type="button" onClick={onDelete} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500">
+      <button
+        type="button"
+        onClick={onDelete}
+        disabled={deleteDisabled}
+        title={deleteDisabled ? "Locais padrao nao podem ser excluidos" : "Excluir"}
+        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
+      >
         <Trash2 className="h-3.5 w-3.5" />
       </button>
     </div>
@@ -742,7 +956,21 @@ function StorageLocationModal({
             ]}
           />
         </div>
-        <TextField label="Capacidade" value={form.capacity} onChange={(capacity) => onChange({ ...form, capacity })} placeholder="Ex: 50 toneladas" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <TextField
+            label="Quantidade da capacidade"
+            type="number"
+            value={form.capacityQuantity}
+            onChange={(capacityQuantity) => onChange({ ...form, capacityQuantity })}
+            placeholder="Ex: 50"
+          />
+          <TextField
+            label="Unidade da capacidade"
+            value={form.capacityUnit}
+            onChange={(capacityUnit) => onChange({ ...form, capacityUnit })}
+            placeholder="Ex: toneladas"
+          />
+        </div>
         <label className="flex items-center gap-2 rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm font-medium text-gray-700">
           <input type="checkbox" checked={form.isDefault} onChange={(event) => onChange({ ...form, isDefault: event.target.checked })} className="h-4 w-4 rounded border-gray-300 text-brand-600" />
           Local padrao desta categoria
@@ -778,7 +1006,10 @@ function FeedItemModal({
           label="Local de armazenamento"
           value={form.locationId}
           onChange={(locationId) => onChange({ ...form, locationId })}
-          options={locations.map((location) => [location.id, location.name])}
+          options={[
+            ["", "Sem local definido"],
+            ...locations.map((location) => [location.id, location.name] as [string, string]),
+          ]}
         />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <TextField label="Categoria" value={form.feedCategory} onChange={(feedCategory) => onChange({ ...form, feedCategory })} placeholder="Ex: Postura" />
@@ -846,6 +1077,38 @@ function AdjustmentModal({
         <TextArea label="Observacoes" value={form.notes} onChange={(notes) => onChange({ ...form, notes })} placeholder="Detalhes da perda ou ajuste..." />
       </div>
       <ModalActions saving={saving} onClose={onClose} onSave={onSave} saveLabel="Registrar" />
+    </ModalShell>
+  );
+}
+
+function LowStockThresholdModal({
+  value,
+  saving,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  value: string;
+  saving: boolean;
+  onChange: (value: string) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <ModalShell title="Configurar alerta de estoque" onClose={onClose} size="sm">
+      <div className="space-y-4">
+        <div className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+          Itens de racao serao marcados como baixo estoque quando ficarem abaixo deste percentual.
+        </div>
+        <TextField
+          label="Percentual minimo"
+          type="number"
+          value={value}
+          onChange={onChange}
+          placeholder="25"
+        />
+      </div>
+      <ModalActions saving={saving} onClose={onClose} onSave={onSave} />
     </ModalShell>
   );
 }

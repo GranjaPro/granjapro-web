@@ -61,6 +61,7 @@ type FeedInventorySelectedRow = FeedInventoryRow & {
 };
 
 const DEFAULT_FEED_LOCATION_NAME = "Sem local definido - Racao";
+const DEFAULT_STORAGE_LOCATION_NAME = "Sem local definido";
 
 function isMissingSpecializedInventoryTable(error: { code?: string; message?: string } | null) {
   if (!error) return false;
@@ -94,15 +95,19 @@ function mapFeedInventoryRow(row: FeedInventorySelectedRow): FeedInventoryCompat
   };
 }
 
-async function getOrCreateFeedLocation(farmId: string, preferredName?: string | null) {
+async function getOrCreateStorageLocation(
+  farmId: string,
+  category: StorageLocationRow["category"],
+  preferredName?: string | null,
+) {
   const supabase = createClient();
-  const locationName = preferredName?.trim() || DEFAULT_FEED_LOCATION_NAME;
+  const locationName = preferredName?.trim() || DEFAULT_STORAGE_LOCATION_NAME;
 
   const { data: existingLocation, error: lookupError } = await supabase
     .from("storage_locations")
     .select("*")
     .eq("farm_id", farmId)
-    .eq("category", "feed")
+    .eq("category", category)
     .eq("name", locationName)
     .maybeSingle();
 
@@ -113,18 +118,29 @@ async function getOrCreateFeedLocation(farmId: string, preferredName?: string | 
     .from("storage_locations")
     .select("*")
     .eq("farm_id", farmId)
-    .eq("category", "feed")
+    .eq("category", category)
     .eq("is_default", true)
     .maybeSingle();
 
   if (defaultError) throw defaultError;
   if (!preferredName?.trim() && defaultLocation) return defaultLocation as StorageLocationRow;
 
+  const { data: legacyFeedLocation, error: legacyLookupError } = await supabase
+    .from("storage_locations")
+    .select("*")
+    .eq("farm_id", farmId)
+    .eq("category", category)
+    .eq("name", DEFAULT_FEED_LOCATION_NAME)
+    .maybeSingle();
+
+  if (legacyLookupError) throw legacyLookupError;
+  if (!preferredName?.trim() && legacyFeedLocation) return legacyFeedLocation as StorageLocationRow;
+
   const newLocation: TablesInsert<"storage_locations"> = {
     farm_id: farmId,
     name: locationName,
-    category: "feed",
-    is_default: locationName === DEFAULT_FEED_LOCATION_NAME,
+    category,
+    is_default: !preferredName?.trim(),
   };
 
   const { data: createdLocation, error: createError } = await supabase
@@ -135,6 +151,10 @@ async function getOrCreateFeedLocation(farmId: string, preferredName?: string | 
 
   if (createError) throw createError;
   return createdLocation as StorageLocationRow;
+}
+
+async function getOrCreateFeedLocation(farmId: string, preferredName?: string | null) {
+  return getOrCreateStorageLocation(farmId, "feed", preferredName);
 }
 
 function normalizeFeedInsert(input: FeedInventoryCompatibilityInput, locationId: string): TablesInsert<"feed_inventory"> {
