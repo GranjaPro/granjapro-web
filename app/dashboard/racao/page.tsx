@@ -48,7 +48,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { getFeedByDateRange, createFeedRecord, updateFeedRecord, deleteFeedRecord } from "@/lib/services/feed";
 import { getWaterByDateRange, type WaterConsumptionRow } from "@/lib/services/water";
-import { getFeedInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, type FeedInventoryCompatibilityRow } from "@/lib/services/inventory";
+import { getFeedInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, type FeedInventoryCompatibilityRow, type StorageLocationRow } from "@/lib/services/inventory";
 import { getProductionByDateRange } from "@/lib/services/production";
 import { getBarns } from "@/lib/services/barns";
 import { getFlocks } from "@/lib/services/flocks";
@@ -78,6 +78,7 @@ interface RegistroRacao {
 
 interface ItemEstoque {
   id: string;
+  locationId: string;
   nome: string;
   categoria: string;
   quantidade: number;
@@ -87,6 +88,7 @@ interface ItemEstoque {
   localizacao?: string;
   lote?: string;
   dataChegada?: string;
+  valorTotal: number;
 }
 
 interface Barn {
@@ -191,10 +193,11 @@ export default function RacaoPage() {
   const [registros, setRegistros] = useState<RegistroRacao[]>([]);
   const [estoque, setEstoque] = useState<ItemEstoque[]>([]);
   const [estoqueModal, setEstoqueModal] = useState<"add" | "view" | null>(null);
-  const [estoqueForm, setEstoqueForm] = useState({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal" as StatusEstoque, fornecedor: "", localizacao: "", lote: "", dataChegada: "" });
+  const [storageLocations, setStorageLocations] = useState<StorageLocationRow[]>([]);
+  const [estoqueForm, setEstoqueForm] = useState({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal" as StatusEstoque, fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", valorTotal: "" });
   const [viewingEstoque, setViewingEstoque] = useState<ItemEstoque | null>(null);
   const [editingEstoque, setEditingEstoque] = useState(false);
-  const [editEstoqueForm, setEditEstoqueForm] = useState({ nome: "", categoria: "", quantidade: "", unidade: "", status: "normal" as StatusEstoque, fornecedor: "", localizacao: "", lote: "", dataChegada: "" });
+  const [editEstoqueForm, setEditEstoqueForm] = useState({ nome: "", categoria: "", quantidade: "", unidade: "", status: "normal" as StatusEstoque, fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", valorTotal: "" });
   const [modal, setModal] = useState<ModalMode>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [consumoMensalMode, setConsumoMensalMode] = useState<"rs" | "kg">("rs");
@@ -293,14 +296,24 @@ export default function RacaoPage() {
 
       const { startDate, endDate } = dateRange;
 
-      const [feedData, prodData, inventoryData, barnsData, flocksData, waterData] = await Promise.all([
+      const [feedData, prodData, inventoryData, barnsData, flocksData, waterData, locationsRes] = await Promise.all([
         getFeedByDateRange(profile.farm_id, startDate, endDate),
         getProductionByDateRange(profile.farm_id, startDate, endDate),
         getFeedInventory(profile.farm_id),
         getBarns(profile.farm_id),
         getFlocks(profile.farm_id),
         showProFeatures ? getWaterByDateRange(profile.farm_id, startDate, endDate) : Promise.resolve([]),
+        supabase
+          .from("storage_locations")
+          .select("*")
+          .eq("farm_id", profile.farm_id)
+          .eq("category", "feed")
+          .order("is_default", { ascending: false })
+          .order("name", { ascending: true }),
       ]);
+
+      if (locationsRes.error) throw locationsRes.error;
+      setStorageLocations((locationsRes.data ?? []) as StorageLocationRow[]);
 
       const typedBarns = barnsData as Barn[];
       const typedFlocks = flocksData as Flock[];
@@ -346,9 +359,9 @@ export default function RacaoPage() {
       
       // Map Inventory
       const mappedInv: ItemEstoque[] = inventoryData
-        .filter((d: FeedInventoryCompatibilityRow) => d.type === "racao")
         .map((d: FeedInventoryCompatibilityRow) => ({
         id: d.id,
+        locationId: d.location_id,
         nome: d.name,
         categoria: d.type,
         quantidade: Number(d.quantity),
@@ -357,7 +370,8 @@ export default function RacaoPage() {
         fornecedor: d.notes || "",
         localizacao: d.location || "",
         lote: "",
-        dataChegada: d.created_at
+        dataChegada: d.created_at,
+        valorTotal: Number(d.total_cost ?? 0)
       }));
       setEstoque(mappedInv);
 
@@ -1388,7 +1402,7 @@ export default function RacaoPage() {
           <div className="space-y-0 max-h-[320px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
             {estoque.map((item, i) => (
               <div key={item.id}>
-                <button onClick={() => { setViewingEstoque(item); setEditingEstoque(false); setEditEstoqueForm({ nome: item.nome, categoria: item.categoria, quantidade: String(item.quantidade), unidade: item.unidade, status: item.status, fornecedor: item.fornecedor || "", localizacao: item.localizacao || "", lote: item.lote || "", dataChegada: item.dataChegada || "" }); setEstoqueModal("view"); }} className="flex items-center justify-between py-2.5 group cursor-pointer hover:bg-gray-50/50 -mx-2 px-2 rounded-lg transition-colors w-full text-left">
+                <button onClick={() => { setViewingEstoque(item); setEditingEstoque(false); setEditEstoqueForm({ nome: item.nome, categoria: item.categoria, quantidade: String(item.quantidade), unidade: item.unidade, status: item.status, fornecedor: item.fornecedor || "", localizacaoId: item.locationId, lote: item.lote || "", dataChegada: item.dataChegada || "", valorTotal: String(item.valorTotal || "") }); setEstoqueModal("view"); }} className="flex items-center justify-between py-2.5 group cursor-pointer hover:bg-gray-50/50 -mx-2 px-2 rounded-lg transition-colors w-full text-left">
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                     <div className={cn(
                       "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
@@ -1744,7 +1758,12 @@ export default function RacaoPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Localização</label>
-                  <input type="text" value={estoqueForm.localizacao} onChange={(e) => setEstoqueForm({ ...estoqueForm, localizacao: e.target.value })} placeholder="Ex: Galpão A" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  <select value={estoqueForm.localizacaoId} onChange={(e) => setEstoqueForm({ ...estoqueForm, localizacaoId: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
+                    <option value="">Sem local definido</option>
+                    {storageLocations.map((location) => (
+                      <option key={location.id} value={location.id}>{location.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1755,6 +1774,10 @@ export default function RacaoPage() {
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Data de Chegada</label>
                   <input type="date" value={estoqueForm.dataChegada} onChange={(e) => setEstoqueForm({ ...estoqueForm, dataChegada: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Valor Total (R$)</label>
+                  <input type="number" min="0" step="0.01" value={estoqueForm.valorTotal} onChange={(e) => setEstoqueForm({ ...estoqueForm, valorTotal: e.target.value })} placeholder="0,00" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
               </div>
             </div>
@@ -1773,11 +1796,12 @@ export default function RacaoPage() {
                       unit: estoqueForm.unidade,
                       status: estoqueForm.status,
                       supplier: estoqueForm.fornecedor || null,
-                      location: estoqueForm.localizacao || null,
+                      location_id: estoqueForm.localizacaoId || undefined,
                       lot_number: estoqueForm.lote || null,
                       arrival_date: estoqueForm.dataChegada || null,
+                      total_cost: Number(estoqueForm.valorTotal) || null,
                     });
-                    setEstoqueForm({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal", fornecedor: "", localizacao: "", lote: "", dataChegada: "" });
+                    setEstoqueForm({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal", fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", valorTotal: "" });
                     setEstoqueModal(null);
                     await loadData();
                   } catch (err) {
@@ -1889,7 +1913,12 @@ export default function RacaoPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Localização</label>
-                    <input type="text" value={editEstoqueForm.localizacao} onChange={(e) => setEditEstoqueForm({ ...editEstoqueForm, localizacao: e.target.value })} placeholder="Ex: Galpão A" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all" />
+                    <select value={editEstoqueForm.localizacaoId} onChange={(e) => setEditEstoqueForm({ ...editEstoqueForm, localizacaoId: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all bg-white cursor-pointer">
+                      <option value="">Sem local definido</option>
+                      {storageLocations.map((location) => (
+                        <option key={location.id} value={location.id}>{location.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -1900,6 +1929,10 @@ export default function RacaoPage() {
                   <div>
                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Data de Chegada</label>
                     <input type="date" value={editEstoqueForm.dataChegada} onChange={(e) => setEditEstoqueForm({ ...editEstoqueForm, dataChegada: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Valor Total (R$)</label>
+                    <input type="number" min="0" step="0.01" value={editEstoqueForm.valorTotal} onChange={(e) => setEditEstoqueForm({ ...editEstoqueForm, valorTotal: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all" />
                   </div>
                 </div>
                 <div className="flex items-center gap-3 mt-2">
@@ -1921,9 +1954,10 @@ export default function RacaoPage() {
                           unit: editEstoqueForm.unidade || viewingEstoque.unidade,
                           status: editEstoqueForm.status,
                           supplier: editEstoqueForm.fornecedor || null,
-                          location: editEstoqueForm.localizacao || null,
+                          location_id: editEstoqueForm.localizacaoId || undefined,
                           lot_number: editEstoqueForm.lote || null,
                           arrival_date: editEstoqueForm.dataChegada || null,
+                          total_cost: Number(editEstoqueForm.valorTotal) || null,
                         });
                         setEditingEstoque(false);
                         await loadData();
