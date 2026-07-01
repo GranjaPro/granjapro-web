@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 22-storage-locations-and-inventory-database
 source: 22-01-SUMMARY.md, 22-02-SUMMARY.md
 started: 2026-07-01T12:11:00Z
@@ -54,21 +54,42 @@ blocked: 0
   reason: "User reported: Ao adicionar ração a localização deve ser um select com os galpões de armazenamento de ração existentes registrados dentro /inventory, ou o usuário seleciona uma opção \"Sem local definido\" caso não tenha galpão criado ainda. O registro pela página de ração está funcionando corretamente, mas não está renderizando na página de ração no componente correspondente"
   severity: major
   test: 3
-  artifacts: []
-  missing: []
+  root_cause: "app/dashboard/racao/page.tsx strictly filters inventoryData with .filter(d => d.type === 'racao'), but added items use form's default categoria 'Ração'. Location field is an <input type='text'> instead of a select dropdown because it doesn't fetch storage_locations."
+  artifacts:
+    - path: "app/dashboard/racao/page.tsx"
+      issue: "Location input is a text field instead of a select dropdown, and case-sensitive filter prevents rendering."
+  missing:
+    - "Fetch storage_locations (where category === 'feed') during loadData"
+    - "Populate a select dropdown with a 'Sem local definido' default"
+    - "Remove the unnecessary .filter((d) => d.type === 'racao') since getFeedInventory already returns feed items"
+  debug_session: ".planning/debug/add-feed-location-render.md"
 
 - truth: "After adding a feed inventory item, checking the financial/expenses section shows an automatically generated expense transaction corresponding to the new item."
   status: failed
   reason: "User reported: não é possível ainda adicionar o valor pago no registro da ração"
   severity: major
   test: 4
-  artifacts: []
-  missing: []
+  root_cause: "The form in app/dashboard/racao/page.tsx is missing an input field for the paid amount/cost (total_cost). The feed is registered with a null/zero cost, causing the trigger to generate a $0 financial expense."
+  artifacts:
+    - path: "app/dashboard/racao/page.tsx"
+      issue: "Missing cost input field in the modal UI, the form state variables, and the createInventoryItem payload."
+  missing:
+    - "Add a 'Valor Total' (Total Cost) numeric input field to both the add and edit inventory modals"
+    - "Update the form states to track total_cost"
+    - "Pass total_cost in the API calls"
+  debug_session: ".planning/debug/feed-price-field-missing.md"
 
 - truth: "Deleting the previously added feed inventory item successfully removes it from the list, and checking the financial section shows the associated expense transaction has been automatically deleted."
   status: failed
   reason: "User reported: não é possível ainda adicionar o valor pago no registro da ração, logo não tem como remover."
   severity: major
   test: 5
-  artifacts: []
-  missing: []
+  root_cause: "The sync_inventory_purchase_expense trigger skips creating the transaction if total_cost is null or 0. The app/dashboard/inventory/page.tsx modal lacks inputs for valorEstoque, quantidade, and unidade."
+  artifacts:
+    - path: "app/dashboard/inventory/page.tsx"
+      issue: "The modal UI lacks the input fields for price (valorEstoque), quantity (quantidade), and unit (unidade)."
+    - path: "supabase/migrations/00023_storage_locations_inventory_database.sql"
+      issue: "Trigger gracefully fails when total_cost is empty/zero."
+  missing:
+    - "Add the missing input fields (specifically valorEstoque and quantidade) to the Add/Edit modal in app/dashboard/inventory/page.tsx"
+  debug_session: ".planning/debug/delete-feed-missing-expense.md"
