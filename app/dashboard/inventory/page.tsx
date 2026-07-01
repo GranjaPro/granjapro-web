@@ -51,7 +51,7 @@ type LossReason = InventoryLossRow["reason"];
 
 type StorageForm = {
   name: string;
-  category: StorageCategory;
+  category: StorageCategory | "equipment";
   status: StorageStatus;
   isDefault: boolean;
   capacityQuantity: string;
@@ -65,12 +65,9 @@ type FeedForm = {
   feedType: string;
   quantity: string;
   unit: string;
-  status: FeedInventoryCompatibilityRow["status"];
   supplier: string;
   unitCost: string;
   totalCost: string;
-  lotNumber: string;
-  minimumQuantity: string;
   expirationDate: string;
   notes: string;
 };
@@ -94,15 +91,12 @@ const emptyFeedForm: FeedForm = {
   name: "",
   locationId: "",
   feedCategory: "",
-  feedType: "",
+  feedType: "comercial",
   quantity: "",
   unit: "kg",
-  status: "normal",
   supplier: "",
   unitCost: "",
   totalCost: "",
-  lotNumber: "",
-  minimumQuantity: "",
   expirationDate: "",
   notes: "",
 };
@@ -241,6 +235,7 @@ export default function EstoquePage() {
   const [adjustmentForm, setAdjustmentForm] = useState<AdjustmentForm>(emptyAdjustmentForm);
   const [lowStockThreshold, setLowStockThreshold] = useState("25");
   const [thresholdModalOpen, setThresholdModalOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const feedLocations = useMemo(() => storageLocations.filter(feedLocationsOnly), [storageLocations]);
 
@@ -276,7 +271,7 @@ export default function EstoquePage() {
     if (activeTab === "feed") return location.category === "feed";
     if (activeTab === "medicine") return location.category === "vaccine";
     if (activeTab === "packaging") return location.category === "packaging";
-    if (activeTab === "equipment") return false;
+    if (activeTab === "equipment") return location.category === ("equipment" as any); // allow if it exists
     return true;
   });
 
@@ -343,15 +338,12 @@ export default function EstoquePage() {
       name: item.name,
       locationId: item.location_id,
       feedCategory: item.feed_category ?? "",
-      feedType: item.feed_type ?? "",
+      feedType: item.feed_type ?? "comercial",
       quantity: String(item.quantity),
       unit: item.unit,
-      status: item.status,
       supplier: item.supplier ?? "",
       unitCost: item.unit_cost === null ? "" : String(item.unit_cost),
       totalCost: item.total_cost === null ? "" : String(item.total_cost),
-      lotNumber: item.lot_number ?? "",
-      minimumQuantity: String(item.minimum_quantity),
       expirationDate: item.expiration_date ?? "",
       notes: item.notes ?? "",
     });
@@ -410,12 +402,12 @@ export default function EstoquePage() {
         feed_type: feedForm.feedType.trim() || null,
         quantity: numberOrUndefined(feedForm.quantity) ?? 0,
         unit: feedForm.unit,
-        status: feedForm.status,
+        status: "normal" as const,
         supplier: feedForm.supplier.trim() || null,
         unit_cost: numberOrUndefined(feedForm.unitCost) ?? null,
         total_cost: numberOrUndefined(feedForm.totalCost) ?? null,
-        lot_number: feedForm.lotNumber.trim() || null,
-        minimum_quantity: numberOrUndefined(feedForm.minimumQuantity) ?? 0,
+        lot_number: null,
+        minimum_quantity: 0,
         expiration_date: feedForm.expirationDate || null,
         notes: feedForm.notes.trim() || null,
       };
@@ -452,8 +444,9 @@ export default function EstoquePage() {
       }
       setDeleteTarget(null);
       await fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      setErrorMessage(error.message || "Erro ao excluir o item. Ele pode estar sendo referenciado em outros registros.");
     } finally {
       setSaving(false);
     }
@@ -523,7 +516,6 @@ export default function EstoquePage() {
         <MetricCard icon={Package} label="Valor em estoque" value={formatCurrency(totalFeedValue)} />
         <MetricCard icon={Warehouse} label="Espacos" value={`${activeStorageCount}/${storageLocations.length}`} />
         <MetricCard icon={Box} label="Ocupacao" value={`${averageOccupancy}%`} tone={averageOccupancy <= thresholdPercent ? "warning" : "neutral"} />
-        <MetricCard icon={CalendarDays} label="Vencimento" value={expiringFeedItems[0] ? `${expiringFeedItems[0].days}d` : "-"} tone={expiringSoonCount > 0 ? "warning" : "neutral"} />
         <MetricCard icon={ShieldAlert} label="Alertas" value={String(alertCount)} tone={alertCount > 0 ? "warning" : "ok"} />
       </div>
 
@@ -614,6 +606,22 @@ export default function EstoquePage() {
           onClose={() => setAdjustingFeed(null)}
           onSave={saveAdjustment}
         />
+      )}
+
+      {errorMessage && (
+        <ModalShell title="Atenção" onClose={() => setErrorMessage(null)} size="sm">
+          <div className="rounded-xl bg-red-50 p-4 text-sm text-red-800">
+            {errorMessage}
+          </div>
+          <div className="flex justify-end pt-2">
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-200"
+            >
+              Fechar
+            </button>
+          </div>
+        </ModalShell>
       )}
 
       {thresholdModalOpen && (
@@ -724,7 +732,7 @@ function InventoryContent({
         </section>
       )}
       <section className="space-y-3">
-        {activeTab === "all" && <h2 className="text-sm font-bold text-gray-900">Racao</h2>}
+        <h2 className="text-sm font-bold text-gray-900">{activeTab === "feed" ? "Racao" : "Itens de estoque"}</h2>
         <FeedTab
           loading={loading}
           items={feedItems}
@@ -854,14 +862,6 @@ function FeedTab({
               {item.expiration_date && <Badge tone="muted">Vence {new Date(`${item.expiration_date}T00:00:00`).toLocaleDateString("pt-BR")}</Badge>}
             </div>
 
-            <button
-              type="button"
-              onClick={() => onAdjust(item)}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-100"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              Ajustar / Registrar perda
-            </button>
           </div>
         );
       })}
@@ -964,11 +964,18 @@ function StorageLocationModal({
             onChange={(capacityQuantity) => onChange({ ...form, capacityQuantity })}
             placeholder="Ex: 50"
           />
-          <TextField
+          <SelectField
             label="Unidade da capacidade"
             value={form.capacityUnit}
             onChange={(capacityUnit) => onChange({ ...form, capacityUnit })}
-            placeholder="Ex: toneladas"
+            options={[
+              ["kg", "kg"],
+              ["g", "g"],
+              ["mg", "mg"],
+              ["l", "l"],
+              ["ml", "ml"],
+              ["un", "un"],
+            ]}
           />
         </div>
         <label className="flex items-center gap-2 rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm font-medium text-gray-700">
@@ -1013,35 +1020,69 @@ function FeedItemModal({
         />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <TextField label="Categoria" value={form.feedCategory} onChange={(feedCategory) => onChange({ ...form, feedCategory })} placeholder="Ex: Postura" />
-          <TextField label="Tipo" value={form.feedType} onChange={(feedType) => onChange({ ...form, feedType })} placeholder="Ex: farelada" />
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <TextField label="Quantidade" type="number" value={form.quantity} onChange={(quantity) => onChange({ ...form, quantity })} placeholder="0" />
-          <TextField label="Unidade" value={form.unit} onChange={(unit) => onChange({ ...form, unit })} placeholder="kg" />
           <SelectField
-            label="Status"
-            value={form.status}
-            onChange={(status) => onChange({ ...form, status: status as FeedInventoryCompatibilityRow["status"] })}
+            label="Tipo"
+            value={form.feedType}
+            onChange={(feedType) => onChange({ ...form, feedType })}
             options={[
-              ["normal", "Normal"],
-              ["alerta", "Alerta"],
-              ["baixo", "Baixo"],
+              ["comercial", "Comercial"],
+              ["milho_mix", "Milho Mix"],
+              ["formula_custom", "Fórmula Custom"],
+              ["soja_blend", "Soja Blend"],
             ]}
           />
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <TextField label="Custo unitario" type="number" value={form.unitCost} onChange={(unitCost) => onChange({ ...form, unitCost })} placeholder="0,00" />
-          <TextField label="Valor total" type="number" value={form.totalCost} onChange={(totalCost) => onChange({ ...form, totalCost })} placeholder="0,00" />
-          <TextField label="Minimo" type="number" value={form.minimumQuantity} onChange={(minimumQuantity) => onChange({ ...form, minimumQuantity })} placeholder="0" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <TextField label="Quantidade" type="number" value={form.quantity} onChange={(quantity) => onChange({ ...form, quantity })} placeholder="0" />
+          <SelectField
+            label="Unidade"
+            value={form.unit}
+            onChange={(unit) => onChange({ ...form, unit })}
+            options={[
+              ["kg", "kg"],
+              ["g", "g"],
+              ["mg", "mg"],
+              ["l", "l"],
+              ["ml", "ml"],
+              ["un", "un"],
+            ]}
+          />
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <TextField label="Custo unitario" type="number" value={form.unitCost} onChange={(unitCost) => {
+            const numUnit = Number(unitCost);
+            const numQty = Number(form.quantity);
+            const total = numQty > 0 && numUnit > 0 ? (numUnit * numQty).toFixed(2) : form.totalCost;
+            onChange({ ...form, unitCost, totalCost: total });
+          }} placeholder="0,00" />
+          <TextField label="Valor total" type="number" value={form.totalCost} onChange={(totalCost) => {
+            const numTotal = Number(totalCost);
+            const numQty = Number(form.quantity);
+            const unit = numQty > 0 && numTotal > 0 ? (numTotal / numQty).toFixed(2) : form.unitCost;
+            onChange({ ...form, totalCost, unitCost: unit });
+          }} placeholder="0,00" />
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <TextField label="Fornecedor" value={form.supplier} onChange={(supplier) => onChange({ ...form, supplier })} placeholder="Opcional" />
-          <TextField label="Lote" value={form.lotNumber} onChange={(lotNumber) => onChange({ ...form, lotNumber })} placeholder="Opcional" />
           <TextField label="Vencimento" type="date" value={form.expirationDate} onChange={(expirationDate) => onChange({ ...form, expirationDate })} />
         </div>
         <TextArea label="Observacoes" value={form.notes} onChange={(notes) => onChange({ ...form, notes })} placeholder="Notas sobre o item..." />
       </div>
-      <ModalActions saving={saving} onClose={onClose} onSave={onSave} />
+      <ModalActions
+        saving={saving}
+        onClose={onClose}
+        onSave={onSave}
+        saveDisabled={
+          !form.name.trim() ||
+          !form.locationId ||
+          !form.feedCategory.trim() ||
+          !form.feedType ||
+          !form.quantity ||
+          !form.unit ||
+          (!form.unitCost && !form.totalCost) ||
+          !form.expirationDate
+        }
+      />
     </ModalShell>
   );
 }
@@ -1182,18 +1223,20 @@ function ModalActions({
   onClose,
   onSave,
   saveLabel = "Salvar",
+  saveDisabled = false,
 }: {
   saving: boolean;
   onClose: () => void;
   onSave: () => void;
   saveLabel?: string;
+  saveDisabled?: boolean;
 }) {
   return (
     <div className="flex items-center justify-end gap-2 pt-2">
       <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100">
         Cancelar
       </button>
-      <button type="button" onClick={onSave} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 disabled:opacity-60">
+      <button type="button" onClick={onSave} disabled={saving || saveDisabled} className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed">
         <Check className="h-4 w-4" />
         {saveLabel}
       </button>
