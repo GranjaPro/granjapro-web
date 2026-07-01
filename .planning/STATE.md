@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Phase Index
 status: executing
-last_updated: "2026-07-01T12:08:19.827Z"
+last_updated: "2026-07-01T12:44:24.604Z"
 last_activity: 2026-07-01
 progress:
   total_phases: 17
@@ -98,6 +98,6 @@ Last activity: 2026-07-01
 
 **To resume work:**
 
-1. Phase 15 UI Spec is approved.
-2. Review `.planning/phases/15-real-health-history-page/15-UI-SPEC.md` for visual details.
-3. Run `/gsd-plan-phase 15` to design the technical implementation plan.
+1. Phase 23 Context is gathered.
+2. Review `.planning/phases/23-storage-locations-and-feed-ui/23-CONTEXT.md` for visual details and implementation decisions.
+3. Run `/gsd-plan-phase 23` to design the technical implementation plan.
