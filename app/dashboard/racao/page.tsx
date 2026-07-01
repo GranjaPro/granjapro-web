@@ -48,10 +48,11 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { getFeedByDateRange, createFeedRecord, updateFeedRecord, deleteFeedRecord } from "@/lib/services/feed";
 import { getWaterByDateRange, type WaterConsumptionRow } from "@/lib/services/water";
-import { getFeedInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem } from "@/lib/services/inventory";
+import { getFeedInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, type FeedInventoryCompatibilityRow } from "@/lib/services/inventory";
 import { getProductionByDateRange } from "@/lib/services/production";
 import { getBarns } from "@/lib/services/barns";
 import { getFlocks } from "@/lib/services/flocks";
+import type { Tables } from "@/lib/database.types";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { hasMinimumPlan } from "@/lib/plans";
 import { usePlan } from "@/components/plan/plan-provider";
@@ -107,6 +108,12 @@ interface DailyEfficiencyPoint {
   eficiencia: number;
   consumoAveG: number;
 }
+
+type FeedConsumptionWithBarn = Tables<"feed_consumption"> & {
+  barns?: { name?: string | null; current_birds?: number | null } | null;
+};
+type ProductionRow = Tables<"egg_production">;
+type FeedMetricKey = "cost" | "quantity_kg";
 
 const tipoLabel: Record<TipoRacao, string> = {
   milho: "Milho Mix",
@@ -208,7 +215,7 @@ export default function RacaoPage() {
   const [waterRecords, setWaterRecords] = useState<WaterConsumptionRow[]>([]);
   const [distType, setDistType] = useState<{ tipo: string; kg: number; pct: number; color: string }[]>([]);
 
-  const calculateMonthly = useCallback((data: any[], key: string) => {
+  const calculateMonthly = useCallback((data: FeedConsumptionWithBarn[], key: FeedMetricKey) => {
     const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
     const map: Record<string, number> = {};
     
@@ -230,7 +237,7 @@ export default function RacaoPage() {
     return Object.entries(map).map(([mes, valor]) => ({ mes, valor }));
   }, []);
 
-  const mapDailyEfficiency = useCallback((feed: any[], prod: any[], birdCount: number) => {
+  const mapDailyEfficiency = useCallback((feed: FeedConsumptionWithBarn[], prod: ProductionRow[], birdCount: number) => {
     const last7Days: DailyEfficiencyPoint[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
@@ -252,7 +259,7 @@ export default function RacaoPage() {
     return last7Days;
   }, []);
 
-  const calculateDistribution = useCallback((data: any[]) => {
+  const calculateDistribution = useCallback((data: FeedConsumptionWithBarn[]) => {
     const totals: Record<string, number> = {};
     let grandTotal = 0;
     
@@ -295,22 +302,27 @@ export default function RacaoPage() {
         showProFeatures ? getWaterByDateRange(profile.farm_id, startDate, endDate) : Promise.resolve([]),
       ]);
 
-      setBarns(barnsData.map((b: any) => ({
+      const typedBarns = barnsData as Barn[];
+      const typedFlocks = flocksData as Flock[];
+      const typedFeedData = feedData as FeedConsumptionWithBarn[];
+      const typedProdData = prodData as ProductionRow[];
+
+      setBarns(typedBarns.map((b) => ({
         id: b.id,
         name: b.name,
         current_birds: b.current_birds || 0
       })));
-      const totalBirds = barnsData.reduce((sum: number, barn: Barn) => sum + (barn.current_birds || 0), 0);
+      const totalBirds = typedBarns.reduce((sum, barn) => sum + (barn.current_birds || 0), 0);
       setWaterRecords(waterData);
 
-      setFlocks((flocksData || []).map((f: any) => ({
+      setFlocks((typedFlocks || []).map((f) => ({
         id: f.id,
         code: f.code || "",
         breed: f.breed || "",
       })));
 
       // Map Table
-      const mapped: RegistroRacao[] = feedData.map((d: any) => {
+      const mapped: RegistroRacao[] = typedFeedData.map((d) => {
         const typeStr = d.feed_type.toLowerCase();
         let tipo: TipoRacao = "comercial";
         if (typeStr.includes("milho")) tipo = "milho";
@@ -334,8 +346,8 @@ export default function RacaoPage() {
       
       // Map Inventory
       const mappedInv: ItemEstoque[] = inventoryData
-        .filter((d: any) => d.type === "racao")
-        .map((d: any) => ({
+        .filter((d: FeedInventoryCompatibilityRow) => d.type === "racao")
+        .map((d: FeedInventoryCompatibilityRow) => ({
         id: d.id,
         nome: d.name,
         categoria: d.type,
@@ -350,17 +362,17 @@ export default function RacaoPage() {
       setEstoque(mappedInv);
 
       // Egg total for cost-per-egg KPI
-      setTotalEggs((prodData || []).reduce((s: number, p: any) => s + (p.eggs_produced || 0), 0));
+      setTotalEggs((typedProdData || []).reduce((s, p) => s + (p.eggs_produced || 0), 0));
 
       // Transformers
-      setMonthlyRS(calculateMonthly(feedData, 'cost'));
-      setMonthlyKg(calculateMonthly(feedData, 'quantity_kg'));
-      setDailyChart(mapDailyEfficiency(feedData, prodData, totalBirds));
-      setDistType(calculateDistribution(feedData));
+      setMonthlyRS(calculateMonthly(typedFeedData, "cost"));
+      setMonthlyKg(calculateMonthly(typedFeedData, "quantity_kg"));
+      setDailyChart(mapDailyEfficiency(typedFeedData, typedProdData, totalBirds));
+      setDistType(calculateDistribution(typedFeedData));
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || "Erro ao carregar dados");
+      setError(err instanceof Error ? err.message : "Erro ao carregar dados");
     } finally {
       setIsLoading(false);
     }
@@ -579,7 +591,7 @@ export default function RacaoPage() {
       
       setModal(null);
       await loadData(); // Reload to get fresh data
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       alert("Erro ao salvar registro");
     } finally {
@@ -594,7 +606,7 @@ export default function RacaoPage() {
       await deleteFeedRecord(id);
       setDeleteConfirm(null);
       await loadData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       alert("Erro ao excluir registro");
     } finally {
@@ -1042,7 +1054,7 @@ export default function RacaoPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                       <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", fontSize: "11px" }} formatter={(v: any, n: any) => [n === "racao" ? `${v} kg` : `${v} L`, n === "racao" ? "Ração" : "Água"]} />
+                      <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", fontSize: "11px" }} formatter={(value: unknown, name: unknown) => [name === "racao" ? `${value} kg` : `${value} L`, name === "racao" ? "Ração" : "Água"]} />
                       <Area type="monotone" dataKey="racao" stroke="#f97316" strokeWidth={2} fill="url(#racaoFill)" name="racao" />
                       <Area type="monotone" dataKey="agua" stroke="#3b82f6" strokeWidth={2} fill="url(#aguaFill)" name="agua" />
                     </AreaChart>
@@ -1278,13 +1290,13 @@ export default function RacaoPage() {
                   contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
                   labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px", fontSize: "14px" }}
                   itemStyle={{ padding: "2px 0" }}
-                  formatter={((value: any, name: any) => {
+                  formatter={(value: unknown, name: unknown) => {
                     const n = String(name);
                     if (n === "kg") return [Number(value) + " kg", "Consumo"];
                     if (n === "ovos") return [Number(value).toLocaleString("pt-BR") + " ovos", "Produção"];
                     if (n === "consumoAveG") return [Number(value).toFixed(0) + " g/ave", "Consumo / ave"];
-                    return [value, name];
-                  }) as any}
+                    return [String(value), String(name)];
+                  }}
                   cursor={{ fill: "rgba(45, 122, 79, 0.04)" }}
                 />
                 <Bar yAxisId="left" dataKey="kg" fill="url(#gradConsumoBar)" radius={[4, 4, 0, 0]} barSize={14} name="kg" />

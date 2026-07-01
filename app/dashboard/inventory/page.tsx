@@ -29,7 +29,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
-import { createClient } from "@/lib/supabase/client";
+import {
+  createInventoryItem,
+  deleteInventoryItem,
+  getFeedInventory,
+  updateInventoryItem,
+  type FeedInventoryCompatibilityRow,
+} from "@/lib/services/inventory";
 
 type TipoArmazenamento = "racao" | "medicamentos" | "equipamentos" | "embalagens" | "outros";
 type StatusEstoque = "ativo" | "vazio" | "manutencao";
@@ -91,6 +97,18 @@ const tipoOptions: TipoArmazenamento[] = ["racao", "medicamentos", "equipamentos
 
 type ModalMode = "add" | "edit" | null;
 
+function mapFeedStatusToStorageStatus(status: FeedInventoryCompatibilityRow["status"], quantity: number): StatusEstoque {
+  if (quantity <= 0) return "vazio";
+  if (status === "baixo" || status === "alerta") return "manutencao";
+  return "ativo";
+}
+
+function mapStorageStatusToFeedStatus(status: StatusEstoque): FeedInventoryCompatibilityRow["status"] {
+  if (status === "manutencao") return "alerta";
+  if (status === "vazio") return "baixo";
+  return "normal";
+}
+
 const emptyForm = {
   nome: "",
   localizacao: "",
@@ -126,30 +144,23 @@ export default function EstoquePage() {
     if (!currentFarm) return;
     setLoading(true);
 
-    const supabase = createClient();
     try {
-      const { data, error } = await supabase
-        .from("inventory")
-        .select("*")
-        .eq("farm_id", currentFarm.id);
-
-      if (error) throw error;
-
-      const mapped: ItemEstoque[] = (data || []).map((i: any) => ({
+      const data = await getFeedInventory(currentFarm.id);
+      const mapped: ItemEstoque[] = data.map((i) => ({
         id: i.id,
         nome: i.name || "",
         localizacao: i.location || "",
-        area: i.area || "",
-        status: (i.status as StatusEstoque) || "ativo",
-        tipo: (i.type as TipoArmazenamento) || "racao",
-        capacidade: i.capacity || "",
-        ocupacaoAtual: i.current_occupation || 0,
+        area: i.feed_category || "",
+        status: mapFeedStatusToStorageStatus(i.status, Number(i.quantity)),
+        tipo: "racao",
+        capacidade: "",
+        ocupacaoAtual: i.minimum_quantity > 0 ? Math.min(100, Math.round((Number(i.quantity) / Number(i.minimum_quantity)) * 100)) : 0,
         observacoes: i.notes || "",
         quantidade: i.quantity || 0,
         unidade: i.unit || "",
-        valorEstoque: i.inventory_value || 0,
+        valorEstoque: i.total_cost || 0,
         vencimento: i.expiration_date || null,
-        consumoDiario: i.daily_consumption || 0,
+        consumoDiario: 0,
       }));
 
       setEstoque(mapped);
@@ -199,25 +210,22 @@ export default function EstoquePage() {
       farm_id: currentFarm.id,
       name: form.nome,
       location: form.localizacao,
-      area: form.area,
-      status: form.status,
+      status: mapStorageStatusToFeedStatus(form.status),
       type: form.tipo,
-      capacity: form.capacidade,
-      current_occupation: Number(form.ocupacaoAtual) || 0,
+      feed_category: form.area || null,
       notes: form.observacoes,
       quantity: Number(form.quantidade) || 0,
       unit: form.unidade,
-      inventory_value: Number(form.valorEstoque) || 0,
+      total_cost: Number(form.valorEstoque) || null,
       expiration_date: form.vencimento || null,
-      daily_consumption: Number(form.consumoDiario) || 0,
+      minimum_quantity: Number(form.ocupacaoAtual) || 0,
     };
 
-    const supabase = createClient();
     try {
       if (modal === "add") {
-        await supabase.from("feed_inventory").insert(record);
+        await createInventoryItem(record);
       } else if (editing) {
-        await supabase.from("feed_inventory").update(record).eq("id", editing.id);
+        await updateInventoryItem(editing.id, record);
       }
       setModal(null);
       fetchData();
@@ -227,9 +235,8 @@ export default function EstoquePage() {
   }
 
   async function deleteItem(id: string) {
-    const supabase = createClient();
     try {
-      await supabase.from("feed_inventory").delete().eq("id", id);
+      await deleteInventoryItem(id);
       setDeleteConfirm(null);
       fetchData();
     } catch (e) {

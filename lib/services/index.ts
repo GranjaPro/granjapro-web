@@ -22,3 +22,11 @@ export {
 export { getAlerts, getUnreadAlertCount, createAlert, markAlertAsRead, markAllAlertsAsRead, resolveAlert } from "./alerts";
 export { getEquipmentByFarm, createEquipment, updateEquipment, deleteEquipment } from "./equipment";
 export { getWorkers, createWorker, updateWorker, deleteWorker } from "./workers";
+export {
+  getFeedInventory,
+  createInventoryItem,
+  updateInventoryItem,
+  deleteInventoryItem,
+  type FeedInventoryCompatibilityInput,
+  type FeedInventoryCompatibilityRow,
+} from "./inventory";
