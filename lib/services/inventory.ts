@@ -6,11 +6,29 @@ export type FeedInventoryRow = Tables<"feed_inventory">;
 export type VaccineInventoryRow = Tables<"vaccine_inventory">;
 export type PackagingInventoryRow = Tables<"packaging_inventory">;
 export type InventoryLossRow = Tables<"inventory_losses">;
+export type StorageLocationInput = {
+  farm_id: string;
+  name: string;
+  category: StorageLocationRow["category"];
+  status?: StorageLocationRow["status"];
+  is_default?: boolean;
+  notes?: string | null;
+};
+
+export type InventoryLossInput = {
+  farm_id: string;
+  feed_inventory_id: string;
+  location_id: string;
+  quantity: number;
+  reason: InventoryLossRow["reason"];
+  notes?: string | null;
+};
 
 export type FeedInventoryCompatibilityRow = FeedInventoryRow & {
   category: string;
   type: string;
   location: string | null;
+  location_id: string;
   arrival_date: string;
 };
 
@@ -183,6 +201,72 @@ export async function getFeedInventory(farmId: string): Promise<FeedInventoryCom
   return ((data ?? []) as FeedInventorySelectedRow[]).map(mapFeedInventoryRow);
 }
 
+export async function getStorageLocations(farmId: string): Promise<StorageLocationRow[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("storage_locations")
+    .select("*")
+    .eq("farm_id", farmId)
+    .order("category", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as StorageLocationRow[];
+}
+
+export async function createStorageLocation(input: StorageLocationInput): Promise<StorageLocationRow> {
+  const supabase = createClient();
+  const newLocation: TablesInsert<"storage_locations"> = {
+    farm_id: input.farm_id,
+    name: input.name,
+    category: input.category,
+    status: input.status ?? "active",
+    is_default: input.is_default ?? false,
+    notes: input.notes ?? null,
+  };
+
+  const { data, error } = await supabase
+    .from("storage_locations")
+    .insert(newLocation)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as StorageLocationRow;
+}
+
+export async function updateStorageLocation(
+  id: string,
+  updates: Partial<StorageLocationInput>,
+): Promise<StorageLocationRow> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("storage_locations")
+    .update({
+      name: updates.name,
+      category: updates.category,
+      status: updates.status,
+      is_default: updates.is_default,
+      notes: updates.notes,
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as StorageLocationRow;
+}
+
+export async function deleteStorageLocation(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("storage_locations")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
 export async function createInventoryItem(input: FeedInventoryCompatibilityInput) {
   const supabase = createClient();
   const location = input.location_id
@@ -243,4 +327,26 @@ export async function deleteInventoryItem(id: string) {
     }
     throw error;
   }
+}
+
+export async function recordInventoryLoss(input: InventoryLossInput): Promise<InventoryLossRow> {
+  const supabase = createClient();
+  const newLoss: TablesInsert<"inventory_losses"> = {
+    farm_id: input.farm_id,
+    location_id: input.location_id,
+    inventory_type: "feed",
+    feed_inventory_id: input.feed_inventory_id,
+    quantity: input.quantity,
+    reason: input.reason,
+    notes: input.notes ?? null,
+  };
+
+  const { data, error } = await supabase
+    .from("inventory_losses")
+    .insert(newLoss)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as InventoryLossRow;
 }
