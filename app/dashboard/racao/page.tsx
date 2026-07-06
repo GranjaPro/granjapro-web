@@ -1385,20 +1385,6 @@ export default function RacaoPage() {
               </button>
             </div>
           </div>
-          {/* Stacked bar */}
-          {(() => {
-            const totalQty = estoque.reduce((s, e) => s + e.quantidade, 0);
-            const normalPct = (estoque.filter(e => e.status === "normal").reduce((s, e) => s + e.quantidade, 0) / totalQty) * 100;
-            const alertaPct = (estoque.filter(e => e.status === "alerta").reduce((s, e) => s + e.quantidade, 0) / totalQty) * 100;
-            const baixoPct = (estoque.filter(e => e.status === "baixo").reduce((s, e) => s + e.quantidade, 0) / totalQty) * 100;
-            return (
-              <div className="w-full h-5 rounded-full overflow-hidden flex mb-4">
-                <div className="h-full transition-all duration-500 first:rounded-l-full" style={{ width: `${normalPct}%`, backgroundColor: "#10b981" }} />
-                <div className="h-full transition-all duration-500" style={{ width: `${alertaPct}%`, backgroundColor: "#f59e0b" }} />
-                <div className="h-full transition-all duration-500 last:rounded-r-full" style={{ width: `${baixoPct}%`, backgroundColor: "#ef4444" }} />
-              </div>
-            );
-          })()}
           <div className="space-y-0 max-h-[320px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
             {estoque.map((item, i) => (
               <div key={item.id}>

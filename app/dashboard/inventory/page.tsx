@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ModalPortal from "@/components/ui/modal-portal";
 import {
   Box,
-  CalendarDays,
   Check,
   MapPin,
   Package,
@@ -29,11 +28,11 @@ import {
   deleteStorageLocation,
   getFeedInventory,
   getStorageLocations,
-  recordInventoryLoss,
   updateInventoryItem,
   updateStorageLocation,
+  type FeedInventoryCompatibilityInput,
   type FeedInventoryCompatibilityRow,
-  type InventoryLossRow,
+  type InventoryCategory,
   type StorageLocationRow,
 } from "@/lib/services/inventory";
 
@@ -42,12 +41,11 @@ type StorageModalMode = "add" | "edit" | null;
 type FeedModalMode = "add" | "edit" | null;
 type DeleteTarget =
   | { type: "storage"; id: string; name: string }
-  | { type: "feed"; id: string; name: string }
+  | { type: "inventory"; id: string; name: string; inventoryTable: InventoryCategory }
   | null;
 
 type StorageCategory = StorageLocationRow["category"];
 type StorageStatus = StorageLocationRow["status"];
-type LossReason = InventoryLossRow["reason"];
 
 type StorageForm = {
   name: string;
@@ -59,6 +57,7 @@ type StorageForm = {
 };
 
 type FeedForm = {
+  itemCategory: InventoryCategory;
   name: string;
   locationId: string;
   feedCategory: string;
@@ -72,12 +71,6 @@ type FeedForm = {
   notes: string;
 };
 
-type AdjustmentForm = {
-  quantity: string;
-  reason: LossReason;
-  notes: string;
-};
-
 const emptyStorageForm: StorageForm = {
   name: "",
   category: "feed",
@@ -88,6 +81,7 @@ const emptyStorageForm: StorageForm = {
 };
 
 const emptyFeedForm: FeedForm = {
+  itemCategory: "feed",
   name: "",
   locationId: "",
   feedCategory: "",
@@ -101,15 +95,10 @@ const emptyFeedForm: FeedForm = {
   notes: "",
 };
 
-const emptyAdjustmentForm: AdjustmentForm = {
-  quantity: "",
-  reason: "manual_adjustment",
-  notes: "",
-};
-
 const storageCategoryLabels: Record<StorageCategory, string> = {
   feed: "Racao",
-  vaccine: "Vacinas",
+  medicine: "Medicamentos",
+  equipment: "Equipamentos",
   packaging: "Embalagens",
 };
 
@@ -132,17 +121,6 @@ const feedStatusLabels: Record<FeedInventoryCompatibilityRow["status"], string> 
   baixo: "Baixo",
 };
 
-const lossReasonLabels: Record<LossReason, string> = {
-  expiration: "Vencimento",
-  damage: "Dano",
-  contamination: "Contaminacao",
-  humidity: "Umidade",
-  sanitary_disposal: "Descarte sanitario",
-  manual_adjustment: "Ajuste manual",
-  other: "Outro",
-};
-
-const feedLocationsOnly = (location: StorageLocationRow) => location.category === "feed";
 const DEFAULT_LOCATION_NAME = "Sem local definido";
 
 type StorageCapacity = {
@@ -159,11 +137,36 @@ function numberOrUndefined(value: string) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error !== "object" || error === null) return fallback;
+
+  const fields = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+  const messageParts = [fields.message, fields.details, fields.hint, fields.code]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+  return messageParts.length > 0 ? messageParts.join(" | ") : fallback;
+}
+
 function getFeedStockPercent(item: FeedInventoryCompatibilityRow) {
   const minimumQuantity = Number(item.minimum_quantity);
   const quantity = Number(item.quantity);
   if (minimumQuantity <= 0) return quantity > 0 ? 100 : 0;
   return Math.min(100, Math.round((quantity / minimumQuantity) * 100));
+}
+
+function getItemIcon(item: FeedInventoryCompatibilityRow) {
+  if (item.inventory_table === "medicine") return Pill;
+  if (item.inventory_table === "equipment") return Wrench;
+  if (item.inventory_table === "packaging") return Box;
+  return Wheat;
+}
+
+function getItemIconClassName(item: FeedInventoryCompatibilityRow) {
+  if (item.inventory_table === "medicine") return { wrapper: "bg-rose-50", icon: "text-rose-600" };
+  if (item.inventory_table === "equipment") return { wrapper: "bg-slate-100", icon: "text-slate-600" };
+  if (item.inventory_table === "packaging") return { wrapper: "bg-sky-50", icon: "text-sky-600" };
+  return { wrapper: "bg-amber-50", icon: "text-amber-600" };
 }
 
 function daysUntil(date: string | null) {
@@ -231,13 +234,14 @@ export default function EstoquePage() {
   const [editingStorage, setEditingStorage] = useState<StorageLocationRow | null>(null);
   const [editingFeed, setEditingFeed] = useState<FeedInventoryCompatibilityRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
-  const [adjustingFeed, setAdjustingFeed] = useState<FeedInventoryCompatibilityRow | null>(null);
-  const [adjustmentForm, setAdjustmentForm] = useState<AdjustmentForm>(emptyAdjustmentForm);
   const [lowStockThreshold, setLowStockThreshold] = useState("25");
   const [thresholdModalOpen, setThresholdModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const feedLocations = useMemo(() => storageLocations.filter(feedLocationsOnly), [storageLocations]);
+  const itemLocations = useMemo(
+    () => storageLocations.filter((location) => activeTab === "all" || location.category === activeTab),
+    [activeTab, storageLocations],
+  );
 
   const fetchData = useCallback(async () => {
     const currentFarm = farmRef.current;
@@ -269,9 +273,9 @@ export default function EstoquePage() {
 
   const visibleStorageLocations = storageLocations.filter((location) => {
     if (activeTab === "feed") return location.category === "feed";
-    if (activeTab === "medicine") return location.category === "vaccine";
+    if (activeTab === "medicine") return location.category === "medicine";
     if (activeTab === "packaging") return location.category === "packaging";
-    if (activeTab === "equipment") return location.category === ("equipment" as any); // allow if it exists
+    if (activeTab === "equipment") return location.category === "equipment";
     return true;
   });
 
@@ -283,13 +287,14 @@ export default function EstoquePage() {
     );
   });
 
-  const visibleFeedItems = activeTab === "all" || activeTab === "feed" ? feedItems : [];
+  const visibleFeedItems = activeTab === "all" ? feedItems : feedItems.filter((item) => item.inventory_table === activeTab);
   const filteredFeed = visibleFeedItems.filter((item) => {
     const normalizedSearch = search.toLowerCase();
     return (
       item.name.toLowerCase().includes(normalizedSearch) ||
       (item.location ?? "").toLowerCase().includes(normalizedSearch) ||
-      (item.feed_category ?? "").toLowerCase().includes(normalizedSearch)
+      item.category.toLowerCase().includes(normalizedSearch) ||
+      item.type.toLowerCase().includes(normalizedSearch)
     );
   });
 
@@ -328,17 +333,19 @@ export default function EstoquePage() {
   }
 
   function openAddFeed() {
-    setFeedForm({ ...emptyFeedForm, locationId: "" });
+    const category: InventoryCategory = activeTab === "all" ? "feed" : activeTab;
+    setFeedForm({ ...emptyFeedForm, locationId: "", itemCategory: category });
     setEditingFeed(null);
     setFeedModal("add");
   }
 
   function openEditFeed(item: FeedInventoryCompatibilityRow) {
     setFeedForm({
+      itemCategory: item.inventory_table ?? "feed",
       name: item.name,
       locationId: item.location_id,
-      feedCategory: item.feed_category ?? "",
-      feedType: item.feed_type ?? "comercial",
+      feedCategory: item.feed_category ?? item.category ?? "",
+      feedType: item.feed_type ?? item.type ?? "comercial",
       quantity: String(item.quantity),
       unit: item.unit,
       supplier: item.supplier ?? "",
@@ -349,11 +356,6 @@ export default function EstoquePage() {
     });
     setEditingFeed(item);
     setFeedModal("edit");
-  }
-
-  function openAdjustFeed(item: FeedInventoryCompatibilityRow) {
-    setAdjustingFeed(item);
-    setAdjustmentForm(emptyAdjustmentForm);
   }
 
   async function saveStorageLocation() {
@@ -380,8 +382,10 @@ export default function EstoquePage() {
 
       setStorageModal(null);
       await fetchData();
-    } catch (error) {
-      console.error(error);
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, "Erro ao salvar o item de estoque.");
+      console.error(message, error);
+      setErrorMessage(message);
     } finally {
       setSaving(false);
     }
@@ -394,10 +398,13 @@ export default function EstoquePage() {
 
     setSaving(true);
     try {
-      const payload = {
+      const payload: FeedInventoryCompatibilityInput = {
+        inventory_table: feedForm.itemCategory,
         farm_id: currentFarm.id,
         name: trimmedName,
         location_id: feedForm.locationId || undefined,
+        category: storageCategoryLabels[feedForm.itemCategory],
+        type: feedForm.feedType.trim() || null,
         feed_category: feedForm.feedCategory.trim() || null,
         feed_type: feedForm.feedType.trim() || null,
         quantity: numberOrUndefined(feedForm.quantity) ?? 0,
@@ -408,7 +415,7 @@ export default function EstoquePage() {
         total_cost: numberOrUndefined(feedForm.totalCost) ?? null,
         lot_number: null,
         minimum_quantity: 0,
-        expiration_date: feedForm.expirationDate || null,
+        expiration_date: feedForm.itemCategory === "equipment" ? null : feedForm.expirationDate || null,
         notes: feedForm.notes.trim() || null,
       };
 
@@ -440,44 +447,19 @@ export default function EstoquePage() {
         }
         await deleteStorageLocation(deleteTarget.id);
       } else {
-        await deleteInventoryItem(deleteTarget.id);
+        await deleteInventoryItem(deleteTarget.id, deleteTarget.inventoryTable);
       }
       setDeleteTarget(null);
       await fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      setErrorMessage(error.message || "Erro ao excluir o item. Ele pode estar sendo referenciado em outros registros.");
+      setErrorMessage(getErrorMessage(error, "Erro ao excluir o item. Ele pode estar sendo referenciado em outros registros."));
     } finally {
       setSaving(false);
     }
   }
 
-  async function saveAdjustment() {
-    const currentFarm = farmRef.current;
-    const quantity = numberOrUndefined(adjustmentForm.quantity) ?? 0;
-    if (!currentFarm || !adjustingFeed || quantity <= 0) return;
-
-    setSaving(true);
-    try {
-      await recordInventoryLoss({
-        farm_id: currentFarm.id,
-        feed_inventory_id: adjustingFeed.id,
-        location_id: adjustingFeed.location_id,
-        quantity,
-        reason: adjustmentForm.reason,
-        notes: adjustmentForm.notes.trim() || null,
-      });
-      setAdjustingFeed(null);
-      await fetchData();
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const canCreateFeedItem = activeTab === "all" || activeTab === "feed";
-  const actionLabel = canCreateFeedItem ? "Novo Item" : "Novo Local";
+  const actionLabel = "Novo Item";
 
   return (
     <div className="space-y-6">
@@ -503,7 +485,7 @@ export default function EstoquePage() {
           </button>
           <button
             type="button"
-            onClick={canCreateFeedItem ? openAddFeed : openAddStorage}
+            onClick={openAddFeed}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition-colors hover:bg-brand-700"
           >
             <Plus className="h-4 w-4" />
@@ -512,7 +494,7 @@ export default function EstoquePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <MetricCard icon={Package} label="Valor em estoque" value={formatCurrency(totalFeedValue)} />
         <MetricCard icon={Warehouse} label="Espacos" value={`${activeStorageCount}/${storageLocations.length}`} />
         <MetricCard icon={Box} label="Ocupacao" value={`${averageOccupancy}%`} tone={averageOccupancy <= thresholdPercent ? "warning" : "neutral"} />
@@ -565,13 +547,12 @@ export default function EstoquePage() {
         loading={loading}
         storageLocations={filteredStorage}
         feedItems={filteredFeed}
-        feedLocations={feedLocations}
+        itemLocations={itemLocations}
         lowStockThreshold={thresholdPercent}
         onEditStorage={openEditStorage}
         onDeleteStorage={(location) => setDeleteTarget({ type: "storage", id: location.id, name: location.name })}
         onEditFeed={openEditFeed}
-        onAdjustFeed={openAdjustFeed}
-        onDeleteFeed={(item) => setDeleteTarget({ type: "feed", id: item.id, name: item.name })}
+        onDeleteFeed={(item) => setDeleteTarget({ type: "inventory", id: item.id, name: item.name, inventoryTable: item.inventory_table })}
       />
 
       {storageModal && (
@@ -589,22 +570,11 @@ export default function EstoquePage() {
         <FeedItemModal
           mode={feedModal}
           form={feedForm}
-          locations={feedLocations}
+          locations={storageLocations.filter((location) => location.category === feedForm.itemCategory)}
           saving={saving}
           onChange={setFeedForm}
           onClose={() => setFeedModal(null)}
           onSave={saveFeedItem}
-        />
-      )}
-
-      {adjustingFeed && (
-        <AdjustmentModal
-          item={adjustingFeed}
-          form={adjustmentForm}
-          saving={saving}
-          onChange={setAdjustmentForm}
-          onClose={() => setAdjustingFeed(null)}
-          onSave={saveAdjustment}
         />
       )}
 
@@ -692,37 +662,24 @@ function InventoryContent({
   loading,
   storageLocations,
   feedItems,
-  feedLocations,
+  itemLocations,
   lowStockThreshold,
   onEditStorage,
   onDeleteStorage,
   onEditFeed,
-  onAdjustFeed,
   onDeleteFeed,
 }: {
   activeTab: ActiveTab;
   loading: boolean;
   storageLocations: StorageLocationRow[];
   feedItems: FeedInventoryCompatibilityRow[];
-  feedLocations: StorageLocationRow[];
+  itemLocations: StorageLocationRow[];
   lowStockThreshold: number;
   onEditStorage: (location: StorageLocationRow) => void;
   onDeleteStorage: (location: StorageLocationRow) => void;
   onEditFeed: (item: FeedInventoryCompatibilityRow) => void;
-  onAdjustFeed: (item: FeedInventoryCompatibilityRow) => void;
   onDeleteFeed: (item: FeedInventoryCompatibilityRow) => void;
 }) {
-  if (activeTab === "medicine" || activeTab === "equipment" || activeTab === "packaging") {
-    return (
-      <StorageTab
-        loading={loading}
-        locations={storageLocations}
-        onEdit={onEditStorage}
-        onDelete={onDeleteStorage}
-      />
-    );
-  }
-
   return (
     <div className="space-y-5">
       {activeTab === "all" && (
@@ -732,17 +689,22 @@ function InventoryContent({
         </section>
       )}
       <section className="space-y-3">
-        <h2 className="text-sm font-bold text-gray-900">{activeTab === "feed" ? "Racao" : "Itens de estoque"}</h2>
+        <h2 className="text-sm font-bold text-gray-900">{activeTab === "all" ? "Itens de estoque" : storageCategoryLabels[activeTab]}</h2>
         <FeedTab
           loading={loading}
           items={feedItems}
-          locations={feedLocations}
+          locations={itemLocations}
           lowStockThreshold={lowStockThreshold}
           onEdit={onEditFeed}
-          onAdjust={onAdjustFeed}
           onDelete={onDeleteFeed}
         />
       </section>
+      {activeTab !== "all" && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold text-gray-900">Locais de armazenamento</h2>
+          <StorageTab loading={loading} locations={storageLocations} onEdit={onEditStorage} onDelete={onDeleteStorage} compact />
+        </section>
+      )}
     </div>
   );
 }
@@ -805,7 +767,6 @@ function FeedTab({
   locations,
   lowStockThreshold,
   onEdit,
-  onAdjust,
   onDelete,
 }: {
   loading: boolean;
@@ -813,24 +774,25 @@ function FeedTab({
   locations: StorageLocationRow[];
   lowStockThreshold: number;
   onEdit: (item: FeedInventoryCompatibilityRow) => void;
-  onAdjust: (item: FeedInventoryCompatibilityRow) => void;
   onDelete: (item: FeedInventoryCompatibilityRow) => void;
 }) {
-  if (loading) return <EmptyState text="Carregando racao..." />;
-  if (locations.length === 0) return <EmptyState text="Cadastre um local de racao antes de criar itens." />;
-  if (items.length === 0) return <EmptyState text="Nenhum item de racao encontrado." />;
+  if (loading) return <EmptyState text="Carregando itens..." />;
+  if (locations.length === 0) return <EmptyState text="Cadastre um local desta categoria antes de criar itens." />;
+  if (items.length === 0) return <EmptyState text="Nenhum item encontrado." />;
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {items.map((item) => {
         const stockPercent = getFeedStockPercent(item);
         const isLow = stockPercent <= lowStockThreshold;
+        const Icon = getItemIcon(item);
+        const iconClassName = getItemIconClassName(item);
         return (
           <div key={item.id} className="rounded-2xl border border-gray-100 bg-white p-5 transition-all hover:border-gray-200 hover:shadow-lg hover:shadow-gray-200/50">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-amber-50">
-                  <Wheat className="h-5 w-5 text-amber-600" />
+                <div className={cn("flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl", iconClassName.wrapper)}>
+                  <Icon className={cn("h-5 w-5", iconClassName.icon)} />
                 </div>
                 <div className="min-w-0">
                   <h3 className="truncate text-sm font-bold text-gray-900">{item.name}</h3>
@@ -858,7 +820,8 @@ function FeedTab({
 
             <div className="mt-3 flex flex-wrap gap-2">
               <Badge tone={isLow ? "warning" : "ok"}>{isLow ? `Estoque baixo (${stockPercent}%)` : feedStatusLabels[item.status]}</Badge>
-              <Badge tone="muted">{item.feed_category || "Racao"}</Badge>
+              <Badge tone="muted">{item.category}</Badge>
+              {item.type && <Badge tone="muted">{item.type}</Badge>}
               {item.expiration_date && <Badge tone="muted">Vence {new Date(`${item.expiration_date}T00:00:00`).toLocaleDateString("pt-BR")}</Badge>}
             </div>
 
@@ -942,7 +905,8 @@ function StorageLocationModal({
             onChange={(category) => onChange({ ...form, category: category as StorageCategory })}
             options={[
               ["feed", "Racao"],
-              ["vaccine", "Vacinas"],
+              ["medicine", "Medicamentos"],
+              ["equipment", "Equipamentos"],
               ["packaging", "Embalagens"],
             ]}
           />
@@ -1005,8 +969,22 @@ function FeedItemModal({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const showExpirationDate = form.itemCategory !== "equipment";
+  const typeLabelByCategory: Record<InventoryCategory, string> = {
+    feed: "Tipo",
+    medicine: "Produto de saude / indicacao",
+    equipment: "Tipo de equipamento",
+    packaging: "Tipo de embalagem",
+  };
+  const typePlaceholderByCategory: Record<InventoryCategory, string> = {
+    feed: "Comercial",
+    medicine: "Ex: Vacina, vermifugo, suplemento",
+    equipment: "Ex: Bebedouro, comedouro, ferramenta",
+    packaging: "Ex: Bandeja, caixa, cartela",
+  };
+
   return (
-    <ModalShell title={mode === "add" ? "Novo item de racao" : "Editar item de racao"} onClose={onClose}>
+    <ModalShell title={mode === "add" ? "Novo item" : "Editar item"} onClose={onClose}>
       <div className="space-y-4">
         <TextField label="Nome" value={form.name} onChange={(name) => onChange({ ...form, name })} placeholder="Ex: Racao postura" />
         <SelectField
@@ -1019,18 +997,38 @@ function FeedItemModal({
           ]}
         />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <TextField label="Categoria" value={form.feedCategory} onChange={(feedCategory) => onChange({ ...form, feedCategory })} placeholder="Ex: Postura" />
           <SelectField
-            label="Tipo"
-            value={form.feedType}
-            onChange={(feedType) => onChange({ ...form, feedType })}
+            label="Categoria de Estoque"
+            value={form.itemCategory}
+            onChange={(itemCategory) => onChange({ ...form, itemCategory: itemCategory as InventoryCategory, locationId: "", expirationDate: itemCategory === "equipment" ? "" : form.expirationDate })}
+            disabled={mode === "edit"}
             options={[
-              ["comercial", "Comercial"],
-              ["milho_mix", "Milho Mix"],
-              ["formula_custom", "Fórmula Custom"],
-              ["soja_blend", "Soja Blend"],
+              ["feed", "Racao"],
+              ["medicine", "Medicamentos"],
+              ["equipment", "Equipamentos"],
+              ["packaging", "Embalagens"],
             ]}
           />
+          {form.itemCategory === "feed" ? (
+            <SelectField
+              label="Tipo"
+              value={form.feedType}
+              onChange={(feedType) => onChange({ ...form, feedType })}
+              options={[
+                ["comercial", "Comercial"],
+                ["milho_mix", "Milho Mix"],
+                ["formula_custom", "Fórmula Custom"],
+                ["soja_blend", "Soja Blend"],
+              ]}
+            />
+          ) : (
+            <TextField
+              label={typeLabelByCategory[form.itemCategory]}
+              value={form.feedType}
+              onChange={(feedType) => onChange({ ...form, feedType })}
+              placeholder={typePlaceholderByCategory[form.itemCategory]}
+            />
+          )}
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <TextField label="Quantidade" type="number" value={form.quantity} onChange={(quantity) => onChange({ ...form, quantity })} placeholder="0" />
@@ -1062,10 +1060,14 @@ function FeedItemModal({
             onChange({ ...form, totalCost, unitCost: unit });
           }} placeholder="0,00" />
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {showExpirationDate ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <TextField label="Fornecedor" value={form.supplier} onChange={(supplier) => onChange({ ...form, supplier })} placeholder="Opcional" />
+            <TextField label="Vencimento" type="date" value={form.expirationDate} onChange={(expirationDate) => onChange({ ...form, expirationDate })} />
+          </div>
+        ) : (
           <TextField label="Fornecedor" value={form.supplier} onChange={(supplier) => onChange({ ...form, supplier })} placeholder="Opcional" />
-          <TextField label="Vencimento" type="date" value={form.expirationDate} onChange={(expirationDate) => onChange({ ...form, expirationDate })} />
-        </div>
+        )}
         <TextArea label="Observacoes" value={form.notes} onChange={(notes) => onChange({ ...form, notes })} placeholder="Notas sobre o item..." />
       </div>
       <ModalActions
@@ -1074,50 +1076,13 @@ function FeedItemModal({
         onSave={onSave}
         saveDisabled={
           !form.name.trim() ||
-          !form.locationId ||
-          !form.feedCategory.trim() ||
-          !form.feedType ||
+          !form.feedType.trim() ||
           !form.quantity ||
           !form.unit ||
           (!form.unitCost && !form.totalCost) ||
-          !form.expirationDate
+          (form.itemCategory === "medicine" && !form.expirationDate)
         }
       />
-    </ModalShell>
-  );
-}
-
-function AdjustmentModal({
-  item,
-  form,
-  saving,
-  onChange,
-  onClose,
-  onSave,
-}: {
-  item: FeedInventoryCompatibilityRow;
-  form: AdjustmentForm;
-  saving: boolean;
-  onChange: (form: AdjustmentForm) => void;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  return (
-    <ModalShell title="Ajustar / registrar perda" onClose={onClose}>
-      <div className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
-        {item.name} tem {Number(item.quantity).toLocaleString("pt-BR")} {item.unit} em estoque.
-      </div>
-      <div className="space-y-4">
-        <TextField label="Quantidade perdida/ajustada" type="number" value={form.quantity} onChange={(quantity) => onChange({ ...form, quantity })} placeholder="0" />
-        <SelectField
-          label="Motivo"
-          value={form.reason}
-          onChange={(reason) => onChange({ ...form, reason: reason as LossReason })}
-          options={Object.entries(lossReasonLabels)}
-        />
-        <TextArea label="Observacoes" value={form.notes} onChange={(notes) => onChange({ ...form, notes })} placeholder="Detalhes da perda ou ajuste..." />
-      </div>
-      <ModalActions saving={saving} onClose={onClose} onSave={onSave} saveLabel="Registrar" />
     </ModalShell>
   );
 }
@@ -1278,11 +1243,13 @@ function SelectField({
   value,
   onChange,
   options,
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: [string, string][];
+  disabled?: boolean;
 }) {
   return (
     <label className="block">
@@ -1290,7 +1257,8 @@ function SelectField({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-800 outline-none transition-all focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20"
+        disabled={disabled}
+        className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-800 outline-none transition-all focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
       >
         {options.map(([optionValue, optionLabel]) => (
           <option key={optionValue} value={optionValue}>

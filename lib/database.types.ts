@@ -304,7 +304,7 @@ export interface Database {
           updated_at: string;
           farm_id: string;
           name: string;
-          category: "feed" | "vaccine" | "packaging";
+          category: "feed" | "medicine" | "packaging" | "equipment";
           status: "active" | "inactive";
           is_default: boolean;
           notes: string | null;
@@ -315,7 +315,7 @@ export interface Database {
           updated_at?: string;
           farm_id: string;
           name: string;
-          category: "feed" | "vaccine" | "packaging";
+          category: "feed" | "medicine" | "packaging" | "equipment";
           status?: "active" | "inactive";
           is_default?: boolean;
           notes?: string | null;
@@ -326,7 +326,7 @@ export interface Database {
           updated_at?: string;
           farm_id?: string;
           name?: string;
-          category?: "feed" | "vaccine" | "packaging";
+          category?: "feed" | "medicine" | "packaging" | "equipment";
           status?: "active" | "inactive";
           is_default?: boolean;
           notes?: string | null;
@@ -397,7 +397,7 @@ export interface Database {
           notes?: string | null;
         };
       };
-      vaccine_inventory: {
+      medicine_inventory: {
         Row: {
           id: string;
           created_at: string;
@@ -536,16 +536,82 @@ export interface Database {
           notes?: string | null;
         };
       };
+      equipment_inventory: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          farm_id: string;
+          location_id: string;
+          name: string;
+          equipment_category: string | null;
+          equipment_type: string | null;
+          quantity: number;
+          unit: string;
+          status: "normal" | "alerta" | "baixo";
+          supplier: string | null;
+          unit_cost: number | null;
+          total_cost: number | null;
+          entry_date: string;
+          lot_number: string | null;
+          minimum_quantity: number;
+          expiration_date: string | null;
+          notes: string | null;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          farm_id: string;
+          location_id: string;
+          name: string;
+          equipment_category?: string | null;
+          equipment_type?: string | null;
+          quantity?: number;
+          unit?: string;
+          status?: "normal" | "alerta" | "baixo";
+          supplier?: string | null;
+          unit_cost?: number | null;
+          total_cost?: number | null;
+          entry_date?: string;
+          lot_number?: string | null;
+          minimum_quantity?: number;
+          expiration_date?: string | null;
+          notes?: string | null;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          farm_id?: string;
+          location_id?: string;
+          name?: string;
+          equipment_category?: string | null;
+          equipment_type?: string | null;
+          quantity?: number;
+          unit?: string;
+          status?: "normal" | "alerta" | "baixo";
+          supplier?: string | null;
+          unit_cost?: number | null;
+          total_cost?: number | null;
+          entry_date?: string;
+          lot_number?: string | null;
+          minimum_quantity?: number;
+          expiration_date?: string | null;
+          notes?: string | null;
+        };
+      };
       inventory_losses: {
         Row: {
           id: string;
           created_at: string;
           farm_id: string;
           location_id: string;
-          inventory_type: "feed" | "vaccine" | "packaging";
+          inventory_type: "feed" | "medicine" | "packaging" | "equipment";
           feed_inventory_id: string | null;
-          vaccine_inventory_id: string | null;
+          medicine_inventory_id: string | null;
           packaging_inventory_id: string | null;
+          equipment_inventory_id: string | null;
           reason: "expiration" | "damage" | "contamination" | "humidity" | "sanitary_disposal" | "manual_adjustment" | "other";
           quantity: number;
           loss_date: string;
@@ -556,10 +622,11 @@ export interface Database {
           created_at?: string;
           farm_id: string;
           location_id: string;
-          inventory_type: "feed" | "vaccine" | "packaging";
+          inventory_type: "feed" | "medicine" | "packaging" | "equipment";
           feed_inventory_id?: string | null;
-          vaccine_inventory_id?: string | null;
+          medicine_inventory_id?: string | null;
           packaging_inventory_id?: string | null;
+          equipment_inventory_id?: string | null;
           reason: "expiration" | "damage" | "contamination" | "humidity" | "sanitary_disposal" | "manual_adjustment" | "other";
           quantity: number;
           loss_date?: string;
@@ -570,10 +637,11 @@ export interface Database {
           created_at?: string;
           farm_id?: string;
           location_id?: string;
-          inventory_type?: "feed" | "vaccine" | "packaging";
+          inventory_type?: "feed" | "medicine" | "packaging" | "equipment";
           feed_inventory_id?: string | null;
-          vaccine_inventory_id?: string | null;
+          medicine_inventory_id?: string | null;
           packaging_inventory_id?: string | null;
+          equipment_inventory_id?: string | null;
           reason?: "expiration" | "damage" | "contamination" | "humidity" | "sanitary_disposal" | "manual_adjustment" | "other";
           quantity?: number;
           loss_date?: string;
