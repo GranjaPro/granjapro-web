@@ -162,7 +162,17 @@
       "Skill(gsd:execute-phase:*)",
       "Bash(echo \"---EXIT:$?---\")",
       "Bash(git -C \"C:\\\\Users\\\\Bernardo Timo\\\\OneDrive\\\\Desktop\\\\GranjaPro\" diff app/dashboard/select-plan/page.tsx)",
-      "Bash(git -C \"C:\\\\Users\\\\Bernardo Timo\\\\OneDrive\\\\Desktop\\\\GranjaPro\" diff app/dashboard/layout.tsx)"
+      "Bash(git -C \"C:\\\\Users\\\\Bernardo Timo\\\\OneDrive\\\\Desktop\\\\GranjaPro\" diff app/dashboard/layout.tsx)",
+      "Bash(python -c \"import pypdf; r=pypdf.PdfReader\\(r'C:\\\\Users\\\\Bernardo Timo\\\\Downloads\\\\202010-PS-Management-guide-NovoBrown-PT.pdf'\\); print\\(len\\(r.pages\\)\\)\")",
+      "Bash(pip install *)",
+      "Bash(python -c \"import pypdf; r=pypdf.PdfReader\\(r'C:\\\\Users\\\\Bernardo Timo\\\\Downloads\\\\202010-PS-Management-guide-NovoBrown-PT.pdf'\\); txt='\\\\n'.join\\(\\(p.extract_text\\(\\) or ''\\) for p in r.pages\\); open\\('/tmp/guide.txt','w',encoding='utf-8'\\).write\\(txt\\); print\\('OK chars=',len\\(txt\\)\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(cat components/date-filter/index.ts)",
+      "Bash(cat components/date-filter/index.tsx)",
+      "Bash(taskkill /PID 21656 /F)",
+      "PowerShell(Stop-Process -Id 21656 -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(\"killed\")",
+      "PowerShell($conns = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if \\($conns\\) { $conns.OwningProcess | Select-Object -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue; \"stopped PID $_\" } } else { \"port 3000 free\" })"
     ]
   }
 }
