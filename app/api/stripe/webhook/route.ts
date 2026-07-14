@@ -8,6 +8,10 @@ import {
   getSubscriptionIdFromEventObject,
   syncStripeSubscription,
 } from "@/lib/stripe/subscription-sync";
+import { clearGracePeriod, startGracePeriod } from "@/lib/stripe/dunning";
+import { sendEmail } from "@/lib/email/send";
+import { paymentFailedEmail } from "@/lib/email/templates";
+import { getAppUrl } from "@/lib/stripe/config";
 
 async function retrieveSubscription(subscriptionId: string) {
   return getStripeClient().subscriptions.retrieve(subscriptionId);
@@ -19,6 +23,39 @@ async function syncEventSubscription(object: unknown) {
 
   const subscription = await retrieveSubscription(subscriptionId);
   await syncStripeSubscription(subscription);
+}
+
+async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+  const subscriptionId = getSubscriptionIdFromEventObject(invoice);
+  if (!subscriptionId) return;
+
+  // Reflect the past_due status first.
+  await syncEventSubscription(invoice);
+
+  // Dunning applies only to renewal charges — not the first payment or
+  // upgrade-proration invoices (which are handled synchronously elsewhere).
+  if (invoice.billing_reason !== "subscription_cycle") return;
+
+  const { started, email, gracePeriodEndsAt } = await startGracePeriod(subscriptionId);
+
+  if (started) {
+    const recipient = invoice.customer_email ?? email;
+    if (recipient) {
+      const { subject, html } = paymentFailedEmail({
+        updateUrl: `${getAppUrl()}/dashboard/select-plan`,
+        gracePeriodEndsAt,
+      });
+      await sendEmail({ to: recipient, subject, html });
+    }
+  }
+}
+
+async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
+  const subscriptionId = getSubscriptionIdFromEventObject(invoice);
+  if (subscriptionId) {
+    await clearGracePeriod(subscriptionId);
+  }
+  await syncEventSubscription(invoice);
 }
 
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
@@ -42,7 +79,11 @@ async function handleStripeEvent(event: Stripe.Event) {
       await syncStripeSubscription(event.data.object as Stripe.Subscription);
       return;
     case "invoice.payment_succeeded":
+      await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice);
+      return;
     case "invoice.payment_failed":
+      await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+      return;
     case "invoice.payment_action_required":
       await syncEventSubscription(event.data.object);
       return;

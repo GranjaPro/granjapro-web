@@ -172,7 +172,9 @@
       "Bash(taskkill /PID 21656 /F)",
       "PowerShell(Stop-Process -Id 21656 -Force -ErrorAction SilentlyContinue)",
       "PowerShell(\"killed\")",
-      "PowerShell($conns = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if \\($conns\\) { $conns.OwningProcess | Select-Object -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue; \"stopped PID $_\" } } else { \"port 3000 free\" })"
+      "PowerShell($conns = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if \\($conns\\) { $conns.OwningProcess | Select-Object -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue; \"stopped PID $_\" } } else { \"port 3000 free\" })",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(npx tsc *)"
     ]
   }
 }
