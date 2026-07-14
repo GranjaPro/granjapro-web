@@ -1,160 +1,262 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ModalPortal from "@/components/ui/modal-portal";
 import {
-  Package,
-  Plus,
-  Pencil,
-  Trash2,
-  MapPin,
-  Search,
-  X,
-  Check,
-  Warehouse,
-  AlertTriangle,
-  CheckCircle2,
-  Wrench,
-  Wheat,
-  Pill,
   Box,
-  TrendingDown,
-  ArrowUpRight,
-  ArrowDownRight,
-  Clock,
+  Check,
+  MapPin,
+  Package,
+  Pencil,
+  Pill,
+  Plus,
+  Search,
   ShieldAlert,
-  Sparkles,
-  Zap,
-  CalendarDays,
+  SlidersHorizontal,
+  Trash2,
+  Warehouse,
+  Wheat,
+  Wrench,
+  X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
-import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
+import {
+  createInventoryItem,
+  createStorageLocation,
+  deleteInventoryItem,
+  deleteStorageLocation,
+  getFeedInventory,
+  getStorageLocations,
+  updateInventoryItem,
+  updateStorageLocation,
+  type FeedInventoryCompatibilityInput,
+  type FeedInventoryCompatibilityRow,
+  type InventoryCategory,
+  type StorageLocationRow,
+} from "@/lib/services/inventory";
 
-type TipoArmazenamento = "racao" | "medicamentos" | "equipamentos" | "embalagens" | "outros";
-type StatusEstoque = "ativo" | "vazio" | "manutencao";
+type ActiveTab = "all" | "feed" | "medicine" | "equipment" | "packaging";
+type StorageModalMode = "add" | "edit" | null;
+type FeedModalMode = "add" | "edit" | null;
+type DeleteTarget =
+  | { type: "storage"; id: string; name: string }
+  | { type: "inventory"; id: string; name: string; inventoryTable: InventoryCategory }
+  | null;
 
-interface ItemEstoque {
-  id: string;
-  nome: string;
-  localizacao: string;
-  area: string;
-  status: StatusEstoque;
-  tipo: TipoArmazenamento;
-  capacidade: string;
-  ocupacaoAtual: number; // percentage 0-100
-  observacoes: string;
-  quantidade: number;
-  unidade: string;
-  valorEstoque: number;
-  vencimento: string | null; // ISO date or null
-  consumoDiario: number; // units per day
+type StorageCategory = StorageLocationRow["category"];
+type StorageStatus = StorageLocationRow["status"];
+
+type StorageForm = {
+  name: string;
+  category: StorageCategory | "equipment";
+  status: StorageStatus;
+  isDefault: boolean;
+  capacityQuantity: string;
+  capacityUnit: string;
+};
+
+type FeedForm = {
+  itemCategory: InventoryCategory;
+  name: string;
+  locationId: string;
+  feedCategory: string;
+  feedType: string;
+  quantity: string;
+  unit: string;
+  supplier: string;
+  unitCost: string;
+  totalCost: string;
+  expirationDate: string;
+  notes: string;
+};
+
+const emptyStorageForm: StorageForm = {
+  name: "",
+  category: "feed",
+  status: "active",
+  isDefault: false,
+  capacityQuantity: "",
+  capacityUnit: "kg",
+};
+
+const emptyFeedForm: FeedForm = {
+  itemCategory: "feed",
+  name: "",
+  locationId: "",
+  feedCategory: "",
+  feedType: "comercial",
+  quantity: "",
+  unit: "kg",
+  supplier: "",
+  unitCost: "",
+  totalCost: "",
+  expirationDate: "",
+  notes: "",
+};
+
+const storageCategoryLabels: Record<StorageCategory, string> = {
+  feed: "Racao",
+  medicine: "Medicamentos",
+  equipment: "Equipamentos",
+  packaging: "Embalagens",
+};
+
+const inventoryTabs: Array<{ key: ActiveTab; label: string; icon: typeof Package }> = [
+  { key: "all", label: "Todos", icon: Package },
+  { key: "feed", label: "Racao", icon: Wheat },
+  { key: "medicine", label: "Medicamentos", icon: Pill },
+  { key: "equipment", label: "Equipamentos", icon: Wrench },
+  { key: "packaging", label: "Embalagens", icon: Box },
+];
+
+const storageStatusLabels: Record<StorageStatus, string> = {
+  active: "Ativo",
+  inactive: "Inativo",
+};
+
+const feedStatusLabels: Record<FeedInventoryCompatibilityRow["status"], string> = {
+  normal: "Normal",
+  alerta: "Alerta",
+  baixo: "Baixo",
+};
+
+const DEFAULT_LOCATION_NAME = "Sem local definido";
+
+type StorageCapacity = {
+  quantity: string;
+  unit: string;
+};
+
+function formatCurrency(value: number) {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-const tipoLabel: Record<TipoArmazenamento, string> = {
-  racao: "Ração e Insumos",
-  medicamentos: "Medicamentos",
-  equipamentos: "Equipamentos",
-  embalagens: "Embalagens",
-  outros: "Outros",
-};
+function numberOrUndefined(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
 
-const tipoColor: Record<TipoArmazenamento, string> = {
-  racao: "text-amber-700 bg-amber-50",
-  medicamentos: "text-red-700 bg-red-50",
-  equipamentos: "text-blue-700 bg-blue-50",
-  embalagens: "text-purple-700 bg-purple-50",
-  outros: "text-gray-700 bg-gray-50",
-};
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error !== "object" || error === null) return fallback;
 
-const tipoIcons: Record<TipoArmazenamento, typeof Wheat> = {
-  racao: Wheat,
-  medicamentos: Pill,
-  equipamentos: Wrench,
-  embalagens: Box,
-  outros: Package,
-};
+  const fields = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+  const messageParts = [fields.message, fields.details, fields.hint, fields.code]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
 
-const statusLabel: Record<StatusEstoque, string> = {
-  ativo: "Ativo",
-  vazio: "Vazio",
-  manutencao: "Manutenção",
-};
+  return messageParts.length > 0 ? messageParts.join(" | ") : fallback;
+}
 
-const statusColor: Record<StatusEstoque, string> = {
-  ativo: "text-emerald-700 bg-emerald-50",
-  vazio: "text-gray-500 bg-gray-100",
-  manutencao: "text-amber-700 bg-amber-50",
-};
+function getFeedStockPercent(item: FeedInventoryCompatibilityRow) {
+  const minimumQuantity = Number(item.minimum_quantity);
+  const quantity = Number(item.quantity);
+  if (minimumQuantity <= 0) return quantity > 0 ? 100 : 0;
+  return Math.min(100, Math.round((quantity / minimumQuantity) * 100));
+}
 
-const tipoOptions: TipoArmazenamento[] = ["racao", "medicamentos", "equipamentos", "embalagens", "outros"];
+function getItemIcon(item: FeedInventoryCompatibilityRow) {
+  if (item.inventory_table === "medicine") return Pill;
+  if (item.inventory_table === "equipment") return Wrench;
+  if (item.inventory_table === "packaging") return Box;
+  return Wheat;
+}
 
-type ModalMode = "add" | "edit" | null;
+function getItemIconClassName(item: FeedInventoryCompatibilityRow) {
+  if (item.inventory_table === "medicine") return { wrapper: "bg-rose-50", icon: "text-rose-600" };
+  if (item.inventory_table === "equipment") return { wrapper: "bg-slate-100", icon: "text-slate-600" };
+  if (item.inventory_table === "packaging") return { wrapper: "bg-sky-50", icon: "text-sky-600" };
+  return { wrapper: "bg-amber-50", icon: "text-amber-600" };
+}
 
-const emptyForm = {
-  nome: "",
-  localizacao: "",
-  area: "",
-  status: "ativo" as StatusEstoque,
-  tipo: "racao" as TipoArmazenamento,
-  capacidade: "",
-  ocupacaoAtual: "",
-  observacoes: "",
-  quantidade: "",
-  unidade: "",
-  valorEstoque: "",
-  vencimento: "",
-  consumoDiario: "",
-};
+function daysUntil(date: string | null) {
+  if (!date) return Number.POSITIVE_INFINITY;
+  const today = new Date();
+  const target = new Date(`${date}T00:00:00`);
+  return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function parseStorageCapacity(notes: string | null): StorageCapacity {
+  if (!notes) return { quantity: "", unit: "kg" };
+
+  try {
+    const parsed: unknown = JSON.parse(notes);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "quantity" in parsed &&
+      "unit" in parsed &&
+      typeof parsed.quantity === "string" &&
+      typeof parsed.unit === "string"
+    ) {
+      return { quantity: parsed.quantity, unit: parsed.unit };
+    }
+  } catch {
+    return { quantity: notes, unit: "" };
+  }
+
+  return { quantity: notes, unit: "" };
+}
+
+function serializeStorageCapacity(form: StorageForm) {
+  if (!form.capacityQuantity.trim()) return null;
+  return JSON.stringify({
+    quantity: form.capacityQuantity.trim(),
+    unit: form.capacityUnit.trim() || "un",
+  });
+}
+
+function formatStorageCapacity(notes: string | null) {
+  const capacity = parseStorageCapacity(notes);
+  if (!capacity.quantity) return "Nao informada";
+  return `${capacity.quantity}${capacity.unit ? ` ${capacity.unit}` : ""}`;
+}
+
+function isDefaultStorageLocation(location: StorageLocationRow) {
+  return location.is_default || location.name.toLowerCase().startsWith(DEFAULT_LOCATION_NAME.toLowerCase());
+}
 
 export default function EstoquePage() {
   const { farm } = useAuth();
   const farmRef = useRef(farm);
   farmRef.current = farm;
 
+  const [activeTab, setActiveTab] = useState<ActiveTab>("all");
   const [search, setSearch] = useState("");
-  const [estoque, setEstoque] = useState<ItemEstoque[]>([]);
+  const [storageLocations, setStorageLocations] = useState<StorageLocationRow[]>([]);
+  const [feedItems, setFeedItems] = useState<FeedInventoryCompatibilityRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState<ModalMode>(null);
-  const [editing, setEditing] = useState<ItemEstoque | null>(null);
-  const [form, setForm] = useState({ ...emptyForm });
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [filterTipo, setFilterTipo] = useState<TipoArmazenamento | "todos">("todos");
+  const [saving, setSaving] = useState(false);
+  const [storageModal, setStorageModal] = useState<StorageModalMode>(null);
+  const [feedModal, setFeedModal] = useState<FeedModalMode>(null);
+  const [storageForm, setStorageForm] = useState<StorageForm>(emptyStorageForm);
+  const [feedForm, setFeedForm] = useState<FeedForm>(emptyFeedForm);
+  const [editingStorage, setEditingStorage] = useState<StorageLocationRow | null>(null);
+  const [editingFeed, setEditingFeed] = useState<FeedInventoryCompatibilityRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
+  const [lowStockThreshold, setLowStockThreshold] = useState("25");
+  const [thresholdModalOpen, setThresholdModalOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const itemLocations = useMemo(
+    () => storageLocations.filter((location) => activeTab === "all" || location.category === activeTab),
+    [activeTab, storageLocations],
+  );
 
   const fetchData = useCallback(async () => {
     const currentFarm = farmRef.current;
     if (!currentFarm) return;
+
     setLoading(true);
-
-    const supabase = createClient();
     try {
-      const { data, error } = await supabase
-        .from("inventory")
-        .select("*")
-        .eq("farm_id", currentFarm.id);
-
-      if (error) throw error;
-
-      const mapped: ItemEstoque[] = (data || []).map((i: any) => ({
-        id: i.id,
-        nome: i.name || "",
-        localizacao: i.location || "",
-        area: i.area || "",
-        status: (i.status as StatusEstoque) || "ativo",
-        tipo: (i.type as TipoArmazenamento) || "racao",
-        capacidade: i.capacity || "",
-        ocupacaoAtual: i.current_occupation || 0,
-        observacoes: i.notes || "",
-        quantidade: i.quantity || 0,
-        unidade: i.unit || "",
-        valorEstoque: i.inventory_value || 0,
-        vencimento: i.expiration_date || null,
-        consumoDiario: i.daily_consumption || 0,
-      }));
-
-      setEstoque(mapped);
-    } catch (e) {
-      console.error(e);
+      const [locations, feed] = await Promise.all([
+        getStorageLocations(currentFarm.id),
+        getFeedInventory(currentFarm.id),
+      ]);
+      setStorageLocations(locations);
+      setFeedItems(feed);
+    } catch (error) {
+      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -164,473 +266,1031 @@ export default function EstoquePage() {
     fetchData();
   }, [fetchData]);
 
-  function openAdd() {
-    setForm({ ...emptyForm });
-    setEditing(null);
-    setModal("add");
-  }
+  useEffect(() => {
+    const savedThreshold = window.localStorage.getItem("inventoryLowStockThreshold");
+    if (savedThreshold) setLowStockThreshold(savedThreshold);
+  }, []);
 
-  function openEdit(item: ItemEstoque) {
-    setForm({
-      nome: item.nome,
-      localizacao: item.localizacao,
-      area: item.area,
-      status: item.status,
-      tipo: item.tipo,
-      capacidade: item.capacidade,
-      ocupacaoAtual: String(item.ocupacaoAtual),
-      observacoes: item.observacoes,
-      quantidade: String(item.quantidade),
-      unidade: item.unidade,
-      valorEstoque: String(item.valorEstoque),
-      vencimento: item.vencimento || "",
-      consumoDiario: String(item.consumoDiario),
-    });
-    setEditing(item);
-    setModal("edit");
-  }
-
-  async function save() {
-    if (!form.nome.trim()) return;
-    const currentFarm = farmRef.current;
-    if (!currentFarm) return;
-
-    const record = {
-      farm_id: currentFarm.id,
-      name: form.nome,
-      location: form.localizacao,
-      area: form.area,
-      status: form.status,
-      type: form.tipo,
-      capacity: form.capacidade,
-      current_occupation: Number(form.ocupacaoAtual) || 0,
-      notes: form.observacoes,
-      quantity: Number(form.quantidade) || 0,
-      unit: form.unidade,
-      inventory_value: Number(form.valorEstoque) || 0,
-      expiration_date: form.vencimento || null,
-      daily_consumption: Number(form.consumoDiario) || 0,
-    };
-
-    const supabase = createClient();
-    try {
-      if (modal === "add") {
-        await supabase.from("feed_inventory").insert(record);
-      } else if (editing) {
-        await supabase.from("feed_inventory").update(record).eq("id", editing.id);
-      }
-      setModal(null);
-      fetchData();
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  async function deleteItem(id: string) {
-    const supabase = createClient();
-    try {
-      await supabase.from("feed_inventory").delete().eq("id", id);
-      setDeleteConfirm(null);
-      fetchData();
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  const filtered = estoque.filter((i) => {
-    const matchSearch = i.nome.toLowerCase().includes(search.toLowerCase()) || i.localizacao.toLowerCase().includes(search.toLowerCase());
-    const matchTipo = filterTipo === "todos" || i.tipo === filterTipo;
-    return matchSearch && matchTipo;
+  const visibleStorageLocations = storageLocations.filter((location) => {
+    if (activeTab === "feed") return location.category === "feed";
+    if (activeTab === "medicine") return location.category === "medicine";
+    if (activeTab === "packaging") return location.category === "packaging";
+    if (activeTab === "equipment") return location.category === "equipment";
+    return true;
   });
 
-  const totalAtivos = estoque.filter((i) => i.status === "ativo").length;
-  const totalManutencao = estoque.filter((i) => i.status === "manutencao").length;
-  const mediaOcupacao = estoque.length > 0 ? Math.round(estoque.reduce((s, i) => s + i.ocupacaoAtual, 0) / estoque.length) : 0;
-  const valorTotal = estoque.reduce((s, i) => s + i.valorEstoque, 0);
-  const today = new Date();
+  const filteredStorage = visibleStorageLocations.filter((location) => {
+    const normalizedSearch = search.toLowerCase();
+    return (
+      location.name.toLowerCase().includes(normalizedSearch) ||
+      storageCategoryLabels[location.category].toLowerCase().includes(normalizedSearch)
+    );
+  });
 
-  function formatCurrency(v: number) { return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
-  function diasAteVencimento(d: string | null) {
-    if (!d) return Infinity;
-    return Math.ceil((new Date(d + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  }
-  function diasDeEstoque(item: ItemEstoque) {
-    if (item.consumoDiario <= 0) return Infinity;
-    return Math.floor(item.quantidade / item.consumoDiario);
+  const visibleFeedItems = activeTab === "all" ? feedItems : feedItems.filter((item) => item.inventory_table === activeTab);
+  const filteredFeed = visibleFeedItems.filter((item) => {
+    const normalizedSearch = search.toLowerCase();
+    return (
+      item.name.toLowerCase().includes(normalizedSearch) ||
+      (item.location ?? "").toLowerCase().includes(normalizedSearch) ||
+      item.category.toLowerCase().includes(normalizedSearch) ||
+      item.type.toLowerCase().includes(normalizedSearch)
+    );
+  });
+
+  const totalFeedValue = feedItems.reduce((sum, item) => sum + Number(item.total_cost ?? 0), 0);
+  const thresholdPercent = numberOrUndefined(lowStockThreshold) ?? 25;
+  const lowStockCount = feedItems.filter((item) => getFeedStockPercent(item) <= thresholdPercent).length;
+  const activeStorageCount = storageLocations.filter((location) => location.status === "active").length;
+  const averageOccupancy = feedItems.length > 0
+    ? Math.round(feedItems.reduce((sum, item) => sum + getFeedStockPercent(item), 0) / feedItems.length)
+    : 0;
+  const expiringFeedItems = feedItems
+    .filter((item) => item.expiration_date)
+    .map((item) => ({ item, days: daysUntil(item.expiration_date) }))
+    .sort((left, right) => left.days - right.days);
+  const expiringSoonCount = expiringFeedItems.filter(({ days }) => days <= 30).length;
+  const alertCount = lowStockCount + expiringSoonCount;
+
+  function openAddStorage() {
+    setStorageForm(emptyStorageForm);
+    setEditingStorage(null);
+    setStorageModal("add");
   }
 
-  const itensComVencimento = estoque.filter((i) => i.vencimento).map((i) => ({ ...i, diasVenc: diasAteVencimento(i.vencimento) })).sort((a, b) => a.diasVenc - b.diasVenc);
-  const vencimentoCritico = itensComVencimento.filter((i) => i.diasVenc <= 30);
-  const estoquesCriticos = estoque.filter((i) => i.consumoDiario > 0 && diasDeEstoque(i) <= 14);
-  const estoqueBaixo = estoque.filter((i) => i.ocupacaoAtual <= 25 && i.status === "ativo");
-  const totalAlertas = vencimentoCritico.length + estoquesCriticos.length + totalManutencao;
-  const perdaVencimento = vencimentoCritico.reduce((s, i) => s + i.valorEstoque, 0);
+  function openEditStorage(location: StorageLocationRow) {
+    const capacity = parseStorageCapacity(location.notes);
+    setStorageForm({
+      name: location.name,
+      category: location.category,
+      status: location.status,
+      isDefault: location.is_default,
+      capacityQuantity: capacity.quantity,
+      capacityUnit: capacity.unit || "kg",
+    });
+    setEditingStorage(location);
+    setStorageModal("edit");
+  }
+
+  function openAddFeed() {
+    const category: InventoryCategory = activeTab === "all" ? "feed" : activeTab;
+    setFeedForm({ ...emptyFeedForm, locationId: "", itemCategory: category });
+    setEditingFeed(null);
+    setFeedModal("add");
+  }
+
+  function openEditFeed(item: FeedInventoryCompatibilityRow) {
+    setFeedForm({
+      itemCategory: item.inventory_table ?? "feed",
+      name: item.name,
+      locationId: item.location_id,
+      feedCategory: item.feed_category ?? item.category ?? "",
+      feedType: item.feed_type ?? item.type ?? "comercial",
+      quantity: String(item.quantity),
+      unit: item.unit,
+      supplier: item.supplier ?? "",
+      unitCost: item.unit_cost === null ? "" : String(item.unit_cost),
+      totalCost: item.total_cost === null ? "" : String(item.total_cost),
+      expirationDate: item.expiration_date ?? "",
+      notes: item.notes ?? "",
+    });
+    setEditingFeed(item);
+    setFeedModal("edit");
+  }
+
+  async function saveStorageLocation() {
+    const currentFarm = farmRef.current;
+    const trimmedName = storageForm.name.trim();
+    if (!currentFarm || !trimmedName) return;
+
+    setSaving(true);
+    try {
+      const payload = {
+        farm_id: currentFarm.id,
+        name: trimmedName,
+        category: storageForm.category,
+        status: storageForm.status,
+        is_default: storageForm.isDefault,
+        notes: serializeStorageCapacity(storageForm),
+      };
+
+      if (storageModal === "add") {
+        await createStorageLocation(payload);
+      } else if (editingStorage) {
+        await updateStorageLocation(editingStorage.id, payload);
+      }
+
+      setStorageModal(null);
+      await fetchData();
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, "Erro ao salvar o item de estoque.");
+      console.error(message, error);
+      setErrorMessage(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveFeedItem() {
+    const currentFarm = farmRef.current;
+    const trimmedName = feedForm.name.trim();
+    if (!currentFarm || !trimmedName) return;
+
+    setSaving(true);
+    try {
+      const payload: FeedInventoryCompatibilityInput = {
+        inventory_table: feedForm.itemCategory,
+        farm_id: currentFarm.id,
+        name: trimmedName,
+        location_id: feedForm.locationId || undefined,
+        category: storageCategoryLabels[feedForm.itemCategory],
+        type: feedForm.feedType.trim() || null,
+        feed_category: feedForm.feedCategory.trim() || null,
+        feed_type: feedForm.feedType.trim() || null,
+        quantity: numberOrUndefined(feedForm.quantity) ?? 0,
+        unit: feedForm.unit,
+        status: "normal" as const,
+        supplier: feedForm.supplier.trim() || null,
+        unit_cost: numberOrUndefined(feedForm.unitCost) ?? null,
+        total_cost: numberOrUndefined(feedForm.totalCost) ?? null,
+        lot_number: null,
+        minimum_quantity: 0,
+        expiration_date: feedForm.itemCategory === "equipment" ? null : feedForm.expirationDate || null,
+        notes: feedForm.notes.trim() || null,
+      };
+
+      if (feedModal === "add") {
+        await createInventoryItem(payload);
+      } else if (editingFeed) {
+        await updateInventoryItem(editingFeed.id, payload);
+      }
+
+      setFeedModal(null);
+      await fetchData();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteSelected() {
+    if (!deleteTarget) return;
+
+    setSaving(true);
+    try {
+      if (deleteTarget.type === "storage") {
+        const location = storageLocations.find((item) => item.id === deleteTarget.id);
+        if (location && isDefaultStorageLocation(location)) {
+          setDeleteTarget(null);
+          return;
+        }
+        await deleteStorageLocation(deleteTarget.id);
+      } else {
+        await deleteInventoryItem(deleteTarget.id, deleteTarget.inventoryTable);
+      }
+      setDeleteTarget(null);
+      await fetchData();
+    } catch (error: unknown) {
+      console.error(error);
+      setErrorMessage(getErrorMessage(error, "Erro ao excluir o item. Ele pode estar sendo referenciado em outros registros."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const actionLabel = "Novo Item";
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-            <Package className="w-6 h-6 text-white" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-emerald-600 shadow-lg shadow-brand-500/20">
+            <Package className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Estoque</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Gerencie seus espaços de armazenamento</p>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Estoque</h1>
+            <p className="mt-0.5 text-sm text-gray-500">Gerencie locais de armazenamento e estoque de racao</p>
           </div>
         </div>
-        <button onClick={openAdd} className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20">
-          <Plus className="w-4 h-4" />
-          Novo Espaço
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={openAddStorage}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            <Warehouse className="h-4 w-4" />
+            Novo Local
+          </button>
+          <button
+            type="button"
+            onClick={openAddFeed}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition-colors hover:bg-brand-700"
+          >
+            <Plus className="h-4 w-4" />
+            {actionLabel}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <MetricCard icon={Package} label="Valor em estoque" value={formatCurrency(totalFeedValue)} />
+        <MetricCard icon={Warehouse} label="Espacos" value={`${activeStorageCount}/${storageLocations.length}`} />
+        <MetricCard icon={Box} label="Ocupacao" value={`${averageOccupancy}%`} tone={averageOccupancy <= thresholdPercent ? "warning" : "neutral"} />
+        <MetricCard icon={ShieldAlert} label="Alertas" value={String(alertCount)} tone={alertCount > 0 ? "warning" : "ok"} />
+      </div>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex w-full gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1 sm:w-auto">
+          {inventoryTabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                type="button"
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  "inline-flex min-w-28 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all",
+                  activeTab === tab.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700",
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex w-full items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-2 transition-all focus-within:border-brand-300 focus-within:ring-2 focus-within:ring-brand-500/20 sm:ml-auto sm:w-80">
+          <Search className="h-4 w-4 flex-shrink-0 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar estoque..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setThresholdModalOpen(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          Alerta {thresholdPercent}%
         </button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
-        {/* Valor Total */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
-              <Package className="w-4.5 h-4.5 text-emerald-600" />
-            </div>
-            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Valor em Estoque</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{formatCurrency(valorTotal)}</p>
-        </div>
+      <InventoryContent
+        activeTab={activeTab}
+        loading={loading}
+        storageLocations={filteredStorage}
+        feedItems={filteredFeed}
+        itemLocations={itemLocations}
+        lowStockThreshold={thresholdPercent}
+        onEditStorage={openEditStorage}
+        onDeleteStorage={(location) => setDeleteTarget({ type: "storage", id: location.id, name: location.name })}
+        onEditFeed={openEditFeed}
+        onDeleteFeed={(item) => setDeleteTarget({ type: "inventory", id: item.id, name: item.name, inventoryTable: item.inventory_table })}
+      />
 
-        {/* Espaços Ativos */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center">
-              <Warehouse className="w-4.5 h-4.5 text-purple-600" />
-            </div>
-            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Espaços</span>
-          </div>
-          <div className="flex items-end justify-between">
-            <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{totalAtivos}<span className="text-sm text-gray-400 font-medium">/{estoque.length}</span></p>
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">Ativos</span>
-          </div>
-          <div className="mt-3 relative">
-            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full rounded-full bg-purple-500 transition-all duration-700" style={{ width: `${(totalAtivos / Math.max(estoque.length, 1)) * 100}%` }} />
-            </div>
-          </div>
-        </div>
-
-        {/* Ocupação Média */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
-              <Box className="w-4.5 h-4.5 text-blue-600" />
-            </div>
-            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Ocupação</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{mediaOcupacao}%</p>
-          <div className="mt-3 relative">
-            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className={cn("h-full rounded-full transition-all duration-700", mediaOcupacao > 80 ? "bg-red-500" : mediaOcupacao > 50 ? "bg-blue-500" : "bg-amber-500")} style={{ width: `${mediaOcupacao}%` }} />
-            </div>
-          </div>
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-[10px] text-gray-400 font-medium">{estoqueBaixo.length > 0 ? `${estoqueBaixo.length} abaixo de 25%` : "Todos acima de 25%"}</span>
-          </div>
-        </div>
-
-        {/* Próximo Vencimento */}
-        <div className={cn("rounded-2xl border p-5 hover:shadow-lg transition-all duration-300 cursor-pointer", vencimentoCritico.length > 0 ? "bg-gradient-to-br from-red-50/80 to-white border-red-200/60 hover:shadow-red-200/30" : "bg-white border-gray-100 hover:shadow-gray-200/50 hover:border-gray-200")}>
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", vencimentoCritico.length > 0 ? "bg-red-100" : "bg-amber-50")}>
-              <CalendarDays className={cn("w-4.5 h-4.5", vencimentoCritico.length > 0 ? "text-red-500" : "text-amber-600")} />
-            </div>
-            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Vencimento</span>
-          </div>
-          {itensComVencimento.length > 0 ? (
-            <>
-              <p className={cn("text-2xl font-bold tracking-tight leading-none", itensComVencimento[0].diasVenc <= 15 ? "text-red-600" : itensComVencimento[0].diasVenc <= 30 ? "text-amber-600" : "text-gray-900")}>{itensComVencimento[0].diasVenc}d</p>
-              <p className="text-[10px] text-gray-400 font-medium mt-1 truncate">{itensComVencimento[0].nome}</p>
-              {perdaVencimento > 0 && (
-                <div className="mt-2 flex items-center gap-1">
-                  <TrendingDown className="w-3 h-3 text-red-500" />
-                  <span className="text-[10px] font-bold text-red-600">{formatCurrency(perdaVencimento)} em risco</span>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">—</p>
-          )}
-        </div>
-
-        {/* Alertas */}
-        <div className={cn("rounded-2xl border p-5 hover:shadow-lg transition-all duration-300 cursor-pointer", totalAlertas > 0 ? "bg-gradient-to-br from-amber-50/80 to-white border-amber-200/60 hover:shadow-amber-200/30" : "bg-white border-gray-100 hover:shadow-gray-200/50 hover:border-gray-200")}>
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", totalAlertas > 0 ? "bg-amber-100" : "bg-emerald-50")}>
-              {totalAlertas > 0 ? <ShieldAlert className="w-4.5 h-4.5 text-amber-600" /> : <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />}
-            </div>
-            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Alertas</span>
-          </div>
-          <p className={cn("text-2xl font-bold tracking-tight leading-none", totalAlertas > 0 ? "text-amber-700" : "text-emerald-700")}>{totalAlertas}</p>
-          <div className="mt-2 space-y-0.5">
-            {perdaVencimento > 0 && <p className="text-[10px] text-red-600 font-bold">{formatCurrency(perdaVencimento)} em risco</p>}
-            {vencimentoCritico.length > 0 && <p className="text-[10px] text-red-500 font-medium">{vencimentoCritico.length} vencendo em 30d</p>}
-            {estoquesCriticos.length > 0 && <p className="text-[10px] text-amber-600 font-medium">{estoquesCriticos.length} estoque &lt;14 dias</p>}
-            {totalManutencao > 0 && <p className="text-[10px] text-gray-500 font-medium">{totalManutencao} em manutenção</p>}
-            {totalAlertas === 0 && <p className="text-[10px] text-emerald-600 font-medium">Tudo em ordem</p>}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Riscos Críticos ── */}
-      {(vencimentoCritico.length > 0 || estoquesCriticos.length > 0) && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center shadow-sm">
-              <AlertTriangle className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">Riscos Críticos</h3>
-              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Itens que requerem ação imediata</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {vencimentoCritico.map((item) => (
-              <div key={`venc-${item.id}`} className="flex items-center gap-3 p-3 rounded-xl bg-red-50/50 border border-red-100">
-                <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
-                  <CalendarDays className="w-4 h-4 text-red-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{item.nome}</p>
-                    <span className="text-[11px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-md flex-shrink-0">{formatCurrency(item.valorEstoque)}</span>
-                  </div>
-                  <p className="text-[11px] text-red-500 font-medium">Vence em {item.diasVenc} dias — {new Date(item.vencimento! + "T00:00:00").toLocaleDateString("pt-BR")} — Perda: {formatCurrency(item.valorEstoque)}</p>
-                </div>
-                <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0", item.diasVenc <= 7 ? "text-white bg-red-500" : "text-red-700 bg-red-100")}>{item.diasVenc}d</span>
-              </div>
-            ))}
-            {estoquesCriticos.map((item) => {
-              const dias = diasDeEstoque(item);
-              return (
-                <div key={`est-${item.id}`} className="flex items-center gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100">
-                  <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
-                    <TrendingDown className="w-4 h-4 text-amber-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{item.nome}</p>
-                    <p className="text-[11px] text-amber-600 font-medium">Estoque para {dias} dias — {item.quantidade.toLocaleString("pt-BR")} {item.unidade} restantes</p>
-                  </div>
-                  <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0", dias <= 7 ? "text-white bg-amber-500" : "text-amber-700 bg-amber-100")}>{dias}d</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      {storageModal && (
+        <StorageLocationModal
+          mode={storageModal}
+          form={storageForm}
+          saving={saving}
+          onChange={setStorageForm}
+          onClose={() => setStorageModal(null)}
+          onSave={saveStorageLocation}
+        />
       )}
 
-      {/* Filters + Search */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto scrollbar-none">
-          {([
-            { key: "todos" as const, label: "Todos" },
-            { key: "racao" as const, label: "Ração" },
-            { key: "medicamentos" as const, label: "Medicamentos" },
-            { key: "equipamentos" as const, label: "Equipamentos" },
-            { key: "embalagens" as const, label: "Embalagens" },
-          ]).map((t) => (
+      {feedModal && (
+        <FeedItemModal
+          mode={feedModal}
+          form={feedForm}
+          locations={storageLocations.filter((location) => location.category === feedForm.itemCategory)}
+          saving={saving}
+          onChange={setFeedForm}
+          onClose={() => setFeedModal(null)}
+          onSave={saveFeedItem}
+        />
+      )}
+
+      {errorMessage && (
+        <ModalShell title="Atenção" onClose={() => setErrorMessage(null)} size="sm">
+          <div className="rounded-xl bg-red-50 p-4 text-sm text-red-800">
+            {errorMessage}
+          </div>
+          <div className="flex justify-end pt-2">
             <button
-              key={t.key}
-              onClick={() => setFilterTipo(t.key)}
-              className={cn(
-                "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer whitespace-nowrap",
-                filterTipo === t.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-              )}
+              onClick={() => setErrorMessage(null)}
+              className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-200"
             >
-              {t.label}
+              Fechar
             </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3.5 py-2 w-full sm:w-72 sm:ml-auto focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-300 transition-all">
-          <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          <input type="text" placeholder="Buscar espaço..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none w-full" />
-        </div>
-      </div>
-
-      {/* Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {loading ? (
-          <div className="col-span-full text-center py-16 text-gray-400 text-sm">Carregando dados...</div>
-        ) : filtered.map((item) => {
-          const TipoIcon = tipoIcons[item.tipo] || Box;
-          const diasVenc = diasAteVencimento(item.vencimento);
-          const diasEst = diasDeEstoque(item);
-          return (
-            <div key={item.id} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", item.status === "ativo" && "bg-purple-50", item.status === "vazio" && "bg-gray-100", item.status === "manutencao" && "bg-amber-50")}>
-                    <TipoIcon className={cn("w-5 h-5", item.status === "ativo" && "text-purple-600", item.status === "vazio" && "text-gray-400", item.status === "manutencao" && "text-amber-600")} />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-900">{item.nome}</h3>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <MapPin className="w-3 h-3 text-gray-400" />
-                      <span className="text-xs text-gray-500">{item.localizacao}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer">
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={() => setDeleteConfirm(item.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Value + Quantity */}
-              <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2 mt-1">
-                <div>
-                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Valor</p>
-                  <p className="text-sm font-bold text-gray-900">{formatCurrency(item.valorEstoque)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Qtd</p>
-                  <p className="text-sm font-bold text-gray-900">{item.quantidade.toLocaleString("pt-BR")} <span className="text-[10px] text-gray-400 font-medium">{item.unidade}</span></p>
-                </div>
-              </div>
-
-              {/* Occupancy bar */}
-              <div className="mt-3 space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500">Ocupação</span>
-                  <span className="font-semibold text-gray-700">{item.ocupacaoAtual}%</span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-gray-100">
-                  <div
-                    className={cn(
-                      "h-1.5 rounded-full transition-all",
-                      item.ocupacaoAtual > 80 ? "bg-red-400" : item.ocupacaoAtual > 50 ? "bg-amber-400" : "bg-brand-500"
-                    )}
-                    style={{ width: item.ocupacaoAtual + "%" }}
-                  />
-                </div>
-              </div>
-
-              {/* Expiration + Days of stock */}
-              <div className="mt-3 flex items-center gap-2">
-                {item.vencimento && (
-                  <div className={cn("flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg", diasVenc <= 15 ? "text-red-600 bg-red-50" : diasVenc <= 30 ? "text-amber-600 bg-amber-50" : "text-gray-500 bg-gray-50")}>
-                    <CalendarDays className="w-3 h-3" />
-                    {diasVenc}d p/ vencer
-                  </div>
-                )}
-                {item.consumoDiario > 0 && (
-                  <div className={cn("flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg", diasEst <= 7 ? "text-red-600 bg-red-50" : diasEst <= 14 ? "text-amber-600 bg-amber-50" : "text-emerald-600 bg-emerald-50")}>
-                    <Clock className="w-3 h-3" />
-                    {diasEst}d de estoque
-                  </div>
-                )}
-              </div>
-
-              {/* Badges */}
-              <div className="flex flex-wrap items-center gap-2 mt-3">
-                <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", statusColor[item.status] || statusColor.ativo)}>
-                  {statusLabel[item.status] || "Ativo"}
-                </span>
-                <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", tipoColor[item.tipo] || tipoColor.racao)}>
-                  {tipoLabel[item.tipo] || "Outro"}
-                </span>
-                <span className="text-[11px] font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-lg">
-                  {item.area || "—"}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-        {!loading && filtered.length === 0 && (
-          <div className="col-span-full text-center py-16 text-gray-400 text-sm">Nenhum espaço encontrado.</div>
-        )}
-      </div>
-
-      {/* Modal */}
-      {modal && (
-        <ModalPortal>
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setModal(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900">
-                {modal === "add" ? "Novo Espaço de Armazenamento" : "Editar Espaço"}
-              </h2>
-              <button onClick={() => setModal(null)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nome</label>
-                <input type="text" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Ex: Depósito de Ração" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Localização</label>
-                <input type="text" value={form.localizacao} onChange={(e) => setForm({ ...form, localizacao: e.target.value })} placeholder="Ex: Setor C, Lote 1" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Área</label>
-                  <input type="text" value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} placeholder="Ex: 800 m²" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Status</label>
-                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as StatusEstoque })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
-                    <option value="ativo">Ativo</option>
-                    <option value="vazio">Vazio</option>
-                    <option value="manutencao">Manutenção</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Capacidade</label>
-                <input type="text" value={form.capacidade} onChange={(e) => setForm({ ...form, capacidade: e.target.value })} placeholder="Ex: 50 toneladas" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Observações</label>
-                <textarea value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} placeholder="Notas sobre o espaço..." rows={2} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all resize-none" />
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button onClick={() => setModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
-              <button onClick={save} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition-colors cursor-pointer shadow-sm">
-                <Check className="w-4 h-4" />
-                Salvar
-              </button>
-            </div>
           </div>
-        </div>
-        </ModalPortal>
+        </ModalShell>
       )}
 
-      {/* Delete Confirmation */}
-      {deleteConfirm !== null && (
-        <ModalPortal>
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setDeleteConfirm(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4" onClick={(e) => e.stopPropagation()}>
-            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto">
-              <Trash2 className="w-5 h-5 text-red-500" />
-            </div>
-            <h3 className="text-base font-bold text-gray-900">Confirmar exclusão</h3>
-            <p className="text-sm text-gray-500">Tem certeza que deseja excluir este espaço? Esta ação não pode ser desfeita.</p>
-            <div className="flex items-center justify-center gap-2 pt-1">
-              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
-              <button onClick={() => deleteItem(deleteConfirm)} className="px-5 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors cursor-pointer shadow-sm">Excluir</button>
-            </div>
-          </div>
-        </div>
-        </ModalPortal>
+      {thresholdModalOpen && (
+        <LowStockThresholdModal
+          value={lowStockThreshold}
+          saving={saving}
+          onChange={setLowStockThreshold}
+          onClose={() => setThresholdModalOpen(false)}
+          onSave={() => {
+            window.localStorage.setItem("inventoryLowStockThreshold", lowStockThreshold);
+            setThresholdModalOpen(false);
+          }}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteModal
+          target={deleteTarget}
+          saving={saving}
+          onClose={() => setDeleteTarget(null)}
+          onDelete={deleteSelected}
+        />
       )}
     </div>
+  );
+}
+
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  tone = "neutral",
+}: {
+  icon: typeof Package;
+  label: string;
+  value: string;
+  tone?: "neutral" | "warning" | "ok";
+}) {
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-5 transition-all hover:border-gray-200 hover:shadow-lg hover:shadow-gray-200/50">
+      <div className="mb-4 flex items-center gap-2.5">
+        <div
+          className={cn(
+            "flex h-9 w-9 items-center justify-center rounded-xl",
+            tone === "warning" && "bg-amber-50",
+            tone === "ok" && "bg-emerald-50",
+            tone === "neutral" && "bg-brand-50",
+          )}
+        >
+          <Icon
+            className={cn(
+              "h-4.5 w-4.5",
+              tone === "warning" && "text-amber-600",
+              tone === "ok" && "text-emerald-600",
+              tone === "neutral" && "text-brand-600",
+            )}
+          />
+        </div>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">{label}</span>
+      </div>
+      <p className="text-2xl font-bold leading-none tracking-tight text-gray-900">{value}</p>
+    </div>
+  );
+}
+
+function InventoryContent({
+  activeTab,
+  loading,
+  storageLocations,
+  feedItems,
+  itemLocations,
+  lowStockThreshold,
+  onEditStorage,
+  onDeleteStorage,
+  onEditFeed,
+  onDeleteFeed,
+}: {
+  activeTab: ActiveTab;
+  loading: boolean;
+  storageLocations: StorageLocationRow[];
+  feedItems: FeedInventoryCompatibilityRow[];
+  itemLocations: StorageLocationRow[];
+  lowStockThreshold: number;
+  onEditStorage: (location: StorageLocationRow) => void;
+  onDeleteStorage: (location: StorageLocationRow) => void;
+  onEditFeed: (item: FeedInventoryCompatibilityRow) => void;
+  onDeleteFeed: (item: FeedInventoryCompatibilityRow) => void;
+}) {
+  return (
+    <div className="space-y-5">
+      {activeTab === "all" && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold text-gray-900">Locais de armazenamento</h2>
+          <StorageTab loading={loading} locations={storageLocations} onEdit={onEditStorage} onDelete={onDeleteStorage} compact />
+        </section>
+      )}
+      <section className="space-y-3">
+        <h2 className="text-sm font-bold text-gray-900">{activeTab === "all" ? "Itens de estoque" : storageCategoryLabels[activeTab]}</h2>
+        <FeedTab
+          loading={loading}
+          items={feedItems}
+          locations={itemLocations}
+          lowStockThreshold={lowStockThreshold}
+          onEdit={onEditFeed}
+          onDelete={onDeleteFeed}
+        />
+      </section>
+      {activeTab !== "all" && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold text-gray-900">Locais de armazenamento</h2>
+          <StorageTab loading={loading} locations={storageLocations} onEdit={onEditStorage} onDelete={onDeleteStorage} compact />
+        </section>
+      )}
+    </div>
+  );
+}
+
+function StorageTab({
+  loading,
+  locations,
+  onEdit,
+  onDelete,
+  compact = false,
+}: {
+  loading: boolean;
+  locations: StorageLocationRow[];
+  onEdit: (location: StorageLocationRow) => void;
+  onDelete: (location: StorageLocationRow) => void;
+  compact?: boolean;
+}) {
+  if (loading) return <EmptyState text="Carregando locais..." />;
+  if (locations.length === 0) return <EmptyState text="Nenhum local encontrado." />;
+
+  return (
+    <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2", compact ? "xl:grid-cols-4" : "xl:grid-cols-3")}>
+      {locations.map((location) => (
+        <div key={location.id} className="rounded-2xl border border-gray-100 bg-white p-5 transition-all hover:border-gray-200 hover:shadow-lg hover:shadow-gray-200/50">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50">
+                <Warehouse className="h-5 w-5 text-brand-600" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="truncate text-sm font-bold text-gray-900">{location.name}</h3>
+                <p className="mt-0.5 text-xs text-gray-500">{storageCategoryLabels[location.category]}</p>
+              </div>
+            </div>
+            <CardActions
+              onEdit={() => onEdit(location)}
+              onDelete={() => onDelete(location)}
+              deleteDisabled={isDefaultStorageLocation(location)}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Badge tone={location.status === "active" ? "ok" : "muted"}>{storageStatusLabels[location.status]}</Badge>
+            {location.is_default && <Badge tone="brand">Padrao</Badge>}
+          </div>
+
+          <div className="mt-4 rounded-xl bg-gray-50 px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Capacidade</p>
+            <p className="mt-1 text-sm font-semibold text-gray-800">{formatStorageCapacity(location.notes)}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FeedTab({
+  loading,
+  items,
+  locations,
+  lowStockThreshold,
+  onEdit,
+  onDelete,
+}: {
+  loading: boolean;
+  items: FeedInventoryCompatibilityRow[];
+  locations: StorageLocationRow[];
+  lowStockThreshold: number;
+  onEdit: (item: FeedInventoryCompatibilityRow) => void;
+  onDelete: (item: FeedInventoryCompatibilityRow) => void;
+}) {
+  if (loading) return <EmptyState text="Carregando itens..." />;
+  if (locations.length === 0) return <EmptyState text="Cadastre um local desta categoria antes de criar itens." />;
+  if (items.length === 0) return <EmptyState text="Nenhum item encontrado." />;
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {items.map((item) => {
+        const stockPercent = getFeedStockPercent(item);
+        const isLow = stockPercent <= lowStockThreshold;
+        const Icon = getItemIcon(item);
+        const iconClassName = getItemIconClassName(item);
+        return (
+          <div key={item.id} className="rounded-2xl border border-gray-100 bg-white p-5 transition-all hover:border-gray-200 hover:shadow-lg hover:shadow-gray-200/50">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className={cn("flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl", iconClassName.wrapper)}>
+                  <Icon className={cn("h-5 w-5", iconClassName.icon)} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm font-bold text-gray-900">{item.name}</h3>
+                  <div className="mt-0.5 flex items-center gap-1 text-xs text-gray-500">
+                    <MapPin className="h-3 w-3" />
+                    <span className="truncate">{item.location || "Sem local"}</span>
+                  </div>
+                </div>
+              </div>
+              <CardActions onEdit={() => onEdit(item)} onDelete={() => onDelete(item)} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 rounded-xl bg-gray-50 px-3 py-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Quantidade</p>
+                <p className="mt-1 text-sm font-bold text-gray-900">
+                  {Number(item.quantity).toLocaleString("pt-BR")} <span className="text-[10px] text-gray-400">{item.unit}</span>
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Valor</p>
+                <p className="mt-1 text-sm font-bold text-gray-900">{formatCurrency(Number(item.total_cost ?? 0))}</p>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Badge tone={isLow ? "warning" : "ok"}>{isLow ? `Estoque baixo (${stockPercent}%)` : feedStatusLabels[item.status]}</Badge>
+              <Badge tone="muted">{item.category}</Badge>
+              {item.type && <Badge tone="muted">{item.type}</Badge>}
+              {item.expiration_date && <Badge tone="muted">Vence {new Date(`${item.expiration_date}T00:00:00`).toLocaleDateString("pt-BR")}</Badge>}
+            </div>
+
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CardActions({
+  onEdit,
+  onDelete,
+  deleteDisabled = false,
+}: {
+  onEdit: () => void;
+  onDelete: () => void;
+  deleteDisabled?: boolean;
+}) {
+  return (
+    <div className="flex flex-shrink-0 items-center gap-1">
+      <button type="button" onClick={onEdit} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-brand-50 hover:text-brand-600">
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        disabled={deleteDisabled}
+        title={deleteDisabled ? "Locais padrao nao podem ser excluidos" : "Excluir"}
+        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function Badge({ children, tone }: { children: React.ReactNode; tone: "brand" | "muted" | "ok" | "warning" }) {
+  return (
+    <span
+      className={cn(
+        "rounded-lg px-2.5 py-1 text-[11px] font-semibold",
+        tone === "brand" && "bg-brand-50 text-brand-700",
+        tone === "muted" && "bg-gray-100 text-gray-500",
+        tone === "ok" && "bg-emerald-50 text-emerald-700",
+        tone === "warning" && "bg-amber-50 text-amber-700",
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return <div className="rounded-2xl border border-dashed border-gray-200 bg-white py-16 text-center text-sm text-gray-400">{text}</div>;
+}
+
+function StorageLocationModal({
+  mode,
+  form,
+  saving,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  mode: Exclude<StorageModalMode, null>;
+  form: StorageForm;
+  saving: boolean;
+  onChange: (form: StorageForm) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <ModalShell title={mode === "add" ? "Novo local de armazenamento" : "Editar local"} onClose={onClose}>
+      <div className="space-y-4">
+        <TextField label="Nome" value={form.name} onChange={(name) => onChange({ ...form, name })} placeholder="Ex: Silo principal" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <SelectField
+            label="Categoria"
+            value={form.category}
+            onChange={(category) => onChange({ ...form, category: category as StorageCategory })}
+            options={[
+              ["feed", "Racao"],
+              ["medicine", "Medicamentos"],
+              ["equipment", "Equipamentos"],
+              ["packaging", "Embalagens"],
+            ]}
+          />
+          <SelectField
+            label="Status"
+            value={form.status}
+            onChange={(status) => onChange({ ...form, status: status as StorageStatus })}
+            options={[
+              ["active", "Ativo"],
+              ["inactive", "Inativo"],
+            ]}
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <TextField
+            label="Quantidade da capacidade"
+            type="number"
+            value={form.capacityQuantity}
+            onChange={(capacityQuantity) => onChange({ ...form, capacityQuantity })}
+            placeholder="Ex: 50"
+          />
+          <SelectField
+            label="Unidade da capacidade"
+            value={form.capacityUnit}
+            onChange={(capacityUnit) => onChange({ ...form, capacityUnit })}
+            options={[
+              ["kg", "kg"],
+              ["g", "g"],
+              ["mg", "mg"],
+              ["l", "l"],
+              ["ml", "ml"],
+              ["un", "un"],
+            ]}
+          />
+        </div>
+        <label className="flex items-center gap-2 rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm font-medium text-gray-700">
+          <input type="checkbox" checked={form.isDefault} onChange={(event) => onChange({ ...form, isDefault: event.target.checked })} className="h-4 w-4 rounded border-gray-300 text-brand-600" />
+          Local padrao desta categoria
+        </label>
+      </div>
+      <ModalActions saving={saving} onClose={onClose} onSave={onSave} />
+    </ModalShell>
+  );
+}
+
+function FeedItemModal({
+  mode,
+  form,
+  locations,
+  saving,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  mode: Exclude<FeedModalMode, null>;
+  form: FeedForm;
+  locations: StorageLocationRow[];
+  saving: boolean;
+  onChange: (form: FeedForm) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const showExpirationDate = form.itemCategory !== "equipment";
+  const typeLabelByCategory: Record<InventoryCategory, string> = {
+    feed: "Tipo",
+    medicine: "Produto de saude / indicacao",
+    equipment: "Tipo de equipamento",
+    packaging: "Tipo de embalagem",
+  };
+  const typePlaceholderByCategory: Record<InventoryCategory, string> = {
+    feed: "Comercial",
+    medicine: "Ex: Vacina, vermifugo, suplemento",
+    equipment: "Ex: Bebedouro, comedouro, ferramenta",
+    packaging: "Ex: Bandeja, caixa, cartela",
+  };
+
+  return (
+    <ModalShell title={mode === "add" ? "Novo item" : "Editar item"} onClose={onClose}>
+      <div className="space-y-4">
+        <TextField label="Nome" value={form.name} onChange={(name) => onChange({ ...form, name })} placeholder="Ex: Racao postura" />
+        <SelectField
+          label="Local de armazenamento"
+          value={form.locationId}
+          onChange={(locationId) => onChange({ ...form, locationId })}
+          options={[
+            ["", "Sem local definido"],
+            ...locations.map((location) => [location.id, location.name] as [string, string]),
+          ]}
+        />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <SelectField
+            label="Categoria de Estoque"
+            value={form.itemCategory}
+            onChange={(itemCategory) => onChange({ ...form, itemCategory: itemCategory as InventoryCategory, locationId: "", expirationDate: itemCategory === "equipment" ? "" : form.expirationDate })}
+            disabled={mode === "edit"}
+            options={[
+              ["feed", "Racao"],
+              ["medicine", "Medicamentos"],
+              ["equipment", "Equipamentos"],
+              ["packaging", "Embalagens"],
+            ]}
+          />
+          {form.itemCategory === "feed" ? (
+            <SelectField
+              label="Tipo"
+              value={form.feedType}
+              onChange={(feedType) => onChange({ ...form, feedType })}
+              options={[
+                ["comercial", "Comercial"],
+                ["milho_mix", "Milho Mix"],
+                ["formula_custom", "Fórmula Custom"],
+                ["soja_blend", "Soja Blend"],
+              ]}
+            />
+          ) : (
+            <TextField
+              label={typeLabelByCategory[form.itemCategory]}
+              value={form.feedType}
+              onChange={(feedType) => onChange({ ...form, feedType })}
+              placeholder={typePlaceholderByCategory[form.itemCategory]}
+            />
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <TextField label="Quantidade" type="number" value={form.quantity} onChange={(quantity) => onChange({ ...form, quantity })} placeholder="0" />
+          <SelectField
+            label="Unidade"
+            value={form.unit}
+            onChange={(unit) => onChange({ ...form, unit })}
+            options={[
+              ["kg", "kg"],
+              ["g", "g"],
+              ["mg", "mg"],
+              ["l", "l"],
+              ["ml", "ml"],
+              ["un", "un"],
+            ]}
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <TextField label="Custo unitario" type="number" value={form.unitCost} onChange={(unitCost) => {
+            const numUnit = Number(unitCost);
+            const numQty = Number(form.quantity);
+            const total = numQty > 0 && numUnit > 0 ? (numUnit * numQty).toFixed(2) : form.totalCost;
+            onChange({ ...form, unitCost, totalCost: total });
+          }} placeholder="0,00" />
+          <TextField label="Valor total" type="number" value={form.totalCost} onChange={(totalCost) => {
+            const numTotal = Number(totalCost);
+            const numQty = Number(form.quantity);
+            const unit = numQty > 0 && numTotal > 0 ? (numTotal / numQty).toFixed(2) : form.unitCost;
+            onChange({ ...form, totalCost, unitCost: unit });
+          }} placeholder="0,00" />
+        </div>
+        {showExpirationDate ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <TextField label="Fornecedor" value={form.supplier} onChange={(supplier) => onChange({ ...form, supplier })} placeholder="Opcional" />
+            <TextField label="Vencimento" type="date" value={form.expirationDate} onChange={(expirationDate) => onChange({ ...form, expirationDate })} />
+          </div>
+        ) : (
+          <TextField label="Fornecedor" value={form.supplier} onChange={(supplier) => onChange({ ...form, supplier })} placeholder="Opcional" />
+        )}
+        <TextArea label="Observacoes" value={form.notes} onChange={(notes) => onChange({ ...form, notes })} placeholder="Notas sobre o item..." />
+      </div>
+      <ModalActions
+        saving={saving}
+        onClose={onClose}
+        onSave={onSave}
+        saveDisabled={
+          !form.name.trim() ||
+          !form.feedType.trim() ||
+          !form.quantity ||
+          !form.unit ||
+          (!form.unitCost && !form.totalCost) ||
+          (form.itemCategory === "medicine" && !form.expirationDate)
+        }
+      />
+    </ModalShell>
+  );
+}
+
+function LowStockThresholdModal({
+  value,
+  saving,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  value: string;
+  saving: boolean;
+  onChange: (value: string) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <ModalShell title="Configurar alerta de estoque" onClose={onClose} size="sm">
+      <div className="space-y-4">
+        <div className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+          Itens de racao serao marcados como baixo estoque quando ficarem abaixo deste percentual.
+        </div>
+        <TextField
+          label="Percentual minimo"
+          type="number"
+          value={value}
+          onChange={onChange}
+          placeholder="25"
+        />
+      </div>
+      <ModalActions saving={saving} onClose={onClose} onSave={onSave} />
+    </ModalShell>
+  );
+}
+
+function DeleteModal({
+  target,
+  saving,
+  onClose,
+  onDelete,
+}: {
+  target: NonNullable<DeleteTarget>;
+  saving: boolean;
+  onClose: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <ModalShell title="Confirmar exclusao" onClose={onClose} size="sm">
+      <div className="space-y-4 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+          <Trash2 className="h-5 w-5 text-red-500" />
+        </div>
+        <p className="text-sm text-gray-500">
+          Tem certeza que deseja excluir <span className="font-semibold text-gray-800">{target.name}</span>?
+        </p>
+      </div>
+      <div className="flex items-center justify-center gap-2 pt-2">
+        <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100">
+          Cancelar
+        </button>
+        <button type="button" onClick={onDelete} disabled={saving} className="rounded-xl bg-red-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-600 disabled:opacity-60">
+          Excluir
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function ModalShell({
+  title,
+  children,
+  onClose,
+  size = "lg",
+}: {
+  title: string;
+  children: React.ReactNode;
+  onClose: () => void;
+  size?: "sm" | "lg";
+}) {
+  return (
+    <ModalPortal>
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
+        <div
+          className={cn("max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl", size === "sm" ? "max-w-sm" : "max-w-2xl")}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+            <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="space-y-5">{children}</div>
+        </div>
+      </div>
+    </ModalPortal>
+  );
+}
+
+function ModalActions({
+  saving,
+  onClose,
+  onSave,
+  saveLabel = "Salvar",
+  saveDisabled = false,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSave: () => void;
+  saveLabel?: string;
+  saveDisabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-end gap-2 pt-2">
+      <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100">
+        Cancelar
+      </button>
+      <button type="button" onClick={onSave} disabled={saving || saveDisabled} className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed">
+        <Check className="h-4 w-4" />
+        {saveLabel}
+      </button>
+    </div>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: "text" | "number" | "date";
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-semibold text-gray-600">{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        min={type === "number" ? "0" : undefined}
+        step={type === "number" ? "0.01" : undefined}
+        className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20"
+      />
+    </label>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: [string, string][];
+  disabled?: boolean;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-semibold text-gray-600">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-800 outline-none transition-all focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+      >
+        {options.map(([optionValue, optionLabel]) => (
+          <option key={optionValue} value={optionValue}>
+            {optionLabel}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function TextArea({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-semibold text-gray-600">{label}</span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        rows={2}
+        className="w-full resize-none rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20"
+      />
+    </label>
   );
 }

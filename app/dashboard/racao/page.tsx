@@ -48,10 +48,11 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { getFeedByDateRange, createFeedRecord, updateFeedRecord, deleteFeedRecord } from "@/lib/services/feed";
 import { getWaterByDateRange, type WaterConsumptionRow } from "@/lib/services/water";
-import { getFeedInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem } from "@/lib/services/inventory";
+import { getFeedInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, type FeedInventoryCompatibilityRow, type StorageLocationRow } from "@/lib/services/inventory";
 import { getProductionByDateRange } from "@/lib/services/production";
 import { getBarns } from "@/lib/services/barns";
 import { getFlocks } from "@/lib/services/flocks";
+import type { Tables } from "@/lib/database.types";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { hasMinimumPlan } from "@/lib/plans";
 import { usePlan } from "@/components/plan/plan-provider";
@@ -77,6 +78,7 @@ interface RegistroRacao {
 
 interface ItemEstoque {
   id: string;
+  locationId: string;
   nome: string;
   categoria: string;
   quantidade: number;
@@ -86,6 +88,7 @@ interface ItemEstoque {
   localizacao?: string;
   lote?: string;
   dataChegada?: string;
+  valorTotal: number;
 }
 
 interface Barn {
@@ -107,6 +110,12 @@ interface DailyEfficiencyPoint {
   eficiencia: number;
   consumoAveG: number;
 }
+
+type FeedConsumptionWithBarn = Tables<"feed_consumption"> & {
+  barns?: { name?: string | null; current_birds?: number | null } | null;
+};
+type ProductionRow = Tables<"egg_production">;
+type FeedMetricKey = "cost" | "quantity_kg";
 
 const tipoLabel: Record<TipoRacao, string> = {
   milho: "Milho Mix",
@@ -184,10 +193,11 @@ export default function RacaoPage() {
   const [registros, setRegistros] = useState<RegistroRacao[]>([]);
   const [estoque, setEstoque] = useState<ItemEstoque[]>([]);
   const [estoqueModal, setEstoqueModal] = useState<"add" | "view" | null>(null);
-  const [estoqueForm, setEstoqueForm] = useState({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal" as StatusEstoque, fornecedor: "", localizacao: "", lote: "", dataChegada: "" });
+  const [storageLocations, setStorageLocations] = useState<StorageLocationRow[]>([]);
+  const [estoqueForm, setEstoqueForm] = useState({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal" as StatusEstoque, fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", valorTotal: "" });
   const [viewingEstoque, setViewingEstoque] = useState<ItemEstoque | null>(null);
   const [editingEstoque, setEditingEstoque] = useState(false);
-  const [editEstoqueForm, setEditEstoqueForm] = useState({ nome: "", categoria: "", quantidade: "", unidade: "", status: "normal" as StatusEstoque, fornecedor: "", localizacao: "", lote: "", dataChegada: "" });
+  const [editEstoqueForm, setEditEstoqueForm] = useState({ nome: "", categoria: "", quantidade: "", unidade: "", status: "normal" as StatusEstoque, fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", valorTotal: "" });
   const [modal, setModal] = useState<ModalMode>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [consumoMensalMode, setConsumoMensalMode] = useState<"rs" | "kg">("rs");
@@ -208,7 +218,7 @@ export default function RacaoPage() {
   const [waterRecords, setWaterRecords] = useState<WaterConsumptionRow[]>([]);
   const [distType, setDistType] = useState<{ tipo: string; kg: number; pct: number; color: string }[]>([]);
 
-  const calculateMonthly = useCallback((data: any[], key: string) => {
+  const calculateMonthly = useCallback((data: FeedConsumptionWithBarn[], key: FeedMetricKey) => {
     const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
     const map: Record<string, number> = {};
     
@@ -230,7 +240,7 @@ export default function RacaoPage() {
     return Object.entries(map).map(([mes, valor]) => ({ mes, valor }));
   }, []);
 
-  const mapDailyEfficiency = useCallback((feed: any[], prod: any[], birdCount: number) => {
+  const mapDailyEfficiency = useCallback((feed: FeedConsumptionWithBarn[], prod: ProductionRow[], birdCount: number) => {
     const last7Days: DailyEfficiencyPoint[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
@@ -252,7 +262,7 @@ export default function RacaoPage() {
     return last7Days;
   }, []);
 
-  const calculateDistribution = useCallback((data: any[]) => {
+  const calculateDistribution = useCallback((data: FeedConsumptionWithBarn[]) => {
     const totals: Record<string, number> = {};
     let grandTotal = 0;
     
@@ -286,31 +296,46 @@ export default function RacaoPage() {
 
       const { startDate, endDate } = dateRange;
 
-      const [feedData, prodData, inventoryData, barnsData, flocksData, waterData] = await Promise.all([
+      const [feedData, prodData, inventoryData, barnsData, flocksData, waterData, locationsRes] = await Promise.all([
         getFeedByDateRange(profile.farm_id, startDate, endDate),
         getProductionByDateRange(profile.farm_id, startDate, endDate),
         getFeedInventory(profile.farm_id),
         getBarns(profile.farm_id),
         getFlocks(profile.farm_id),
         showProFeatures ? getWaterByDateRange(profile.farm_id, startDate, endDate) : Promise.resolve([]),
+        supabase
+          .from("storage_locations")
+          .select("*")
+          .eq("farm_id", profile.farm_id)
+          .eq("category", "feed")
+          .order("is_default", { ascending: false })
+          .order("name", { ascending: true }),
       ]);
 
-      setBarns(barnsData.map((b: any) => ({
+      if (locationsRes.error) throw locationsRes.error;
+      setStorageLocations((locationsRes.data ?? []) as StorageLocationRow[]);
+
+      const typedBarns = barnsData as Barn[];
+      const typedFlocks = flocksData as Flock[];
+      const typedFeedData = feedData as FeedConsumptionWithBarn[];
+      const typedProdData = prodData as ProductionRow[];
+
+      setBarns(typedBarns.map((b) => ({
         id: b.id,
         name: b.name,
         current_birds: b.current_birds || 0
       })));
-      const totalBirds = barnsData.reduce((sum: number, barn: Barn) => sum + (barn.current_birds || 0), 0);
+      const totalBirds = typedBarns.reduce((sum, barn) => sum + (barn.current_birds || 0), 0);
       setWaterRecords(waterData);
 
-      setFlocks((flocksData || []).map((f: any) => ({
+      setFlocks((typedFlocks || []).map((f) => ({
         id: f.id,
         code: f.code || "",
         breed: f.breed || "",
       })));
 
       // Map Table
-      const mapped: RegistroRacao[] = feedData.map((d: any) => {
+      const mapped: RegistroRacao[] = typedFeedData.map((d) => {
         const typeStr = d.feed_type.toLowerCase();
         let tipo: TipoRacao = "comercial";
         if (typeStr.includes("milho")) tipo = "milho";
@@ -334,9 +359,9 @@ export default function RacaoPage() {
       
       // Map Inventory
       const mappedInv: ItemEstoque[] = inventoryData
-        .filter((d: any) => d.type === "racao")
-        .map((d: any) => ({
+        .map((d: FeedInventoryCompatibilityRow) => ({
         id: d.id,
+        locationId: d.location_id,
         nome: d.name,
         categoria: d.type,
         quantidade: Number(d.quantity),
@@ -345,22 +370,23 @@ export default function RacaoPage() {
         fornecedor: d.notes || "",
         localizacao: d.location || "",
         lote: "",
-        dataChegada: d.created_at
+        dataChegada: d.created_at,
+        valorTotal: Number(d.total_cost ?? 0)
       }));
       setEstoque(mappedInv);
 
       // Egg total for cost-per-egg KPI
-      setTotalEggs((prodData || []).reduce((s: number, p: any) => s + (p.eggs_produced || 0), 0));
+      setTotalEggs((typedProdData || []).reduce((s, p) => s + (p.eggs_produced || 0), 0));
 
       // Transformers
-      setMonthlyRS(calculateMonthly(feedData, 'cost'));
-      setMonthlyKg(calculateMonthly(feedData, 'quantity_kg'));
-      setDailyChart(mapDailyEfficiency(feedData, prodData, totalBirds));
-      setDistType(calculateDistribution(feedData));
+      setMonthlyRS(calculateMonthly(typedFeedData, "cost"));
+      setMonthlyKg(calculateMonthly(typedFeedData, "quantity_kg"));
+      setDailyChart(mapDailyEfficiency(typedFeedData, typedProdData, totalBirds));
+      setDistType(calculateDistribution(typedFeedData));
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || "Erro ao carregar dados");
+      setError(err instanceof Error ? err.message : "Erro ao carregar dados");
     } finally {
       setIsLoading(false);
     }
@@ -579,7 +605,7 @@ export default function RacaoPage() {
       
       setModal(null);
       await loadData(); // Reload to get fresh data
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       alert("Erro ao salvar registro");
     } finally {
@@ -594,7 +620,7 @@ export default function RacaoPage() {
       await deleteFeedRecord(id);
       setDeleteConfirm(null);
       await loadData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       alert("Erro ao excluir registro");
     } finally {
@@ -1042,7 +1068,7 @@ export default function RacaoPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                       <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", fontSize: "11px" }} formatter={(v: any, n: any) => [n === "racao" ? `${v} kg` : `${v} L`, n === "racao" ? "Ração" : "Água"]} />
+                      <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", fontSize: "11px" }} formatter={(value: unknown, name: unknown) => [name === "racao" ? `${value} kg` : `${value} L`, name === "racao" ? "Ração" : "Água"]} />
                       <Area type="monotone" dataKey="racao" stroke="#f97316" strokeWidth={2} fill="url(#racaoFill)" name="racao" />
                       <Area type="monotone" dataKey="agua" stroke="#3b82f6" strokeWidth={2} fill="url(#aguaFill)" name="agua" />
                     </AreaChart>
@@ -1278,13 +1304,13 @@ export default function RacaoPage() {
                   contentStyle={{ backgroundColor: "#fff", border: "none", borderRadius: "16px", boxShadow: "0 8px 30px rgba(0,0,0,0.12)", fontSize: "13px", padding: "14px 18px" }}
                   labelStyle={{ fontWeight: 800, color: "#111827", marginBottom: "8px", fontSize: "14px" }}
                   itemStyle={{ padding: "2px 0" }}
-                  formatter={((value: any, name: any) => {
+                  formatter={(value: unknown, name: unknown) => {
                     const n = String(name);
                     if (n === "kg") return [Number(value) + " kg", "Consumo"];
                     if (n === "ovos") return [Number(value).toLocaleString("pt-BR") + " ovos", "Produção"];
                     if (n === "consumoAveG") return [Number(value).toFixed(0) + " g/ave", "Consumo / ave"];
-                    return [value, name];
-                  }) as any}
+                    return [String(value), String(name)];
+                  }}
                   cursor={{ fill: "rgba(45, 122, 79, 0.04)" }}
                 />
                 <Bar yAxisId="left" dataKey="kg" fill="url(#gradConsumoBar)" radius={[4, 4, 0, 0]} barSize={14} name="kg" />
@@ -1359,24 +1385,10 @@ export default function RacaoPage() {
               </button>
             </div>
           </div>
-          {/* Stacked bar */}
-          {(() => {
-            const totalQty = estoque.reduce((s, e) => s + e.quantidade, 0);
-            const normalPct = (estoque.filter(e => e.status === "normal").reduce((s, e) => s + e.quantidade, 0) / totalQty) * 100;
-            const alertaPct = (estoque.filter(e => e.status === "alerta").reduce((s, e) => s + e.quantidade, 0) / totalQty) * 100;
-            const baixoPct = (estoque.filter(e => e.status === "baixo").reduce((s, e) => s + e.quantidade, 0) / totalQty) * 100;
-            return (
-              <div className="w-full h-5 rounded-full overflow-hidden flex mb-4">
-                <div className="h-full transition-all duration-500 first:rounded-l-full" style={{ width: `${normalPct}%`, backgroundColor: "#10b981" }} />
-                <div className="h-full transition-all duration-500" style={{ width: `${alertaPct}%`, backgroundColor: "#f59e0b" }} />
-                <div className="h-full transition-all duration-500 last:rounded-r-full" style={{ width: `${baixoPct}%`, backgroundColor: "#ef4444" }} />
-              </div>
-            );
-          })()}
           <div className="space-y-0 max-h-[320px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
             {estoque.map((item, i) => (
               <div key={item.id}>
-                <button onClick={() => { setViewingEstoque(item); setEditingEstoque(false); setEditEstoqueForm({ nome: item.nome, categoria: item.categoria, quantidade: String(item.quantidade), unidade: item.unidade, status: item.status, fornecedor: item.fornecedor || "", localizacao: item.localizacao || "", lote: item.lote || "", dataChegada: item.dataChegada || "" }); setEstoqueModal("view"); }} className="flex items-center justify-between py-2.5 group cursor-pointer hover:bg-gray-50/50 -mx-2 px-2 rounded-lg transition-colors w-full text-left">
+                <button onClick={() => { setViewingEstoque(item); setEditingEstoque(false); setEditEstoqueForm({ nome: item.nome, categoria: item.categoria, quantidade: String(item.quantidade), unidade: item.unidade, status: item.status, fornecedor: item.fornecedor || "", localizacaoId: item.locationId, lote: item.lote || "", dataChegada: item.dataChegada || "", valorTotal: String(item.valorTotal || "") }); setEstoqueModal("view"); }} className="flex items-center justify-between py-2.5 group cursor-pointer hover:bg-gray-50/50 -mx-2 px-2 rounded-lg transition-colors w-full text-left">
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                     <div className={cn(
                       "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
@@ -1732,7 +1744,12 @@ export default function RacaoPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Localização</label>
-                  <input type="text" value={estoqueForm.localizacao} onChange={(e) => setEstoqueForm({ ...estoqueForm, localizacao: e.target.value })} placeholder="Ex: Galpão A" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  <select value={estoqueForm.localizacaoId} onChange={(e) => setEstoqueForm({ ...estoqueForm, localizacaoId: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
+                    <option value="">Sem local definido</option>
+                    {storageLocations.map((location) => (
+                      <option key={location.id} value={location.id}>{location.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1743,6 +1760,10 @@ export default function RacaoPage() {
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Data de Chegada</label>
                   <input type="date" value={estoqueForm.dataChegada} onChange={(e) => setEstoqueForm({ ...estoqueForm, dataChegada: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Valor Total (R$)</label>
+                  <input type="number" min="0" step="0.01" value={estoqueForm.valorTotal} onChange={(e) => setEstoqueForm({ ...estoqueForm, valorTotal: e.target.value })} placeholder="0,00" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
               </div>
             </div>
@@ -1761,11 +1782,12 @@ export default function RacaoPage() {
                       unit: estoqueForm.unidade,
                       status: estoqueForm.status,
                       supplier: estoqueForm.fornecedor || null,
-                      location: estoqueForm.localizacao || null,
+                      location_id: estoqueForm.localizacaoId || undefined,
                       lot_number: estoqueForm.lote || null,
                       arrival_date: estoqueForm.dataChegada || null,
+                      total_cost: Number(estoqueForm.valorTotal) || null,
                     });
-                    setEstoqueForm({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal", fornecedor: "", localizacao: "", lote: "", dataChegada: "" });
+                    setEstoqueForm({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal", fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", valorTotal: "" });
                     setEstoqueModal(null);
                     await loadData();
                   } catch (err) {
@@ -1877,7 +1899,12 @@ export default function RacaoPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Localização</label>
-                    <input type="text" value={editEstoqueForm.localizacao} onChange={(e) => setEditEstoqueForm({ ...editEstoqueForm, localizacao: e.target.value })} placeholder="Ex: Galpão A" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all" />
+                    <select value={editEstoqueForm.localizacaoId} onChange={(e) => setEditEstoqueForm({ ...editEstoqueForm, localizacaoId: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all bg-white cursor-pointer">
+                      <option value="">Sem local definido</option>
+                      {storageLocations.map((location) => (
+                        <option key={location.id} value={location.id}>{location.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -1888,6 +1915,10 @@ export default function RacaoPage() {
                   <div>
                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Data de Chegada</label>
                     <input type="date" value={editEstoqueForm.dataChegada} onChange={(e) => setEditEstoqueForm({ ...editEstoqueForm, dataChegada: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Valor Total (R$)</label>
+                    <input type="number" min="0" step="0.01" value={editEstoqueForm.valorTotal} onChange={(e) => setEditEstoqueForm({ ...editEstoqueForm, valorTotal: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all" />
                   </div>
                 </div>
                 <div className="flex items-center gap-3 mt-2">
@@ -1909,9 +1940,10 @@ export default function RacaoPage() {
                           unit: editEstoqueForm.unidade || viewingEstoque.unidade,
                           status: editEstoqueForm.status,
                           supplier: editEstoqueForm.fornecedor || null,
-                          location: editEstoqueForm.localizacao || null,
+                          location_id: editEstoqueForm.localizacaoId || undefined,
                           lot_number: editEstoqueForm.lote || null,
                           arrival_date: editEstoqueForm.dataChegada || null,
+                          total_cost: Number(editEstoqueForm.valorTotal) || null,
                         });
                         setEditingEstoque(false);
                         await loadData();

@@ -32,9 +32,10 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { createClient } from "@/lib/supabase/client";
-import type { Database } from "@/lib/database.types";
+import type { Tables } from "@/lib/database.types";
 import { getFinancialSummaryInRange } from "@/lib/services/finances";
 import { getFarmBirdCount } from "@/lib/services/farms";
+import { getFeedInventory, type FeedInventoryCompatibilityRow } from "@/lib/services/inventory";
 import {
   createTask,
   deleteTask,
@@ -190,8 +191,8 @@ type DashboardAlert = {
   risk: string;
   href?: string;
 };
-type InventoryRow = Pick<Database["public"]["Tables"]["inventory"]["Row"], "id" | "name" | "quantity" | "unit" | "status">;
-type MortalityAlertRow = Pick<Database["public"]["Tables"]["mortality"]["Row"], "id" | "date" | "mortality_rate">;
+type InventoryRow = Pick<FeedInventoryCompatibilityRow, "id" | "name" | "quantity" | "unit" | "status">;
+type MortalityAlertRow = Pick<Tables<"mortality">, "id" | "date" | "mortality_rate">;
 type OverdueTaskAlertRow = Pick<TaskRow, "id" | "title" | "date">;
 
 const todayStr = new Date().toISOString().split("T")[0];
@@ -496,10 +497,10 @@ export default function DashboardPage() {
         const overdueTasks = overdueTasksRes.data ?? [];
 
         // Check customers & sales & inventory
-        const [custRes, salesRes, invRes, overdueTaskExceptionsRes] = await Promise.all([
+        const [custRes, salesRes, inventoryItems, overdueTaskExceptionsRes] = await Promise.all([
           supabase.from("customers").select("id", { count: "exact", head: true }).eq("farm_id", farmId),
           supabase.from("sales").select("id", { count: "exact", head: true }).eq("farm_id", farmId),
-          supabase.from("inventory").select("id, name, quantity, unit, status").eq("farm_id", farmId),
+          getFeedInventory(farmId),
           overdueTasks.length > 0
             ? supabase
                 .from("task_exceptions")
@@ -510,7 +511,6 @@ export default function DashboardPage() {
         ]);
         const hasCustomers = (custRes.count ?? 0) > 0;
         const hasSales = (salesRes.count ?? 0) > 0;
-        const inventoryItems = invRes.data ?? [];
         const hasInventory = inventoryItems.length > 0;
 
         const pending = setupAlerts.filter((s) => {
@@ -1159,7 +1159,7 @@ export default function DashboardPage() {
                       )}
                       <input
                         type="number"
-                        step="any"
+                        step="0.01"
                         value={editingGoalValue}
                         onChange={(e) => setEditingGoalValue(e.target.value)}
                         onKeyDown={(e) => {

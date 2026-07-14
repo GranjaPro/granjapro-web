@@ -11,6 +11,7 @@ import ModalPortal from "@/components/ui/modal-portal";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import type { TablesInsert } from "@/lib/database.types";
 
 type ProductionStage = "cria" | "recria" | "pre-postura" | "producao" | "pico" | "estavel" | "declinio" | "descarte";
 
@@ -69,6 +70,31 @@ interface ActiveAlert {
   href?: string;
   source: "db" | "setup" | "derived";
 }
+
+type FlockWithBarnName = {
+  id: string;
+  code: string;
+  breed: string;
+  bird_count: number;
+  arrival_age_weeks: number | null;
+  production_system: string;
+  status: string;
+  supplier: string | null;
+  supplier_contact: string | null;
+  arrival_date: string;
+  origin: string | null;
+  lineage: string | null;
+  avg_weight_kg: number | null;
+  barn_id: string;
+  barns?: { name?: string | null } | null;
+};
+
+type AlertRow = {
+  id: string;
+  type: "info" | "warning" | "error";
+  message: string;
+  created_at: string;
+};
 
 const sistemaLabel: Record<string, string> = {
   "Cage-Free": "Cage-Free",
@@ -221,7 +247,7 @@ export default function LotesPage() {
         supabase.from("feed_inventory").select("id", { count: "exact", head: true }).eq("farm_id", currentFarm.id),
       ]);
 
-      const mappedLotes: Lote[] = (flocksRes.data ?? []).map((f: any) => ({
+      const mappedLotes: Lote[] = ((flocksRes.data ?? []) as FlockWithBarnName[]).map((f) => ({
         id: f.id,
         code: f.code,
         breed: f.breed,
@@ -245,7 +271,7 @@ export default function LotesPage() {
         setBarns(barnsRes.data as Barn[]);
       }
 
-      const realAlerts: ActiveAlert[] = (alertsRes.data ?? []).map((alert: any) => ({
+      const realAlerts: ActiveAlert[] = ((alertsRes.data ?? []) as AlertRow[]).map((alert) => ({
         id: String(alert.id),
         type: (alert.type === "error" ? "danger" : alert.type) as ActiveAlert["type"],
         msg: alert.message,
@@ -383,7 +409,7 @@ export default function LotesPage() {
     const arrivalAgeDays = Number(form.arrival_age_weeks) || 0;
     const arrivalAgeWeeks = Math.round(arrivalAgeDays / 7);
     const currentAge = calculateCurrentAge(form.arrival_date, arrivalAgeWeeks);
-    const record: Record<string, any> = {
+    const record: TablesInsert<"flocks"> = {
       farm_id: farm.id,
       code: form.code,
       breed: form.breed,
@@ -431,8 +457,8 @@ export default function LotesPage() {
 
       setModal(null);
       await fetchData();
-    } catch (err: any) {
-      setError(err.message || "Erro ao salvar lote.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erro ao salvar lote.");
     }
     setSaving(false);
   }
@@ -460,7 +486,7 @@ export default function LotesPage() {
 
       setDeleteConfirm(null);
       await fetchData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error deleting flock:", err);
     }
   }

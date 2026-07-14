@@ -11,6 +11,7 @@ Help egg farmers simplify daily farm management and improve financial control. T
 ## Current State
 
 - v1.3 **Functional MVP & Integrations** in progress.
+- Phase 23 **Storage Locations and Feed UI** completed on 2026-07-01.
 - v1.2 **Dark Theme & Granular Permissions** shipped on 2026-06-02.
 - v1.1 **Google Sign-In** shipped on 2026-05-06.
 - v1.0 **Finances Module + Calendar Sync** shipped on 2026-05-01.
@@ -33,6 +34,7 @@ Help egg farmers simplify daily farm management and improve financial control. T
 ## Next Milestone Goals (v1.3)
 
 - **Inventory Re-architecture**: Full database specialization (Storage Locations, Feed, Vaccines, Packaging, and Loss logging) and tab-based UI migration.
+- **Storage + Feed inventory UI**: Storage locations and feed inventory tabs are now backed by specialized tables, including feed loss adjustments.
 - **Task System**: Dedicated management for recurring and manual farm tasks.
 - **Notifications System**: In-app alerts for low stock, productivity drops, task deadlines, and evaluation triggers.
 - **Stripe Payment Integration**: Subscriptions for "Essencial", "Pro", and "Premium" tiers via Stripe Checkout.
