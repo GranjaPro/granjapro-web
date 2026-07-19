@@ -176,7 +176,7 @@ export default function FeedbackPage() {
                     className={cn(
                       "flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-offset-slate-900",
                       selected
-                        ? "border-brand-500 bg-brand-50 text-brand-600 hover:bg-brand-100 dark:border-brand-400 dark:bg-brand-500/15 dark:text-brand-300"
+                        ? "border-brand-500 bg-brand-50 text-brand-600 hover:bg-brand-50 dark:border-brand-400 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/15"
                         : "border-slate-200 bg-white text-slate-300 hover:border-brand-300 hover:text-brand-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-600 dark:hover:border-brand-400 dark:hover:text-brand-300"
                     )}
                   >
