@@ -41,7 +41,7 @@ created: 2026-07-19
 | 18-01-01 | 01 | 1 | FB-05 | T-18-01 | `feedbacks` RLS rejects forged `user_id`/`farm_id` | source/manual DB | `npm run build` | missing until plan execution | pending |
 | 18-01-02 | 01 | 1 | FB-03 | T-18-02 | Rating/category constraints reject invalid values | source/manual DB | `npm run build` | missing until plan execution | pending |
 | 18-02-01 | 02 | 2 | FB-01 to FB-07 | T-18-03 | Client validates required fields and exposes generic inline errors | build/manual UI | `npm run build` | missing until plan execution | pending |
-| 18-03-01 | 03 | 2 | FB-08 to FB-10 | - | Desktop/sidebar and profile access work; mobile nav remains unchanged | build/code review/manual UI | `npm run build` | missing until plan execution | pending |
+| 18-03-01 | 03 | 3 | FB-08 to FB-10 | - | Desktop/sidebar and profile access work; mobile nav remains unchanged | build/code review/manual UI | `npm run build` | missing until plan execution | pending |
 
 *Status: pending / green / red / flaky*
 
