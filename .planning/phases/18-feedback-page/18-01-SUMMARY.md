@@ -37,7 +37,7 @@ key-decisions:
   - "Duplicate local migration version 00023 was resolved by renumbering the storage/inventory sequence before pushing feedbacks."
 
 patterns-established:
-  - "Feedback service pattern: derive Row and Insert types from Database and expose only createFeedback."
+  - "Feedback service pattern: derive Insert types from Database and expose only a non-returning createFeedback insert helper."
   - "Feedback RLS pattern: require user_id = auth.uid() and a farm_id owned by the user or matching profiles.farm_id."
 
 requirements-completed: [FB-03, FB-05]
@@ -63,7 +63,7 @@ coverage:
         status: pass
     human_judgment: false
   - id: D3
-    description: "Feedback inserts are available through a strict typed createFeedback helper and barrel export only."
+    description: "Feedback inserts are available through a strict typed non-returning createFeedback helper and barrel export only."
     requirement: FB-05
     verification:
       - kind: other
@@ -108,6 +108,7 @@ status: complete
 - Created `public.feedbacks` with user/farm foreign keys, rating/category constraints, optional description, indexes, and insert-only RLS.
 - Added `feedbacks` Row, Insert, and Update entries to `Database["public"]["Tables"]` without introducing `any`.
 - Added `createFeedback(record)` as the only feedback service helper and exported it from the service barrel.
+- Updated `createFeedback(record)` after code review to avoid `.select().single()`, preserving insert-only RLS without requiring a feedback select policy.
 - Renumbered the duplicated `00023` storage/inventory migration sequence so Supabase no longer requires `--include-all` for the old schema.
 - Applied the pending remote migrations with `supabase db push`.
 
@@ -134,6 +135,7 @@ Each code task was committed atomically:
 - Kept feedback one-way for this phase: no select, update, delete, admin review, history, edit, or delete service/policy was added.
 - Used the local project Supabase CLI binary instead of installing or downloading any package.
 - Repaired the duplicated local `00023` migration version by renumbering later storage/inventory migrations instead of replaying old storage SQL against the remote database.
+- Kept `createFeedback` non-returning after review so valid inserts do not require row-read authorization.
 
 ## Deviations from Plan
 
@@ -157,6 +159,7 @@ One operational deviation was required: the local migration sequence had two `00
 - `supabase` was not on PATH, but the project already has a local CLI at `node_modules/.bin/supabase.cmd`; no package install was needed.
 - The remote migration history exposed a duplicated local `00023` sequence. Renumbering removed the stale `--include-all` requirement and avoided replaying old storage SQL after the remote had already reached the medicine/equipment schema.
 - A final `migration list` retry hit a temporary Supabase pooler authentication limit, but `db push` had already completed and direct metadata verification passed.
+- Code review found that `.insert().select().single()` conflicted with the insert-only RLS design; the helper was corrected to use a non-returning insert.
 
 ## Verification Results
 
@@ -170,6 +173,7 @@ One operational deviation was required: the local migration sequence had two `00
 - PASS: `Select-String lib/database.types.ts` for the exact category union
 - PASS: `Select-String lib/services/feedback.ts "export async function createFeedback"`
 - PASS: `Select-String lib/services/index.ts 'from "./feedback"'`
+- PASS: `rg "select\\(\\)|single\\(\\)|FeedbackRow" lib/services/feedback.ts lib/services/index.ts` returned no matches after review fix
 - PASS: `Select-String` for `any` in changed TypeScript files returned no matches
 - PASS: `npm run build` after Task 2
 - PASS: `.\\node_modules\\.bin\\supabase.cmd db push`
