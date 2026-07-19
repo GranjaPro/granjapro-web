@@ -20,7 +20,7 @@ export {
   deleteTask,
 } from "./tasks";
 export { getAlerts, getUnreadAlertCount, createAlert, markAlertAsRead, markAllAlertsAsRead, resolveAlert } from "./alerts";
-export { createFeedback, type FeedbackInsert, type FeedbackRow } from "./feedback";
+export { createFeedback, type FeedbackInsert } from "./feedback";
 export { getEquipmentByFarm, createEquipment, updateEquipment, deleteEquipment } from "./equipment";
 export { getWorkers, createWorker, updateWorker, deleteWorker } from "./workers";
 export {
