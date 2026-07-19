@@ -36,8 +36,7 @@ export default function FeedbackPage() {
 
   const hasRequiredContext = Boolean(user?.id && farm?.id);
   const hasRequiredFields = Boolean(rating && category);
-  const canSubmit = hasRequiredContext && !isSaving;
-  const submitLooksDisabled = !canSubmit || !hasRequiredFields;
+  const canSubmit = hasRequiredContext && hasRequiredFields && !isSaving;
 
   function updateRating(nextRating: number) {
     setRating(nextRating);
@@ -218,10 +217,10 @@ export default function FeedbackPage() {
             <button
               type="submit"
               disabled={!canSubmit}
-              aria-disabled={submitLooksDisabled}
+              aria-disabled={!canSubmit}
               className={cn(
                 "inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-brand-600 px-5 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition-colors hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none dark:focus-visible:ring-offset-slate-900 dark:disabled:bg-slate-700",
-                submitLooksDisabled && "opacity-70"
+                !canSubmit && "opacity-70"
               )}
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
