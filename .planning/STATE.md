@@ -98,6 +98,6 @@ Last activity: 2026-07-01
 
 **To resume work:**
 
-1. Phase 23 Context is gathered.
-2. Review `.planning/phases/23-storage-locations-and-feed-ui/23-CONTEXT.md` for visual details and implementation decisions.
-3. Run `/gsd-plan-phase 23` to design the technical implementation plan.
+1. Phase 18 Context is gathered.
+2. Review `.planning/phases/18-feedback-page/18-CONTEXT.md` for feedback page scope, access points, persistence, and RLS decisions.
+3. Run `/gsd-plan-phase 18` to design the technical implementation plan.
