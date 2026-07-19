@@ -30,6 +30,7 @@ export default function FeedbackPage() {
   const [category, setCategory] = useState<CategorySelection>("");
   const [description, setDescription] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [hoveredRating, setHoveredRating] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -37,6 +38,7 @@ export default function FeedbackPage() {
   const hasRequiredContext = Boolean(user?.id && farm?.id);
   const hasRequiredFields = Boolean(rating && category);
   const canSubmit = hasRequiredContext && hasRequiredFields && !isSaving;
+  const displayedRating = hoveredRating ?? rating;
 
   function updateRating(nextRating: number) {
     setRating(nextRating);
@@ -154,14 +156,20 @@ export default function FeedbackPage() {
           )}
 
           <Field label="Nota" error={fieldErrors.rating}>
-            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Nota">
+            <div
+              className="flex flex-wrap gap-2"
+              role="radiogroup"
+              aria-label="Nota"
+              onMouseLeave={() => setHoveredRating(null)}
+            >
               {[1, 2, 3, 4, 5].map((value) => {
-                const selected = rating !== null && value <= rating;
+                const selected = displayedRating !== null && value <= displayedRating;
                 return (
                   <button
                     key={value}
                     type="button"
                     onClick={() => updateRating(value)}
+                    onMouseEnter={() => setHoveredRating(value)}
                     disabled={isSaving}
                     aria-checked={rating === value}
                     role="radio"
