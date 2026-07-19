@@ -1169,6 +1169,35 @@ export interface Database {
           resolved?: boolean;
         };
       };
+      feedbacks: {
+        Row: {
+          id: string;
+          created_at: string;
+          user_id: string;
+          farm_id: string;
+          rating: number;
+          category: "Satisfacao" | "Bug" | "Sugestao" | "Dificuldade" | "Outro";
+          description: string | null;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          user_id: string;
+          farm_id: string;
+          rating: number;
+          category: "Satisfacao" | "Bug" | "Sugestao" | "Dificuldade" | "Outro";
+          description?: string | null;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          user_id?: string;
+          farm_id?: string;
+          rating?: number;
+          category?: "Satisfacao" | "Bug" | "Sugestao" | "Dificuldade" | "Outro";
+          description?: string | null;
+        };
+      };
       billing_subscriptions: {
         Row: {
           id: string;
