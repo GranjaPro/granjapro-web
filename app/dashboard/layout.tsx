@@ -35,6 +35,7 @@ import {
   Wrench,
   Bot,
   FileText,
+  MessageSquare,
   Bell,
   Menu,
   X,
@@ -85,6 +86,7 @@ const sidebarNav: SidebarNavItem[] = [
   { label: "Assistente IA", href: "/dashboard/ai", icon: Bot },
   { label: "Funcionários", href: "/dashboard/workers", icon: Users, minimumPlan: "pro" },
   { label: "Relatórios", href: "/dashboard/reports", icon: FileText, minimumPlan: "pro" },
+  { label: "Feedback", href: "/dashboard/feedback", icon: MessageSquare },
 ];
 
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
