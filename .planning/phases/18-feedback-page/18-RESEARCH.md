@@ -156,7 +156,7 @@ lib/
   database.types.ts            # add feedbacks table types after migration
 supabase/
   migrations/
-    00028_feedbacks.sql        # current next number unless migrations changed
+    00029_feedbacks.sql        # current next number unless migrations changed
 ```
 
 ### Pattern 1: Typed Service Wrapper
@@ -255,7 +255,7 @@ type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number];
 | Forgetting `user_id` in the insert payload | Cannot satisfy D-09/D-10 and weakens audit trail. | Include both `user_id: user.id` and `farm_id: farm.id` in the typed insert. [VERIFIED: 18-CONTEXT.md] |
 | Treating optional description as required | Adds friction contrary to D-03. | Trim description and persist `null` or omit when blank. [VERIFIED: 18-CONTEXT.md] |
 | Not updating `lib/database.types.ts` | TypeScript cannot type `feedbacks` service/page. | Regenerate or manually add table types consistently after migration. [VERIFIED: STRUCTURE.md] |
-| Choosing migration number from stale context | Filename collision. | Re-list `supabase/migrations/` immediately before implementation; current latest observed here is `00027_fix_medicine_inventory_location_trigger.sql`. [VERIFIED: supabase/migrations/] |
+| Choosing migration number from stale context | Filename collision. | Re-list `supabase/migrations/` immediately before implementation; current latest observed here is `00028_fix_medicine_inventory_location_trigger.sql`. [VERIFIED: supabase/migrations/] |
 
 ## Environment Availability
 

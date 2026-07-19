@@ -1,5 +1,5 @@
 -- ============================================
--- Migration 00028: Add feedbacks table
+-- Migration 00029: Add feedbacks table
 -- ============================================
 
 create table if not exists public.feedbacks (

@@ -60,7 +60,7 @@ Deliver the in-app feedback collection flow for Granja Pro: create the Supabase 
 - `components/dashboard/profile-settings.tsx` - Existing profile modal where the feedback access button should be added.
 - `components/layout/mobile-nav.tsx` - Existing mobile navigation, reviewed and intentionally left unchanged for this phase.
 - `lib/database.types.ts` - Generated/maintained Supabase table typings that must include `feedbacks` after the migration/types update.
-- `supabase/migrations/` - Migration directory. The current latest migration observed during discussion was `00027_fix_medicine_inventory_location_trigger.sql`; implementation must use the next available migration number.
+- `supabase/migrations/` - Migration directory. The current latest migration observed during execution is `00029_feedbacks.sql`; future migrations must use the next available migration number.
 
 </canonical_refs>
 

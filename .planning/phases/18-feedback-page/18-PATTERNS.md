@@ -11,7 +11,7 @@
 | `app/dashboard/feedback/page.tsx` | route/component | request-response CRUD insert | `app/dashboard/agua/page.tsx` + `app/dashboard/select-plan/page.tsx` | role-match |
 | `lib/services/feedback.ts` | service | CRUD insert | `lib/services/water.ts` | exact |
 | `lib/services/index.ts` | config/barrel | transform | `lib/services/index.ts` | exact |
-| `supabase/migrations/00028_feedbacks.sql` | migration | CRUD schema/RLS | `supabase/migrations/00020_water_consumption.sql` + `supabase/migrations/00022_flock_tasks_crud.sql` | exact |
+| `supabase/migrations/00029_feedbacks.sql` | migration | CRUD schema/RLS | `supabase/migrations/00020_water_consumption.sql` + `supabase/migrations/00022_flock_tasks_crud.sql` | exact |
 | `lib/database.types.ts` | model/type | transform | `lib/database.types.ts` water/task table entries | exact |
 | `app/dashboard/layout.tsx` | component/provider | request-response navigation | `app/dashboard/layout.tsx` sidebar nav | exact |
 | `components/dashboard/profile-settings.tsx` | component | event-driven navigation | `components/dashboard/profile-settings.tsx` plan navigation button | exact |
@@ -179,7 +179,7 @@ export { getEquipmentByFarm, createEquipment, updateEquipment, deleteEquipment }
 
 ---
 
-### `supabase/migrations/00028_feedbacks.sql` (migration, CRUD schema/RLS)
+### `supabase/migrations/00029_feedbacks.sql` (migration, CRUD schema/RLS)
 
 **Analog:** `C:\Users\Bernardo Timo\OneDrive\Desktop\GranjaPro\supabase\migrations\00020_water_consumption.sql` and `C:\Users\Bernardo Timo\OneDrive\Desktop\GranjaPro\supabase\migrations\00022_flock_tasks_crud.sql`
 
@@ -245,7 +245,7 @@ create index if not exists idx_water_consumption_farm_date on public.water_consu
 create index if not exists idx_water_consumption_flock_id on public.water_consumption(flock_id);
 ```
 
-**Planner notes:** Current latest migration is `00027_fix_medicine_inventory_location_trigger.sql`, so use `00028_feedbacks.sql` if still available at execution time. Include `user_id uuid references auth.users(id) on delete cascade not null`, `farm_id uuid references public.farms(id) on delete cascade not null`, `rating integer not null check (rating between 1 and 5)`, category check for the five locked values, optional `description text`, and insert-only user/farm RLS for this phase.
+**Planner notes:** Current latest migration is `00028_fix_medicine_inventory_location_trigger.sql`, so use `00029_feedbacks.sql` if still available at execution time. Include `user_id uuid references auth.users(id) on delete cascade not null`, `farm_id uuid references public.farms(id) on delete cascade not null`, `rating integer not null check (rating between 1 and 5)`, category check for the five locked values, optional `description text`, and insert-only user/farm RLS for this phase.
 
 ---
 
@@ -467,7 +467,7 @@ Page code should catch thrown service errors and display a generic inline retry 
 ### RLS farm ownership/membership checks
 
 **Source:** `C:\Users\Bernardo Timo\OneDrive\Desktop\GranjaPro\supabase\migrations\00022_flock_tasks_crud.sql` lines 28-39 and `supabase/migrations/00020_water_consumption.sql` lines 24-29
-**Apply to:** `supabase/migrations/00028_feedbacks.sql`
+**Apply to:** `supabase/migrations/00029_feedbacks.sql`
 
 Use database RLS as the authority. For feedback, strengthen the insert `with check` to include `user_id = auth.uid()` plus allowed `farm_id`; do not rely on client validation alone.
 
@@ -511,5 +511,5 @@ Derive service types from `Database["public"]["Tables"]["feedbacks"]`; no `any`.
 **Pattern extraction date:** 2026-07-19
 **Required inputs read:** `gsd-pattern-mapper.toml`, `AGENTS.md`, `18-CONTEXT.md`, `18-RESEARCH.md`, `18-UI-SPEC.md`, `18-VALIDATION.md`
 **Project skill directories:** `.codex/skills` and `.agents/skills` were not present in this repository.
-**Latest migration observed:** `supabase/migrations/00027_fix_medicine_inventory_location_trigger.sql`
+**Latest migration observed:** `supabase/migrations/00028_fix_medicine_inventory_location_trigger.sql`
 **Source-edit constraint:** No application source files modified; this artifact is the only written file.
