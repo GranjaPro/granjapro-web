@@ -63,10 +63,10 @@ Detailed phase goals live in `.planning/milestones/v1.3-ROADMAP.md`.
 
 ### Phase 18: Feedback Page
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 - [x] 18-01-PLAN.md - Feedback persistence, database types, service, and schema push
-- [ ] 18-02-PLAN.md - Feedback page UI and authenticated submit flow
+- [x] 18-02-PLAN.md - Feedback page UI and authenticated submit flow
 - [ ] 18-03-PLAN.md - Sidebar/profile access and final verification
 
 ### Phase 19: Evaluation Triggers and Alerts
