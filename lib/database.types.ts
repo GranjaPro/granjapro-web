@@ -1183,6 +1183,7 @@ export interface Database {
           status: string;
           current_period_end: string | null;
           cancel_at_period_end: boolean;
+          grace_period_ends_at: string | null;
         };
         Insert: {
           id?: string;
@@ -1197,6 +1198,7 @@ export interface Database {
           status: string;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;
+          grace_period_ends_at?: string | null;
         };
         Update: {
           id?: string;
@@ -1211,6 +1213,7 @@ export interface Database {
           status?: string;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;
+          grace_period_ends_at?: string | null;
         };
       };
       profiles: {

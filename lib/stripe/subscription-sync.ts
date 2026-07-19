@@ -91,15 +91,18 @@ function getSubscriptionSnapshot(subscription: Stripe.Subscription): Subscriptio
   const firstItem = subscription.items.data[0];
   const priceId = firstItem?.price.id;
   const priceMatch = priceId ? getPlanByStripePriceId(priceId) : null;
+  // The active price is the source of truth for what the customer is paying.
+  // Metadata is only a fallback, so plan changes (immediate upgrades and
+  // scheduled downgrades that swap the price) are reflected correctly.
   const plan =
-    parseStripePlan(getStringMetadataValue(subscription.metadata, "plan")) ??
     priceMatch?.plan ??
+    parseStripePlan(getStringMetadataValue(subscription.metadata, "plan")) ??
     null;
   const billingCycle =
+    priceMatch?.billingCycle ??
     parseStripeBillingCycle(
       getStringMetadataValue(subscription.metadata, "billing_cycle")
     ) ??
-    priceMatch?.billingCycle ??
     null;
   const userId = getStringMetadataValue(subscription.metadata, "user_id");
   const stripeCustomerId = getCustomerId(subscription.customer);

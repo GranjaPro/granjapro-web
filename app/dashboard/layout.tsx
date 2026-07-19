@@ -18,6 +18,7 @@ import { DateFilterProvider } from "@/components/date-filter";
 import { PlanProvider, usePlan } from "@/components/plan/plan-provider";
 import { ActivePlanBadge, RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { UpgradePopup } from "@/components/plan/upgrade-popup";
+import { TrialEndedModal } from "@/components/plan/trial-ended-modal";
 import dynamic from "next/dynamic";
 import {
   LayoutDashboard,
@@ -47,6 +48,7 @@ import {
   Eye,
   EyeOff,
   Droplets,
+  AlertTriangle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -91,6 +93,10 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [billing, setBilling] = useState<{
+    pastDue: boolean;
+    gracePeriodEndsAt: string | null;
+  } | null>(null);
   const pathname = usePathname();
   const { plan, hideAdvancedFeatures, setHideAdvancedFeatures } = usePlan();
   const { user, profile, farm, loading, signOut, refreshProfile } = useAuth();
@@ -146,12 +152,67 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
     .toUpperCase();
   const roleName = profile?.role === "owner" ? "Proprietário" : profile?.role === "manager" ? "Gerente" : "Funcionário";
 
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    fetch("/api/stripe/subscription", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data: { pastDue?: boolean; gracePeriodEndsAt?: string | null }) => {
+        if (active) {
+          setBilling({
+            pastDue: Boolean(data.pastDue),
+            gracePeriodEndsAt: data.gracePeriodEndsAt ?? null,
+          });
+        }
+      })
+      .catch(() => {
+        /* billing status is best-effort */
+      });
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  // The grace deadline is our source of truth: the webhook sets it when a
+  // renewal fails and clears it once payment succeeds. So its presence alone
+  // means the account is in dunning; whether it is expired decides banner vs block.
+  const graceEndsAt = billing?.gracePeriodEndsAt ?? null;
+  const graceExpired = Boolean(
+    graceEndsAt && new Date(graceEndsAt).getTime() <= Date.now()
+  );
+  const paymentBlocked = Boolean(graceEndsAt) && graceExpired;
+  const inGracePeriod = Boolean(graceEndsAt) && !graceExpired;
+  const graceDeadlineLabel = graceEndsAt
+    ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "long", year: "numeric" }).format(
+        new Date(graceEndsAt)
+      )
+    : null;
+
   const isOnboardingRoute = pathname === "/dashboard/onboarding";
   const isPlanSelectionRoute = pathname === "/dashboard/select-plan";
+  const isUpdateCardRoute = pathname === "/dashboard/update-card";
+  const isSubscribeRoute = pathname === "/dashboard/subscribe";
   const isAiRoute = pathname === "/dashboard/ai";
   const persistedPlan = getPlanOrNull(profile?.plan);
   const requiredPlanForRoute = ROUTE_PLAN_REQUIREMENTS[pathname];
-  const needsPlanSelection = !loading && Boolean(user) && !isPlanSelectionRoute && requiresPlanSelection(profile);
+  // Trial ended (used + expired) and no active plan: show a thank-you/upgrade
+  // popup over the blurred dashboard instead of redirecting to select-plan.
+  const trialEnded =
+    !loading &&
+    Boolean(user) &&
+    Boolean(profile) &&
+    !isPlanSelectionRoute &&
+    !isSubscribeRoute &&
+    !persistedPlan &&
+    isTrialExpired(profile);
+  const needsPlanSelection =
+    !loading &&
+    Boolean(user) &&
+    Boolean(profile) &&
+    !isPlanSelectionRoute &&
+    !isSubscribeRoute &&
+    requiresPlanSelection(profile) &&
+    !trialEnded;
   const routePlanBlocked =
     !loading &&
     Boolean(user) &&
@@ -159,13 +220,20 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
     Boolean(requiredPlanForRoute) &&
     (!persistedPlan || !hasMinimumPlan(persistedPlan, requiredPlanForRoute));
   const needsOnboarding =
-    !loading && user && !isPlanSelectionRoute && !requiresPlanSelection(profile) && (!farm || isOnboardingRoute);
+    !loading &&
+    user &&
+    !isPlanSelectionRoute &&
+    !isSubscribeRoute &&
+    !requiresPlanSelection(profile) &&
+    (!farm || isOnboardingRoute);
   const trialActive = !loading && Boolean(user) && isTrialActive(profile);
   const trialDaysRemaining =
     trialActive && profile?.trial_ends_at
       ? Math.min(7, Math.max(1, Math.ceil((new Date(profile.trial_ends_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000))))
       : 0;
-  const hideShellForPlanSelection = isPlanSelectionRoute && (!profile || profile.plan === null);
+  // Both the plans screen and the payment page render inside the normal shell
+  // (sidebar + top bar), so the whole flow stays "inside the site".
+  const hideShellForPlanSelection = false;
   const canToggleAdvancedFeatures = Boolean(persistedPlan && persistedPlan !== "premium");
 
   useEffect(() => {
@@ -192,6 +260,39 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8faf9] dark:bg-slate-950">
         <Loader2 className="w-8 h-8 animate-spin text-brand-600 dark:text-brand-400" />
+      </div>
+    );
+  }
+
+  // Grace period expired: block all access until a valid card is added.
+  // The update-card route itself stays reachable so the user can fix it.
+  if (paymentBlocked && !isUpdateCardRoute) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8faf9] p-4 dark:bg-slate-950">
+        <div className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-6 text-center shadow-lg dark:border-red-500/30 dark:bg-slate-900">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-500/15">
+            <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-300" />
+          </div>
+          <h1 className="text-xl font-bold text-slate-950 dark:text-white">Acesso bloqueado</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+            Não conseguimos renovar sua assinatura e o prazo para atualizar o pagamento expirou.
+            Cadastre um cartão válido para reativar o acesso ao Granja Pro.
+          </p>
+          <Link
+            href="/dashboard/update-card"
+            className="mt-6 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white transition-colors duration-200 hover:bg-brand-500 dark:bg-brand-500 dark:hover:bg-brand-400"
+          >
+            <CreditCard className="h-4 w-4" />
+            Atualizar cartão
+          </Link>
+          <button
+            type="button"
+            onClick={signOut}
+            className="mt-3 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+          >
+            Sair
+          </button>
+        </div>
       </div>
     );
   }
@@ -439,6 +540,28 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
 
         {/* Page content */}
         <main className={cn("flex-1 p-4 sm:p-6 lg:p-8 dashboard-scroll", isAiRoute ? "overflow-hidden" : "overflow-y-auto")}>
+          {inGracePeriod && !needsOnboarding && (
+            <div className="mb-4 flex flex-col gap-3 rounded-xl border border-red-300/70 bg-red-50 px-4 py-3 text-red-900 shadow-sm dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-100 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-300" />
+                <div>
+                  <p className="text-sm font-bold">Falha no pagamento</p>
+                  <p className="text-xs text-red-800 dark:text-red-200/90">
+                    Não conseguimos renovar sua assinatura. Atualize seu cartão
+                    {graceDeadlineLabel ? ` até ${graceDeadlineLabel}` : " em breve"} ou o acesso será
+                    bloqueado.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/dashboard/update-card"
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-red-600 px-3 text-xs font-bold text-white transition hover:bg-red-500"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                Atualizar cartão
+              </Link>
+            </div>
+          )}
           {trialActive && !needsOnboarding && !needsPlanSelection && (
             <div className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-amber-900 shadow-sm dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
@@ -470,6 +593,16 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
           {/* Onboarding on top */}
           <div className="fixed inset-0 z-50 overflow-hidden">
             <OnboardingPage />
+          </div>
+        </>
+      )}
+
+      {/* Trial ended: blurred dashboard + thank-you/upgrade popup */}
+      {trialEnded && (
+        <>
+          <div className="fixed inset-0 z-40 bg-white/40 backdrop-blur-md dark:bg-slate-950/60" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <TrialEndedModal />
           </div>
         </>
       )}
