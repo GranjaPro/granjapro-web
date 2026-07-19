@@ -24,6 +24,8 @@ import {
   Lock,
   MapPin,
   CreditCard,
+  MessageSquare,
+  type LucideIcon,
 } from "lucide-react";
 
 type Tab = "profile" | "farm" | "plan" | "preferences" | "users" | "security";
@@ -105,6 +107,11 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
   const handleOpenPlanSelection = () => {
     onClose();
     router.push("/dashboard/select-plan");
+  };
+
+  const handleOpenFeedback = () => {
+    onClose();
+    router.push("/dashboard/feedback");
   };
 
   const handleSaveProfile = async () => {
@@ -205,7 +212,7 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
 
   if (!open) return null;
 
-  const tabs: { id: Tab; label: string; icon: any }[] = [
+  const tabs: { id: Tab; label: string; icon: LucideIcon }[] = [
     { id: "profile", label: "Perfil", icon: User },
     { id: "farm", label: "Granja", icon: Building2 },
     { id: "plan", label: "Plano", icon: CreditCard },
@@ -283,6 +290,13 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
 
             {/* Sign out */}
             <div className="p-3 border-t border-gray-200/80 dark:border-white/10">
+              <button
+                onClick={handleOpenFeedback}
+                className="mb-2 w-full flex items-center gap-2.5 px-3 py-2 rounded-lg bg-brand-500 text-[13px] font-medium text-white hover:bg-brand-600 transition-all cursor-pointer"
+              >
+                <MessageSquare className="w-4 h-4" strokeWidth={1.8} />
+                <span>Enviar feedback</span>
+              </button>
               <button
                 onClick={signOut}
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-red-500 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-500/10 transition-all cursor-pointer"
