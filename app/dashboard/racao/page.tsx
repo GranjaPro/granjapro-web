@@ -12,6 +12,7 @@ import {
   X,
   Check,
   ArrowUpRight,
+  ArrowRight,
   ArrowDownRight,
   AlertTriangle,
   TrendingUp,
@@ -29,6 +30,7 @@ import {
   Droplets,
 } from "lucide-react";
 import Link from "next/link";
+import { insightHref } from "@/lib/insight-links";
 import { cn } from "@/lib/utils";
 import {
   ComposedChart,
@@ -59,6 +61,7 @@ import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
+import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
 
 /* ── Types ── */
 type TipoRacao = "milho" | "soja" | "comercial" | "custom";
@@ -550,6 +553,32 @@ export default function RacaoPage() {
 
     return arr;
   }, [registros, estoque]);
+  const feedHealth = useMemo(() => {
+    const lowStockCount = estoque.filter((item) => item.status === "baixo").length;
+    const alertStockCount = estoque.filter((item) => item.status === "alerta").length;
+    const totalProblems = lowStockCount + alertStockCount;
+
+    return {
+      score: totalProblems === 0 ? 92 : totalProblems <= 2 ? 65 : 35,
+      lowStockCount,
+    };
+  }, [estoque]);
+  const farmHealthInsights = useMemo<FarmHealthInsight[]>(
+    () =>
+      insights.map((insight) => {
+        const link = insightHref(`${insight.title} ${insight.action}`);
+
+        return {
+          level: insight.type,
+          title: insight.title,
+          action: insight.action,
+          href: link.href,
+          hrefLabel: link.label,
+        };
+      }),
+    [insights]
+  );
+  const farmHealthSummary = `Consumo: ${consumoHoje.toFixed(0)} kg/dia | Meta: ${kpis[0]?.expectedLabel ?? "—"} | Estoque: ${feedHealth.lowStockCount} críticos`;
 
   const filteredRegistros = useMemo(() => {
     if (!searchQuery.trim()) return registros;
@@ -678,117 +707,18 @@ export default function RacaoPage() {
       {/* Resumo de Hoje — Saúde Alimentar */}
       {plan === "essencial" ? (
         <LockedOverlay message="Desbloqueie o resumo de saúde alimentar" targetPlan="pro">
-          {(() => {
-            const estoqueBaixo = estoque.filter((e) => e.status === "baixo").length;
-            const estoqueAlerta = estoque.filter((e) => e.status === "alerta").length;
-            const totalProblems = estoqueBaixo + estoqueAlerta;
-            const score = totalProblems === 0 ? 92 : totalProblems <= 2 ? 65 : 35;
-            const scoreColor = score >= 80 ? "#10b981" : score >= 50 ? "#f59e0b" : "#ef4444";
-            const bannerGradient = score >= 80 ? "from-emerald-50 via-emerald-50/50 to-white" : score >= 50 ? "from-amber-50 via-amber-50/50 to-white" : "from-red-50 via-red-50/50 to-white";
-            const bannerBorder = score >= 80 ? "border-emerald-200/60" : score >= 50 ? "border-amber-200/60" : "border-red-200/60";
-            const statusText = score >= 80 ? "Saudável" : score >= 50 ? "Atenção" : "Crítico";
-            const statusTextColor = score >= 80 ? "text-emerald-700" : score >= 50 ? "text-amber-700" : "text-red-700";
-            return (
-              <div className={cn("bg-gradient-to-r rounded-2xl border p-4 sm:p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
-                <div className="flex flex-col lg:flex-row lg:items-center gap-3 sm:gap-4">
-                  <div className="flex items-center gap-3 sm:gap-4 lg:min-w-[280px]">
-                    <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
-                      <svg className="w-14 h-14 sm:w-16 sm:h-16 -rotate-90" viewBox="0 0 64 64">
-                        <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-gray-200 dark:text-[#334155]" />
-                        <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(score / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className={cn("text-sm sm:text-base font-bold", statusTextColor)}>{score}</span>
-                      </div>
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Wheat className="w-4 h-4 text-brand-600 flex-shrink-0" />
-                        <span className="text-sm font-bold text-gray-900">Saúde Alimentar</span>
-                      </div>
-                      <p className={cn("text-lg sm:text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
-                      <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 truncate">Consumo: 410 kg/dia | Meta: 800 kg | Estoque: {estoqueBaixo} críticos</p>
-                    </div>
-                  </div>
-                  <div className="hidden lg:block w-px h-14 bg-gray-200" />
-                  <div className="flex-1 space-y-1.5 sm:space-y-2">
-                    <div className="flex items-start sm:items-center gap-2">
-                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 mt-0.5 sm:mt-0">
-                        <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
-                      </div>
-                      <p className="text-xs sm:text-sm text-gray-700">Custo médio por kg subiu 2% — renegociar fornecedor</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
+          <FarmHealthBanner
+            score={feedHealth.score}
+            summary={farmHealthSummary}
+            insights={farmHealthInsights}
+          />
         </LockedOverlay>
       ) : (
-      (() => {
-        const estoqueBaixo = estoque.filter((e) => e.status === "baixo").length;
-        const estoqueAlerta = estoque.filter((e) => e.status === "alerta").length;
-        const totalProblems = estoqueBaixo + estoqueAlerta;
-        const score = totalProblems === 0 ? 92 : totalProblems <= 2 ? 65 : 35;
-        const scoreColor = score >= 80 ? "#10b981" : score >= 50 ? "#f59e0b" : "#ef4444";
-        const bannerGradient = score >= 80 ? "from-emerald-50 via-emerald-50/50 to-white" : score >= 50 ? "from-amber-50 via-amber-50/50 to-white" : "from-red-50 via-red-50/50 to-white";
-        const bannerBorder = score >= 80 ? "border-emerald-200/60" : score >= 50 ? "border-amber-200/60" : "border-red-200/60";
-        const statusText = score >= 80 ? "Saudável" : score >= 50 ? "Atenção" : "Crítico";
-        const statusTextColor = score >= 80 ? "text-emerald-700" : score >= 50 ? "text-amber-700" : "text-red-700";
-
-        return (
-          <div className={cn("bg-gradient-to-r rounded-2xl border p-4 sm:p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
-            <div className="flex flex-col lg:flex-row lg:items-center gap-3 sm:gap-4">
-              <div className="flex items-center gap-3 sm:gap-4 lg:min-w-[280px]">
-                <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
-                  <svg className="w-14 h-14 sm:w-16 sm:h-16 -rotate-90" viewBox="0 0 64 64">
-                    <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-gray-200 dark:text-[#334155]" />
-                    <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(score / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={cn("text-sm sm:text-base font-bold", statusTextColor)}>{score}</span>
-                  </div>
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Wheat className="w-4 h-4 text-brand-600 flex-shrink-0" />
-                    <span className="text-sm font-bold text-gray-900">Saúde Alimentar</span>
-                  </div>
-                  <p className={cn("text-lg sm:text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
-                  <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 truncate">Consumo: 410 kg/dia | Meta: 800 kg | Estoque: {estoqueBaixo} críticos</p>
-                </div>
-              </div>
-
-              <div className="hidden lg:block w-px h-14 bg-gray-200" />
-
-              <div className="flex-1 space-y-1.5 sm:space-y-2">
-                {estoqueBaixo > 0 && (
-                  <div className="flex items-start sm:items-center gap-2">
-                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100 mt-0.5 sm:mt-0">
-                      <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-600" />
-                    </div>
-                    <p className="text-xs sm:text-sm text-gray-700">{estoqueBaixo} itens com estoque crítico — reposição urgente</p>
-                  </div>
-                )}
-                {estoqueAlerta > 0 && (
-                  <div className="flex items-start sm:items-center gap-2">
-                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 mt-0.5 sm:mt-0">
-                      <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
-                    </div>
-                    <p className="text-xs sm:text-sm text-gray-700">{estoqueAlerta} itens em nível de alerta — programar compra</p>
-                  </div>
-                )}
-                <div className="flex items-start sm:items-center gap-2">
-                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 mt-0.5 sm:mt-0">
-                    <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-700">Custo médio por kg subiu 2% — renegociar fornecedor</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()
+        <FarmHealthBanner
+          score={feedHealth.score}
+          summary={farmHealthSummary}
+          insights={farmHealthInsights}
+        />
       )}
 
       {/* Status Cards — Simple Visual Indicators with Progress Bars */}
@@ -1110,6 +1040,7 @@ export default function RacaoPage() {
           ) : (
           <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
             {insights.map((ins, i) => {
+              const link = insightHref(`${ins.title} ${ins.action}`);
               if (false) {
                 return (
                   <LockedOverlay key={i} message="Desbloqueie o Assistente de Granja" targetPlan="premium">
@@ -1137,7 +1068,13 @@ export default function RacaoPage() {
                   </div>
                   <span className="text-xs font-semibold text-gray-800">{ins.title}</span>
                 </div>
-                <p className={cn("text-[11px] font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>→ {ins.action}</p>
+                <div className="ml-7 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                  <p className={cn("text-[11px] font-medium", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>→ {ins.action}</p>
+                  <Link href={link.href} className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
+                    {link.label}
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
               </div>
               );
             })}

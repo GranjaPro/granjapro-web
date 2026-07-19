@@ -6,7 +6,9 @@ import Link from "next/link";
 import { ArrowDownRight, ArrowLeft, ArrowUpRight, Egg, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
-import { CalendarFilter, useDateFilter } from "@/components/date-filter";
+import { PlanAwareCalendarFilter, useDateFilter } from "@/components/date-filter";
+import { usePlan } from "@/components/plan/plan-provider";
+import { hasMinimumPlan } from "@/lib/plans";
 import { createClient } from "@/lib/supabase/client";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -221,7 +223,9 @@ export default function ProducaoLotePage() {
   const params = useParams();
   const loteId = params.loteId as string;
   const { farm, loading: authLoading } = useAuth();
+  const { plan } = usePlan();
   const { dateRange } = useDateFilter();
+  const canUseDateFilter = hasMinimumPlan(plan, "pro");
   const [lote, setLote] = useState<Lote | null>(null);
   const [productionRecords, setProductionRecords] = useState<ProductionRecord[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -243,6 +247,16 @@ export default function ProducaoLotePage() {
         setInitialLoading(true);
       }
 
+      const productionQuery = supabase
+        .from("egg_production")
+        .select("id, date, eggs_produced, broken_eggs, dirty_eggs, discarded_eggs, laying_rate")
+        .eq("farm_id", currentFarm.id)
+        .eq("flock_id", loteId);
+
+      if (canUseDateFilter) {
+        productionQuery.gte("date", dateRange.startDate).lte("date", dateRange.endDate);
+      }
+
       const [loteRes, productionRes] = await Promise.all([
         supabase
           .from("flocks")
@@ -250,14 +264,7 @@ export default function ProducaoLotePage() {
           .eq("id", loteId)
           .eq("farm_id", currentFarm.id)
           .single(),
-        supabase
-          .from("egg_production")
-          .select("id, date, eggs_produced, broken_eggs, dirty_eggs, discarded_eggs, laying_rate")
-          .eq("farm_id", currentFarm.id)
-          .eq("flock_id", loteId)
-          .gte("date", dateRange.startDate)
-          .lte("date", dateRange.endDate)
-          .order("date", { ascending: true }),
+        productionQuery.order("date", { ascending: true }),
       ]);
 
       if (cancelled) return;
@@ -280,7 +287,7 @@ export default function ProducaoLotePage() {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, farm, loteId, dateRange]);
+  }, [authLoading, canUseDateFilter, dateRange.endDate, dateRange.startDate, farm, loteId]);
 
   if (authLoading || initialLoading) {
     return (
@@ -321,10 +328,10 @@ export default function ProducaoLotePage() {
   }));
 
   const qualityData = [
-    { name: "Bons", value: goodEggs, fill: "#10b981" },
-    { name: "Quebrados", value: brokenEggs, fill: "#ef4444" },
-    { name: "Sujos", value: dirtyEggs, fill: "#f59e0b" },
-    { name: "Descartados", value: discardedEggs, fill: "#94a3b8" },
+    { name: "Bons", ovos: goodEggs, fill: "#10b981" },
+    { name: "Quebrados", ovos: brokenEggs, fill: "#ef4444" },
+    { name: "Sujos", ovos: dirtyEggs, fill: "#f59e0b" },
+    { name: "Descartados", ovos: discardedEggs, fill: "#94a3b8" },
   ];
 
   return (
@@ -344,7 +351,7 @@ export default function ProducaoLotePage() {
               <p className="text-sm text-gray-400 mt-0.5">Indicadores detalhados de produção</p>
             </div>
           </div>
-          <CalendarFilter />
+          <PlanAwareCalendarFilter />
         </div>
       </div>
 
@@ -415,8 +422,11 @@ export default function ProducaoLotePage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                       <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", fontSize: "12px" }} />
-                      <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                      <Tooltip
+                        contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", fontSize: "12px" }}
+                        formatter={(value: unknown) => [Number(value).toLocaleString("pt-BR"), "ovos"]}
+                      />
+                      <Bar dataKey="ovos" name="ovos" radius={[8, 8, 0, 0]}>
                         {qualityData.map((entry) => (
                           <Cell key={entry.name} fill={entry.fill} />
                         ))}

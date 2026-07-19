@@ -23,7 +23,6 @@ import {
   ChevronRight,
   Droplets,
   ShieldCheck,
-  Settings,
   Loader2,
   Users,
 } from "lucide-react";
@@ -32,6 +31,9 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
+import { PlanAwareCalendarFilter, useDateFilter } from "@/components/date-filter";
+import { hasMinimumPlan } from "@/lib/plans";
+import type { Tables } from "@/lib/database.types";
 
 function calculateCurrentAge(arrivalDate: string, arrivalAgeWeeks: number): number {
   const arrival = new Date(arrivalDate);
@@ -57,6 +59,48 @@ interface Lote {
   avg_weight_kg: number | null;
   barn_name: string | null;
 }
+
+type FlockDetailsRow = Tables<"flocks"> & {
+  barns: { name: string | null } | null;
+};
+type EggProductionSummaryRow = Pick<Tables<"egg_production">, "eggs_produced" | "laying_rate">;
+type HealthSummaryRow = Pick<Tables<"health_records">, "type" | "status">;
+type MortalitySummaryRow = Pick<Tables<"mortality">, "dead_birds" | "mortality_rate">;
+type WaterSummaryRow = Pick<Tables<"water_consumption">, "quantity_liters">;
+type FeedSummaryRow = Pick<Tables<"feed_consumption">, "quantity_kg" | "cost">;
+type TaskSummaryRow = Pick<Tables<"tasks">, "done">;
+
+interface LoteSummary {
+  productionRecords: number;
+  totalEggs: number;
+  averageLayingRate: number;
+  healthRecords: number;
+  pendingHealthRecords: number;
+  mortalityDeaths: number;
+  averageMortalityRate: number;
+  sanitaryRecords: number;
+  waterLiters: number;
+  feedKg: number;
+  feedCost: number;
+  tasksTotal: number;
+  tasksDone: number;
+}
+
+const emptySummary: LoteSummary = {
+  productionRecords: 0,
+  totalEggs: 0,
+  averageLayingRate: 0,
+  healthRecords: 0,
+  pendingHealthRecords: 0,
+  mortalityDeaths: 0,
+  averageMortalityRate: 0,
+  sanitaryRecords: 0,
+  waterLiters: 0,
+  feedKg: 0,
+  feedCost: 0,
+  tasksTotal: 0,
+  tasksDone: 0,
+};
 
 const stageLabel: Record<string, string> = {
   crescimento: "Crescimento",
@@ -100,8 +144,11 @@ export default function DetalhesLotePage() {
   const loteId = params.loteId as string;
   const { farm, loading: authLoading } = useAuth();
   const { plan } = usePlan();
+  const { dateRange } = useDateFilter();
+  const canUseDateFilter = hasMinimumPlan(plan, "pro");
 
   const [lote, setLote] = useState<Lote | null>(null);
+  const [summary, setSummary] = useState<LoteSummary>(emptySummary);
   const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
@@ -112,17 +159,65 @@ export default function DetalhesLotePage() {
 
     async function fetchLote() {
       setFetching(true);
-      const loteRes = await supabase
-        .from("flocks")
-        .select("*, barns(name)")
-        .eq("id", loteId)
+      const productionQuery = supabase
+        .from("egg_production")
+        .select("eggs_produced, laying_rate")
         .eq("farm_id", farm!.id)
-        .single();
+        .eq("flock_id", loteId);
+      const healthQuery = supabase
+        .from("health_records")
+        .select("type, status")
+        .eq("farm_id", farm!.id)
+        .eq("flock_id", loteId);
+      const mortalityQuery = supabase
+        .from("mortality")
+        .select("dead_birds, mortality_rate")
+        .eq("farm_id", farm!.id)
+        .eq("flock_id", loteId);
+      const waterQuery = supabase
+        .from("water_consumption")
+        .select("quantity_liters")
+        .eq("farm_id", farm!.id)
+        .eq("flock_id", loteId);
+      const feedQuery = supabase
+        .from("feed_consumption")
+        .select("quantity_kg, cost")
+        .eq("farm_id", farm!.id)
+        .eq("flock_id", loteId);
+      const tasksQuery = supabase
+        .from("tasks")
+        .select("done")
+        .eq("farm_id", farm!.id)
+        .eq("flock_id", loteId);
+
+      if (canUseDateFilter) {
+        productionQuery.gte("date", dateRange.startDate).lte("date", dateRange.endDate);
+        healthQuery.gte("date", dateRange.startDate).lte("date", dateRange.endDate);
+        mortalityQuery.gte("date", dateRange.startDate).lte("date", dateRange.endDate);
+        waterQuery.gte("date", dateRange.startDate).lte("date", dateRange.endDate);
+        feedQuery.gte("date", dateRange.startDate).lte("date", dateRange.endDate);
+        tasksQuery.gte("date", dateRange.startDate).lte("date", dateRange.endDate);
+      }
+
+      const [loteRes, productionRes, healthRes, mortalityRes, waterRes, feedRes, tasksRes] = await Promise.all([
+        supabase
+          .from("flocks")
+          .select("*, barns(name)")
+          .eq("id", loteId)
+          .eq("farm_id", farm!.id)
+          .single(),
+        productionQuery,
+        healthQuery,
+        mortalityQuery,
+        waterQuery,
+        feedQuery,
+        tasksQuery,
+      ]);
 
       if (cancelled) return;
 
       if (loteRes.data) {
-        const data = loteRes.data;
+        const data = loteRes.data as FlockDetailsRow;
         setLote({
           id: data.id,
           code: data.code,
@@ -137,15 +232,42 @@ export default function DetalhesLotePage() {
           origin: data.origin,
           lineage: data.lineage,
           avg_weight_kg: data.avg_weight_kg,
-          barn_name: (data as any).barns?.name ?? null,
+          barn_name: data.barns?.name ?? null,
         });
+
+        const productionRows = (productionRes.data ?? []) as EggProductionSummaryRow[];
+        const healthRows = (healthRes.data ?? []) as HealthSummaryRow[];
+        const mortalityRows = (mortalityRes.data ?? []) as MortalitySummaryRow[];
+        const waterRows = (waterRes.data ?? []) as WaterSummaryRow[];
+        const feedRows = (feedRes.data ?? []) as FeedSummaryRow[];
+        const taskRows = (tasksRes.data ?? []) as TaskSummaryRow[];
+        const totalLayingRate = productionRows.reduce((sum, row) => sum + Number(row.laying_rate || 0), 0);
+        const totalMortalityRate = mortalityRows.reduce((sum, row) => sum + Number(row.mortality_rate || 0), 0);
+
+        setSummary({
+          productionRecords: productionRows.length,
+          totalEggs: productionRows.reduce((sum, row) => sum + row.eggs_produced, 0),
+          averageLayingRate: productionRows.length > 0 ? totalLayingRate / productionRows.length : 0,
+          healthRecords: healthRows.length,
+          pendingHealthRecords: healthRows.filter((row) => row.status === "scheduled" || row.status === "upcoming" || row.status === "in_progress").length,
+          mortalityDeaths: mortalityRows.reduce((sum, row) => sum + row.dead_birds, 0),
+          averageMortalityRate: mortalityRows.length > 0 ? totalMortalityRate / mortalityRows.length : 0,
+          sanitaryRecords: healthRows.filter((row) => row.type === "vaccination" || row.type === "treatment").length,
+          waterLiters: waterRows.reduce((sum, row) => sum + Number(row.quantity_liters || 0), 0),
+          feedKg: feedRows.reduce((sum, row) => sum + Number(row.quantity_kg || 0), 0),
+          feedCost: feedRows.reduce((sum, row) => sum + Number(row.cost || 0), 0),
+          tasksTotal: taskRows.length,
+          tasksDone: taskRows.filter((row) => row.done).length,
+        });
+      } else {
+        setSummary(emptySummary);
       }
       setFetching(false);
     }
 
     fetchLote();
     return () => { cancelled = true; };
-  }, [authLoading, farm, loteId]);
+  }, [authLoading, canUseDateFilter, dateRange.endDate, dateRange.startDate, farm, loteId]);
 
   if (authLoading || fetching) {
     return (
@@ -178,7 +300,10 @@ export default function DetalhesLotePage() {
       icon: Egg,
       iconBg: "bg-amber-50",
       iconColor: "text-amber-600",
-      sub: "Registre a produção diária de ovos",
+      value: summary.productionRecords > 0 ? `${summary.totalEggs.toLocaleString("pt-BR")} ovos` : "Sem registros",
+      sub: summary.productionRecords > 0 ? `${summary.productionRecords} registros · Postura média ${summary.averageLayingRate.toFixed(1)}%` : "Registre a produção diária de ovos",
+      progress: Math.min(summary.averageLayingRate, 100),
+      progressColor: "bg-amber-500",
     },
     {
       label: "Saúde",
@@ -186,7 +311,10 @@ export default function DetalhesLotePage() {
       icon: HeartPulse,
       iconBg: "bg-emerald-50",
       iconColor: "text-emerald-600",
-      sub: "Registre procedimentos sanitários",
+      value: summary.healthRecords > 0 ? `${summary.healthRecords} registros` : "Sem registros",
+      sub: summary.pendingHealthRecords > 0 ? `${summary.pendingHealthRecords} pendentes/em andamento` : "Registre procedimentos sanitários",
+      progress: summary.healthRecords > 0 ? Math.min((summary.healthRecords / Math.max(summary.healthRecords + summary.pendingHealthRecords, 1)) * 100, 100) : 0,
+      progressColor: "bg-emerald-500",
     },
     {
       label: "Mortalidade",
@@ -194,7 +322,10 @@ export default function DetalhesLotePage() {
       icon: Skull,
       iconBg: "bg-red-50",
       iconColor: "text-red-500",
-      sub: "Registre ocorrências de mortalidade",
+      value: summary.mortalityDeaths > 0 ? `${summary.mortalityDeaths} aves` : "0 aves",
+      sub: summary.mortalityDeaths > 0 ? `Taxa média ${summary.averageMortalityRate.toFixed(2)}%` : "Nenhuma ocorrência registrada",
+      progress: summary.mortalityDeaths > 0 ? Math.min(summary.averageMortalityRate * 20, 100) : 0,
+      progressColor: summary.mortalityDeaths > 0 ? "bg-red-500" : "bg-emerald-500",
     },
     {
       label: "Histórico Sanitário",
@@ -202,7 +333,10 @@ export default function DetalhesLotePage() {
       icon: ShieldCheck,
       iconBg: "bg-teal-50",
       iconColor: "text-teal-600",
+      value: summary.sanitaryRecords > 0 ? `${summary.sanitaryRecords} eventos` : "Sem eventos",
       sub: "Vacinas e procedimentos",
+      progress: summary.healthRecords > 0 ? Math.min((summary.sanitaryRecords / summary.healthRecords) * 100, 100) : 0,
+      progressColor: "bg-teal-500",
     },
   ];
 
@@ -213,7 +347,10 @@ export default function DetalhesLotePage() {
       icon: Droplets,
       iconBg: "bg-blue-50",
       iconColor: "text-blue-600",
-      sub: "Registre o consumo de água",
+      value: summary.waterLiters > 0 ? `${summary.waterLiters.toLocaleString("pt-BR")} L` : "Sem registros",
+      sub: "Consumo acumulado de água",
+      progress: summary.waterLiters > 0 ? 100 : 0,
+      progressColor: "bg-blue-500",
     },
     {
       label: "Consumo de Ração",
@@ -221,7 +358,10 @@ export default function DetalhesLotePage() {
       icon: Wheat,
       iconBg: "bg-orange-50",
       iconColor: "text-orange-600",
-      sub: "Registre o consumo de ração",
+      value: summary.feedKg > 0 ? `${summary.feedKg.toLocaleString("pt-BR")} kg` : "Sem registros",
+      sub: summary.feedCost > 0 ? `Custo: R$ ${summary.feedCost.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "Registre o consumo de ração",
+      progress: summary.feedKg > 0 ? 100 : 0,
+      progressColor: "bg-orange-500",
     },
     {
       label: "Operacional",
@@ -229,7 +369,10 @@ export default function DetalhesLotePage() {
       icon: Users,
       iconBg: "bg-violet-50",
       iconColor: "text-violet-600",
-      sub: "Alertas e equipe do lote",
+      value: summary.tasksTotal > 0 ? `${summary.tasksDone}/${summary.tasksTotal}` : "Sem tarefas",
+      sub: "Tarefas concluídas",
+      progress: summary.tasksTotal > 0 ? (summary.tasksDone / summary.tasksTotal) * 100 : 0,
+      progressColor: "bg-violet-500",
     },
   ];
 
@@ -241,7 +384,8 @@ export default function DetalhesLotePage() {
           <ArrowLeft className="w-4 h-4" />
           Voltar para Lotes
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center">
             <Layers className="w-6 h-6 text-brand-600" />
           </div>
@@ -249,6 +393,8 @@ export default function DetalhesLotePage() {
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Detalhes do Lote — {lote.code}</h1>
             <p className="text-sm text-gray-500 mt-0.5">{lote.breed} · {lote.production_system || "—"} · {stageLabel[getProductionStage(calculateCurrentAge(lote.arrival_date, lote.arrival_age_weeks))] ?? lote.status}</p>
           </div>
+          </div>
+          <PlanAwareCalendarFilter />
         </div>
       </div>
 
@@ -357,10 +503,10 @@ export default function DetalhesLotePage() {
                 </div>
                 <LockedOverlay message="Desbloqueie as informações detalhadas do seu lote" targetPlan="pro">
                   <div>
-                    <p className="text-2xl font-bold text-gray-300 tracking-tight mb-1">—</p>
+                    <p className="text-2xl font-bold text-gray-900 tracking-tight mb-1">{card.value}</p>
                     <p className="text-xs text-gray-400">{card.sub}</p>
                     <div className="w-full h-1.5 bg-gray-100 rounded-full mt-4 overflow-hidden">
-                      <div className="h-full rounded-full bg-gray-200 w-0" />
+                      <div className={cn("h-full rounded-full transition-all duration-700", card.progressColor)} style={{ width: `${Math.min(card.progress, 100)}%` }} />
                     </div>
                   </div>
                 </LockedOverlay>
@@ -382,10 +528,10 @@ export default function DetalhesLotePage() {
               </div>
               <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
             </div>
-            <p className="text-2xl font-bold text-gray-300 tracking-tight mb-1">—</p>
+            <p className="text-2xl font-bold text-gray-900 tracking-tight mb-1">{card.value}</p>
             <p className="text-xs text-gray-400">{card.sub}</p>
             <div className="w-full h-1.5 bg-gray-100 rounded-full mt-4 overflow-hidden">
-              <div className="h-full rounded-full bg-gray-200 w-0" />
+              <div className={cn("h-full rounded-full transition-all duration-700", card.progressColor)} style={{ width: `${Math.min(card.progress, 100)}%` }} />
             </div>
           </Link>
           );
@@ -409,10 +555,10 @@ export default function DetalhesLotePage() {
                 </div>
                 <LockedOverlay message="Desbloqueie as informações detalhadas do seu lote" targetPlan="pro">
                   <div>
-                    <p className="text-2xl font-bold text-gray-300 tracking-tight mb-1">—</p>
+                    <p className="text-2xl font-bold text-gray-900 tracking-tight mb-1">{card.value}</p>
                     <p className="text-xs text-gray-400">{card.sub}</p>
                     <div className="w-full h-1.5 bg-gray-100 rounded-full mt-4 overflow-hidden">
-                      <div className="h-full rounded-full bg-gray-200 w-0" />
+                      <div className={cn("h-full rounded-full transition-all duration-700", card.progressColor)} style={{ width: `${Math.min(card.progress, 100)}%` }} />
                     </div>
                   </div>
                 </LockedOverlay>
@@ -437,10 +583,10 @@ export default function DetalhesLotePage() {
               </div>
               <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
             </div>
-            <p className="text-2xl font-bold text-gray-300 tracking-tight mb-1">—</p>
+            <p className="text-2xl font-bold text-gray-900 tracking-tight mb-1">{card.value}</p>
             <p className="text-xs text-gray-400">{card.sub}</p>
             <div className="w-full h-1.5 bg-gray-100 rounded-full mt-4 overflow-hidden">
-              <div className="h-full rounded-full bg-gray-200 w-0" />
+              <div className={cn("h-full rounded-full transition-all duration-700", card.progressColor)} style={{ width: `${Math.min(card.progress, 100)}%` }} />
             </div>
           </Link>
           );

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import Link from "next/link";
 import ModalPortal from "@/components/ui/modal-portal";
+import { insightHref } from "@/lib/insight-links";
 import {
   DollarSign,
   TrendingUp,
@@ -39,6 +41,7 @@ import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
+import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { hasMinimumPlan } from "@/lib/plans";
 import { cn } from "@/lib/utils";
@@ -291,9 +294,6 @@ export default function FinancasPage() {
     return Math.min(score, 100);
   }, [margem, varReceita, varDespesa, progressoMeta, lucroPorAve]);
 
-  const healthLabel = healthScore >= 70 ? "Saudável" : healthScore >= 40 ? "Atenção" : "Crítico";
-  const healthColor = healthScore >= 70 ? "emerald" : healthScore >= 40 ? "amber" : "red";
-
   const actionItems = useMemo(() => {
     const items: { icon: typeof AlertTriangle; text: string; type: "warning" | "success" | "info" }[] = [];
     if (margem < 10) items.push({ icon: AlertTriangle, text: "Margem abaixo de 10% — revise custos com ração", type: "warning" });
@@ -304,6 +304,22 @@ export default function FinancasPage() {
     if (varReceita.dir === "up") items.push({ icon: CheckCircle2, text: `Receita subiu ${varReceita.pct} — bom ritmo de vendas`, type: "success" });
     return items;
   }, [margem, varDespesa, precoMedio, progressoMeta, lucroLiquido, varLucro, varReceita, filterMode]);
+  const farmHealthInsights = useMemo<FarmHealthInsight[]>(
+    () =>
+      actionItems.map((item) => {
+        const link = insightHref(item.text);
+
+        return {
+          level: item.type,
+          title: item.text,
+          action: "Abrir indicador relacionado",
+          href: link.href,
+          hrefLabel: link.label,
+        };
+      }),
+    [actionItems]
+  );
+  const farmHealthSummary = `Margem: ${margem.toFixed(1)}% | Custo/ovo: ${formatCurrency(custoOvo)}`;
 
   function openAdd() {
     setForm({ date: "", type: "expense", category: "feed", description: "", amount: "", paymentMethod: "" });
@@ -402,156 +418,20 @@ export default function FinancasPage() {
       {/* Financial Health Banner */}
       {plan === "essencial" ? (
         <LockedOverlay message="Desbloqueie a saúde financeira" targetPlan="pro">
-          <div className={cn(
-        "rounded-2xl p-5 border transition-all duration-300",
-        healthColor === "emerald" && "bg-gradient-to-r from-emerald-50 via-emerald-50/50 to-white border-emerald-200/60",
-        healthColor === "amber" && "bg-gradient-to-r from-amber-50 via-amber-50/50 to-white border-amber-200/60",
-        healthColor === "red" && "bg-gradient-to-r from-red-50 via-red-50/50 to-white border-red-200/60",
-      )}>
-        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-          <div className="flex items-center gap-4 lg:min-w-[280px]">
-            <div className="relative w-16 h-16 flex-shrink-0">
-              <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-gray-200 dark:text-slate-700" />
-                <circle
-                  cx="32" cy="32" r="28" fill="none"
-                  stroke={healthColor === "emerald" ? "#10b981" : healthColor === "amber" ? "#f59e0b" : "#ef4444"}
-                  strokeWidth="5" strokeLinecap="round"
-                  strokeDasharray={`${(healthScore / 100) * 175.9} 175.9`}
-                  className="transition-all duration-700"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className={cn(
-                  "text-base font-bold",
-                  healthColor === "emerald" && "text-emerald-700",
-                  healthColor === "amber" && "text-amber-700",
-                  healthColor === "red" && "text-red-700",
-                )}>{healthScore}</span>
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <ShieldCheck className={cn(
-                  "w-4 h-4",
-                  healthColor === "emerald" && "text-emerald-600",
-                  healthColor === "amber" && "text-amber-600",
-                  healthColor === "red" && "text-red-600",
-                )} />
-                <span className="text-sm font-bold text-gray-900">Saúde Financeira</span>
-              </div>
-              <p className={cn(
-                "text-xl font-bold mt-0.5",
-                healthColor === "emerald" && "text-emerald-700",
-                healthColor === "amber" && "text-amber-700",
-                healthColor === "red" && "text-red-700",
-              )}>{healthLabel}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Margem: {margem.toFixed(1)}% | Custo/ovo: {formatCurrency(custoOvo)}</p>
-            </div>
-          </div>
-
-          <div className="hidden lg:block w-px h-14 bg-gray-200" />
-
-          <div className="flex-1 space-y-2">
-            {actionItems.slice(0, 3).map((item, i) => (
-              <div key={i} className="flex items-center gap-2.5">
-                <div className={cn(
-                  "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
-                  item.type === "warning" && "bg-amber-100",
-                  item.type === "success" && "bg-emerald-100",
-                  item.type === "info" && "bg-blue-100",
-                )}>
-                  <item.icon className={cn(
-                    "w-3.5 h-3.5",
-                    item.type === "warning" && "text-amber-600",
-                    item.type === "success" && "text-emerald-600",
-                    item.type === "info" && "text-blue-600",
-                  )} />
-                </div>
-                <p className="text-sm text-gray-700">{item.text}</p>
-              </div>
-            ))}
-            {!loading && actionItems.length === 0 && (
-              <p className="text-sm text-gray-500">Sem alertas no momento.</p>
-            )}
-          </div>
-        </div>
-          </div>
+          <FarmHealthBanner
+            score={healthScore}
+            summary={farmHealthSummary}
+            insights={farmHealthInsights}
+            emptyMessage={loading ? "Carregando indicadores..." : "Sem alertas no momento."}
+          />
         </LockedOverlay>
       ) : (
-        <div className={cn(
-          "rounded-2xl p-5 border transition-all duration-300",
-          healthColor === "emerald" && "bg-gradient-to-r from-emerald-50 via-emerald-50/50 to-white border-emerald-200/60",
-          healthColor === "amber" && "bg-gradient-to-r from-amber-50 via-amber-50/50 to-white border-amber-200/60",
-          healthColor === "red" && "bg-gradient-to-r from-red-50 via-red-50/50 to-white border-red-200/60",
-        )}>
-          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-            <div className="flex items-center gap-4 lg:min-w-[280px]">
-              <div className="relative w-16 h-16 flex-shrink-0">
-                <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                  <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-gray-200 dark:text-slate-700" />
-                  <circle
-                    cx="32" cy="32" r="28" fill="none"
-                    stroke={healthColor === "emerald" ? "#10b981" : healthColor === "amber" ? "#f59e0b" : "#ef4444"}
-                    strokeWidth="5" strokeLinecap="round"
-                    strokeDasharray={`${(healthScore / 100) * 175.9} 175.9`}
-                    className="transition-all duration-700"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className={cn(
-                    "text-base font-bold",
-                    healthColor === "emerald" && "text-emerald-700",
-                    healthColor === "amber" && "text-amber-700",
-                    healthColor === "red" && "text-red-700",
-                  )}>{healthScore}</span>
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className={cn(
-                    "w-4 h-4",
-                    healthColor === "emerald" && "text-emerald-600",
-                    healthColor === "amber" && "text-amber-600",
-                    healthColor === "red" && "text-red-600",
-                  )} />
-                  <span className="text-sm font-bold text-gray-900">Saúde Financeira</span>
-                </div>
-                <p className={cn(
-                  "text-xl font-bold mt-0.5",
-                  healthColor === "emerald" && "text-emerald-700",
-                  healthColor === "amber" && "text-amber-700",
-                  healthColor === "red" && "text-red-700",
-                )}>{healthLabel}</p>
-                <p className="text-xs text-gray-500 mt-0.5">Margem: {margem.toFixed(1)}% | Custo/ovo: {formatCurrency(custoOvo)}</p>
-              </div>
-            </div>
-            <div className="hidden lg:block w-px h-14 bg-gray-200" />
-            <div className="flex-1 space-y-2">
-              {actionItems.slice(0, 3).map((item, i) => (
-                <div key={i} className="flex items-center gap-2.5">
-                  <div className={cn(
-                    "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
-                    item.type === "warning" && "bg-amber-100",
-                    item.type === "success" && "bg-emerald-100",
-                    item.type === "info" && "bg-blue-100",
-                  )}>
-                    <item.icon className={cn(
-                      "w-3.5 h-3.5",
-                      item.type === "warning" && "text-amber-600",
-                      item.type === "success" && "text-emerald-600",
-                      item.type === "info" && "text-blue-600",
-                    )} />
-                  </div>
-                  <p className="text-sm text-gray-700">{item.text}</p>
-                </div>
-              ))}
-              {!loading && actionItems.length === 0 && (
-                <p className="text-sm text-gray-500">Sem alertas no momento.</p>
-              )}
-            </div>
-          </div>
-        </div>
+        <FarmHealthBanner
+          score={healthScore}
+          summary={farmHealthSummary}
+          insights={farmHealthInsights}
+          emptyMessage={loading ? "Carregando indicadores..." : "Sem alertas no momento."}
+        />
       )}
 
       {/* Main KPI Row */}

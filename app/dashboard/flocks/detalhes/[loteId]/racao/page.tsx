@@ -7,6 +7,7 @@ import {
   Activity,
   ArrowDownRight,
   ArrowLeft,
+  ArrowRight,
   ArrowUpRight,
   DollarSign,
   Loader2,
@@ -14,6 +15,7 @@ import {
   Target,
   Wheat,
 } from "lucide-react";
+import { insightHref } from "@/lib/insight-links";
 import {
   Area,
   AreaChart,
@@ -28,7 +30,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useDateFilter } from "@/components/date-filter";
+import { PlanAwareCalendarFilter, useDateFilter } from "@/components/date-filter";
+import { usePlan } from "@/components/plan/plan-provider";
+import { hasMinimumPlan } from "@/lib/plans";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -188,6 +192,10 @@ function formatDecimal(value: number, digits = 1) {
   });
 }
 
+function toDateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
 function getCompositionMidpoint(percentage: string) {
   const normalized = percentage.replace("%", "").replace(",", ".");
   if (normalized.includes("-")) {
@@ -312,7 +320,9 @@ export default function RacaoLotePage() {
   const params = useParams();
   const loteId = params.loteId as string;
   const { farm, loading: authLoading } = useAuth();
+  const { plan } = usePlan();
   const { dateRange } = useDateFilter();
+  const canUseDateFilter = hasMinimumPlan(plan, "pro");
 
   const [lote, setLote] = useState<Lote | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -355,10 +365,19 @@ export default function RacaoLotePage() {
     };
   }, [authLoading, farm, loteId]);
 
+  const effectiveDateRange = useMemo(() => {
+    if (canUseDateFilter) return dateRange;
+
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(end.getDate() - 29);
+    return { startDate: toDateKey(start), endDate: toDateKey(end) };
+  }, [canUseDateFilter, dateRange]);
+
   const { feedRecords, productionRecords } = useMemo(() => {
     if (!lote) return { feedRecords: [], productionRecords: [] };
-    return buildMockFeedData(lote, dateRange.startDate, dateRange.endDate);
-  }, [dateRange.endDate, dateRange.startDate, lote]);
+    return buildMockFeedData(lote, effectiveDateRange.startDate, effectiveDateRange.endDate);
+  }, [effectiveDateRange.endDate, effectiveDateRange.startDate, lote]);
 
   const metrics = useMemo(() => {
     if (!lote) return null;
@@ -806,6 +825,7 @@ export default function RacaoLotePage() {
               <p className="text-sm text-gray-400 mt-0.5">Consumo e custo alimentar detalhados do lote</p>
             </div>
           </div>
+          <PlanAwareCalendarFilter />
         </div>
       </div>
 
@@ -866,6 +886,7 @@ export default function RacaoLotePage() {
             </p>
             <ul className="space-y-1.5">
               {recommendations.map((rec, index) => {
+                const link = insightHref(`${rec.title} ${rec.consequences.join(" ")}`);
                 const impactColor =
                   rec.impact === "alto"
                     ? "text-red-600"
@@ -887,6 +908,10 @@ export default function RacaoLotePage() {
                       {rec.consequences.map((c, i) => (
                         <span key={i} className="block text-xs text-gray-500 mt-0.5">→ {c}</span>
                       ))}
+                      <Link href={link.href} className="mt-1 inline-flex items-center gap-0.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
+                        {link.label}
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
                     </div>
                   </li>
                 );

@@ -11,6 +11,7 @@ import {
   Plus,
   ArrowUpRight,
   ArrowDownRight,
+  ArrowRight,
   X,
   Check,
   Pencil,
@@ -29,6 +30,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { insightHref } from "@/lib/insight-links";
 import { AssistantCard } from "@/components/dashboard/assistant-card";
 import {
   AreaChart,
@@ -47,6 +49,7 @@ import { hasMinimumPlan } from "@/lib/plans";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
 import type { Tables } from "@/lib/database.types";
 
 /* ── Interfaces ── */
@@ -537,6 +540,23 @@ export default function ProducaoPage() {
     }
   }
 
+  const farmHealthInsights = useMemo<FarmHealthInsight[]>(
+    () =>
+      insights.map((insight) => {
+        const link = insightHref(`${insight.title} ${insight.action}`);
+
+        return {
+          level: insight.type,
+          title: insight.title,
+          action: insight.action,
+          href: link.href,
+          hrefLabel: link.label,
+        };
+      }),
+    [insights]
+  );
+  const farmHealthSummary = `Postura: ${healthScore.posturaRate.toFixed(1)}% | Meta: 92% | Perdas: ${healthScore.lossRate.toFixed(1)}%`;
+
   /* ── Loading State ── */
   if (authLoading || loading) {
     return (
@@ -558,12 +578,6 @@ export default function ProducaoPage() {
       </div>
     );
   }
-
-  const healthStrokeColor = healthScore.color === "emerald" ? "#10b981" : healthScore.color === "blue" ? "#3b82f6" : healthScore.color === "amber" ? "#f59e0b" : "#ef4444";
-  const healthTextColor = healthScore.color === "emerald" ? "text-emerald-700" : healthScore.color === "blue" ? "text-blue-700" : healthScore.color === "amber" ? "text-amber-700" : "text-red-700";
-  const healthBgFrom = healthScore.color === "emerald" ? "from-emerald-50" : healthScore.color === "blue" ? "from-blue-50" : healthScore.color === "amber" ? "from-amber-50" : "from-red-50";
-  const healthBgVia = healthScore.color === "emerald" ? "via-emerald-50/50" : healthScore.color === "blue" ? "via-blue-50/50" : healthScore.color === "amber" ? "via-amber-50/50" : "via-red-50/50";
-  const healthBorder = healthScore.color === "emerald" ? "border-emerald-200/60" : healthScore.color === "blue" ? "border-blue-200/60" : healthScore.color === "amber" ? "border-amber-200/60" : "border-red-200/60";
 
   return (
     <div className="space-y-6">
@@ -590,102 +604,18 @@ export default function ProducaoPage() {
       {/* Resumo de Hoje */}
       {plan === "essencial" ? (
         <LockedOverlay message="Desbloqueie o resumo de saúde produtiva" targetPlan="pro">
-          <div className={cn("bg-gradient-to-r to-white rounded-2xl border p-5 transition-all duration-300", healthBgFrom, healthBgVia, healthBorder)}>
-            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-              {/* Health Score */}
-              <div className="flex items-center gap-4 lg:min-w-[280px]">
-                <div className="relative w-16 h-16 flex-shrink-0">
-                  <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                    <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-gray-200 dark:text-slate-700" />
-                    <circle cx="32" cy="32" r="28" fill="none" stroke={healthStrokeColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(healthScore.score / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={cn("text-base font-bold", healthTextColor)}>{healthScore.score}</span>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Target className="w-4 h-4 text-amber-600" />
-                    <span className="text-sm font-bold text-gray-900">Saúde Produtiva</span>
-                  </div>
-                  <p className={cn("text-xl font-bold mt-0.5", healthTextColor)}>{healthScore.label}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Postura: {healthScore.posturaRate.toFixed(1)}% | Meta: 92% | Perdas: {healthScore.lossRate.toFixed(1)}%</p>
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="hidden lg:block w-px h-14 bg-gray-200" />
-
-              {/* Action Items */}
-              <div className="flex-1 space-y-2">
-                {insights.slice(0, 3).map((ins, i) => (
-                  <div key={i} className="flex items-center gap-2.5">
-                    <div className={cn(
-                      "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
-                      ins.type === "success" ? "bg-emerald-100" : ins.type === "warning" ? "bg-amber-100" : "bg-blue-100"
-                    )}>
-                      {ins.type === "success" ? <TrendingUp className="w-3.5 h-3.5 text-emerald-600" /> :
-                       ins.type === "warning" ? <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> :
-                       <Lightbulb className="w-3.5 h-3.5 text-blue-600" />}
-                    </div>
-                    <p className="text-sm text-gray-700">{ins.title}</p>
-                  </div>
-                ))}
-                {insights.length === 0 && (
-                  <p className="text-sm text-gray-400">Nenhuma informação disponível para hoje.</p>
-                )}
-              </div>
-            </div>
-          </div>
+          <FarmHealthBanner
+            score={healthScore.score}
+            summary={farmHealthSummary}
+            insights={farmHealthInsights}
+          />
         </LockedOverlay>
       ) : (
-        <div className={cn("bg-gradient-to-r to-white rounded-2xl border p-5 transition-all duration-300", healthBgFrom, healthBgVia, healthBorder)}>
-          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-            {/* Health Score */}
-            <div className="flex items-center gap-4 lg:min-w-[280px]">
-              <div className="relative w-16 h-16 flex-shrink-0">
-                <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                  <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-gray-200 dark:text-slate-700" />
-                  <circle cx="32" cy="32" r="28" fill="none" stroke={healthStrokeColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(healthScore.score / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className={cn("text-base font-bold", healthTextColor)}>{healthScore.score}</span>
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <Target className="w-4 h-4 text-amber-600" />
-                  <span className="text-sm font-bold text-gray-900">Saúde Produtiva</span>
-                </div>
-                <p className={cn("text-xl font-bold mt-0.5", healthTextColor)}>{healthScore.label}</p>
-                <p className="text-xs text-gray-500 mt-0.5">Postura: {healthScore.posturaRate.toFixed(1)}% | Meta: 92% | Perdas: {healthScore.lossRate.toFixed(1)}%</p>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="hidden lg:block w-px h-14 bg-gray-200" />
-
-            {/* Action Items */}
-            <div className="flex-1 space-y-2">
-              {insights.slice(0, 3).map((ins, i) => (
-                <div key={i} className="flex items-center gap-2.5">
-                  <div className={cn(
-                    "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
-                    ins.type === "success" ? "bg-emerald-100" : ins.type === "warning" ? "bg-amber-100" : "bg-blue-100"
-                  )}>
-                    {ins.type === "success" ? <TrendingUp className="w-3.5 h-3.5 text-emerald-600" /> :
-                     ins.type === "warning" ? <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> :
-                     <Lightbulb className="w-3.5 h-3.5 text-blue-600" />}
-                  </div>
-                  <p className="text-sm text-gray-700">{ins.title}</p>
-                </div>
-              ))}
-              {insights.length === 0 && (
-                <p className="text-sm text-gray-400">Nenhuma informação disponível para hoje.</p>
-              )}
-            </div>
-          </div>
-        </div>
+        <FarmHealthBanner
+          score={healthScore.score}
+          summary={farmHealthSummary}
+          insights={farmHealthInsights}
+        />
       )}
 
       {/* KPI Cards */}

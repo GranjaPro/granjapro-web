@@ -19,12 +19,11 @@ import {
   AlertTriangle,
   CheckCircle2,
   Info,
-  Target,
   Activity,
-  ArrowRight,
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FarmHealthBanner } from "@/components/dashboard/farm-health-banner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import ExcelJS from "exceljs";
@@ -39,7 +38,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell,
   ComposedChart,
   Line,
 } from "recharts";
@@ -62,6 +60,8 @@ interface Insight {
   description: string;
   action: string;
   metric?: string;
+  href: string;
+  hrefLabel: string;
 }
 
 interface LucroTrendItem { periodo: string; receita: number; despesa: number; lucro: number; }
@@ -293,6 +293,8 @@ function generateInsights(
         description: `Lucro caiu ${drop}% em relação ao período anterior. Margem atual: ${margem.toFixed(1)}%.`,
         action: "Renegociar custos ou ajustar preço de venda",
         metric: `${margem.toFixed(1)}%`,
+        href: "/dashboard/finances",
+        hrefLabel: "Ver finanças",
       });
     }
   }
@@ -306,6 +308,8 @@ function generateInsights(
         description: `Taxa de postura ${g.postura}% (meta: 87%). Eficiência geral: ${g.eficiencia}%.`,
         action: "Verificar condições ambientais e idade do lote",
         metric: `${g.postura}%`,
+        href: "/dashboard/production",
+        hrefLabel: "Ver produção",
       });
     }
   }
@@ -320,6 +324,8 @@ function generateInsights(
         description: `${top.pct}% das mortes por ${top.causa.toLowerCase()}.`,
         action: "Investigar e mitigar causa principal",
         metric: `${top.pct}%`,
+        href: "/dashboard/mortality",
+        hrefLabel: "Ver mortalidade",
       });
     }
   }
@@ -336,6 +342,8 @@ function generateInsights(
         description: `Receita cresceu ${growth}% no último período.`,
         action: "Manter volume de vendas e explorar novos canais",
         metric: `+${growth}%`,
+        href: "/dashboard/sales",
+        hrefLabel: "Ver vendas",
       });
     }
   }
@@ -347,6 +355,8 @@ function generateInsights(
       title: "Operação estável",
       description: "Nenhum alerta crítico no período selecionado.",
       action: "Continuar monitorando os indicadores",
+      href: "/dashboard",
+      hrefLabel: "Ver painel",
     });
   }
 
@@ -1308,7 +1318,9 @@ export default function RelatoriosPage() {
           <div className="relative">
             <button
               onClick={() => { setShowExport(!showExport); setShowPeriodo(false); }}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-xl transition-colors cursor-pointer shadow-sm shadow-brand-600/20"
+              disabled={noData}
+              title={noData ? "Sem dados para exportar no período selecionado" : undefined}
+              className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-xl transition-colors cursor-pointer shadow-sm shadow-brand-600/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand-600"
             >
               <Download className="w-4 h-4" />
               Exportar
@@ -1338,100 +1350,67 @@ export default function RelatoriosPage() {
         </div>
       ) : (
         <>
-          {/* Health Score + Top KPIs */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-            {/* Health Score */}
-            <div className={cn("lg:col-span-1 rounded-2xl border p-5 flex flex-col items-center justify-center gap-2", scoreStyle.bg, scoreStyle.bg === "bg-emerald-50" ? "border-emerald-200" : scoreStyle.bg === "bg-amber-50" ? "border-amber-200" : "border-red-200")}>
-              <div className="relative w-20 h-20">
-                <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
-                  <circle cx="40" cy="40" r="34" fill="none" stroke="#e5e7eb" strokeWidth="6" />
-                  <circle
-                    cx="40" cy="40" r="34" fill="none"
-                    className={scoreStyle.ring}
-                    stroke="currentColor"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    strokeDasharray={`${(healthScore / 100) * 213.6} 213.6`}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className={cn("text-2xl font-bold", scoreStyle.text)}>{healthScore}</span>
+          <FarmHealthBanner
+            score={healthScore}
+            summary={`Margem: ${margem.toFixed(1)}% | Postura: ${avgPostura}% | Mortalidade: ${mortalidadeRate.toFixed(2)}%`}
+            insights={insights}
+          />
+
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            {[
+              { title: "Lucro", icon: DollarSign, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", value: `R$ ${lucro.toLocaleString("pt-BR")}`, subtitle: `Margem: ${margem.toFixed(1)}%`, actual: Math.max(0, lucro), expectedVal: Math.max(0, prevReceita - totalDespesa), expectedLabel: `R$ ${Math.max(0, prevReceita - totalDespesa).toLocaleString("pt-BR")}`, change: lucroChange, lowerBetter: false, progressColor: "bg-emerald-500" },
+              { title: "Produção", icon: Egg, iconBg: "bg-brand-50", iconColor: "text-brand-600", value: `${totalOvos.toLocaleString("pt-BR")} ovos`, subtitle: `Postura: ${avgPostura}%`, actual: totalOvos, expectedVal: prevOvos, expectedLabel: `${prevOvos.toLocaleString("pt-BR")} ovos`, change: prodChange, lowerBetter: false, progressColor: "bg-brand-500" },
+              { title: "Mortalidade", icon: Activity, iconBg: "bg-red-50", iconColor: "text-red-500", value: `${mortalidadeRate.toFixed(2)}%`, subtitle: `${totalMortes} óbitos`, actual: mortalidadeRate, expectedVal: prevMortRate, expectedLabel: `${prevMortRate.toFixed(2)}%`, change: mortChange, lowerBetter: true, progressColor: "bg-red-500" },
+              { title: "Custo/Ovo", icon: Wheat, iconBg: "bg-orange-50", iconColor: "text-orange-600", value: `R$ ${custoPerOvo.toFixed(2)}`, subtitle: "Custo de ração por ovo", actual: custoPerOvo, expectedVal: prevCustoPerOvo, expectedLabel: `R$ ${prevCustoPerOvo.toFixed(2)}`, change: custoChange, lowerBetter: true, progressColor: "bg-orange-500" },
+            ].map((kpi) => {
+              const good = kpi.lowerBetter ? kpi.change <= 0 : kpi.change >= 0;
+              const maxVal = Math.max(kpi.actual, kpi.expectedVal) * 1.08;
+              const fillPct = maxVal > 0 ? Math.min((kpi.actual / maxVal) * 100, 100) : 0;
+              const markerPct = maxVal > 0 ? Math.min((kpi.expectedVal / maxVal) * 100, 100) : 0;
+              const above = kpi.actual >= kpi.expectedVal;
+              return (
+                <div key={kpi.title} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", kpi.iconBg)}>
+                      <kpi.icon className={cn("w-4.5 h-4.5", kpi.iconColor)} />
+                    </div>
+                    <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">{kpi.title}</span>
+                  </div>
+
+                  <div className="flex items-end justify-between">
+                    <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{kpi.value}</p>
+                    {kpi.change !== 0 && (
+                      <span className={cn(
+                        "inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full",
+                        good ? "text-emerald-700 bg-emerald-50" : "text-red-600 bg-red-50"
+                      )}>
+                        {kpi.change >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                        {Math.abs(kpi.change)}%
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1 font-medium">{kpi.subtitle}</p>
+
+                  <div className="mt-4 relative">
+                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={cn("h-full rounded-full transition-all duration-700", kpi.progressColor)} style={{ width: `${fillPct}%` }} />
+                    </div>
+                    <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${markerPct}%` }} title={`Esperado: ${kpi.expectedLabel}`} />
+                  </div>
+
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
+                      <span className="text-[10px] text-gray-500 font-medium">Esperado: {kpi.expectedLabel}</span>
+                    </div>
+                    <span className={cn("text-[10px] font-semibold", good ? "text-emerald-600" : "text-red-500")}>
+                      {above ? "Acima" : "Abaixo"} do esperado
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <span className={cn("text-xs font-bold", scoreStyle.text)}>{scoreStyle.label}</span>
-              <span className="text-[10px] text-gray-400 font-medium">Saúde da Granja</span>
-            </div>
-
-            {/* KPIs */}
-            <div className="lg:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { label: "Lucro", value: `R$ ${lucro.toLocaleString("pt-BR")}`, change: lucroChange, icon: DollarSign, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", sub: `Margem: ${margem.toFixed(1)}%` },
-                { label: "Produção", value: totalOvos.toLocaleString("pt-BR"), change: prodChange, icon: Egg, iconBg: "bg-brand-50", iconColor: "text-brand-600", sub: `Postura: ${avgPostura}%` },
-                { label: "Mortalidade", value: `${mortalidadeRate.toFixed(2)}%`, change: mortChange, icon: Activity, iconBg: "bg-red-50", iconColor: "text-red-500", sub: `${totalMortes} óbitos` },
-                { label: "Custo/Ovo", value: `R$ ${custoPerOvo.toFixed(2)}`, change: custoChange, icon: Wheat, iconBg: "bg-orange-50", iconColor: "text-orange-600", sub: "Custo de ração por ovo" },
-              ].map((kpi) => {
-                const isPositive = kpi.label === "Mortalidade" ? kpi.change <= 0 : kpi.change >= 0;
-                return (
-                  <div key={kpi.label} className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", kpi.iconBg)}>
-                        <kpi.icon className={cn("w-5 h-5", kpi.iconColor)} />
-                      </div>
-                      {kpi.change !== 0 && (
-                        <div className={cn(
-                          "flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full",
-                          isPositive ? "text-emerald-700 bg-emerald-50" : "text-red-600 bg-red-50"
-                        )}>
-                          {isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                          {Math.abs(kpi.change)}%
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900 tracking-tight">{kpi.value}</p>
-                    <p className="text-xs text-gray-400 mt-0.5 font-medium">{kpi.label}</p>
-                    <p className="text-[11px] text-gray-500 mt-1.5 font-medium">{kpi.sub}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Actionable Insights */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Target className="w-4 h-4 text-gray-400" />
-              <h2 className="text-sm font-bold text-gray-900">O que fazer agora</h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {insights.map((insight, i) => {
-                const cfg = insightConfig[insight.level];
-                const Icon = cfg.icon;
-                return (
-                  <div key={i} className={cn("rounded-2xl border p-4 transition-all duration-200", cfg.bg, cfg.border)}>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 mt-0.5">
-                        <Icon className={cn("w-5 h-5", cfg.iconColor)} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <h3 className={cn("text-sm font-bold", cfg.titleColor)}>{insight.title}</h3>
-                          {insight.metric && (
-                            <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0", cfg.metricBg, cfg.metricText)}>
-                              {insight.metric}
-                            </span>
-                          )}
-                        </div>
-                        <p className={cn("text-xs leading-relaxed mb-2", cfg.descColor)}>{insight.description}</p>
-                        <div className={cn("inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg", cfg.actionBg, cfg.actionText)}>
-                          <ArrowRight className="w-3 h-3" />
-                          {insight.action}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+              );
+            })}
           </div>
 
           {/* Profit Trend */}
@@ -1584,8 +1563,8 @@ export default function RelatoriosPage() {
                   <p className="text-[11px] text-gray-400 mt-0.5">Acompanhe se a produção está atingindo o objetivo</p>
                 </div>
                 <div className="flex items-center gap-4 text-[11px]">
-                  <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-brand-500" /> Produção</div>
-                  <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-gray-300" /> Meta</div>
+                  <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Produção</div>
+                  <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-indigo-500" /> Meta</div>
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={200}>
@@ -1594,12 +1573,8 @@ export default function RelatoriosPage() {
                   <XAxis dataKey="dia" fontSize={11} tickLine={false} axisLine={false} tick={{ fill: "#94a3b8" }} />
                   <YAxis fontSize={11} tickLine={false} axisLine={false} tick={{ fill: "#94a3b8" }} />
                   <Tooltip contentStyle={customTooltipStyle} />
-                  <Bar dataKey="meta" fill="#e5e7eb" radius={[4, 4, 0, 0]} barSize={24} />
-                  <Bar dataKey="ovos" radius={[4, 4, 0, 0]} barSize={24}>
-                    {producaoSemanal.map((entry, i) => (
-                      <Cell key={i} fill={entry.ovos >= entry.meta ? "#22c55e" : "#f59e0b"} />
-                    ))}
-                  </Bar>
+                  <Bar dataKey="meta" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={24} />
+                  <Bar dataKey="ovos" fill="#22c55e" radius={[4, 4, 0, 0]} barSize={24} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

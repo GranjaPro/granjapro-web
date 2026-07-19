@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import Link from "next/link";
+import { insightHref } from "@/lib/insight-links";
 import {
   AlertTriangle,
+  ArrowRight,
   CalendarDays,
   CheckCircle2,
   Droplets,
@@ -1081,7 +1084,9 @@ export default function AguaPage() {
           </div>
         </div>
         <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-          {waterInsights.map((ins, index) => (
+          {waterInsights.map((ins, index) => {
+            const link = insightHref(`${ins.title} ${ins.action}`);
+            return (
             <div
               key={index}
               className={cn(
@@ -1106,9 +1111,16 @@ export default function AguaPage() {
                 </div>
                 <span className="text-xs font-semibold text-gray-800 dark:text-slate-200">{ins.title}</span>
               </div>
-              <p className={cn("text-[11px] font-medium ml-7", ins.type === "success" ? "text-emerald-600 dark:text-emerald-400" : ins.type === "warning" ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400")}>→ {ins.action}</p>
+              <div className="ml-7 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                <p className={cn("text-[11px] font-medium", ins.type === "success" ? "text-emerald-600 dark:text-emerald-400" : ins.type === "warning" ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400")}>→ {ins.action}</p>
+                <Link href={link.href} className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 hover:underline dark:text-indigo-400">
+                  {link.label}
+                  <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </section>
       </div>

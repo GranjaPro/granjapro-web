@@ -16,6 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import { useAuth } from "@/components/auth/auth-provider";
+import { PlanAwareCalendarFilter, useDateFilter } from "@/components/date-filter";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { usePlan } from "@/components/plan/plan-provider";
 import { createClient } from "@/lib/supabase/client";
@@ -314,6 +315,7 @@ export default function AguaLotePage() {
   const loteId = params.loteId as string;
   const { farm, loading: authLoading } = useAuth();
   const { plan } = usePlan();
+  const { dateRange } = useDateFilter();
   const [lote, setLote] = useState<Lote | null>(null);
   const [waterRecords, setWaterRecords] = useState<WaterConsumptionRow[]>([]);
   const [productionRecords, setProductionRecords] = useState<EggProductionRow[]>([]);
@@ -373,14 +375,22 @@ export default function AguaLotePage() {
     void loadData();
   }, [loadData]);
 
+  const dateFilteredWaterRecords = useMemo(
+    () => waterRecords.filter((record) => record.date >= dateRange.startDate && record.date <= dateRange.endDate),
+    [dateRange.endDate, dateRange.startDate, waterRecords],
+  );
+  const dateFilteredProductionRecords = useMemo(
+    () => productionRecords.filter((record) => record.date >= dateRange.startDate && record.date <= dateRange.endDate),
+    [dateRange.endDate, dateRange.startDate, productionRecords],
+  );
   const filteredWaterRecords = useMemo(
-    () => filterRecordsByRange(waterRecords, waterHistoryRange),
-    [waterHistoryRange, waterRecords],
+    () => filterRecordsByRange(dateFilteredWaterRecords, waterHistoryRange),
+    [dateFilteredWaterRecords, waterHistoryRange],
   );
   const filteredProductionRecords = useMemo(() => {
-    const startDate = getDateRangeStart(waterHistoryRange, waterRecords);
-    return startDate ? productionRecords.filter((record) => record.date >= startDate) : productionRecords;
-  }, [productionRecords, waterHistoryRange, waterRecords]);
+    const startDate = getDateRangeStart(waterHistoryRange, dateFilteredWaterRecords);
+    return startDate ? dateFilteredProductionRecords.filter((record) => record.date >= startDate) : dateFilteredProductionRecords;
+  }, [dateFilteredProductionRecords, dateFilteredWaterRecords, waterHistoryRange]);
   const metrics = useMemo(
     () => (lote && filteredWaterRecords.length > 0 ? buildWaterMetrics(lote, filteredWaterRecords, filteredProductionRecords) : null),
     [filteredProductionRecords, filteredWaterRecords, lote],
@@ -607,6 +617,7 @@ export default function AguaLotePage() {
             <p className="text-sm text-gray-500 mt-0.5">Indicadores hídricos e histórico operacional do lote</p>
           </div>
         </div>
+        <PlanAwareCalendarFilter />
       </div>
     </div>
   );

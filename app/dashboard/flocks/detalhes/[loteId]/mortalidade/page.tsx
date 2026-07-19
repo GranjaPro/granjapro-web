@@ -38,6 +38,7 @@ import {
   YAxis,
 } from "recharts";
 import { useAuth } from "@/components/auth/auth-provider";
+import { PlanAwareCalendarFilter, useDateFilter } from "@/components/date-filter";
 import { createClient } from "@/lib/supabase/client";
 import {
   createMortalityRecord,
@@ -45,6 +46,8 @@ import {
   getMortalityByFlock,
   updateMortalityRecord,
 } from "@/lib/services/mortality";
+import { usePlan } from "@/components/plan/plan-provider";
+import { hasMinimumPlan } from "@/lib/plans";
 import { cn } from "@/lib/utils";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 
@@ -230,6 +233,9 @@ export default function MortalidadeLotePage() {
   const params = useParams();
   const loteId = String(params.loteId ?? "");
   const { farm, loading: authLoading } = useAuth();
+  const { plan } = usePlan();
+  const { dateRange } = useDateFilter();
+  const canUseDateFilter = hasMinimumPlan(plan, "pro");
 
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -300,9 +306,20 @@ export default function MortalidadeLotePage() {
   }, [fetchData]);
 
   const birdCount = flock?.bird_count ?? 0;
-  const totalMortes = useMemo(
+  const periodRegistros = useMemo(
+    () =>
+      canUseDateFilter
+        ? registros.filter((record) => record.data >= dateRange.startDate && record.data <= dateRange.endDate)
+        : registros,
+    [canUseDateFilter, dateRange.endDate, dateRange.startDate, registros],
+  );
+  const totalMortesHistorico = useMemo(
     () => registros.reduce((sum, record) => sum + record.quantidade, 0),
     [registros]
+  );
+  const totalMortes = useMemo(
+    () => periodRegistros.reduce((sum, record) => sum + record.quantidade, 0),
+    [periodRegistros]
   );
   const totalInicial = birdCount + totalMortes;
   const taxaTotal = getMortalityRate(totalMortes, birdCount, totalMortes);
@@ -314,19 +331,19 @@ export default function MortalidadeLotePage() {
   const priorSevenDaysAgo = toIsoDate(addDays(today, -13));
 
   const mortesSemana = useMemo(
-    () => registros.filter((record) => record.data >= sevenDaysAgo).reduce((sum, record) => sum + record.quantidade, 0),
-    [registros, sevenDaysAgo]
+    () => periodRegistros.filter((record) => record.data >= sevenDaysAgo).reduce((sum, record) => sum + record.quantidade, 0),
+    [periodRegistros, sevenDaysAgo]
   );
   const mortesSemanaAnterior = useMemo(
     () =>
-      registros
+      periodRegistros
         .filter((record) => record.data >= priorSevenDaysAgo && record.data < sevenDaysAgo)
         .reduce((sum, record) => sum + record.quantidade, 0),
-    [priorSevenDaysAgo, registros, sevenDaysAgo]
+    [periodRegistros, priorSevenDaysAgo, sevenDaysAgo]
   );
   const mortesMes = useMemo(
-    () => registros.filter((record) => record.data >= thirtyDaysAgo).reduce((sum, record) => sum + record.quantidade, 0),
-    [registros, thirtyDaysAgo]
+    () => periodRegistros.filter((record) => record.data >= thirtyDaysAgo).reduce((sum, record) => sum + record.quantidade, 0),
+    [periodRegistros, thirtyDaysAgo]
   );
   const taxaMensal = getMortalityRate(mortesMes, birdCount, totalMortes);
   const tendencia = getTrend(mortesSemana, mortesSemanaAnterior);
@@ -365,7 +382,7 @@ export default function MortalidadeLotePage() {
     return Array.from({ length: 7 }, (_, index) => {
       const date = addDays(today, index - 6);
       const iso = toIsoDate(date);
-      const mortes = registros
+      const mortes = periodRegistros
         .filter((record) => record.data === iso)
         .reduce((sum, record) => sum + record.quantidade, 0);
       return {
@@ -374,13 +391,13 @@ export default function MortalidadeLotePage() {
         taxa: getMortalityRate(mortes, birdCount, totalMortes),
       };
     });
-  }, [birdCount, registros, today, totalMortes]);
+  }, [birdCount, periodRegistros, today, totalMortes]);
 
   const monthlyData = useMemo<ChartPoint[]>(() => {
     return Array.from({ length: 6 }, (_, index) => {
       const date = addMonths(new Date(today.getFullYear(), today.getMonth(), 1), index - 5);
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const mortes = registros
+      const mortes = periodRegistros
         .filter((record) => record.data.startsWith(key))
         .reduce((sum, record) => sum + record.quantidade, 0);
       return {
@@ -389,11 +406,11 @@ export default function MortalidadeLotePage() {
         taxa: getMortalityRate(mortes, birdCount, totalMortes),
       };
     });
-  }, [birdCount, registros, today, totalMortes]);
+  }, [birdCount, periodRegistros, today, totalMortes]);
 
   const causas = useMemo<CauseSummary[]>(() => {
     const grouped = new Map<string, number>();
-    registros.forEach((record) => {
+    periodRegistros.forEach((record) => {
       grouped.set(record.causa, (grouped.get(record.causa) ?? 0) + record.quantidade);
     });
 
@@ -405,14 +422,14 @@ export default function MortalidadeLotePage() {
         color: causeColors[causa] ?? causeColors.Outros,
       }))
       .sort((a, b) => b.quantidade - a.quantidade);
-  }, [registros, totalMortes]);
+  }, [periodRegistros, totalMortes]);
 
   const fasesMortalidade = useMemo<StageSummary[]>(() => {
     if (!flock) return [];
 
     const grouped = new Map<FlockMortalityStage, number>();
 
-    registros.forEach((record) => {
+    periodRegistros.forEach((record) => {
       const ageWeeks = getAgeWeeksAtDate(flock.arrival_date, flock.arrival_age_weeks, record.data);
       const stage = getMortalityStage(ageWeeks);
       grouped.set(stage, (grouped.get(stage) ?? 0) + record.quantidade);
@@ -430,7 +447,7 @@ export default function MortalidadeLotePage() {
         };
       })
       .filter((stage) => stage.mortes > 0);
-  }, [flock, registros, totalMortes]);
+  }, [flock, periodRegistros, totalMortes]);
 
   const recommendations = useMemo(() => {
     const list: { text: string; impact: "alto" | "medio" | "baixo" }[] = [];
@@ -454,15 +471,15 @@ export default function MortalidadeLotePage() {
 
   const filteredRegistros = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return registros;
-    return registros.filter(
+    if (!query) return periodRegistros;
+    return periodRegistros.filter(
       (record) =>
         record.causa.toLowerCase().includes(query) ||
         record.galpao.toLowerCase().includes(query) ||
         record.observacao.toLowerCase().includes(query) ||
         record.data.includes(query)
     );
-  }, [registros, searchQuery]);
+  }, [periodRegistros, searchQuery]);
 
   function openAdd() {
     setEditing(null);
@@ -492,7 +509,7 @@ export default function MortalidadeLotePage() {
     if (!farm || !flock || !form.data || !form.causa || saving) return;
 
     const deadBirds = Math.max(1, Number(form.quantidade) || 1);
-    const recordRate = getMortalityRate(deadBirds, birdCount, totalMortes);
+    const recordRate = getMortalityRate(deadBirds, birdCount, totalMortesHistorico);
     const payload: TablesInsert<"mortality"> = {
       farm_id: farm.id,
       flock_id: flock.id,
@@ -654,14 +671,17 @@ export default function MortalidadeLotePage() {
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={openAdd}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-red-500/20 transition-colors hover:bg-red-600"
-        >
-          <Plus className="h-4 w-4" />
-          Registrar Mortalidade
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <PlanAwareCalendarFilter />
+          <button
+            type="button"
+            onClick={openAdd}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-red-500/20 transition-colors hover:bg-red-600"
+          >
+            <Plus className="h-4 w-4" />
+            Registrar Mortalidade
+          </button>
+        </div>
       </div>
 
       <div className={cn("rounded-2xl border bg-gradient-to-r p-5", mortalityStatus.gradient, mortalityStatus.border)}>
@@ -702,7 +722,7 @@ export default function MortalidadeLotePage() {
             <div className="flex flex-wrap items-center gap-2">
               <TrendBadge />
               <span className="rounded-lg bg-white/70 px-2.5 py-1 text-xs font-semibold text-gray-600">
-                {registros.length} registro{registros.length === 1 ? "" : "s"}
+                {periodRegistros.length} registro{periodRegistros.length === 1 ? "" : "s"}
               </span>
             </div>
           </div>
@@ -726,7 +746,7 @@ export default function MortalidadeLotePage() {
         ))}
       </div>
 
-      {registros.length === 0 ? (
+      {periodRegistros.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-10 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-red-50">
             <Skull className="h-5 w-5 text-red-500" />
@@ -877,7 +897,7 @@ export default function MortalidadeLotePage() {
         <div className="flex flex-col gap-3 border-b border-gray-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-sm font-bold text-gray-900">Registros de Mortalidade</h3>
-            <p className="mt-0.5 text-xs text-gray-400">{registros.length} registro{registros.length === 1 ? "" : "s"}</p>
+            <p className="mt-0.5 text-xs text-gray-400">{periodRegistros.length} registro{periodRegistros.length === 1 ? "" : "s"}</p>
           </div>
           <div className="flex w-full items-center gap-2 rounded-xl bg-gray-100/80 px-3 py-2 transition-colors focus-within:bg-gray-100 focus-within:ring-2 focus-within:ring-red-500/20 sm:w-72">
             <Search className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />

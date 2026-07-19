@@ -2,13 +2,16 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import ModalPortal from "@/components/ui/modal-portal";
+import { insightHref } from "@/lib/insight-links";
 import {
   ShoppingCart,
   TrendingUp,
   TrendingDown,
   ArrowUpRight,
   ArrowDownRight,
+  ArrowRight,
   DollarSign,
   Package,
   BarChart3,
@@ -867,6 +870,7 @@ export default function VendasPage() {
               { type: "success" as const, title: "Mix de clientes está bem distribuído", action: "Mantenha a diversificação atual para reduzir risco de concentração" },
               { type: "warning" as const, title: "Previsão: queda de 12% na receita no próximo mês", action: "Antecipe negociações com clientes recorrentes para garantir volume" },
             ].map((ins, i) => {
+              const link = insightHref(`${ins.title} ${ins.action}`);
               const card = (
                 <div className={cn("p-3.5 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
                   <div className="flex items-center gap-2 mb-1">
@@ -877,7 +881,13 @@ export default function VendasPage() {
                     </div>
                     <span className="text-sm font-semibold text-gray-800">{ins.title}</span>
                   </div>
-                  <p className={cn("text-xs font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
+                  <div className="ml-7 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                    <p className={cn("text-xs font-medium", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
+                    <Link href={link.href} className="inline-flex items-center gap-0.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
+                      {link.label}
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
                 </div>
               );
               if (plan !== "premium" && i >= 2) {

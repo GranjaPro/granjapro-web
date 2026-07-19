@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   X,
   CalendarDays,
   ClipboardCheck,
@@ -16,9 +17,14 @@ import {
   Syringe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { insightHref } from "@/lib/insight-links";
 import { useAuth } from "@/components/auth/auth-provider";
+import { PlanAwareCalendarFilter, useDateFilter } from "@/components/date-filter";
+import { usePlan } from "@/components/plan/plan-provider";
+import { hasMinimumPlan } from "@/lib/plans";
 import { createClient } from "@/lib/supabase/client";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
 import type { Tables } from "@/lib/database.types";
 
 type RecordType = "vaccination" | "treatment" | "inspection";
@@ -201,6 +207,9 @@ export default function SaudeLotePage() {
   const params = useParams();
   const loteId = params.loteId as string;
   const { farm, loading: authLoading } = useAuth();
+  const { plan } = usePlan();
+  const { dateRange } = useDateFilter();
+  const canUseDateFilter = hasMinimumPlan(plan, "pro");
 
   const [loading, setLoading] = useState(true);
   const [loteCode, setLoteCode] = useState("");
@@ -224,6 +233,28 @@ export default function SaudeLotePage() {
     async function fetchData() {
       setLoading(true);
 
+      const healthRecordsQuery = supabase
+        .from("health_records")
+        .select("id, title, date, type, status, responsible, notes, target_disease, brand_name, batch, active_ingredient, withdrawal_period_days, disposal_destination")
+        .eq("farm_id", currentFarm.id)
+        .eq("flock_id", loteId);
+      const dailyInspectionsQuery = supabase
+        .from("daily_inspections")
+        .select("id, date, responsible, feces_aspect, respiratory_symptoms, behavior, light_timer_ops, water_chlorine_ppm, water_ph, notes")
+        .eq("farm_id", currentFarm.id)
+        .or(`flock_id.eq.${loteId},flock_id.is.null`);
+      const mortalityQuery = supabase
+        .from("mortality")
+        .select("id, date, dead_birds, cause, mortality_rate, notes")
+        .eq("farm_id", currentFarm.id)
+        .eq("flock_id", loteId);
+
+      if (canUseDateFilter) {
+        healthRecordsQuery.gte("date", dateRange.startDate).lte("date", dateRange.endDate);
+        dailyInspectionsQuery.gte("date", dateRange.startDate).lte("date", dateRange.endDate);
+        mortalityQuery.gte("date", dateRange.startDate).lte("date", dateRange.endDate);
+      }
+
       const [flockRes, recordsRes, dailyInspectionsRes, mortalityRes] = await Promise.all([
         supabase
           .from("flocks")
@@ -231,24 +262,9 @@ export default function SaudeLotePage() {
           .eq("id", loteId)
           .eq("farm_id", currentFarm.id)
           .single(),
-        supabase
-          .from("health_records")
-          .select("id, title, date, type, status, responsible, notes, target_disease, brand_name, batch, active_ingredient, withdrawal_period_days, disposal_destination")
-          .eq("farm_id", currentFarm.id)
-          .eq("flock_id", loteId)
-          .order("date", { ascending: false }),
-        supabase
-          .from("daily_inspections")
-          .select("id, date, responsible, feces_aspect, respiratory_symptoms, behavior, light_timer_ops, water_chlorine_ppm, water_ph, notes")
-          .eq("farm_id", currentFarm.id)
-          .or(`flock_id.eq.${loteId},flock_id.is.null`)
-          .order("date", { ascending: false }),
-        supabase
-          .from("mortality")
-          .select("id, date, dead_birds, cause, mortality_rate, notes")
-          .eq("farm_id", currentFarm.id)
-          .eq("flock_id", loteId)
-          .order("date", { ascending: false }),
+        healthRecordsQuery.order("date", { ascending: false }),
+        dailyInspectionsQuery.order("date", { ascending: false }),
+        mortalityQuery.order("date", { ascending: false }),
       ]);
 
       if (cancelled) return;
@@ -273,7 +289,7 @@ export default function SaudeLotePage() {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, farm, loteId]);
+  }, [authLoading, canUseDateFilter, dateRange.endDate, dateRange.startDate, farm, loteId]);
 
   const agenda = useMemo(() => {
     return records
@@ -441,9 +457,6 @@ export default function SaudeLotePage() {
     weeklyMortalityRate,
   ]);
 
-  const scoreColor =
-    healthScore >= 90 ? "#10b981" : healthScore >= 70 ? "#f59e0b" : "#ef4444";
-
   const recomendacoes = useMemo(() => {
     const list: { text: string; impacto: "alto" | "médio" | "baixo" }[] = [];
     const seen = new Set<string>();
@@ -499,44 +512,28 @@ export default function SaudeLotePage() {
     return list.sort((a, b) => order[a.impacto] - order[b.impacto]).slice(0, 5);
   }, [agenda, diasUltimaInspecao, sintomasAtivos, vacinasAtrasadas]);
 
-  const sanitaryStatus = useMemo(() => {
-    if (vacinasAtrasadas > 0 || (sintomasAtivos.length > 0 && diasUltimaInspecao !== null && diasUltimaInspecao > 14)) {
-      return {
-        label: "Vermelho",
-        text: "text-red-700",
-        ring: "border-red-200",
-        iconBg: "bg-red-50",
-        icon: "text-red-600",
-        border: "border-red-200/70",
-        gradient: "from-red-50 via-red-50/60 to-white",
-        helper: "Há sinais que exigem ação imediata no lote.",
-      };
-    }
+  const farmHealthInsights = useMemo<FarmHealthInsight[]>(
+    () =>
+      recomendacoes.map((recomendacao) => {
+        const link = insightHref(recomendacao.text);
+        const level =
+          recomendacao.impacto === "alto"
+            ? "critical"
+            : recomendacao.impacto === "médio"
+            ? "warning"
+            : "success";
 
-    if (sintomasAtivos.length > 0 || agenda.length > 0 || diasUltimaInspecao === null || diasUltimaInspecao > 7) {
-      return {
-        label: "Amarelo",
-        text: "text-amber-700",
-        ring: "border-amber-200",
-        iconBg: "bg-amber-50",
-        icon: "text-amber-600",
-        border: "border-amber-200/70",
-        gradient: "from-amber-50 via-amber-50/60 to-white",
-        helper: "O lote pede observação e rotina sanitária próxima.",
-      };
-    }
-
-    return {
-      label: "Verde",
-      text: "text-emerald-700",
-      ring: "border-emerald-200",
-      iconBg: "bg-emerald-50",
-      icon: "text-emerald-600",
-      border: "border-emerald-200/70",
-      gradient: "from-emerald-50 via-emerald-50/60 to-white",
-      helper: "Sem pendências críticas nos registros atuais.",
-    };
-  }, [agenda.length, diasUltimaInspecao, sintomasAtivos.length, vacinasAtrasadas]);
+        return {
+          level,
+          title: recomendacao.text,
+          action: `Impacto: ${recomendacao.impacto}`,
+          href: link.href,
+          hrefLabel: link.label,
+        };
+      }),
+    [recomendacoes]
+  );
+  const farmHealthSummary = `Sintomas: ${sintomasAtivos.length} | Vacinas: ${agenda.length} pendentes | Mortalidade semanal: ${weeklyMortalityCount} aves (${(weeklyMortalityRate * 100).toFixed(1)}%)`;
 
   if (authLoading || loading) {
     return (
@@ -605,7 +602,8 @@ export default function SaudeLotePage() {
           <ArrowLeft className="w-4 h-4" />
           Voltar para Detalhes
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
             <HeartPulse className="w-6 h-6 text-emerald-600" />
           </div>
@@ -617,105 +615,16 @@ export default function SaudeLotePage() {
               Situação sanitária, inspeções e vacinação do lote
             </p>
           </div>
+          </div>
+          <PlanAwareCalendarFilter />
         </div>
       </div>
 
-      <div
-        className={cn(
-          "bg-gradient-to-r rounded-2xl border p-5",
-          sanitaryStatus.gradient,
-          sanitaryStatus.border
-        )}
-      >
-        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-          <div className="flex items-center gap-4 lg:min-w-[300px]">
-            <div className="relative w-16 h-16 flex-shrink-0">
-              <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
-                <circle
-                  cx="32"
-                  cy="32"
-                  r="28"
-                  fill="none"
-                  stroke={scoreColor}
-                  strokeWidth="5"
-                  strokeLinecap="round"
-                  strokeDasharray={`${(healthScore / 100) * 175.9} 175.9`}
-                  className="transition-all duration-700"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className={cn("text-base font-bold", sanitaryStatus.text)}>
-                  {healthScore}
-                </span>
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <HeartPulse className="w-4 h-4 text-brand-600" />
-                <span className="text-sm font-bold text-gray-900">Status sanitário</span>
-              </div>
-              <p className={cn("text-xl font-bold mt-0.5", sanitaryStatus.text)}>
-                {sanitaryStatus.label}
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Sintomas: {sintomasAtivos.length} | Vacinas: {agenda.length} pendentes
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Mortalidade semanal: {weeklyMortalityCount} aves (
-                {(weeklyMortalityRate * 100).toFixed(1)}%)
-              </p>
-              <div className="mt-2">
-                <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">
-                  Score baseado em:
-                </p>
-                <ul className="mt-1 space-y-0.5">
-                  <li className="text-xs text-gray-600">• Sintomas ativos</li>
-                  <li className="text-xs text-gray-600">• Risco de escalada</li>
-                  <li className="text-xs text-gray-600">• Vacinação pendente</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <div className="hidden lg:block w-px self-stretch bg-gray-200/70" />
-
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-2">
-              Recomendações automáticas
-            </p>
-            <ul className="space-y-1.5">
-              {recomendacoes.map((rec, i) => {
-                const impactColor =
-                  rec.impacto === "alto"
-                    ? "text-red-600"
-                    : rec.impacto === "médio"
-                    ? "text-amber-600"
-                    : "text-emerald-600";
-                const dotColor =
-                  rec.impacto === "alto"
-                    ? "bg-red-500"
-                    : rec.impacto === "médio"
-                    ? "bg-amber-500"
-                    : "bg-emerald-500";
-                return (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                    <span
-                      className={cn("mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0", dotColor)}
-                    />
-                    <span>
-                      {rec.text}{" "}
-                      <span className={cn("font-semibold", impactColor)}>
-                        (impacto: {rec.impacto})
-                      </span>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        </div>
-      </div>
+      <FarmHealthBanner
+        score={healthScore}
+        summary={farmHealthSummary}
+        insights={farmHealthInsights}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-gray-100 p-5">

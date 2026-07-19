@@ -37,6 +37,9 @@ import {
   YAxis,
 } from "recharts";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import { PlanAwareCalendarFilter, useDateFilter } from "@/components/date-filter";
+import { usePlan } from "@/components/plan/plan-provider";
+import { hasMinimumPlan } from "@/lib/plans";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import type { Tables } from "@/lib/database.types";
@@ -354,6 +357,9 @@ export default function HistoricoSanitarioPage() {
   const params = useParams();
   const loteId = params.loteId as string;
   const { farm, loading: authLoading } = useAuth();
+  const { plan } = usePlan();
+  const { dateRange } = useDateFilter();
+  const canUseDateFilter = hasMinimumPlan(plan, "pro");
   const [loteCode, setLoteCode] = useState("");
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -374,6 +380,28 @@ export default function HistoricoSanitarioPage() {
     (async () => {
       setLoading(true);
       const supabase = createClient();
+      const healthQuery = supabase
+        .from("health_records")
+        .select("id, title, date, type, status, responsible, notes")
+        .eq("farm_id", currentFarm.id)
+        .eq("flock_id", loteId);
+      const dailyInspectionsQuery = supabase
+        .from("daily_inspections")
+        .select("id, date, responsible, feces_aspect, respiratory_symptoms, behavior, light_timer_ops, water_chlorine_ppm, water_ph, notes")
+        .eq("farm_id", currentFarm.id)
+        .or(`flock_id.eq.${loteId},flock_id.is.null`);
+      const mortalityQuery = supabase
+        .from("mortality")
+        .select("id, date, dead_birds, cause, mortality_rate, notes")
+        .eq("farm_id", currentFarm.id)
+        .eq("flock_id", loteId);
+
+      if (canUseDateFilter) {
+        healthQuery.gte("date", dateRange.startDate).lte("date", dateRange.endDate);
+        dailyInspectionsQuery.gte("date", dateRange.startDate).lte("date", dateRange.endDate);
+        mortalityQuery.gte("date", dateRange.startDate).lte("date", dateRange.endDate);
+      }
+
       const [flockRes, healthRes, dailyInspectionsRes, mortalityRes] = await Promise.all([
         supabase
           .from("flocks")
@@ -381,24 +409,9 @@ export default function HistoricoSanitarioPage() {
           .eq("id", loteId)
           .eq("farm_id", currentFarm.id)
           .maybeSingle(),
-        supabase
-          .from("health_records")
-          .select("id, title, date, type, status, responsible, notes")
-          .eq("farm_id", currentFarm.id)
-          .eq("flock_id", loteId)
-          .order("date", { ascending: false }),
-        supabase
-          .from("daily_inspections")
-          .select("id, date, responsible, feces_aspect, respiratory_symptoms, behavior, light_timer_ops, water_chlorine_ppm, water_ph, notes")
-          .eq("farm_id", currentFarm.id)
-          .or(`flock_id.eq.${loteId},flock_id.is.null`)
-          .order("date", { ascending: false }),
-        supabase
-          .from("mortality")
-          .select("id, date, dead_birds, cause, mortality_rate, notes")
-          .eq("farm_id", currentFarm.id)
-          .eq("flock_id", loteId)
-          .order("date", { ascending: false }),
+        healthQuery.order("date", { ascending: false }),
+        dailyInspectionsQuery.order("date", { ascending: false }),
+        mortalityQuery.order("date", { ascending: false }),
       ]);
 
       if (cancelled) return;
@@ -419,7 +432,7 @@ export default function HistoricoSanitarioPage() {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, farm, loteId]);
+  }, [authLoading, canUseDateFilter, dateRange.endDate, dateRange.startDate, farm, loteId]);
 
   const [filterType, setFilterType] = useState<"all" | EventType>("all");
   const [timelinePeriod, setTimelinePeriod] = useState<TimelinePeriod>("all");
@@ -878,7 +891,8 @@ export default function HistoricoSanitarioPage() {
           <ArrowLeft className="w-4 h-4" />
           Voltar para Detalhes
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-teal-50 flex items-center justify-center">
             <ShieldCheck className="w-6 h-6 text-teal-600" />
           </div>
@@ -890,6 +904,8 @@ export default function HistoricoSanitarioPage() {
               Linha do tempo completa de eventos, vacinas, tratamentos e inspeções
             </p>
           </div>
+          </div>
+          <PlanAwareCalendarFilter />
         </div>
       </div>
 

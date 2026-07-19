@@ -48,6 +48,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
+import { PlanAwareCalendarFilter, useDateFilter } from "@/components/date-filter";
+import { usePlan } from "@/components/plan/plan-provider";
+import { hasMinimumPlan } from "@/lib/plans";
 import { createClient } from "@/lib/supabase/client";
 import {
   TaskDialog,
@@ -221,10 +224,19 @@ export default function OperacionalLotePage() {
   const params = useParams();
   const loteId = params.loteId as string;
   const { farm, loading: authLoading } = useAuth();
+  const { plan } = usePlan();
+  const {
+    dateRange,
+    setFilterMode,
+    setRangeStart,
+    setRangeEnd,
+    setSelectedDate: setGlobalSelectedDate,
+  } = useDateFilter();
+  const canUseDateFilter = hasMinimumPlan(plan, "pro");
 
   const [lote, setLote] = useState<Lote | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDateState] = useState(new Date());
   const [filterCategory, setFilterCategory] = useState<TaskCategory | "all">("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -271,17 +283,31 @@ export default function OperacionalLotePage() {
     void loadTasks();
   }, [loadTasks]);
 
+  useEffect(() => {
+    if (!canUseDateFilter) return;
+    setSelectedDateState(new Date(`${dateRange.startDate}T00:00:00`));
+  }, [canUseDateFilter, dateRange.startDate]);
+
+  const setOperationalDate = useCallback((date: Date) => {
+    setSelectedDateState(date);
+
+    if (!canUseDateFilter) return;
+
+    setFilterMode("dia");
+    setRangeStart(date);
+    setRangeEnd(date);
+    setGlobalSelectedDate(date);
+  }, [canUseDateFilter, setFilterMode, setGlobalSelectedDate, setRangeEnd, setRangeStart]);
+
   const changeDate = useCallback((offset: number) => {
-    setSelectedDate((prev) => {
-      const next = new Date(prev);
-      next.setDate(next.getDate() + offset);
-      return next;
-    });
-  }, []);
+    const next = new Date(selectedDate);
+    next.setDate(next.getDate() + offset);
+    setOperationalDate(next);
+  }, [selectedDate, setOperationalDate]);
 
   const goToToday = useCallback(() => {
-    setSelectedDate(new Date());
-  }, []);
+    setOperationalDate(new Date());
+  }, [setOperationalDate]);
 
   const toggleTask = useCallback(async (task: Task) => {
     if (!farm?.id) return;
@@ -439,13 +465,16 @@ export default function OperacionalLotePage() {
             </div>
             <p className="text-sm text-gray-500 mt-1">Tarefas diárias, alertas e acompanhamento do lote</p>
           </div>
-          <button
-            onClick={openAddModal}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 transition-colors cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            Nova tarefa
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <PlanAwareCalendarFilter />
+            <button
+              onClick={openAddModal}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Nova tarefa
+            </button>
+          </div>
         </div>
       </div>
 
@@ -500,7 +529,7 @@ export default function OperacionalLotePage() {
             return (
               <button
                 key={day.toISOString()}
-                onClick={() => setSelectedDate(day)}
+                onClick={() => setOperationalDate(day)}
                 className={cn(
                   "flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-xs font-medium transition-colors cursor-pointer",
                   isSelected ? "bg-brand-600 text-white" : isTodayDay ? "bg-brand-50 text-brand-700" : "hover:bg-gray-50 text-gray-600",

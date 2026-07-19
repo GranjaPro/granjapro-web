@@ -4,10 +4,12 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ModalPortal from "@/components/ui/modal-portal";
+import { insightHref } from "@/lib/insight-links";
 import {
   Skull,
   ArrowUpRight,
   ArrowDownRight,
+  ArrowRight,
   Activity,
   Heart,
   Plus,
@@ -52,6 +54,7 @@ import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
+import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
 import type { Tables } from "@/lib/database.types";
 
 interface RegistroMortalidade {
@@ -215,11 +218,6 @@ export default function MortalidadePage() {
 
   /* ── Mortality Score (inverse of health — lower mortality = higher score) ── */
   const mortalityScore = Math.max(0, Math.min(100, Math.round(100 - (taxaMensal * 20))));
-  const scoreColor = mortalityScore >= 80 ? "#10b981" : mortalityScore >= 60 ? "#f59e0b" : "#ef4444";
-  const statusText = mortalityScore >= 80 ? "Controlada" : mortalityScore >= 60 ? "Atenção" : "Crítica";
-  const statusTextColor = mortalityScore >= 80 ? "text-emerald-700" : mortalityScore >= 60 ? "text-amber-700" : "text-red-700";
-  const bannerGradient = mortalityScore >= 80 ? "from-emerald-50 via-emerald-50/50 to-white" : mortalityScore >= 60 ? "from-amber-50 via-amber-50/50 to-white" : "from-red-50 via-red-50/50 to-white";
-  const bannerBorder = mortalityScore >= 80 ? "border-emerald-200/60" : mortalityScore >= 60 ? "border-amber-200/60" : "border-red-200/60";
 
   /* ── Causas Aggregate ── */
   const causasAgg = useMemo(() => {
@@ -336,6 +334,22 @@ export default function MortalidadePage() {
     if (mortesSemana <= Math.ceil(totalAves * 0.005)) arr.push({ type: "success", title: `${mortesSemana} mortes nesta semana — dentro do limite`, action: "Continuar monitoramento regular" });
     return arr;
   }, [taxaMensal, causasCriticas, mortesSemana, porLote, topCausa, totalAves]);
+  const farmHealthInsights = useMemo<FarmHealthInsight[]>(
+    () =>
+      insights.map((insight) => {
+        const link = insightHref(`${insight.title} ${insight.action}`);
+
+        return {
+          level: insight.type,
+          title: insight.title,
+          action: insight.action,
+          href: link.href,
+          hrefLabel: link.label,
+        };
+      }),
+    [insights]
+  );
+  const farmHealthSummary = `Semana: ${mortesSemana} | Mês: ${mortesMes} | Total: ${totalMortes}`;
 
   const filteredRegistros = useMemo(() => {
     if (!searchQuery.trim()) return registros;
@@ -447,104 +461,18 @@ export default function MortalidadePage() {
       {/* ── Mortality Status Banner ── */}
       {plan === "essencial" ? (
         <LockedOverlay message="Desbloqueie o status da mortalidade" targetPlan="pro">
-          <div className={cn("bg-gradient-to-r rounded-2xl border p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
-            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-              <div className="flex items-center gap-4 lg:min-w-[280px]">
-                <div className="relative w-16 h-16 flex-shrink-0">
-                  <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                    <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
-                    <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(mortalityScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={cn("text-base font-bold", statusTextColor)}>{mortalityScore}</span>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Skull className="w-4 h-4 text-red-500" />
-                    <span className="text-sm font-bold text-gray-900">Status da Mortalidade</span>
-                  </div>
-                  <p className={cn("text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Semana: {mortesSemana} | Mês: {mortesMes} | Total: {totalMortes}</p>
-                </div>
-              </div>
-              <div className="hidden lg:block w-px h-14 bg-gray-200" />
-              <div className="flex-1 space-y-2">
-                {taxaMensal <= 0.5 && (
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><Shield className="w-3.5 h-3.5 text-emerald-600" /></div>
-                    <p className="text-sm text-gray-700">Mortalidade controlada — taxa mensal de {taxaMensal.toFixed(1).replace(".", ",")}%</p>
-                  </div>
-                )}
-                {taxaMensal > 0.5 && (
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100"><AlertTriangle className="w-3.5 h-3.5 text-red-600" /></div>
-                    <p className="text-sm text-gray-700">Taxa mensal elevada ({taxaMensal.toFixed(1).replace(".", ",")}%) — <button className="font-semibold text-red-600 hover:text-red-700 underline underline-offset-2 decoration-red-300 hover:decoration-red-500 transition-colors cursor-pointer">investigar causas</button></p>
-                  </div>
-                )}
-                {porLote.filter(l => l.tendencia === "up").length > 0 && (
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100"><TrendingUp className="w-3.5 h-3.5 text-amber-600" /></div>
-                    <p className="text-sm text-gray-700">{porLote.filter(l => l.tendencia === "up").length} lotes com tendência de alta — <button className="font-semibold text-amber-600 hover:text-amber-700 underline underline-offset-2 decoration-amber-300 hover:decoration-amber-500 transition-colors cursor-pointer">monitorar lotes</button></p>
-                  </div>
-                )}
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><Heart className="w-3.5 h-3.5 text-emerald-600" /></div>
-                  <p className="text-sm text-gray-700">{totalAves > 1 ? (totalAves - totalMortes).toLocaleString("pt-BR") : "—"} aves vivas em {lotes.length} lotes ativos</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <FarmHealthBanner
+            score={mortalityScore}
+            summary={farmHealthSummary}
+            insights={farmHealthInsights}
+          />
         </LockedOverlay>
       ) : (
-        <div className={cn("bg-gradient-to-r rounded-2xl border p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
-          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-            <div className="flex items-center gap-4 lg:min-w-[280px]">
-              <div className="relative w-16 h-16 flex-shrink-0">
-                <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                  <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e7eb" strokeWidth="5" />
-                  <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(mortalityScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className={cn("text-base font-bold", statusTextColor)}>{mortalityScore}</span>
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <Skull className="w-4 h-4 text-red-500" />
-                  <span className="text-sm font-bold text-gray-900">Status da Mortalidade</span>
-                </div>
-                <p className={cn("text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
-                <p className="text-xs text-gray-500 mt-0.5">Semana: {mortesSemana} | Mês: {mortesMes} | Total: {totalMortes}</p>
-              </div>
-            </div>
-            <div className="hidden lg:block w-px h-14 bg-gray-200" />
-            <div className="flex-1 space-y-2">
-              {taxaMensal <= 0.5 && (
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><Shield className="w-3.5 h-3.5 text-emerald-600" /></div>
-                  <p className="text-sm text-gray-700">Mortalidade controlada — taxa mensal de {taxaMensal.toFixed(1).replace(".", ",")}%</p>
-                </div>
-              )}
-              {taxaMensal > 0.5 && (
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100"><AlertTriangle className="w-3.5 h-3.5 text-red-600" /></div>
-                  <p className="text-sm text-gray-700">Taxa mensal elevada ({taxaMensal.toFixed(1).replace(".", ",")}%) — <button className="font-semibold text-red-600 hover:text-red-700 underline underline-offset-2 decoration-red-300 hover:decoration-red-500 transition-colors cursor-pointer">investigar causas</button></p>
-                </div>
-              )}
-              {porLote.filter(l => l.tendencia === "up").length > 0 && (
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100"><TrendingUp className="w-3.5 h-3.5 text-amber-600" /></div>
-                  <p className="text-sm text-gray-700">{porLote.filter(l => l.tendencia === "up").length} lotes com tendência de alta — <button className="font-semibold text-amber-600 hover:text-amber-700 underline underline-offset-2 decoration-amber-300 hover:decoration-amber-500 transition-colors cursor-pointer">monitorar lotes</button></p>
-                </div>
-              )}
-              <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><Heart className="w-3.5 h-3.5 text-emerald-600" /></div>
-                <p className="text-sm text-gray-700">{totalAves > 1 ? (totalAves - totalMortes).toLocaleString("pt-BR") : "—"} aves vivas em {lotes.length} lotes ativos</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <FarmHealthBanner
+          score={mortalityScore}
+          summary={farmHealthSummary}
+          insights={farmHealthInsights}
+        />
       )}
 
       {/* ── KPI Cards with Progress Bars ── */}
@@ -607,7 +535,9 @@ export default function MortalidadePage() {
             <AssistantLockedPreview lockedMessage="Desbloqueie a análise de mortalidade" />
           ) : (
           <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-            {insights.map((ins, i) => (
+            {insights.map((ins, i) => {
+              const link = insightHref(`${ins.title} ${ins.action}`);
+              return (
               <div key={i} className={cn("p-3.5 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>
                 <div className="flex items-center gap-2 mb-1">
                   <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", ins.type === "success" && "bg-emerald-100", ins.type === "warning" && "bg-amber-100", ins.type === "info" && "bg-blue-100")}>
@@ -617,9 +547,16 @@ export default function MortalidadePage() {
                   </div>
                   <span className="text-sm font-semibold text-gray-800">{ins.title}</span>
                 </div>
-                <p className={cn("text-xs font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
+                <div className="ml-7 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                  <p className={cn("text-xs font-medium", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
+                  <Link href={link.href} className="inline-flex items-center gap-0.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
+                    {link.label}
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
               </div>
-            ))}
+              );
+            })}
             {plan !== "premium" ? (
               <LockedOverlay message="Desbloqueie a análise avançada de mortalidade" targetPlan="premium">
                 <div className="p-3.5 rounded-xl border-l-[3px] bg-violet-50/50 border-l-violet-500">

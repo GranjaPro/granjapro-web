@@ -19,6 +19,7 @@ import {
   Lightbulb,
   TrendingUp,
   ArrowUpRight,
+  ArrowRight,
   ArrowDownRight,
   Pencil,
   Trash2,
@@ -28,6 +29,7 @@ import {
   Loader2,
 } from "lucide-react";
 import Link from "next/link";
+import { insightHref } from "@/lib/insight-links";
 import { cn } from "@/lib/utils";
 import {
   ComposedChart,
@@ -50,6 +52,7 @@ import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
+import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
 import type { Tables, TablesInsert } from "@/lib/database.types";
 
 /* ── Types ── */
@@ -583,12 +586,6 @@ export default function SaudePage() {
     return Math.round(mortScore * 0.4 + vacScore * 0.35 + inspScore * 0.25);
   }, [taxaMortalidade, coberturaVacinal, diasUltimaInspecao, ultimaInspecao, registros, mortalidadeData, agenda]);
 
-  const scoreColor = healthScore >= 90 ? "#10b981" : healthScore >= 70 ? "#f59e0b" : "#ef4444";
-  const statusText = healthScore >= 90 ? "Saudável" : healthScore >= 70 ? "Atenção" : "Crítico";
-  const statusTextColor = healthScore >= 90 ? "text-emerald-700" : healthScore >= 70 ? "text-amber-700" : "text-red-700";
-  const bannerGradient = healthScore >= 90 ? "from-emerald-50 via-emerald-50/50 to-white" : healthScore >= 70 ? "from-amber-50 via-amber-50/50 to-white" : "from-red-50 via-red-50/50 to-white";
-  const bannerBorder = healthScore >= 90 ? "border-emerald-200/60" : healthScore >= 70 ? "border-amber-200/60" : "border-red-200/60";
-
   /* ── KPIs ── */
   const kpis = [
     { title: "Mortalidade Semanal", value: `${totalMortesSemana} aves`, icon: Bug, iconBg: "bg-red-50", iconColor: "text-red-500", actual: totalMortesSemana, expectedVal: 5, expectedLabel: "5 aves", diff: totalMortesSemana > 0 ? ((totalMortesSemana / 5) * 100) - 100 : -100, progressColor: totalMortesSemana <= 5 ? "bg-emerald-500" : totalMortesSemana <= 8 ? "bg-amber-500" : "bg-red-500" },
@@ -609,6 +606,22 @@ export default function SaudePage() {
     else arr.push({ type: "info", title: "Período de calor aumenta risco de estresse térmico", action: "Reforçar ventilação e monitorar consumo de água" });
     return arr;
   }, [vacinasPendentes, tratamentosAtivos, taxaMortalidade, coberturaVacinal, agenda, registros]);
+  const farmHealthInsights = useMemo<FarmHealthInsight[]>(
+    () =>
+      insights.map((insight) => {
+        const link = insightHref(`${insight.title} ${insight.action}`);
+
+        return {
+          level: insight.type,
+          title: insight.title,
+          action: insight.action,
+          href: link.href,
+          hrefLabel: link.label,
+        };
+      }),
+    [insights]
+  );
+  const farmHealthSummary = `Mortalidade: ${totalMortesSemana} aves | Vacinas: ${vacinasPendentes} pendentes`;
 
   const filteredRegistros = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -981,92 +994,18 @@ export default function SaudePage() {
       {/* ── Health Score Banner ── */}
       {plan === "essencial" ? (
         <LockedOverlay message="Desbloqueie o resumo de saúde do plantel" targetPlan="pro">
-          <div className={cn("bg-gradient-to-r rounded-2xl border p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
-            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-              <div className="flex items-center gap-4 lg:min-w-[280px]">
-                <div className="relative w-16 h-16 flex-shrink-0">
-                  <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                    <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-gray-200 dark:text-slate-700" />
-                    <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(healthScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={cn("text-base font-bold", statusTextColor)}>{healthScore}</span>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <HeartPulse className="w-4 h-4 text-brand-600" />
-                    <span className="text-sm font-bold text-gray-900">Saúde do Plantel</span>
-                  </div>
-                  <p className={cn("text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Mortalidade: {totalMortesSemana} aves | Vacinas: {vacinasPendentes} pendentes</p>
-                </div>
-              </div>
-              <div className="hidden lg:block w-px h-14 bg-gray-200" />
-              <div className="flex-1 space-y-2">
-                {vacinasPendentes > 0 && (
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100"><Syringe className="w-3.5 h-3.5 text-amber-600" /></div>
-                    <p className="text-sm text-gray-700">{vacinasPendentes} vacinas próximas do vencimento — <button className="font-semibold text-amber-600 hover:text-amber-700 underline underline-offset-2 decoration-amber-300 hover:decoration-amber-500 transition-colors cursor-pointer">agendar aplicação</button></p>
-                  </div>
-                )}
-                {tratamentosAtivos > 0 && (
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100"><Pill className="w-3.5 h-3.5 text-red-600" /></div>
-                    <p className="text-sm text-gray-700">{tratamentosAtivos} tratamento em andamento — <button className="font-semibold text-red-600 hover:text-red-700 underline underline-offset-2 decoration-red-300 hover:decoration-red-500 transition-colors cursor-pointer">monitorar evolução</button></p>
-                  </div>
-                )}
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /></div>
-                  <p className="text-sm text-gray-700">Cobertura vacinal em {coberturaVacinal}% — <button className="font-semibold text-emerald-600 hover:text-emerald-700 underline underline-offset-2 decoration-emerald-300 hover:decoration-emerald-500 transition-colors cursor-pointer">ver calendário</button></p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <FarmHealthBanner
+            score={healthScore}
+            summary={farmHealthSummary}
+            insights={farmHealthInsights}
+          />
         </LockedOverlay>
       ) : (
-        <div className={cn("bg-gradient-to-r rounded-2xl border p-5 transition-all duration-300", bannerGradient, bannerBorder)}>
-          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-            <div className="flex items-center gap-4 lg:min-w-[280px]">
-              <div className="relative w-16 h-16 flex-shrink-0">
-                <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                  <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-gray-200 dark:text-slate-700" />
-                  <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(healthScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className={cn("text-base font-bold", statusTextColor)}>{healthScore}</span>
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <HeartPulse className="w-4 h-4 text-brand-600" />
-                  <span className="text-sm font-bold text-gray-900">Saúde do Plantel</span>
-                </div>
-                <p className={cn("text-xl font-bold mt-0.5", statusTextColor)}>{statusText}</p>
-                <p className="text-xs text-gray-500 mt-0.5">Mortalidade: {totalMortesSemana} aves | Vacinas: {vacinasPendentes} pendentes</p>
-              </div>
-            </div>
-            <div className="hidden lg:block w-px h-14 bg-gray-200" />
-            <div className="flex-1 space-y-2">
-              {vacinasPendentes > 0 && (
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100"><Syringe className="w-3.5 h-3.5 text-amber-600" /></div>
-                  <p className="text-sm text-gray-700">{vacinasPendentes} vacinas próximas do vencimento — <button className="font-semibold text-amber-600 hover:text-amber-700 underline underline-offset-2 decoration-amber-300 hover:decoration-amber-500 transition-colors cursor-pointer">agendar aplicação</button></p>
-                </div>
-              )}
-              {tratamentosAtivos > 0 && (
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100"><Pill className="w-3.5 h-3.5 text-red-600" /></div>
-                  <p className="text-sm text-gray-700">{tratamentosAtivos} tratamento em andamento — <button className="font-semibold text-red-600 hover:text-red-700 underline underline-offset-2 decoration-red-300 hover:decoration-red-500 transition-colors cursor-pointer">monitorar evolução</button></p>
-                </div>
-              )}
-              <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100"><ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /></div>
-                <p className="text-sm text-gray-700">Cobertura vacinal em {coberturaVacinal}% — <button className="font-semibold text-emerald-600 hover:text-emerald-700 underline underline-offset-2 decoration-emerald-300 hover:decoration-emerald-500 transition-colors cursor-pointer">ver calendário</button></p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <FarmHealthBanner
+          score={healthScore}
+          summary={farmHealthSummary}
+          insights={farmHealthInsights}
+        />
       )}
 
       {/* ── KPI Cards ── */}
@@ -1378,6 +1317,7 @@ export default function SaudePage() {
             ) : (
               <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
                 {insights.map((ins, i) => {
+                  const link = insightHref(`${ins.title} ${ins.action}`);
                   if (plan !== "premium" && i >= 2) {
                     return (
                       <LockedOverlay key={i} message="Desbloqueie o Assistente Sanitário" targetPlan="premium">
@@ -1405,7 +1345,13 @@ export default function SaudePage() {
                         </div>
                         <span className="text-xs font-semibold text-gray-800">{ins.title}</span>
                       </div>
-                      <p className={cn("text-[11px] font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
+                      <div className="ml-7 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                        <p className={cn("text-[11px] font-medium", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
+                        <Link href={link.href} className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
+                          {link.label}
+                          <ArrowRight className="w-3 h-3" />
+                        </Link>
+                      </div>
                     </div>
                   );
                 })}

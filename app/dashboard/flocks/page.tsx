@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Layers, Plus, Pencil, Trash2, X, Check, Search, FileText, Loader2, Bird, AlertTriangle, TrendingDown, CheckCircle2 } from "lucide-react";
+import { Layers, Plus, Pencil, Trash2, X, Check, Search, FileText, Loader2, Bird, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { insightHref } from "@/lib/insight-links";
 import { hasMinimumPlan } from "@/lib/plans";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
@@ -11,6 +12,7 @@ import ModalPortal from "@/components/ui/modal-portal";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
 import type { TablesInsert } from "@/lib/database.types";
 
 type ProductionStage = "cria" | "recria" | "pre-postura" | "producao" | "pico" | "estavel" | "declinio" | "descarte";
@@ -506,11 +508,42 @@ export default function LotesPage() {
   const performanceScore = lotes.length === 0
     ? 92
     : Math.max(35, Math.min(96, 92 - criticalLotes * 18 - overcrowdedBarns * 15 - (productiveLotes === 0 ? 10 : 0)));
-  const performanceColor = performanceScore >= 80 ? "#10b981" : performanceScore >= 50 ? "#f59e0b" : "#ef4444";
-  const performanceGradient = performanceScore >= 80 ? "from-emerald-50 via-emerald-50/50 to-white" : performanceScore >= 50 ? "from-amber-50 via-amber-50/50 to-white" : "from-red-50 via-red-50/50 to-white";
-  const performanceBorder = performanceScore >= 80 ? "border-emerald-200/60" : performanceScore >= 50 ? "border-amber-200/60" : "border-red-200/60";
-  const performanceStatus = performanceScore >= 80 ? "Saudável" : performanceScore >= 50 ? "Atenção" : "Crítico";
-  const performanceStatusColor = performanceScore >= 80 ? "text-emerald-700" : performanceScore >= 50 ? "text-amber-700" : "text-red-700";
+  const flockHealthItems: Pick<FarmHealthInsight, "level" | "title" | "action">[] = [
+    criticalLotes > 0
+      ? {
+          level: "critical",
+          title: `${criticalLotes} lotes em declínio ou descarte`,
+          action: "Revisar renovação",
+        }
+      : {
+          level: "success",
+          title: `${productiveLotes} lotes em fase produtiva`,
+          action: "Manter operação equilibrada",
+        },
+    overcrowdedBarns > 0
+      ? {
+          level: "warning",
+          title: `${overcrowdedBarns} galpões acima da capacidade`,
+          action: "Redistribuir aves",
+        }
+      : {
+          level: "info",
+          title: `${transitionLotes} lotes em formação`,
+          action: "Acompanhar avanço de estágio",
+        },
+  ];
+  const farmHealthInsights: FarmHealthInsight[] = flockHealthItems.map((item) => {
+    const link = insightHref(`${item.title} ${item.action}`);
+
+    return {
+      level: item.level,
+      title: item.title,
+      action: item.action,
+      href: link.href,
+      hrefLabel: link.label,
+    };
+  });
+  const farmHealthSummary = `Lotes: ${lotes.length} | Fase produtiva: ${productiveLotes} | Críticos: ${criticalLotes}`;
 
   return (
     <div className="space-y-6">
@@ -536,124 +569,18 @@ export default function LotesPage() {
 
       {plan === "essencial" ? (
         <LockedOverlay message="Desbloqueie o desempenho dos lotes" targetPlan="pro">
-          <div className={cn("bg-gradient-to-r rounded-2xl border p-4 sm:p-5 transition-all duration-300", performanceGradient, performanceBorder)}>
-            <div className="flex flex-col lg:flex-row lg:items-center gap-3 sm:gap-4">
-              <div className="flex items-center gap-3 sm:gap-4 lg:min-w-[280px]">
-                <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
-                  <svg className="w-14 h-14 sm:w-16 sm:h-16 -rotate-90" viewBox="0 0 64 64">
-                    <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-gray-200 dark:text-[#334155]" />
-                    <circle cx="32" cy="32" r="28" fill="none" stroke={performanceColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(performanceScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={cn("text-sm sm:text-base font-bold", performanceStatusColor)}>{performanceScore}</span>
-                  </div>
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-brand-600 flex-shrink-0" />
-                    <span className="text-sm font-bold text-gray-900">Desempenho dos Lotes</span>
-                  </div>
-                  <p className={cn("text-lg sm:text-xl font-bold mt-0.5", performanceStatusColor)}>{performanceStatus}</p>
-                  <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 truncate">Lotes: {lotes.length} | Fase produtiva: {productiveLotes} | Críticos: {criticalLotes}</p>
-                </div>
-              </div>
-
-              <div className="hidden lg:block w-px h-14 bg-gray-200" />
-
-              <div className="flex-1 space-y-1.5 sm:space-y-2">
-                {criticalLotes > 0 ? (
-                  <div className="flex items-start sm:items-center gap-2">
-                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100 mt-0.5 sm:mt-0">
-                      <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-600" />
-                    </div>
-                    <p className="text-xs sm:text-sm text-gray-700">{criticalLotes} lotes em declínio ou descarte — revisar renovação</p>
-                  </div>
-                ) : (
-                  <div className="flex items-start sm:items-center gap-2">
-                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100 mt-0.5 sm:mt-0">
-                      <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
-                    </div>
-                    <p className="text-xs sm:text-sm text-gray-700">{productiveLotes} lotes em fase produtiva — operação equilibrada</p>
-                  </div>
-                )}
-                {overcrowdedBarns > 0 ? (
-                  <div className="flex items-start sm:items-center gap-2">
-                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 mt-0.5 sm:mt-0">
-                      <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
-                    </div>
-                    <p className="text-xs sm:text-sm text-gray-700">{overcrowdedBarns} galpões acima da capacidade — redistribuir aves</p>
-                  </div>
-                ) : (
-                  <div className="flex items-start sm:items-center gap-2">
-                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-100 mt-0.5 sm:mt-0">
-                      <Bird className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-600" />
-                    </div>
-                    <p className="text-xs sm:text-sm text-gray-700">{transitionLotes} lotes em formação — acompanhar avanço de estágio</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <FarmHealthBanner
+            score={performanceScore}
+            summary={farmHealthSummary}
+            insights={farmHealthInsights}
+          />
         </LockedOverlay>
       ) : (
-        <div className={cn("bg-gradient-to-r rounded-2xl border p-4 sm:p-5 transition-all duration-300", performanceGradient, performanceBorder)}>
-          <div className="flex flex-col lg:flex-row lg:items-center gap-3 sm:gap-4">
-            <div className="flex items-center gap-3 sm:gap-4 lg:min-w-[280px]">
-              <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
-                <svg className="w-14 h-14 sm:w-16 sm:h-16 -rotate-90" viewBox="0 0 64 64">
-                  <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-gray-200 dark:text-[#334155]" />
-                  <circle cx="32" cy="32" r="28" fill="none" stroke={performanceColor} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(performanceScore / 100) * 175.9} 175.9`} className="transition-all duration-700" />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className={cn("text-sm sm:text-base font-bold", performanceStatusColor)}>{performanceScore}</span>
-                </div>
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-brand-600 flex-shrink-0" />
-                  <span className="text-sm font-bold text-gray-900">Desempenho dos Lotes</span>
-                </div>
-                <p className={cn("text-lg sm:text-xl font-bold mt-0.5", performanceStatusColor)}>{performanceStatus}</p>
-                <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 truncate">Lotes: {lotes.length} | Fase produtiva: {productiveLotes} | Críticos: {criticalLotes}</p>
-              </div>
-            </div>
-
-            <div className="hidden lg:block w-px h-14 bg-gray-200" />
-
-            <div className="flex-1 space-y-1.5 sm:space-y-2">
-              {criticalLotes > 0 ? (
-                <div className="flex items-start sm:items-center gap-2">
-                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100 mt-0.5 sm:mt-0">
-                    <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-600" />
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-700">{criticalLotes} lotes em declínio ou descarte — revisar renovação</p>
-                </div>
-              ) : (
-                <div className="flex items-start sm:items-center gap-2">
-                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100 mt-0.5 sm:mt-0">
-                    <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-700">{productiveLotes} lotes em fase produtiva — operação equilibrada</p>
-                </div>
-              )}
-              {overcrowdedBarns > 0 ? (
-                <div className="flex items-start sm:items-center gap-2">
-                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 mt-0.5 sm:mt-0">
-                    <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-700">{overcrowdedBarns} galpões acima da capacidade — redistribuir aves</p>
-                </div>
-              ) : (
-                <div className="flex items-start sm:items-center gap-2">
-                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-100 mt-0.5 sm:mt-0">
-                    <Bird className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-600" />
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-700">{transitionLotes} lotes em formação — acompanhar avanço de estágio</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <FarmHealthBanner
+          score={performanceScore}
+          summary={farmHealthSummary}
+          insights={farmHealthInsights}
+        />
       )}
 
       {/* Search + Stage Filter */}

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import ModalPortal from "@/components/ui/modal-portal";
+import { insightHref } from "@/lib/insight-links";
 import {
   Users,
   Search,
@@ -17,6 +19,7 @@ import {
   TrendingUp,
   ArrowUpRight,
   ArrowDownRight,
+  ArrowRight,
   CalendarDays,
   Eye,
   ArrowLeft,
@@ -947,6 +950,7 @@ export default function ClientesPage() {
           ) : (
           <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
             {insightsComerciais.length > 0 ? insightsComerciais.map((ins, i) => {
+              const link = insightHref(`${ins.title} ${ins.action}`);
               if (plan !== "premium" && i >= 2) {
                 return (
                   <LockedOverlay key={i} message="Desbloqueie o Assistente de Granja" targetPlan="premium">
@@ -974,7 +978,13 @@ export default function ClientesPage() {
                     </div>
                     <span className="text-sm font-semibold text-gray-800">{ins.title}</span>
                   </div>
-                  <p className={cn("text-xs font-medium ml-7", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
+                  <div className="ml-7 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                    <p className={cn("text-xs font-medium", ins.type === "success" ? "text-emerald-600" : ins.type === "warning" ? "text-amber-600" : "text-blue-600")}>&rarr; {ins.action}</p>
+                    <Link href={link.href} className="inline-flex items-center gap-0.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
+                      {link.label}
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
                 </div>
               );
             }) : (
