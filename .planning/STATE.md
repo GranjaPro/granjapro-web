@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Phase Index
 status: executing
-stopped_at: Completed 20-01-PLAN.md
-last_updated: "2026-07-30T21:24:16.880Z"
+stopped_at: Completed 20-02-PLAN.md
+last_updated: "2026-07-30T21:43:38.777Z"
 last_activity: 2026-07-30 -- Phase 20 execution started
 progress:
   total_phases: 17
   completed_phases: 9
   total_plans: 23
-  completed_plans: 20
+  completed_plans: 21
   percent: 53
 ---
 
@@ -32,7 +32,7 @@ progress:
 ## Current Position
 
 Phase: 20 (KPI Goal Editing Rollback and Cursor Cleanup) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-07-30 -- Phase 20 execution started
 
@@ -74,6 +74,7 @@ Last activity: 2026-07-30 -- Phase 20 execution started
 | Phase 18 P02 | 15 min | 2 tasks | 1 file |
 | Phase 18 P03 | 7 min | 3 tasks | 3 files |
 | Phase 20 P01 | 6 min | 2 tasks | 1 files |
+| Phase 20 P02 | 13min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -106,8 +107,8 @@ Last activity: 2026-07-30 -- Phase 20 execution started
 
 ## Session Continuity
 
-**Last session:** 2026-07-30T21:24:16.863Z
-**Stopped at:** Completed 20-01-PLAN.md
+**Last session:** 2026-07-30T21:43:38.751Z
+**Stopped at:** Completed 20-02-PLAN.md
 **Resume file:** None
 
 **To resume work:**
@@ -123,6 +124,7 @@ Last activity: 2026-07-30 -- Phase 20 execution started
 - [Phase 18 Plan 03]: Feedback access is desktop/sidebar and Profile Settings only; mobile bottom navigation remains unchanged.
 - [Phase 20]: Main dashboard KPI goals remain fixed at 15000 eggs, 92% laying rate, R$ 0.12 per egg, with the existing profit fallback. — Preserves approved KPI semantics while removing editing.
 - [Phase 20]: Only the static main KPI cursor-pointer token was removed; hover, group, border, shadow, transition, and accent styling remain. — Keeps visual feedback unchanged while removing a misleading action affordance.
+- [Phase 20]: Only the 31 inventoried static KPI containers lose cursor-pointer. — Preserves every visual class and all real control affordances while removing misleading interaction cues.
 
 ### Blockers
 
