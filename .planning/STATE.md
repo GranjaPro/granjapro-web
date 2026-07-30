@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Phase Index
-status: executing
-stopped_at: Completed 20-02-PLAN.md
-last_updated: "2026-07-30T21:43:38.777Z"
+status: verifying
+stopped_at: Completed 20-03-PLAN.md
+last_updated: "2026-07-30T21:52:01.143Z"
 last_activity: 2026-07-30 -- Phase 20 execution started
 progress:
   total_phases: 17
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 23
-  completed_plans: 21
-  percent: 53
+  completed_plans: 22
+  percent: 59
 ---
 
 # Project State: Granja Pro
@@ -33,7 +33,7 @@ progress:
 
 Phase: 20 (KPI Goal Editing Rollback and Cursor Cleanup) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-30 -- Phase 20 execution started
 
 ## Phase Summary
@@ -75,6 +75,7 @@ Last activity: 2026-07-30 -- Phase 20 execution started
 | Phase 18 P03 | 7 min | 3 tasks | 3 files |
 | Phase 20 P01 | 6 min | 2 tasks | 1 files |
 | Phase 20 P02 | 13min | 2 tasks | 7 files |
+| Phase 20 P03 | 4min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -107,8 +108,8 @@ Last activity: 2026-07-30 -- Phase 20 execution started
 
 ## Session Continuity
 
-**Last session:** 2026-07-30T21:43:38.751Z
-**Stopped at:** Completed 20-02-PLAN.md
+**Last session:** 2026-07-30T21:52:01.124Z
+**Stopped at:** Completed 20-03-PLAN.md
 **Resume file:** None
 
 **To resume work:**
@@ -125,6 +126,8 @@ Last activity: 2026-07-30 -- Phase 20 execution started
 - [Phase 20]: Main dashboard KPI goals remain fixed at 15000 eggs, 92% laying rate, R$ 0.12 per egg, with the existing profit fallback. — Preserves approved KPI semantics while removing editing.
 - [Phase 20]: Only the static main KPI cursor-pointer token was removed; hover, group, border, shadow, transition, and accent styling remain. — Keeps visual feedback unchanged while removing a misleading action affordance.
 - [Phase 20]: Only the 31 inventoried static KPI containers lose cursor-pointer. — Preserves every visual class and all real control affordances while removing misleading interaction cues.
+- [Phase 20]: Reverse migration 00030 with one idempotent table drop and two idempotent column drops. — Removes exactly the schema introduced by the experiment while preserving migration history.
+- [Phase 20]: Leave rollback deployment to the user; no linked or remote Supabase command is executed. — Keeps production database mutation under explicit user control.
 
 ### Blockers
 
