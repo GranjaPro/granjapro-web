@@ -565,7 +565,7 @@ export default function VendasPage() {
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* Receita */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
               <DollarSign className="w-4.5 h-4.5 text-emerald-600" />
@@ -594,7 +594,7 @@ export default function VendasPage() {
         </div>
 
         {/* Volume */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
               <Package className="w-4.5 h-4.5 text-blue-600" />
@@ -622,7 +622,7 @@ export default function VendasPage() {
         </div>
 
         {/* Preço Médio */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center">
               <BarChart3 className="w-4.5 h-4.5 text-amber-600" />
@@ -650,7 +650,7 @@ export default function VendasPage() {
         </div>
 
         {/* Total Vendas */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center">
               <Hash className="w-4.5 h-4.5 text-purple-600" />
@@ -699,7 +699,7 @@ export default function VendasPage() {
         {/* Top row: 3 metrics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
           {/* Receita */}
-          <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 hover:border-gray-200 transition-colors duration-200 cursor-pointer">
+          <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 hover:border-gray-200 transition-colors duration-200">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center"><DollarSign className="w-3.5 h-3.5 text-blue-600" /></div>
               <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Receita</span>
@@ -708,7 +708,7 @@ export default function VendasPage() {
             <p className="text-[10px] text-gray-400 font-medium mt-1">100% da composição</p>
           </div>
           {/* Custo */}
-          <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 hover:border-gray-200 transition-colors duration-200 cursor-pointer">
+          <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 hover:border-gray-200 transition-colors duration-200">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center"><Wallet className="w-3.5 h-3.5 text-red-500" /></div>
               <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Custo</span>
@@ -717,7 +717,7 @@ export default function VendasPage() {
             <p className="text-[10px] text-gray-400 font-medium mt-1">{(100 - margem).toFixed(1)}% da receita</p>
           </div>
           {/* Lucro */}
-          <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 hover:border-gray-200 transition-colors duration-200 cursor-pointer">
+          <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 hover:border-gray-200 transition-colors duration-200">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center"><PiggyBank className="w-3.5 h-3.5 text-emerald-600" /></div>
               <span className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Lucro</span>

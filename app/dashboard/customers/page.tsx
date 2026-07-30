@@ -564,7 +564,7 @@ export default function ClientesPage() {
         <LockedOverlay message="Desbloqueie os indicadores financeiros de clientes" targetPlan="pro">
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
         {/* Receita Recebida (30d) */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 flex flex-col">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
               <DollarSign className="w-4.5 h-4.5 text-emerald-600" />
@@ -593,7 +593,7 @@ export default function ClientesPage() {
         </div>
 
         {/* A Receber */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 flex flex-col">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
               <Receipt className="w-4.5 h-4.5 text-blue-600" />
@@ -622,7 +622,7 @@ export default function ClientesPage() {
         </div>
 
         {/* Se Todos Pagassem */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 flex flex-col">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
               <TrendingUp className="w-4.5 h-4.5 text-blue-600" />
@@ -651,7 +651,7 @@ export default function ClientesPage() {
         </div>
 
         {/* Atrasados */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 flex flex-col">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center">
               <Clock className="w-4.5 h-4.5 text-amber-600" />
@@ -684,7 +684,7 @@ export default function ClientesPage() {
         </div>
 
         {/* Inadimplentes */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 flex flex-col">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center">
               <ShieldAlert className="w-4.5 h-4.5 text-red-500" />
@@ -717,7 +717,7 @@ export default function ClientesPage() {
         </div>
 
         {/* Inativos */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 flex flex-col">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center">
               <UserX className="w-4.5 h-4.5 text-gray-500" />
@@ -748,7 +748,7 @@ export default function ClientesPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
           {/* Receita Recebida (30d) */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 flex flex-col">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
                 <DollarSign className="w-4.5 h-4.5 text-emerald-600" />
@@ -777,7 +777,7 @@ export default function ClientesPage() {
           </div>
 
           {/* A Receber */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 flex flex-col">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
                 <Receipt className="w-4.5 h-4.5 text-blue-600" />
@@ -806,7 +806,7 @@ export default function ClientesPage() {
           </div>
 
           {/* Se Todos Pagassem */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 flex flex-col">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
                 <TrendingUp className="w-4.5 h-4.5 text-blue-600" />
@@ -835,7 +835,7 @@ export default function ClientesPage() {
           </div>
 
           {/* Atrasados */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 flex flex-col">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center">
                 <Clock className="w-4.5 h-4.5 text-amber-600" />
@@ -868,7 +868,7 @@ export default function ClientesPage() {
           </div>
 
           {/* Inadimplentes */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 flex flex-col">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center">
                 <ShieldAlert className="w-4.5 h-4.5 text-red-500" />
@@ -901,7 +901,7 @@ export default function ClientesPage() {
           </div>
 
           {/* Inativos */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer flex flex-col">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 flex flex-col">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center">
                 <UserX className="w-4.5 h-4.5 text-gray-500" />

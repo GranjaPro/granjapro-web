@@ -308,7 +308,7 @@ export default function EquipamentosPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
         {/* Patrimônio */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
               <DollarSign className="w-4.5 h-4.5 text-emerald-600" />
@@ -323,7 +323,7 @@ export default function EquipamentosPage() {
         </div>
 
         {/* Operacionais */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
               <CheckCircle2 className="w-4.5 h-4.5 text-blue-600" />
@@ -342,7 +342,7 @@ export default function EquipamentosPage() {
         </div>
 
         {/* Disponibilidade */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center">
               <Activity className="w-4.5 h-4.5 text-purple-600" />
@@ -361,7 +361,7 @@ export default function EquipamentosPage() {
         </div>
 
         {/* Próxima Manutenção */}
-        <div className={cn("rounded-2xl border p-5 hover:shadow-lg transition-all duration-300 cursor-pointer", manutencaoAtrasada.length > 0 ? "bg-gradient-to-br from-red-50/80 to-white border-red-200/60 hover:shadow-red-200/30" : manutencaoProxima.length > 0 ? "bg-gradient-to-br from-amber-50/80 to-white border-amber-200/60 hover:shadow-amber-200/30" : "bg-white border-gray-100 hover:shadow-gray-200/50 hover:border-gray-200")}>
+        <div className={cn("rounded-2xl border p-5 hover:shadow-lg transition-all duration-300", manutencaoAtrasada.length > 0 ? "bg-gradient-to-br from-red-50/80 to-white border-red-200/60 hover:shadow-red-200/30" : manutencaoProxima.length > 0 ? "bg-gradient-to-br from-amber-50/80 to-white border-amber-200/60 hover:shadow-amber-200/30" : "bg-white border-gray-100 hover:shadow-gray-200/50 hover:border-gray-200")}>
           <div className="flex items-center gap-2.5 mb-4">
             <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", manutencaoAtrasada.length > 0 ? "bg-red-100" : manutencaoProxima.length > 0 ? "bg-amber-100" : "bg-emerald-50")}>
               <CalendarDays className={cn("w-4.5 h-4.5", manutencaoAtrasada.length > 0 ? "text-red-500" : manutencaoProxima.length > 0 ? "text-amber-600" : "text-emerald-600")} />
@@ -388,7 +388,7 @@ export default function EquipamentosPage() {
         </div>
 
         {/* Alertas */}
-        <div className={cn("rounded-2xl border p-5 hover:shadow-lg transition-all duration-300 cursor-pointer", totalAlertas > 0 ? "bg-gradient-to-br from-amber-50/80 to-white border-amber-200/60 hover:shadow-amber-200/30" : "bg-white border-gray-100 hover:shadow-gray-200/50 hover:border-gray-200")}>
+        <div className={cn("rounded-2xl border p-5 hover:shadow-lg transition-all duration-300", totalAlertas > 0 ? "bg-gradient-to-br from-amber-50/80 to-white border-amber-200/60 hover:shadow-amber-200/30" : "bg-white border-gray-100 hover:shadow-gray-200/50 hover:border-gray-200")}>
           <div className="flex items-center gap-2.5 mb-4">
             <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", totalAlertas > 0 ? "bg-amber-100" : "bg-emerald-50")}>
               {totalAlertas > 0 ? <ShieldAlert className="w-4.5 h-4.5 text-amber-600" /> : <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />}
