@@ -71,7 +71,13 @@ Detailed phase goals live in `.planning/milestones/v1.3-ROADMAP.md`.
 
 ### Phase 19: Evaluation Triggers and Alerts
 
-### Phase 20: KPI Goals Persistence
+### Phase 20: KPI Goal Editing Rollback and Cursor Cleanup
+
+**Plans:** 0/3 plans complete
+
+- [ ] 20-01-PLAN.md - Remove dashboard KPI goal editing and its static pointer cursor
+- [ ] 20-02-PLAN.md - Remove only pointer cursors from static KPIs across audited pages
+- [ ] 20-03-PLAN.md - Add the local 00031 rollback migration for migration 00030
 
 ### Phase 21: Gemini 1.5 Flash RAG AI Assistant
 

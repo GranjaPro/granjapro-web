@@ -1,162 +1,141 @@
-# Phase 20: KPI Goals Removal and Static KPI Affordance - Research
+# Phase 20: KPI Goal Editing Removal and Cursor Cleanup - Research
 
 ## Scope
 
-Phase 20 removes the existing KPI goal editing experiment instead of adding persistence. The final application must:
+Phase 20 removes the existing KPI goal editing experiment, removes only
+`cursor-pointer` from static KPI/indicator cards, and adds one forward migration
+that reverses the schema introduced by `00030_kpi_goals_and_quality.sql`.
 
-- keep all KPI values, fixed targets, progress bars, colors, labels, and layouts unchanged;
-- remove KPI editing state, handlers, and the goal editor modal from the main dashboard;
-- remove pointer, hover elevation, hover shadow, hover border, and comparable false interaction cues from every static KPI/indicator card;
-- preserve affordances for cards and controls that genuinely navigate or execute actions;
-- remove every database object introduced by `00030_kpi_goals_and_quality.sql` and reconcile the linked Supabase migration history.
-
-The `20-CONTEXT.md` boundary supersedes the stale Phase 20 title and goal in the milestone roadmap.
+All other KPI presentation remains byte-for-byte unchanged where practical:
+hover shadows, hover borders, elevation, transitions, values, goals, progress
+bars, colors, labels, and layout stay as they are. Real actions keep their
+interaction and cursor.
 
 ## Existing State
 
-### Main Dashboard Editing
+### Main dashboard
 
-`app/dashboard/page.tsx` contains the complete editing experiment:
+`app/dashboard/page.tsx` contains page-local goal editing:
 
-- `kpiGoals` local state with fixed defaults for eggs, laying rate, cost per egg, and profit;
-- `editingGoalKey` and `editingGoalValue`;
-- KPI-card `onClick` handlers;
-- a goal editor modal with save/cancel behavior;
-- `goalRaw`, `inputUnit`, and `unitPos` fields used only by the editor.
+- mutable `kpiGoals` state with defaults for eggs, laying rate, cost per egg,
+  and profit;
+- editing state and KPI-card click handlers;
+- a goal editor modal;
+- `goalRaw`, `inputUnit`, and `unitPos`, used only by the editor.
 
-The values are page-local and are not persisted to Supabase. Removing editing must retain the current fixed defaults and the existing KPI calculations.
+The values are not persisted. Removing editing must preserve the current fixed
+defaults and all calculations.
 
-### Database Migration
+### Database
 
-`supabase/migrations/00030_kpi_goals_and_quality.sql` is currently untracked by Git and creates:
+`supabase/migrations/00030_kpi_goals_and_quality.sql` creates:
 
-- `public.kpi_goals`;
-- select, insert, and update RLS policies;
-- a `set_updated_at` trigger;
+- `public.kpi_goals`, including RLS policies and an update trigger;
 - `public.egg_production.deformed_eggs`;
 - `public.egg_production.internal_abnormality_eggs`.
 
-The user confirmed that the migration has already been applied to the database and approved permanent removal of all data exclusive to these objects.
+The migration already exists in the user's database. The repository's
+`supabase/schema.sql` and `lib/database.types.ts` already contain none of these
+identifiers.
 
-The repository is linked to Supabase through `supabase/.temp/project-ref`, but the current session has no `SUPABASE_ACCESS_TOKEN`; `npx supabase migration list --linked` cannot inspect remote history until authentication is supplied. The installed CLI is 2.83.0.
+Supabase migration history and schema state are separate. Official documentation
+states that `migration repair` changes migration history; it does not execute
+rollback SQL. Therefore this phase must retain `00030` and add a normal forward
+rollback migration. No linked-project command is needed or authorized.
 
-## Supabase Reconciliation Strategy
+## Rollback Migration
 
-Supabase tracks migration files and remote history separately. `supabase db push` compares local migration versions against `supabase_migrations.schema_migrations`. Official documentation also states that `migration repair` changes only the history table; it does not execute or reverse schema SQL.
+Create `supabase/migrations/00031_revert_kpi_goals_and_quality.sql`:
 
-Deleting local `00030` without first changing the remote schema would therefore leave both the unwanted objects and a local/remote migration-history mismatch.
+```sql
+drop table if exists public.kpi_goals cascade;
 
-### Recommended Safe Sequence
+alter table public.egg_production
+  drop column if exists deformed_eggs,
+  drop column if exists internal_abnormality_eggs;
+```
 
-1. Authenticate and confirm the linked project reference before destructive work.
-2. Run `npx supabase migration list --linked` and confirm that `00030` is recorded remotely.
-3. Create a temporary next migration containing only idempotent, explicitly named teardown SQL:
-   - `drop table if exists public.kpi_goals cascade`;
-   - drop `deformed_eggs` from `public.egg_production` if it exists;
-   - drop `internal_abnormality_eggs` from `public.egg_production` if it exists.
-4. Review with `npx supabase db push --linked --dry-run`.
-5. Apply the temporary teardown migration with `npx supabase db push --linked`.
-6. Verify that the table and columns are absent before touching migration history.
-7. Mark both the original create migration and the temporary teardown migration as reverted with `supabase migration repair ... --status reverted`.
-8. Delete the local original and temporary migration files.
-9. Run `npx supabase migration list --linked`; local and remote histories must align through `00029`.
-10. Verify a fresh local reset from committed migrations produces the same schema.
-
-This sequence uses a forward teardown to change the schema, then repairs history only after the schema is known to be correct. Do not use `db reset --linked`; it rebuilds the linked database and is broader than this phase.
-
-### Required Database Assertions
-
-Before completion:
-
-- `to_regclass('public.kpi_goals')` returns `NULL`;
-- `information_schema.columns` returns no `deformed_eggs` or `internal_abnormality_eggs` rows for `public.egg_production`;
-- remote migration history has no `00030` or temporary teardown version;
-- local `supabase/migrations` ends at `00029_feedbacks.sql`;
-- `supabase/schema.sql` and `lib/database.types.ts` contain none of the removed identifiers.
+Dropping the table removes its policies, trigger, and stored rows with it. The
+SQL is intentionally limited to the three approved schema objects. The executor
+must not run `db push`, `migration repair`, or any remote command; the user will
+upload/apply the migration.
 
 ## Static KPI Inventory
 
-### Must Change
+Only these files contain `cursor-pointer` on identified static KPI/indicator
+containers:
 
-| File | Current false affordance |
-|------|--------------------------|
-| `app/dashboard/page.tsx` | Click-to-edit behavior, modal, `cursor-pointer`, hover shadow/border, and group-hover top accent |
-| `app/dashboard/production/page.tsx` | KPI cards have pointer plus hover shadow/border |
-| `app/dashboard/mortality/page.tsx` | KPI cards have pointer plus hover shadow/border |
-| `app/dashboard/health/page.tsx` | KPI cards have pointer plus hover shadow/border |
-| `app/dashboard/customers/page.tsx` | Main and profile KPI cards have pointer and/or hover shadow/border; nested real action buttons must remain interactive |
-| `app/dashboard/equipment/page.tsx` | Five summary indicators have pointer and hover shadows/borders |
-| `app/dashboard/sales/page.tsx` | Main KPIs and profitability sub-metrics have pointer and hover border/shadow |
-| `app/dashboard/racao/page.tsx` | Four static status/KPI cards have pointer and hover shadow |
-| `app/dashboard/finances/page.tsx` | Main KPI row and secondary static indicators have hover-only interaction cues |
-| `app/dashboard/barns/page.tsx` | Four KPI cards have hover shadow/border |
-| `app/dashboard/workers/page.tsx` | Four KPI cards have hover shadow/border |
-| `app/dashboard/reports/page.tsx` | Report KPI cards have hover shadow/border |
-| `app/dashboard/production/historico/[loteId]/page.tsx` | Historical production KPIs have hover shadow/border |
-| `app/dashboard/agua/page.tsx` | Local `KpiCard` and `MetaKpiCard` have hover shadow; `group` must remain where needed for the real info tooltip |
-| `app/dashboard/inventory/page.tsx` | Local `MetricCard` has hover shadow/border |
+| File | Target |
+|------|--------|
+| `app/dashboard/page.tsx` | Four editable KPI cards |
+| `app/dashboard/production/page.tsx` | KPI grid |
+| `app/dashboard/mortality/page.tsx` | KPI grid |
+| `app/dashboard/health/page.tsx` | KPI grid |
+| `app/dashboard/customers/page.tsx` | Main and profile KPI cards; nested collection buttons remain interactive |
+| `app/dashboard/equipment/page.tsx` | Five summary indicators |
+| `app/dashboard/sales/page.tsx` | Four main KPIs and three profitability sub-metrics |
+| `app/dashboard/racao/page.tsx` | Four static status/KPI cards |
 
-### Already Static or Intentionally Interactive
+Pages whose static KPI cards have hover effects but no `cursor-pointer` are
+already compliant with the revised boundary and must remain untouched:
+finances, inventory, water, barns, workers, reports, and production history.
 
-- `components/dashboard/kpi-card.tsx` is already a static reference with no pointer or hover affordance.
-- Flock detail KPI blocks in water, feed, and mortality pages are already static and need no change.
-- `app/dashboard/flocks/detalhes/[loteId]/page.tsx` summary cards are links; their affordances must remain.
-- Buttons, filters, sliders, selectors, alert actions, CRUD controls, navigation cards, and info tooltips are genuine interactions and must remain unchanged.
-- Generic global replacement of `cursor-pointer` or `hover:*` is unsafe because the same classes are used by legitimate controls throughout the app.
+Linked flock summary cards and every button, link, filter, selector, slider,
+tooltip, CRUD control, and navigation card are genuine interactions and keep
+their existing classes.
 
 ## Recommended Plan Shape
 
-Three focused plans keep changes atomic:
+1. Remove main-dashboard editing and its KPI `cursor-pointer`, preserving every
+   other class and visual behavior.
+2. Remove only `cursor-pointer` from the seven remaining identified static KPI
+   surfaces.
+3. Add the local `00031` rollback migration without modifying `00030` or
+   contacting Supabase.
 
-1. **Main dashboard de-editing** - remove only editing behavior and false affordance from `app/dashboard/page.tsx`, preserving fixed defaults and calculations.
-2. **App-wide static KPI affordance audit** - make targeted class removals across the identified static KPI sections while preserving real interactions.
-3. **Supabase teardown and history reconciliation** - a manual/destructive database plan with explicit preflight, dry run, verification, and recovery checkpoints.
-
-The three plans have no code dependency and can share Wave 1, but the database plan must be non-autonomous because it requires credentials and destructive remote approval.
+All three plans are independent and can run in Wave 1.
 
 ## Threat Model
 
-### T-20-01: Broader-than-intended schema deletion
+### T-20-01: Broader-than-approved schema deletion
 
-- **Risk:** A broad reset, ambiguous `CASCADE`, or wrong linked project could delete unrelated data.
-- **Mitigation:** Confirm project ref, use only explicitly named table/columns, review a dry run, and prohibit `db reset --linked`.
+- **Risk:** Rollback SQL names or changes unrelated objects.
+- **Mitigation:** Permit only the table and two columns introduced by `00030`;
+  verify the new migration text locally.
 
-### T-20-02: Migration history repaired before schema teardown
+### T-20-02: Unauthorized remote mutation
 
-- **Risk:** Remote history appears aligned while unwanted schema objects remain.
-- **Mitigation:** Apply and verify teardown SQL before any `migration repair`; verify both schema and history afterward.
+- **Risk:** Execution applies or repairs the linked database.
+- **Mitigation:** Prohibit `db push`, `migration repair`, and all remote
+  Supabase commands; deliver the migration file for the user to upload.
 
-### T-20-03: Legitimate interactions lose affordance
+### T-20-03: Real controls lose their cursor
 
-- **Risk:** Global class replacement disables cues on links, buttons, filters, and action cards.
-- **Mitigation:** Edit only structurally identified KPI/indicator containers and explicitly preserve nested/actionable controls.
+- **Risk:** A broad replacement removes `cursor-pointer` from buttons, links,
+  sliders, or actionable cards.
+- **Mitigation:** Edit only the inventoried static KPI outer containers and
+  retain nested/neighboring controls.
 
-### T-20-04: Fixed KPI semantics change during cleanup
+### T-20-04: KPI presentation changes
 
-- **Risk:** Removing editing-only fields accidentally changes goals, progress math, labels, or visual status.
-- **Mitigation:** Preserve default goal constants and calculation inputs; use source assertions and browser comparison for content/layout.
+- **Risk:** Class cleanup removes hover or transition behavior beyond the
+  approved cursor change.
+- **Mitigation:** Remove exactly one class token from each static container and
+  use focused diffs/source assertions.
 
-## Validation Architecture
+## Validation
 
-### Automated
-
-- `npx tsc --noEmit` after each UI plan task group.
-- `npm run build` after each completed plan and before phase verification.
-- Focused `rg` assertions for removed editing identifiers and deleted schema identifiers.
-- Focused source review ensuring legitimate `onClick`, `href`, button, filter, tooltip, and slider interactions remain.
-- `npx supabase migration list --linked` after database reconciliation.
-
-### Manual
-
-- Browser-check the main dashboard and representative KPI-heavy pages at desktop and mobile widths.
-- Confirm static KPI cards retain exact content/layout but show the default cursor and no hover elevation, shadow, border, or accent animation.
-- Confirm real links, buttons, customer collection actions, filters, sliders, and the water KPI info tooltip remain usable.
-- Run SQL assertions against the linked Supabase project for table/column absence.
+- `npx tsc --noEmit` after UI task groups.
+- `npm run build` after the UI plans.
+- Focused diffs proving only `cursor-pointer` was removed from static containers.
+- Source assertions proving dashboard editing identifiers are gone and genuine
+  controls retain their cursors.
+- Local inspection of `00031`; no remote database command.
 
 ## Sources
 
 - Supabase Database Migrations: https://supabase.com/docs/guides/deployment/database-migrations
-- Supabase CLI Reference (`db push`, `migration list`, `migration repair`): https://supabase.com/docs/reference/cli/supabase-projects-create
+- Supabase CLI Reference: https://supabase.com/docs/reference/cli/supabase-projects-create
 - Supabase Local Development Workflow: https://supabase.com/docs/guides/local-development/cli-workflows
 
 ## RESEARCH COMPLETE

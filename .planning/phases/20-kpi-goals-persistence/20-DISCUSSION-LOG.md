@@ -50,3 +50,14 @@
 ## Deferred Ideas
 
 None.
+
+---
+
+## Authoritative Corrections After Consolidation
+
+The user subsequently narrowed both implementation decisions:
+
+- **KPI styling:** remove only `cursor-pointer`; keep hover shadow, hover border, elevation, transitions, and every other visual detail exactly as-is.
+- **Supabase:** create a new migration that reverses `00030`; do not push it or repair remote migration history. The user will upload/apply it.
+
+These corrections supersede the earlier selections recorded above. `20-CONTEXT.md` contains the authoritative decisions used for planning.

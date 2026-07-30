@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Phase Index
 status: verifying
-stopped_at: Phase 20 context gathered
-last_updated: "2026-07-30T20:43:01.876Z"
+stopped_at: Phase 20 planned
+last_updated: "2026-07-30T21:08:24.595Z"
 last_activity: 2026-07-19 — Phase 18 Plan 03 completed
 progress:
   total_phases: 17
   completed_phases: 9
-  total_plans: 20
+  total_plans: 23
   completed_plans: 19
   percent: 53
 ---
@@ -49,7 +49,7 @@ Last activity: 2026-07-19 — Phase 18 Plan 03 completed
 | 17 | Dashboard Checklist and Alerts | Complete |
 | 18 | Feedback Page | Ready for Verification |
 | 19 | Evaluation Triggers and Alerts | Pending |
-| 20 | KPI Goals Persistence | Pending |
+| 20 | KPI Goal Editing Rollback and Cursor Cleanup | Planned |
 | 21 | Gemini 1.5 Flash RAG AI Assistant | Pending |
 | 22 | Storage Locations and Inventory Database | Pending |
 | 23 | Storage Locations and Feed UI | Pending |
@@ -93,7 +93,8 @@ Last activity: 2026-07-19 — Phase 18 Plan 03 completed
 
 - API routes will be implemented under `/api/checkout` and `/api/webhooks/stripe` for Stripe.
 - Gemini API route integrates a RAG pipeline querying all farm data from the active farm.
-- RLS policies must protect the new tables (`storage_locations`, `feed_inventory`, `vaccine_inventory`, `packaging_inventory`, `inventory_losses`, `feedbacks`, `kpi_goals`).
+- RLS policies must protect the new tables (`storage_locations`, `feed_inventory`, `vaccine_inventory`, `packaging_inventory`, `inventory_losses`, `feedbacks`).
+- Phase 20 removes the `kpi_goals` experiment through a user-deployed forward rollback migration; Codex must not mutate the linked Supabase project.
 
 ### Roadmap Evolution
 
@@ -104,15 +105,15 @@ Last activity: 2026-07-19 — Phase 18 Plan 03 completed
 
 ## Session Continuity
 
-**Last session:** 2026-07-30T20:43:01.857Z
-**Stopped at:** Phase 20 context gathered
-**Resume file:** .planning/phases/20-kpi-goals-persistence/20-CONTEXT.md
+**Last session:** 2026-07-30T21:08:24.579Z
+**Stopped at:** Phase 20 planned
+**Resume file:** .planning/phases/20-kpi-goals-persistence/20-01-PLAN.md
 
 **To resume work:**
 
-1. Run `$gsd-verify-work 18-feedback-page` or browser UAT for Phase 18.
-2. Verify authenticated blank-description submit, missing-field inline errors, Profile Settings routing, desktop sidebar active state, and long-text wrapping.
-3. Continue to Phase 19 planning after Phase 18 verification is accepted.
+1. Run `$gsd-execute-phase 20`.
+2. Apply the generated `00031` rollback migration to Supabase manually after reviewing it.
+3. Phase 18 browser UAT remains outstanding independently of this phase.
 
 ## Decisions
 
