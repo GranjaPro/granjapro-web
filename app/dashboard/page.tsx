@@ -1029,7 +1029,7 @@ export default function DashboardPage() {
         {currentKpis.map((kpi) => (
           <div
             key={kpi.key}
-            className="group relative bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200/80 transition-all duration-300 cursor-pointer overflow-hidden"
+            className="group relative bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200/80 transition-all duration-300 overflow-hidden"
           >
             <div className={cn("absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r opacity-0 group-hover:opacity-100 transition-opacity", kpi.gradient)} />
             <div className="flex items-start justify-between mb-3">
