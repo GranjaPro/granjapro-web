@@ -59,7 +59,7 @@ import type { Tables, TablesInsert } from "@/lib/database.types";
 type RegistroTipo = "Vacinação" | "Tratamento" | "Inspeção";
 type AgendaStatus = "Próximo" | "Agendado";
 type RegistroRapido = "vacinacao" | "inspecao" | "tratamento";
-type RegistroStatus = "Concluído" | "Em andamento";
+type RegistroStatus = "Concluído" | "Em andamento" | AgendaStatus;
 type RegistroDbStatus = HealthRecordRow["status"];
 type HealthEvolutionRange = "7d" | "30d" | "months" | "total";
 
@@ -164,6 +164,8 @@ type TooltipFormatter = (value: unknown, name: unknown) => [string, string];
 const statusRegistroConfig: Record<RegistroStatus, { bg: string; text: string }> = {
   "Concluído": { bg: "bg-emerald-50", text: "text-emerald-700" },
   "Em andamento": { bg: "bg-amber-50", text: "text-amber-700" },
+  "Próximo": { bg: "bg-red-50", text: "text-red-600" },
+  "Agendado": { bg: "bg-gray-100", text: "text-gray-600" },
 };
 
 const statusAgendaConfig: Record<AgendaStatus, { bg: string; text: string; border: string }> = {
@@ -316,6 +318,7 @@ export default function SaudePage() {
   const [registros, setRegistros] = useState<RegistroSaude[]>([]);
   const [agenda, setAgenda] = useState<AgendaVacina[]>([]);
   const [scheduledRecords, setScheduledRecords] = useState<HealthRecordRow[]>([]);
+  const [healthHistoryRecords, setHealthHistoryRecords] = useState<HealthRecordRow[]>([]);
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [mortalidadeData, setMortalidadeData] = useState<{ dia: string; mortes: number; taxa: number }[]>([]);
   const [coberturaMensal, setCoberturaMensal] = useState<{ mes: string; cobertura: number }[]>([]);
@@ -326,6 +329,7 @@ export default function SaudePage() {
   const [error, setError] = useState("");
 
   const [showModal, setShowModal] = useState(false);
+  const [showHealthHistory, setShowHealthHistory] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | RegistroTipo>("all");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -382,7 +386,7 @@ export default function SaudePage() {
     try {
       const { startDate, endDate } = dateRange;
 
-      const [healthRes, inspectionsRes, scheduleRes, flocksRes, mortalityRes] = await Promise.all([
+      const [healthRes, inspectionsRes, scheduleRes, historyRes, flocksRes, mortalityRes] = await Promise.all([
         supabase
           .from("health_records")
           .select("*, flocks(code)")
@@ -406,6 +410,12 @@ export default function SaudePage() {
           .in("status", ["scheduled", "upcoming"])
           .order("date", { ascending: true }),
         supabase
+          .from("health_records")
+          .select("*, flocks(code)")
+          .eq("farm_id", currentFarm.id)
+          .eq("type", "vaccination")
+          .order("date", { ascending: false }),
+        supabase
           .from("flocks")
           .select("id, code, bird_count, status")
           .eq("farm_id", currentFarm.id)
@@ -422,6 +432,7 @@ export default function SaudePage() {
       if (healthRes.error) throw healthRes.error;
       if (inspectionsRes.error) throw inspectionsRes.error;
       if (scheduleRes.error) throw scheduleRes.error;
+      if (historyRes.error) throw historyRes.error;
       if (flocksRes.error) throw flocksRes.error;
       if (mortalityRes.error) throw mortalityRes.error;
 
@@ -429,8 +440,10 @@ export default function SaudePage() {
       const healthData = (healthRes.data ?? []) as HealthRecordRow[];
       const inspectionsData = (inspectionsRes.data ?? []) as DailyInspectionRow[];
       const scheduleData = (scheduleRes.data ?? []) as HealthRecordRow[];
+      const historyData = (historyRes.data ?? []) as HealthRecordRow[];
       const mortalityData = (mortalityRes.data ?? []) as MortalityRow[];
       setScheduledRecords(scheduleData);
+      setHealthHistoryRecords(historyData);
 
       // Map flocks
       const mappedLotes: Lote[] = flocksData.map((f) => ({
@@ -444,7 +457,7 @@ export default function SaudePage() {
       // Map health records
       setRegistros(
         [
-          ...healthData.map((r) => ({
+          ...[...healthData, ...scheduleData].map((r) => ({
             id: r.id,
             source: "health_records" as const,
             titulo: r.title,
@@ -452,7 +465,14 @@ export default function SaudePage() {
             lote: r.flocks?.code || "Todos",
             loteId: r.flock_id,
             tipo: typeMap[r.type] || "Inspeção",
-            status: r.status === "completed" ? "Concluído" as const : "Em andamento" as const,
+            status:
+              r.status === "completed"
+                ? "Concluído" as const
+                : r.status === "in_progress"
+                  ? "Em andamento" as const
+                  : r.status === "upcoming"
+                    ? "Próximo" as const
+                    : "Agendado" as const,
             dbStatus: r.status,
             observacao: r.notes || "",
             responsavel: r.responsible || "",
@@ -1413,6 +1433,15 @@ export default function SaudePage() {
               );
             })}
           </div>
+          <div className="pt-4 mt-4 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => setShowHealthHistory(true)}
+              className="w-full text-xs font-semibold text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-2 rounded-lg transition-colors cursor-pointer"
+            >
+              Ver todo o histórico
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1581,6 +1610,86 @@ export default function SaudePage() {
           </table>
         </div>
       </div>
+
+      {/* ── Health History Modal ── */}
+      {showHealthHistory && (
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+            onClick={() => setShowHealthHistory(false)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Histórico de Vacinação</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">{healthHistoryRecords.length} registros</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Fechar histórico sanitário"
+                  onClick={() => setShowHealthHistory(false)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="overflow-y-auto p-5 space-y-3">
+                {healthHistoryRecords.map((registro) => {
+                  const registroTipo = typeMap[registro.type] || "Inspeção";
+                  const tipo = tipoColor[registroTipo];
+                  const status =
+                    registro.status === "completed"
+                      ? { label: "Concluído", bg: "bg-emerald-50", text: "text-emerald-600" }
+                      : registro.status === "in_progress"
+                        ? { label: "Em andamento", bg: "bg-blue-50", text: "text-blue-600" }
+                        : registro.status === "upcoming"
+                          ? { label: "Próximo", bg: "bg-red-50", text: "text-red-600" }
+                          : { label: "Agendado", bg: "bg-gray-100", text: "text-gray-600" };
+
+                  return (
+                    <button
+                      key={registro.id}
+                      type="button"
+                      onClick={() => {
+                        setShowHealthHistory(false);
+                        openEditHealthRecord(registro);
+                      }}
+                      className="w-full text-left rounded-2xl border border-gray-100 bg-gray-50/70 p-4 hover:bg-gray-100 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <span className={cn("inline-flex text-xs font-semibold px-2.5 py-1 rounded-lg", tipo.badge)}>
+                            {registroTipo}
+                          </span>
+                          <p className="text-sm font-semibold text-gray-900 mt-2">{registro.title}</p>
+                          <p className="text-xs text-gray-500 mt-1">Lote: {registro.flocks?.code || "Todos"}</p>
+                        </div>
+                        <span className="text-xs text-gray-500 whitespace-nowrap">{formatDate(registro.date)}</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 mt-3">
+                        <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-lg", status.bg, status.text)}>
+                          {status.label}
+                        </span>
+                        {registro.responsible && (
+                          <span className="text-xs font-medium text-gray-600 bg-white border border-gray-200 px-2.5 py-1 rounded-lg">
+                            Responsável: {registro.responsible}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+                {healthHistoryRecords.length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-8">Nenhuma vacinação encontrada.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
 
       {/* ── Modal — Add/Edit ── */}
       {showModal && (
