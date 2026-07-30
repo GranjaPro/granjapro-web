@@ -11,6 +11,7 @@ Help egg farmers simplify daily farm management and improve financial control. T
 ## Current State
 
 - v1.3 **Functional MVP & Integrations** in progress.
+- Phase 20 **KPI Goal Editing Rollback and Cursor Cleanup** completed on 2026-07-30.
 - Phase 23 **Storage Locations and Feed UI** completed on 2026-07-01.
 - v1.2 **Dark Theme & Granular Permissions** shipped on 2026-06-02.
 - v1.1 **Google Sign-In** shipped on 2026-05-06.
@@ -68,6 +69,8 @@ Help egg farmers simplify daily farm management and improve financial control. T
 - ✓ Route/API guard foundations for Pro/Premium routes
 - ✓ Dedicated water consumption module with CRUD, KPIs, and chart visualization (Pro/Premium only)
 - ✓ Feed daily target indicators (110g-130g) and real water comparison chart integration
+- ✓ Static KPI cards retain their presentation without misleading pointer cursors; dashboard KPI goals are fixed and non-editable.
+- ✓ KPI goal persistence experiment has a local forward rollback migration prepared for user-managed Supabase deployment.
 
 
 ### Active
@@ -76,7 +79,6 @@ Help egg farmers simplify daily farm management and improve financial control. T
 - [ ] Task management in dashboard with scheduling and completion tracking
 - [ ] Real-time notification system for critical farm events
 - [ ] Real-time water details page and unified feed and water flow
-- [ ] Clickable/Customizable KPI goals persisted on database
 - [ ] Stripe Payment checkout redirect flow and webhook tier updating
 - [ ] Feedback collection page and profile Settings/trigger integrations
 - [ ] Gemini 1.5 Flash AI Assistant with full farm dataset RAG
@@ -137,4 +139,4 @@ Help egg farmers simplify daily farm management and improve financial control. T
 This document evolves at milestone boundaries as shipped capabilities become part of the stable product surface.
 
 ---
-*Last updated: 2026-06-14 after Phase 13 UAT completion*
+*Last updated: 2026-07-30 after Phase 20 completion*
