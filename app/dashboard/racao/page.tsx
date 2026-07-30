@@ -747,7 +747,7 @@ export default function RacaoPage() {
             return (
               <>
                 {/* Consumo */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer">
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200">
                   <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
                     <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0">
                       <Wheat className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
@@ -776,7 +776,7 @@ export default function RacaoPage() {
                 </div>
 
                 {/* Produção */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer">
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200">
                   <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
                     <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
                       <Target className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
@@ -801,7 +801,7 @@ export default function RacaoPage() {
                 </div>
 
                 {/* Eficiência */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer">
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200">
                   <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
                     <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", eficienciaStatus === "good" ? "bg-emerald-50" : eficienciaStatus === "attention" ? "bg-amber-50" : "bg-red-50")}>
                       <Activity className={cn("w-4 h-4 sm:w-5 sm:h-5", eficienciaStatus === "good" ? "text-emerald-600" : eficienciaStatus === "attention" ? "text-amber-600" : "text-red-600")} />
@@ -831,7 +831,7 @@ export default function RacaoPage() {
 
                 {/* Estoque */}
                 <div className={cn(
-                  "rounded-2xl border p-4 sm:p-5 hover:shadow-md transition-all duration-200 cursor-pointer",
+                  "rounded-2xl border p-4 sm:p-5 hover:shadow-md transition-all duration-200",
                   feedDaysLeft > 7 ? "bg-white border-gray-100" : feedDaysLeft > 3 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"
                 )}>
                   <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">

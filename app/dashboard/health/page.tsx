@@ -1038,7 +1038,7 @@ export default function SaudePage() {
           const isGoodLow = kpi.title === "Mortalidade Semanal" || kpi.title === "Taxa Mortalidade" || kpi.title === "Última Inspeção";
           const isGood = isGoodLow ? kpi.diff <= 0 : kpi.diff >= 0;
           return (
-            <div key={kpi.title} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300 cursor-pointer">
+            <div key={kpi.title} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
               <div className="flex items-center gap-2.5 mb-4">
                 <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", kpi.iconBg)}>
                   <kpi.icon className={cn("w-4.5 h-4.5", kpi.iconColor)} />
