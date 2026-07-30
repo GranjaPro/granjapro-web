@@ -344,15 +344,13 @@ export default function DashboardPage() {
   const [chartProductionData, setChartProductionData] = useState<WeeklyDataPoint[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
 
-  // KPI Goals (editable)
-  const [kpiGoals, setKpiGoals] = useState({
+  // Fixed KPI goals
+  const kpiGoals = useMemo(() => ({
     eggs: 15000,
     layingRate: 92,
     costPerEgg: 0.12,
     profit: 0,
-  });
-  const [editingGoalKey, setEditingGoalKey] = useState<string | null>(null);
-  const [editingGoalValue, setEditingGoalValue] = useState("");
+  }), []);
 
   // Shared calendar filter
   const { dateRange, filterMode, rangeStart, rangeEnd, selectedDate } = useDateFilter();
@@ -924,9 +922,6 @@ export default function DashboardPage() {
         progress: kpiGoals.eggs > 0 ? (productionData.eggsProduced / kpiGoals.eggs) * 100 : 0,
         reached: formatNumber(productionData.eggsProduced),
         goal: formatNumber(kpiGoals.eggs),
-        goalRaw: kpiGoals.eggs,
-        inputUnit: "ovos",
-        unitPos: "after" as const,
       },
       {
         key: "layingRate",
@@ -943,9 +938,6 @@ export default function DashboardPage() {
         progress: kpiGoals.layingRate > 0 ? (productionData.layingRate / kpiGoals.layingRate) * 100 : 0,
         reached: `${productionData.layingRate.toFixed(1)}%`,
         goal: `${kpiGoals.layingRate}%`,
-        goalRaw: kpiGoals.layingRate,
-        inputUnit: "%",
-        unitPos: "after" as const,
       },
       {
         key: "costPerEgg",
@@ -962,9 +954,6 @@ export default function DashboardPage() {
         progress: feedData.costPerEgg > 0 ? Math.min((kpiGoals.costPerEgg / feedData.costPerEgg) * 100, 100) : 0,
         reached: `R$ ${feedData.costPerEgg.toFixed(3)}`,
         goal: `R$ ${kpiGoals.costPerEgg.toFixed(3).replace(".", ",")}`,
-        goalRaw: kpiGoals.costPerEgg,
-        inputUnit: "R$",
-        unitPos: "before" as const,
       },
       {
         key: "profit",
@@ -983,9 +972,6 @@ export default function DashboardPage() {
         progress: profitGoal > 0 ? (financialData.profit / profitGoal) * 100 : 0,
         reached: formatCurrency(financialData.profit),
         goal: formatCurrency(profitGoal),
-        goalRaw: profitGoal,
-        inputUnit: "R$",
-        unitPos: "before" as const,
       },
     ];
   }, [productionData, feedData, financialData, periodInfo, kpiGoals, profitGoal]);
@@ -1043,10 +1029,6 @@ export default function DashboardPage() {
         {currentKpis.map((kpi) => (
           <div
             key={kpi.key}
-            onClick={() => {
-              setEditingGoalKey(kpi.key);
-              setEditingGoalValue(String(kpi.goalRaw));
-            }}
             className="group relative bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200/80 transition-all duration-300 cursor-pointer overflow-hidden"
           >
             <div className={cn("absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r opacity-0 group-hover:opacity-100 transition-opacity", kpi.gradient)} />
@@ -1088,129 +1070,6 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
-
-      {/* ── Goal Editor Modal ── */}
-      {editingGoalKey && (() => {
-        const kpi = currentKpis.find((k) => k.key === editingGoalKey);
-        if (!kpi) return null;
-        const goalLabels: Record<string, string> = {
-          eggs: "Meta de Ovos",
-          layingRate: "Meta de Taxa de Postura",
-          costPerEgg: "Meta de Custo por Ovo",
-          profit: "Meta de Lucro",
-        };
-        const goalHints: Record<string, string> = {
-          eggs: "Quantidade de ovos desejada",
-          layingRate: "Porcentagem desejada (ex: 92)",
-          costPerEgg: "Valor em reais (ex: 0.12)",
-          profit: "Valor em reais (ex: 30000)",
-        };
-        return (
-          <ModalPortal>
-            <div
-              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
-              onClick={() => setEditingGoalKey(null)}
-            >
-              <div
-                className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-[340px] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Header */}
-                <div className={cn("flex items-center gap-3 px-5 py-4 border-b border-gray-100")}>
-                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", kpi.lightBg)}>
-                    <kpi.icon className={cn("w-[18px] h-[18px]", kpi.lightIcon)} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">{goalLabels[editingGoalKey]}</p>
-                    <p className="text-[11px] text-gray-400">Clique em salvar para atualizar</p>
-                  </div>
-                  <button
-                    onClick={() => setEditingGoalKey(null)}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Body */}
-                <div className="px-5 py-4 space-y-3">
-                  {/* Current progress */}
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="text-gray-500">Atual</span>
-                    <span className="font-semibold text-gray-800">{kpi.reached}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="text-gray-500">Progresso</span>
-                    <span className="font-semibold text-gray-800">{Math.min(kpi.progress, 100).toFixed(1)}%</span>
-                  </div>
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className={cn("h-full rounded-full transition-all duration-500", `bg-gradient-to-r ${kpi.gradient}`)}
-                      style={{ width: `${Math.min(kpi.progress, 100)}%` }}
-                    />
-                  </div>
-
-                  {/* Input */}
-                  <div className="pt-2">
-                    <label className="block text-[12px] font-medium text-gray-600 mb-1.5">Nova meta</label>
-                    <div className="flex items-center gap-2">
-                      {kpi.unitPos === "before" && (
-                        <span className="text-[13px] font-medium text-gray-400 flex-shrink-0">{kpi.inputUnit}</span>
-                      )}
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={editingGoalValue}
-                        onChange={(e) => setEditingGoalValue(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            const val = parseFloat(editingGoalValue);
-                            if (!isNaN(val) && val > 0) {
-                              setKpiGoals((prev) => ({ ...prev, [editingGoalKey]: val }));
-                              setEditingGoalKey(null);
-                            }
-                          }
-                        }}
-                        className="flex-1 h-10 rounded-xl border border-gray-200 bg-gray-50/50 px-3 text-sm text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 transition-all"
-                        placeholder={goalHints[editingGoalKey]}
-                        autoFocus
-                      />
-                      {kpi.unitPos === "after" && (
-                        <span className="text-[13px] font-medium text-gray-400 flex-shrink-0">{kpi.inputUnit}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer */}
-                <div className="flex items-center gap-2 px-5 py-3 border-t border-gray-100 bg-gray-50/50">
-                  <button
-                    onClick={() => setEditingGoalKey(null)}
-                    className="flex-1 h-9 rounded-xl text-[13px] font-medium text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={() => {
-                      const val = parseFloat(editingGoalValue);
-                      if (!isNaN(val) && val > 0) {
-                        setKpiGoals((prev) => ({ ...prev, [editingGoalKey]: val }));
-                        setEditingGoalKey(null);
-                      }
-                    }}
-                    className={cn(
-                      "flex-1 h-9 rounded-xl text-[13px] font-semibold text-white transition-all cursor-pointer",
-                      `bg-gradient-to-r ${kpi.gradient} hover:opacity-90`
-                    )}
-                  >
-                    Salvar
-                  </button>
-                </div>
-              </div>
-            </div>
-          </ModalPortal>
-        );
-      })()}
 
       {/* ── PRIORITY BLOCK: Alerts + Tasks (2 columns) ── */}
       {(showDashboardAlerts || showDashboardTasks) && (
