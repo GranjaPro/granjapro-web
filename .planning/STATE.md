@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Phase Index
-status: verifying
-stopped_at: Phase 20 planned
-last_updated: "2026-07-30T21:08:24.595Z"
-last_activity: 2026-07-19 — Phase 18 Plan 03 completed
+status: executing
+stopped_at: Completed 20-01-PLAN.md
+last_updated: "2026-07-30T21:24:16.880Z"
+last_activity: 2026-07-30 -- Phase 20 execution started
 progress:
   total_phases: 17
   completed_phases: 9
   total_plans: 23
-  completed_plans: 19
+  completed_plans: 20
   percent: 53
 ---
 
@@ -25,16 +25,16 @@ progress:
 
 **Core Value:** Help egg farmers simplify daily farm management and improve financial control - the platform must be fast, intuitive, and useful every single day.
 
-**Current Focus:** Phase 18 — feedback-page
+**Current Focus:** Phase 20 — KPI Goal Editing Rollback and Cursor Cleanup
 
 ---
 
 ## Current Position
 
-Phase: 18 (feedback-page) — VERIFYING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
-Last activity: 2026-07-19 — Phase 18 Plan 03 completed
+Phase: 20 (KPI Goal Editing Rollback and Cursor Cleanup) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-07-30 -- Phase 20 execution started
 
 ## Phase Summary
 
@@ -73,6 +73,7 @@ Last activity: 2026-07-19 — Phase 18 Plan 03 completed
 | Phase 18 P01 | 6 min | 3 tasks | 4 files |
 | Phase 18 P02 | 15 min | 2 tasks | 1 file |
 | Phase 18 P03 | 7 min | 3 tasks | 3 files |
+| Phase 20 P01 | 6 min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -105,9 +106,9 @@ Last activity: 2026-07-19 — Phase 18 Plan 03 completed
 
 ## Session Continuity
 
-**Last session:** 2026-07-30T21:08:24.579Z
-**Stopped at:** Phase 20 planned
-**Resume file:** .planning/phases/20-kpi-goals-persistence/20-01-PLAN.md
+**Last session:** 2026-07-30T21:24:16.863Z
+**Stopped at:** Completed 20-01-PLAN.md
+**Resume file:** None
 
 **To resume work:**
 
@@ -120,6 +121,8 @@ Last activity: 2026-07-19 — Phase 18 Plan 03 completed
 - [Phase 18 Plan 01]: Feedback persistence is insert-only for users; no select, update, delete, history, or admin review surface was added.
 - [Phase 18 Plan 02]: Uses the existing typed createFeedback client service for one-way feedback submission without adding an API route, package, history, edit, delete, or admin surface.
 - [Phase 18 Plan 03]: Feedback access is desktop/sidebar and Profile Settings only; mobile bottom navigation remains unchanged.
+- [Phase 20]: Main dashboard KPI goals remain fixed at 15000 eggs, 92% laying rate, R$ 0.12 per egg, with the existing profit fallback. — Preserves approved KPI semantics while removing editing.
+- [Phase 20]: Only the static main KPI cursor-pointer token was removed; hover, group, border, shadow, transition, and accent styling remain. — Keeps visual feedback unchanged while removing a misleading action affordance.
 
 ### Blockers
 

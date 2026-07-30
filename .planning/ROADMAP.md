@@ -73,9 +73,9 @@ Detailed phase goals live in `.planning/milestones/v1.3-ROADMAP.md`.
 
 ### Phase 20: KPI Goal Editing Rollback and Cursor Cleanup
 
-**Plans:** 0/3 plans complete
+**Plans:** 1/3 plans executed
 
-- [ ] 20-01-PLAN.md - Remove dashboard KPI goal editing and its static pointer cursor
+- [x] 20-01-PLAN.md - Remove dashboard KPI goal editing and its static pointer cursor
 - [ ] 20-02-PLAN.md - Remove only pointer cursors from static KPIs across audited pages
 - [ ] 20-03-PLAN.md - Add the local 00031 rollback migration for migration 00030
 
