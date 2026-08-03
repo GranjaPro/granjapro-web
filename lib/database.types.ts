@@ -658,6 +658,7 @@ export interface Database {
           quantity_kg: number;
           cost: number;
           feed_type: string;
+          feed_inventory_id: string | null;
           cost_per_egg: number;
         };
         Insert: {
@@ -670,6 +671,7 @@ export interface Database {
           quantity_kg: number;
           cost?: number;
           feed_type?: string;
+          feed_inventory_id?: string | null;
           cost_per_egg?: number;
         };
         Update: {
@@ -682,6 +684,7 @@ export interface Database {
           quantity_kg?: number;
           cost?: number;
           feed_type?: string;
+          feed_inventory_id?: string | null;
           cost_per_egg?: number;
         };
       };
@@ -1291,7 +1294,34 @@ export interface Database {
       };
     };
     Views: {};
-    Functions: {};
+    Functions: {
+      create_feed_consumption_with_stock: {
+        Args: {
+          p_farm_id: string;
+          p_date: string;
+          p_barn_id: string | null;
+          p_flock_id: string | null;
+          p_feed_inventory_id: string;
+          p_quantity_kg: number;
+        };
+        Returns: Database["public"]["Tables"]["feed_consumption"]["Row"];
+      };
+      update_feed_consumption_with_stock: {
+        Args: {
+          p_record_id: string;
+          p_date: string;
+          p_barn_id: string | null;
+          p_flock_id: string | null;
+          p_feed_inventory_id: string;
+          p_quantity_kg: number;
+        };
+        Returns: Database["public"]["Tables"]["feed_consumption"]["Row"];
+      };
+      delete_feed_consumption_with_stock: {
+        Args: { p_record_id: string };
+        Returns: undefined;
+      };
+    };
     Enums: {};
   };
 }

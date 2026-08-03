@@ -62,6 +62,8 @@ import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
 import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
+import { calculateFeedKpiMetrics, calculateFeedStockMetrics } from "@/lib/domain/feed-kpi-metrics";
+import type { FlockMortality, ProductiveFlock } from "@/lib/domain/egg-production-metrics";
 
 /* ── Types ── */
 type TipoRacao = "milho" | "soja" | "comercial" | "custom";
@@ -77,6 +79,7 @@ interface RegistroRacao {
   consumoKg: number;
   custoRS: number;
   qtdGalinhas: number;
+  feedInventoryId: string | null;
 }
 
 interface ItemEstoque {
@@ -92,6 +95,8 @@ interface ItemEstoque {
   lote?: string;
   dataChegada?: string;
   valorTotal: number;
+  inventoryTable: string;
+  unitCost: number;
 }
 
 interface Barn {
@@ -104,6 +109,11 @@ interface Flock {
   id: string;
   code: string;
   breed: string;
+  birdCount: number;
+  arrivalAgeWeeks: number;
+  arrivalDate: string;
+  status: string;
+  barnId: string;
 }
 
 interface DailyEfficiencyPoint {
@@ -118,6 +128,7 @@ type FeedConsumptionWithBarn = Tables<"feed_consumption"> & {
   barns?: { name?: string | null; current_birds?: number | null } | null;
 };
 type ProductionRow = Tables<"egg_production">;
+type FlockRow = Tables<"flocks">;
 type FeedMetricKey = "cost" | "quantity_kg";
 
 const tipoLabel: Record<TipoRacao, string> = {
@@ -188,6 +199,14 @@ function getTodayDateInputValue() {
   return new Date().toISOString().split("T")[0];
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+  return fallback;
+}
+
 export default function RacaoPage() {
   const { plan, hideAdvancedFeatures } = usePlan();
   const showProFeatures = !hideAdvancedFeatures || hasMinimumPlan(plan, "pro");
@@ -197,10 +216,10 @@ export default function RacaoPage() {
   const [estoque, setEstoque] = useState<ItemEstoque[]>([]);
   const [estoqueModal, setEstoqueModal] = useState<"add" | "view" | null>(null);
   const [storageLocations, setStorageLocations] = useState<StorageLocationRow[]>([]);
-  const [estoqueForm, setEstoqueForm] = useState({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal" as StatusEstoque, fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", valorTotal: "" });
+  const [estoqueForm, setEstoqueForm] = useState({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal" as StatusEstoque, fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", custoUnitario: "", valorTotal: "" });
   const [viewingEstoque, setViewingEstoque] = useState<ItemEstoque | null>(null);
   const [editingEstoque, setEditingEstoque] = useState(false);
-  const [editEstoqueForm, setEditEstoqueForm] = useState({ nome: "", categoria: "", quantidade: "", unidade: "", status: "normal" as StatusEstoque, fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", valorTotal: "" });
+  const [editEstoqueForm, setEditEstoqueForm] = useState({ nome: "", categoria: "", quantidade: "", unidade: "", status: "normal" as StatusEstoque, fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", custoUnitario: "", valorTotal: "" });
   const [modal, setModal] = useState<ModalMode>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [consumoMensalMode, setConsumoMensalMode] = useState<"rs" | "kg">("rs");
@@ -210,6 +229,7 @@ export default function RacaoPage() {
   const [farmId, setFarmId] = useState<string | null>(null);
   const [barns, setBarns] = useState<Barn[]>([]);
   const [flocks, setFlocks] = useState<Flock[]>([]);
+  const [mortalities, setMortalities] = useState<FlockMortality[]>([]);
 
   // Shared calendar filter
   const { dateRange } = useDateFilter();
@@ -218,6 +238,7 @@ export default function RacaoPage() {
   const [monthlyRS, setMonthlyRS] = useState<{ mes: string; valor: number }[]>([]);
   const [monthlyKg, setMonthlyKg] = useState<{ mes: string; valor: number }[]>([]);
   const [dailyChart, setDailyChart] = useState<DailyEfficiencyPoint[]>([]);
+  const [productionRecords, setProductionRecords] = useState<ProductionRow[]>([]);
   const [waterRecords, setWaterRecords] = useState<WaterConsumptionRow[]>([]);
   const [distType, setDistType] = useState<{ tipo: string; kg: number; pct: number; color: string }[]>([]);
 
@@ -299,7 +320,8 @@ export default function RacaoPage() {
 
       const { startDate, endDate } = dateRange;
 
-      const [feedData, prodData, inventoryData, barnsData, flocksData, waterData, locationsRes] = await Promise.all([
+      const mortalityEndDate = endDate > getTodayDateInputValue() ? endDate : getTodayDateInputValue();
+      const [feedData, prodData, inventoryData, barnsData, flocksData, waterData, locationsRes, mortalityRes] = await Promise.all([
         getFeedByDateRange(profile.farm_id, startDate, endDate),
         getProductionByDateRange(profile.farm_id, startDate, endDate),
         getFeedInventory(profile.farm_id),
@@ -313,13 +335,24 @@ export default function RacaoPage() {
           .eq("category", "feed")
           .order("is_default", { ascending: false })
           .order("name", { ascending: true }),
+        supabase
+          .from("mortality")
+          .select("flock_id, date, dead_birds")
+          .eq("farm_id", profile.farm_id)
+          .lte("date", mortalityEndDate),
       ]);
 
       if (locationsRes.error) throw locationsRes.error;
+      if (mortalityRes.error) throw mortalityRes.error;
       setStorageLocations((locationsRes.data ?? []) as StorageLocationRow[]);
+      setMortalities((mortalityRes.data ?? []).map((mortality) => ({
+        flockId: mortality.flock_id,
+        date: mortality.date,
+        deadBirds: mortality.dead_birds,
+      })));
 
       const typedBarns = barnsData as Barn[];
-      const typedFlocks = flocksData as Flock[];
+      const typedFlocks = flocksData as FlockRow[];
       const typedFeedData = feedData as FeedConsumptionWithBarn[];
       const typedProdData = prodData as ProductionRow[];
 
@@ -335,6 +368,11 @@ export default function RacaoPage() {
         id: f.id,
         code: f.code || "",
         breed: f.breed || "",
+        birdCount: f.bird_count || 0,
+        arrivalAgeWeeks: f.arrival_age_weeks || 0,
+        arrivalDate: f.arrival_date,
+        status: f.status || "",
+        barnId: f.barn_id,
       })));
 
       // Map Table
@@ -354,11 +392,13 @@ export default function RacaoPage() {
           flock_id: d.flock_id,
           consumoKg: Number(d.quantity_kg),
           custoRS: Number(d.cost),
-          qtdGalinhas: d.barns?.current_birds || 1000 
+          qtdGalinhas: d.barns?.current_birds || 1000,
+          feedInventoryId: d.feed_inventory_id,
         };
       });
       
       setRegistros(mapped.sort((a, b) => b.data.localeCompare(a.data)));
+      setProductionRecords(typedProdData);
       
       // Map Inventory
       const mappedInv: ItemEstoque[] = inventoryData
@@ -372,9 +412,11 @@ export default function RacaoPage() {
         status: d.status as StatusEstoque,
         fornecedor: d.notes || "",
         localizacao: d.location || "",
-        lote: "",
+        lote: d.lot_number || "",
         dataChegada: d.created_at,
-        valorTotal: Number(d.total_cost ?? 0)
+        valorTotal: Number(d.total_cost ?? 0),
+        inventoryTable: d.inventory_table,
+        unitCost: Number(d.unit_cost ?? 0),
       }));
       setEstoque(mappedInv);
 
@@ -411,13 +453,74 @@ export default function RacaoPage() {
   }, []);
 
   const [editing, setEditing] = useState<RegistroRacao | null>(null);
-  const [form, setForm] = useState({ data: getTodayDateInputValue(), tipo: "comercial" as TipoRacao, aviario: "", barn_id: "", flock_id: "", consumoKg: "", custoRS: "", qtdGalinhas: "" });
+  const [form, setForm] = useState({ data: getTodayDateInputValue(), barn_id: "", flock_id: "", feedInventoryId: "", consumoKg: "" });
+  const [feedFormError, setFeedFormError] = useState<string | null>(null);
+  const [isSavingFeed, setIsSavingFeed] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | number | null>(null);
 
   const avgConsumoPorGalinha = useMemo(() => registros.length > 0 ? (registros.reduce((s, r) => s + (r.qtdGalinhas > 0 ? r.consumoKg / r.qtdGalinhas : 0), 0) / registros.length * 1000) : 0, [registros]);
 
   // Production data for cost-per-egg calculation
   const [totalEggs, setTotalEggs] = useState(0);
+
+  const productiveFlocks = useMemo<ProductiveFlock[]>(() => flocks.map((flock) => ({
+    id: flock.id,
+    birdCount: flock.birdCount,
+    arrivalAgeWeeks: flock.arrivalAgeWeeks,
+    arrivalDate: flock.arrivalDate,
+  })), [flocks]);
+  const activeProductiveFlocks = useMemo<ProductiveFlock[]>(() => flocks
+    .filter((flock) => flock.status !== "descarte")
+    .map((flock) => ({
+      id: flock.id,
+      birdCount: flock.birdCount,
+      arrivalAgeWeeks: flock.arrivalAgeWeeks,
+      arrivalDate: flock.arrivalDate,
+    })), [flocks]);
+
+  const feedKpiMetrics = useMemo(() => calculateFeedKpiMetrics({
+    flocks: productiveFlocks,
+    mortalities,
+    feedRecords: registros.map((record) => ({
+      date: record.data,
+      flockId: record.flock_id,
+      quantityKg: record.consumoKg,
+    })),
+    productionRecords: productionRecords.map((record) => ({
+      date: record.date,
+      flockId: record.flock_id,
+      eggsProduced: Number(record.eggs_produced),
+    })),
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
+    targetFeedGramsPerBird: 130,
+  }), [dateRange.endDate, dateRange.startDate, mortalities, productionRecords, productiveFlocks, registros]);
+
+  const feedStockMetrics = useMemo(() => calculateFeedStockMetrics({
+    activeFlocks: activeProductiveFlocks,
+    mortalities,
+    inventory: estoque.map((item) => ({
+      inventoryTable: item.inventoryTable,
+      quantity: item.quantidade,
+      unit: item.unidade,
+    })),
+    currentDate: getTodayDateInputValue(),
+    targetFeedGramsPerBird: 130,
+  }), [activeProductiveFlocks, estoque, mortalities]);
+
+  const selectableFeedInventory = useMemo(() => estoque.filter((item) =>
+    item.inventoryTable === "feed"
+    && ["kg", "g"].includes(item.unidade.toLowerCase())
+    && (item.quantidade > 0 || item.id === editing?.feedInventoryId)
+    && item.unitCost > 0
+  ), [editing?.feedInventoryId, estoque]);
+  const selectedFeedInventory = useMemo(
+    () => selectableFeedInventory.find((item) => item.id === form.feedInventoryId),
+    [form.feedInventoryId, selectableFeedInventory],
+  );
+  const estimatedConsumptionCost = selectedFeedInventory
+    ? (Number(form.consumoKg) || 0) * (selectedFeedInventory.unidade.toLowerCase() === "g" ? 1000 : 1) * selectedFeedInventory.unitCost
+    : 0;
 
   // Store daily consumption for "today" KPI
   const consumoHoje = useMemo(() => {
@@ -590,40 +693,44 @@ export default function RacaoPage() {
     );
   }, [registros, searchQuery]);
 
+  function closeFeedModal() {
+    setFeedFormError(null);
+    setModal(null);
+  }
+
   function openAdd() {
-    setForm({ data: getTodayDateInputValue(), tipo: "comercial", aviario: "", barn_id: "", flock_id: "", consumoKg: "", custoRS: "", qtdGalinhas: "" });
+    setForm({ data: getTodayDateInputValue(), barn_id: "", flock_id: "", feedInventoryId: "", consumoKg: "" });
+    setFeedFormError(null);
     setEditing(null);
     setModal("add");
   }
 
   function openEdit(r: RegistroRacao) {
+    setFeedFormError(null);
     setForm({
       data: r.data,
-      tipo: r.tipo,
-      aviario: r.aviario,
       barn_id: r.barn_id ?? "",
       flock_id: r.flock_id ?? "",
+      feedInventoryId: r.feedInventoryId ?? "",
       consumoKg: String(r.consumoKg),
-      custoRS: String(r.custoRS),
-      qtdGalinhas: String(r.qtdGalinhas),
     });
     setEditing(r);
     setModal("edit");
   }
 
   async function save() {
-    if (!form.data.trim() || !form.flock_id || !farmId) return;
-    
-    setIsLoading(true);
+    if (!form.data.trim() || !form.flock_id || !form.feedInventoryId || !farmId) return;
+
+    setFeedFormError(null);
+    setIsSavingFeed(true);
     try {
       const payload = {
-        farm_id: farmId,
+        farmId,
         date: form.data,
-        barn_id: form.barn_id || null,
-        flock_id: form.flock_id || null,
-        quantity_kg: Number(form.consumoKg) || 0,
-        cost: Number(form.custoRS) || 0,
-        feed_type: tipoLabel[form.tipo] || "Ração Postura",
+        barnId: form.barn_id || null,
+        flockId: form.flock_id || null,
+        feedInventoryId: form.feedInventoryId,
+        quantityKg: Number(form.consumoKg) || 0,
       };
 
       if (modal === "add") {
@@ -636,9 +743,9 @@ export default function RacaoPage() {
       await loadData(); // Reload to get fresh data
     } catch (err: unknown) {
       console.error(err);
-      alert("Erro ao salvar registro");
+      setFeedFormError(getErrorMessage(err, "Erro ao salvar registro"));
     } finally {
-      setIsLoading(false);
+      setIsSavingFeed(false);
     }
   }
 
@@ -651,7 +758,7 @@ export default function RacaoPage() {
       await loadData();
     } catch (err: unknown) {
       console.error(err);
-      alert("Erro ao excluir registro");
+      alert(getErrorMessage(err, "Erro ao excluir registro"));
     } finally {
       setIsLoading(false);
     }
@@ -734,14 +841,20 @@ export default function RacaoPage() {
           (() => {
             const consumoStatus = avgConsumoPorGalinha <= 130 ? "good" : avgConsumoPorGalinha <= 150 ? "high" : "critical";
             const consumoPct = Math.min((avgConsumoPorGalinha / 180) * 100, 100);
-            const eficiencia = 0.31;
-            const eficienciaStatus = eficiencia <= 0.30 ? "good" : eficiencia <= 0.33 ? "attention" : "bad";
-            const eficienciaPct = Math.min((eficiencia / 0.40) * 100, 100);
-            const producaoAtual = 2580;
-            const producaoMeta = 3000;
-            const producaoPct = Math.min((producaoAtual / producaoMeta) * 100, 100);
-            const totalEstoqueKg = estoque.filter(e => e.unidade === "kg").reduce((s, e) => s + e.quantidade, 0);
-            const feedDaysLeft = Math.floor(totalEstoqueKg / 410);
+            const hasProduction = feedKpiMetrics.registeredProductionDays > 0 && feedKpiMetrics.productionGoalAverage > 0;
+            const producaoAtual = feedKpiMetrics.productionAverage;
+            const producaoMeta = feedKpiMetrics.productionGoalAverage;
+            const producaoPct = hasProduction ? Math.min(feedKpiMetrics.productionPerformancePercent / 1.1, 100) : 0;
+            const producaoStatus = !hasProduction ? "neutral" : feedKpiMetrics.productionPerformancePercent >= 90 ? "good" : feedKpiMetrics.productionPerformancePercent >= 80 ? "attention" : "bad";
+            const hasEfficiency = feedKpiMetrics.comparablePairCount > 0 && feedKpiMetrics.idealEfficiencyKgPerEgg > 0;
+            const eficiencia = feedKpiMetrics.efficiencyKgPerEgg;
+            const eficienciaIdeal = feedKpiMetrics.idealEfficiencyKgPerEgg;
+            const eficienciaStatus = !hasEfficiency ? "neutral" : eficiencia <= eficienciaIdeal ? "good" : eficiencia <= eficienciaIdeal * 1.1 ? "attention" : "bad";
+            const efficiencyScaleMaximum = eficienciaIdeal > 0 ? eficienciaIdeal * 1.3 : 1;
+            const eficienciaPct = hasEfficiency ? Math.min((eficiencia / efficiencyScaleMaximum) * 100, 100) : 0;
+            const totalEstoqueKg = feedStockMetrics.stockKg;
+            const feedDaysLeft = feedStockMetrics.coverageDays;
+            const hasStockCoverage = feedStockMetrics.dailyNeedKg > 0;
             const estoquePct = Math.min((feedDaysLeft / 14) * 100, 100);
 
             return (
@@ -783,48 +896,56 @@ export default function RacaoPage() {
                     </div>
                     <span className="text-xs font-semibold text-gray-500">Produção</span>
                   </div>
-                  <p className="text-lg font-bold text-emerald-700">Normal</p>
-                  <p className="text-xs text-gray-400 mt-0.5 mb-2.5">~2.580 ovos/dia</p>
+                  <p className={cn("text-lg font-bold", producaoStatus === "good" ? "text-emerald-700" : producaoStatus === "attention" ? "text-amber-700" : producaoStatus === "bad" ? "text-red-700" : "text-gray-500")}>
+                    {producaoStatus === "good" ? "Normal" : producaoStatus === "attention" ? "Atenção" : producaoStatus === "bad" ? "Abaixo do esperado" : "Sem dados"}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5 mb-2.5">
+                    {hasProduction ? `${Math.round(producaoAtual).toLocaleString("pt-BR")} ovos/dia` : "Nenhuma produção registrada"}
+                  </p>
                   <div className="relative mt-1">
                     <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-emerald-500 transition-all duration-700" style={{ width: `${producaoPct}%` }} />
+                      <div className={cn("h-full rounded-full transition-all duration-700", producaoStatus === "good" ? "bg-emerald-500" : producaoStatus === "attention" ? "bg-amber-500" : producaoStatus === "bad" ? "bg-red-500" : "bg-gray-300")} style={{ width: `${producaoPct}%` }} />
                     </div>
-                    <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(producaoMeta / (producaoMeta * 1.1)) * 100}%` }} title={`Meta: ${producaoMeta.toLocaleString("pt-BR")}`} />
+                    {hasProduction && <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: "90.9%" }} title={`Meta: ${Math.round(producaoMeta).toLocaleString("pt-BR")}`} />}
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <div className="flex items-center gap-1.5">
                       <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
-                      <span className="text-[10px] text-gray-500 font-medium">Meta: {producaoMeta.toLocaleString("pt-BR")}</span>
+                      <span className="text-[10px] text-gray-500 font-medium">Meta: {hasProduction ? Math.round(producaoMeta).toLocaleString("pt-BR") : "—"}</span>
                     </div>
-                    <span className="text-[10px] font-semibold text-emerald-600">{producaoPct.toFixed(0)}%</span>
+                    <span className={cn("text-[10px] font-semibold", producaoStatus === "good" ? "text-emerald-600" : producaoStatus === "attention" ? "text-amber-600" : producaoStatus === "bad" ? "text-red-500" : "text-gray-400")}>
+                      {hasProduction ? `${feedKpiMetrics.productionPerformancePercent.toFixed(0)}% · ${feedKpiMetrics.registeredProductionDays}/${feedKpiMetrics.totalPeriodDays} dias` : `0/${feedKpiMetrics.totalPeriodDays} dias`}
+                    </span>
                   </div>
                 </div>
 
                 {/* Eficiência */}
                 <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all duration-200">
                   <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
-                    <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", eficienciaStatus === "good" ? "bg-emerald-50" : eficienciaStatus === "attention" ? "bg-amber-50" : "bg-red-50")}>
-                      <Activity className={cn("w-4 h-4 sm:w-5 sm:h-5", eficienciaStatus === "good" ? "text-emerald-600" : eficienciaStatus === "attention" ? "text-amber-600" : "text-red-600")} />
+                    <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", eficienciaStatus === "good" ? "bg-emerald-50" : eficienciaStatus === "attention" ? "bg-amber-50" : eficienciaStatus === "bad" ? "bg-red-50" : "bg-gray-100")}>
+                      <Activity className={cn("w-4 h-4 sm:w-5 sm:h-5", eficienciaStatus === "good" ? "text-emerald-600" : eficienciaStatus === "attention" ? "text-amber-600" : eficienciaStatus === "bad" ? "text-red-600" : "text-gray-500")} />
                     </div>
                     <span className="text-xs font-semibold text-gray-500">Eficiência</span>
                   </div>
-                  <p className={cn("text-lg font-bold", eficienciaStatus === "good" ? "text-emerald-700" : eficienciaStatus === "attention" ? "text-amber-700" : "text-red-700")}>
-                    {eficienciaStatus === "good" ? "Boa" : eficienciaStatus === "attention" ? "Atenção" : "Ruim"}
+                  <p className={cn("text-lg font-bold", eficienciaStatus === "good" ? "text-emerald-700" : eficienciaStatus === "attention" ? "text-amber-700" : eficienciaStatus === "bad" ? "text-red-700" : "text-gray-500")}>
+                    {eficienciaStatus === "good" ? "Boa" : eficienciaStatus === "attention" ? "Atenção" : eficienciaStatus === "bad" ? "Ruim" : "Sem dados"}
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5 mb-2.5">0,31 kg de ração/ovo</p>
+                  <p className="text-xs text-gray-400 mt-0.5 mb-2.5">
+                    {hasEfficiency ? `${eficiencia.toFixed(3).replace(".", ",")} kg de ração/ovo` : "Sem lote-dia comparável"}
+                  </p>
                   <div className="relative mt-1">
                     <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div className={cn("h-full rounded-full transition-all duration-700", eficienciaStatus === "good" ? "bg-emerald-500" : eficienciaStatus === "attention" ? "bg-amber-500" : "bg-red-500")} style={{ width: `${eficienciaPct}%` }} />
+                      <div className={cn("h-full rounded-full transition-all duration-700", eficienciaStatus === "good" ? "bg-emerald-500" : eficienciaStatus === "attention" ? "bg-amber-500" : eficienciaStatus === "bad" ? "bg-red-500" : "bg-gray-300")} style={{ width: `${eficienciaPct}%` }} />
                     </div>
-                    <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(0.30 / 0.40) * 100}%` }} title="Ideal: 0,30" />
+                    {hasEfficiency && <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(eficienciaIdeal / efficiencyScaleMaximum) * 100}%` }} title={`Ideal: ${eficienciaIdeal.toFixed(3)}`} />}
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <div className="flex items-center gap-1.5">
                       <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
-                      <span className="text-[10px] text-gray-500 font-medium">Ideal: 0,30</span>
+                      <span className="text-[10px] text-gray-500 font-medium">Ideal: {hasEfficiency ? eficienciaIdeal.toFixed(3).replace(".", ",") : "—"}</span>
                     </div>
-                    <span className={cn("text-[10px] font-semibold", eficienciaStatus === "good" ? "text-emerald-600" : "text-amber-500")}>
-                      {eficienciaStatus === "good" ? "Dentro" : "Acima"}
+                    <span className={cn("text-[10px] font-semibold", eficienciaStatus === "good" ? "text-emerald-600" : eficienciaStatus === "attention" ? "text-amber-500" : eficienciaStatus === "bad" ? "text-red-500" : "text-gray-400")}>
+                      {hasEfficiency ? `${feedKpiMetrics.comparablePairCount} lote-dias` : "Sem cobertura"}
                     </span>
                   </div>
                 </div>
@@ -832,35 +953,35 @@ export default function RacaoPage() {
                 {/* Estoque */}
                 <div className={cn(
                   "rounded-2xl border p-4 sm:p-5 hover:shadow-md transition-all duration-200",
-                  feedDaysLeft > 7 ? "bg-white border-gray-100" : feedDaysLeft > 3 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"
+                  !hasStockCoverage ? "bg-white border-gray-100" : feedDaysLeft > 7 ? "bg-white border-gray-100" : feedDaysLeft > 3 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"
                 )}>
                   <div className="flex items-center gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
-                    <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", feedDaysLeft > 7 ? "bg-blue-50" : feedDaysLeft > 3 ? "bg-amber-100" : "bg-red-100")}>
-                      <Package className={cn("w-4 h-4 sm:w-5 sm:h-5", feedDaysLeft > 7 ? "text-blue-600" : feedDaysLeft > 3 ? "text-amber-600" : "text-red-600")} />
+                    <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0", !hasStockCoverage ? "bg-gray-100" : feedDaysLeft > 7 ? "bg-blue-50" : feedDaysLeft > 3 ? "bg-amber-100" : "bg-red-100")}>
+                      <Package className={cn("w-4 h-4 sm:w-5 sm:h-5", !hasStockCoverage ? "text-gray-500" : feedDaysLeft > 7 ? "text-blue-600" : feedDaysLeft > 3 ? "text-amber-600" : "text-red-600")} />
                     </div>
                     <span className="text-xs font-semibold text-gray-500">Estoque</span>
                   </div>
-                  <p className={cn("text-lg font-bold", feedDaysLeft > 7 ? "text-blue-700" : feedDaysLeft > 3 ? "text-amber-700" : "text-red-700")}>
-                    Dura {feedDaysLeft} dias
+                  <p className={cn("text-lg font-bold", !hasStockCoverage ? "text-gray-500" : feedDaysLeft > 7 ? "text-blue-700" : feedDaysLeft > 3 ? "text-amber-700" : "text-red-700")}>
+                    {hasStockCoverage ? `Dura ${feedDaysLeft} dias` : "Sem estimativa"}
                   </p>
-                  {feedDaysLeft <= 7 ? (
+                  {hasStockCoverage && feedDaysLeft <= 7 ? (
                     <p className="text-xs text-amber-600 font-semibold mt-0.5 mb-2.5">Compre em breve</p>
                   ) : (
                     <p className="text-xs text-gray-400 mt-0.5 mb-2.5">{totalEstoqueKg.toLocaleString("pt-BR")} kg em estoque</p>
                   )}
                   <div className="relative mt-1">
                     <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div className={cn("h-full rounded-full transition-all duration-700", feedDaysLeft > 7 ? "bg-blue-500" : feedDaysLeft > 3 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${estoquePct}%` }} />
+                      <div className={cn("h-full rounded-full transition-all duration-700", !hasStockCoverage ? "bg-gray-300" : feedDaysLeft > 7 ? "bg-blue-500" : feedDaysLeft > 3 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${hasStockCoverage ? estoquePct : 0}%` }} />
                     </div>
-                    <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(7 / 14) * 100}%` }} title="Mínimo: 7 dias" />
+                    {hasStockCoverage && <div className="absolute top-[-3px] w-0.5 h-4 bg-gray-800 rounded-full" style={{ left: `${(7 / 14) * 100}%` }} title="Mínimo: 7 dias" />}
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <div className="flex items-center gap-1.5">
                       <div className="w-1.5 h-1.5 rounded-full bg-gray-900" />
                       <span className="text-[10px] text-gray-500 font-medium">Mínimo: 7 dias</span>
                     </div>
-                    <span className={cn("text-[10px] font-semibold", feedDaysLeft > 7 ? "text-blue-600" : "text-amber-500")}>
-                      {feedDaysLeft} dias
+                    <span className={cn("text-[10px] font-semibold", !hasStockCoverage ? "text-gray-400" : feedDaysLeft > 7 ? "text-blue-600" : "text-amber-500")}>
+                      {hasStockCoverage ? `${feedDaysLeft} dias` : "—"}
                     </span>
                   </div>
                 </div>
@@ -1325,7 +1446,7 @@ export default function RacaoPage() {
           <div className="space-y-0 max-h-[320px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
             {estoque.map((item, i) => (
               <div key={item.id}>
-                <button onClick={() => { setViewingEstoque(item); setEditingEstoque(false); setEditEstoqueForm({ nome: item.nome, categoria: item.categoria, quantidade: String(item.quantidade), unidade: item.unidade, status: item.status, fornecedor: item.fornecedor || "", localizacaoId: item.locationId, lote: item.lote || "", dataChegada: item.dataChegada || "", valorTotal: String(item.valorTotal || "") }); setEstoqueModal("view"); }} className="flex items-center justify-between py-2.5 group cursor-pointer hover:bg-gray-50/50 -mx-2 px-2 rounded-lg transition-colors w-full text-left">
+                <button onClick={() => { setViewingEstoque(item); setEditingEstoque(false); setEditEstoqueForm({ nome: item.nome, categoria: item.categoria, quantidade: String(item.quantidade), unidade: item.unidade, status: item.status, fornecedor: item.fornecedor || "", localizacaoId: item.locationId, lote: item.lote || "", dataChegada: item.dataChegada || "", custoUnitario: String(item.unitCost || ""), valorTotal: String(item.valorTotal || "") }); setEstoqueModal("view"); }} className="flex items-center justify-between py-2.5 group cursor-pointer hover:bg-gray-50/50 -mx-2 px-2 rounded-lg transition-colors w-full text-left">
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                     <div className={cn(
                       "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
@@ -1526,13 +1647,13 @@ export default function RacaoPage() {
       {/* Modal */}
       {modal && (
         <ModalPortal>
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setModal(null)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={closeFeedModal}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900">
                 {modal === "add" ? "Registrar Consumo" : "Editar Registro"}
               </h2>
-              <button onClick={() => setModal(null)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
+              <button onClick={closeFeedModal} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1544,13 +1665,20 @@ export default function RacaoPage() {
                   <input type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tipo de Ração</label>
-                  <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoRacao })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
-                    <option value="milho">Milho Mix</option>
-                    <option value="soja">Soja Blend</option>
-                    <option value="comercial">Comercial</option>
-                    <option value="custom">Fórmula Custom</option>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Item do estoque</label>
+                  <select value={form.feedInventoryId} onChange={(e) => { setFeedFormError(null); setForm({ ...form, feedInventoryId: e.target.value }); }} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
+                    <option value="">Selecione a ração...</option>
+                    {selectableFeedInventory.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.nome}{item.lote ? ` · lote ${item.lote}` : ""} · {item.quantidade.toLocaleString("pt-BR")} {item.unidade}
+                      </option>
+                    ))}
                   </select>
+                  {selectableFeedInventory.length === 0 && (
+                    <p className="text-[10px] text-red-500 mt-1 font-medium">
+                      Cadastre uma ração em kg ou g, com saldo e custo unitário, antes de registrar o consumo.
+                    </p>
+                  )}
                 </div>
               </div>
               <div>
@@ -1561,9 +1689,9 @@ export default function RacaoPage() {
                     const fId = e.target.value;
                     const flock = flocks.find(f => f.id === fId);
                     setForm({
-                      ...form,
-                      flock_id: fId,
-                      aviario: flock?.code || "",
+                       ...form,
+                       flock_id: fId,
+                       barn_id: flock?.barnId || "",
                     });
                   }}
                   className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer"
@@ -1581,23 +1709,34 @@ export default function RacaoPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Consumo Ração (kg)</label>
-                <input type="number" value={form.consumoKg} onChange={(e) => setForm({ ...form, consumoKg: e.target.value })} placeholder="120" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                <input type="number" min="0.01" step="0.01" value={form.consumoKg} onChange={(e) => { setFeedFormError(null); setForm({ ...form, consumoKg: e.target.value }); }} placeholder="120" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                {selectedFeedInventory && Number(form.consumoKg) > 0 && (
+                  <p className="text-[10px] text-gray-500 mt-1 font-medium">
+                    Custo calculado: {estimatedConsumptionCost.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </p>
+                )}
+                {feedFormError && (
+                  <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-medium text-red-700">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <span>{feedFormError}</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 pt-2">
-              <button onClick={() => setModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
+              <button onClick={closeFeedModal} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
               <button
                 onClick={save}
-                disabled={!form.data || !form.flock_id}
+                disabled={isSavingFeed || !form.data || !form.flock_id || !form.feedInventoryId || Number(form.consumoKg) <= 0}
                 className={cn(
                   "inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold rounded-xl transition-colors cursor-pointer shadow-sm",
-                  form.data && form.flock_id
+                  !isSavingFeed && form.data && form.flock_id && form.feedInventoryId && Number(form.consumoKg) > 0
                     ? "text-white bg-brand-600 hover:bg-brand-700"
                     : "text-gray-400 bg-gray-200 cursor-not-allowed"
                 )}
               >
                 <Check className="w-4 h-4" />
-                Salvar
+                {isSavingFeed ? "Salvando..." : "Salvar"}
               </button>
             </div>
           </div>
@@ -1699,6 +1838,10 @@ export default function RacaoPage() {
                   <input type="date" value={estoqueForm.dataChegada} onChange={(e) => setEstoqueForm({ ...estoqueForm, dataChegada: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
                 <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Custo Unitário (R$)</label>
+                  <input type="number" min="0" step="0.000001" value={estoqueForm.custoUnitario} onChange={(e) => setEstoqueForm({ ...estoqueForm, custoUnitario: e.target.value })} placeholder="0,00" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+                <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Valor Total (R$)</label>
                   <input type="number" min="0" step="0.01" value={estoqueForm.valorTotal} onChange={(e) => setEstoqueForm({ ...estoqueForm, valorTotal: e.target.value })} placeholder="0,00" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
@@ -1708,7 +1851,7 @@ export default function RacaoPage() {
               <button onClick={() => setEstoqueModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
               <button
                 onClick={async () => {
-                  if (!estoqueForm.nome.trim() || !estoqueForm.quantidade || !farmId) return;
+                  if (!estoqueForm.nome.trim() || Number(estoqueForm.quantidade) <= 0 || Number(estoqueForm.custoUnitario) <= 0 || !farmId) return;
                   setIsLoading(true);
                   try {
                     await createInventoryItem({
@@ -1722,9 +1865,10 @@ export default function RacaoPage() {
                       location_id: estoqueForm.localizacaoId || undefined,
                       lot_number: estoqueForm.lote || null,
                       arrival_date: estoqueForm.dataChegada || null,
-                      total_cost: Number(estoqueForm.valorTotal) || null,
+                      unit_cost: Number(estoqueForm.custoUnitario),
+                      total_cost: Number(estoqueForm.valorTotal) || Number(estoqueForm.quantidade) * Number(estoqueForm.custoUnitario),
                     });
-                    setEstoqueForm({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal", fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", valorTotal: "" });
+                    setEstoqueForm({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal", fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", custoUnitario: "", valorTotal: "" });
                     setEstoqueModal(null);
                     await loadData();
                   } catch (err) {
@@ -1734,10 +1878,10 @@ export default function RacaoPage() {
                     setIsLoading(false);
                   }
                 }}
-                disabled={!estoqueForm.nome.trim() || !estoqueForm.quantidade}
+                disabled={!estoqueForm.nome.trim() || Number(estoqueForm.quantidade) <= 0 || Number(estoqueForm.custoUnitario) <= 0}
                 className={cn(
                   "inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold rounded-xl transition-colors cursor-pointer shadow-sm",
-                  estoqueForm.nome.trim() && estoqueForm.quantidade
+                  estoqueForm.nome.trim() && Number(estoqueForm.quantidade) > 0 && Number(estoqueForm.custoUnitario) > 0
                     ? "text-white bg-brand-600 hover:bg-brand-700"
                     : "text-gray-400 bg-gray-200 cursor-not-allowed"
                 )}
@@ -1854,6 +1998,10 @@ export default function RacaoPage() {
                     <input type="date" value={editEstoqueForm.dataChegada} onChange={(e) => setEditEstoqueForm({ ...editEstoqueForm, dataChegada: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all" />
                   </div>
                   <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Custo Unitário (R$)</label>
+                    <input type="number" min="0" step="0.000001" value={editEstoqueForm.custoUnitario} onChange={(e) => setEditEstoqueForm({ ...editEstoqueForm, custoUnitario: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all" />
+                  </div>
+                  <div>
                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Valor Total (R$)</label>
                     <input type="number" min="0" step="0.01" value={editEstoqueForm.valorTotal} onChange={(e) => setEditEstoqueForm({ ...editEstoqueForm, valorTotal: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all" />
                   </div>
@@ -1867,7 +2015,7 @@ export default function RacaoPage() {
                   </button>
                   <button
                     onClick={async () => {
-                      if (!farmId) return;
+                      if (!farmId || Number(editEstoqueForm.quantidade) <= 0 || Number(editEstoqueForm.custoUnitario) <= 0) return;
                       setIsLoading(true);
                       try {
                         await updateInventoryItem(viewingEstoque.id, {
@@ -1880,7 +2028,8 @@ export default function RacaoPage() {
                           location_id: editEstoqueForm.localizacaoId || undefined,
                           lot_number: editEstoqueForm.lote || null,
                           arrival_date: editEstoqueForm.dataChegada || null,
-                          total_cost: Number(editEstoqueForm.valorTotal) || null,
+                          unit_cost: Number(editEstoqueForm.custoUnitario),
+                          total_cost: Number(editEstoqueForm.valorTotal) || Number(editEstoqueForm.quantidade) * Number(editEstoqueForm.custoUnitario),
                         });
                         setEditingEstoque(false);
                         await loadData();
@@ -1893,7 +2042,8 @@ export default function RacaoPage() {
                         setIsLoading(false);
                       }
                     }}
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors cursor-pointer shadow-sm"
+                    disabled={Number(editEstoqueForm.quantidade) <= 0 || Number(editEstoqueForm.custoUnitario) <= 0}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 disabled:bg-gray-200 disabled:text-gray-400 transition-colors cursor-pointer shadow-sm"
                   >
                     Salvar
                   </button>
