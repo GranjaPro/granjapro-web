@@ -40,7 +40,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  ReferenceLine,
+  Line,
 } from "recharts";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
@@ -51,6 +51,8 @@ import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
 import type { Tables } from "@/lib/database.types";
+import { calculateEggProductionMetrics, calculateLiveBirdsAtDate, getFlockProductionEligibility, type FlockMortality } from "@/lib/domain/egg-production-metrics";
+import { calculateRelativePercentageDifference } from "@/lib/domain/kpi-comparison";
 
 /* ── Interfaces ── */
 interface Lote {
@@ -59,6 +61,9 @@ interface Lote {
   raca: string;
   aves: number;
   postura: string;
+  arrivalAgeWeeks: number;
+  arrivalDate: string;
+  status: string;
 }
 
 interface Registro {
@@ -72,7 +77,7 @@ interface Registro {
   descartados: number;
   taxa: string;
 }
-type FlockRow = Pick<Tables<"flocks">, "id" | "code" | "breed" | "bird_count">;
+type FlockRow = Pick<Tables<"flocks">, "id" | "code" | "breed" | "bird_count" | "arrival_age_weeks" | "arrival_date" | "status">;
 type EggProductionRow = Tables<"egg_production"> & {
   flocks: Pick<Tables<"flocks">, "code" | "breed" | "bird_count"> | null;
 };
@@ -89,6 +94,14 @@ function toIsoDate(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+  return fallback;
+}
+
 type ModalMode = "add" | "edit" | null;
 
 export default function ProducaoPage() {
@@ -100,6 +113,7 @@ export default function ProducaoPage() {
 
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [registros, setRegistros] = useState<Registro[]>([]);
+  const [mortalities, setMortalities] = useState<FlockMortality[]>([]);
   const [withdrawalTreatments, setWithdrawalTreatments] = useState<WithdrawalTreatment[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -131,7 +145,7 @@ export default function ProducaoPage() {
     try {
       const { startDate, endDate } = dateRange;
 
-      const [productionRes, flocksRes, withdrawalRes] = await Promise.all([
+      const [productionRes, flocksRes, withdrawalRes, mortalityRes] = await Promise.all([
         supabase
           .from("egg_production")
           .select("*, flocks(code, breed, bird_count)")
@@ -141,7 +155,7 @@ export default function ProducaoPage() {
           .order("date", { ascending: false }),
         supabase
           .from("flocks")
-          .select("id, code, breed, bird_count, status")
+          .select("id, code, breed, bird_count, arrival_age_weeks, arrival_date, status")
           .eq("farm_id", currentFarm.id)
           .order("code"),
         supabase
@@ -150,15 +164,26 @@ export default function ProducaoPage() {
           .eq("farm_id", currentFarm.id)
           .eq("type", "treatment")
           .gt("withdrawal_period_days", 0),
+        supabase
+          .from("mortality")
+          .select("flock_id, date, dead_birds")
+          .eq("farm_id", currentFarm.id)
+          .lte("date", endDate),
       ]);
 
       if (flocksRes.error) throw flocksRes.error;
       if (productionRes.error) throw productionRes.error;
       if (withdrawalRes.error) throw withdrawalRes.error;
+      if (mortalityRes.error) throw mortalityRes.error;
 
       const flocksData = (flocksRes.data ?? []) as FlockRow[];
       const productionData = (productionRes.data ?? []) as EggProductionRow[];
       setWithdrawalTreatments((withdrawalRes.data as WithdrawalTreatment[] | null) ?? []);
+      setMortalities((mortalityRes.data ?? []).map((mortality) => ({
+        flockId: mortality.flock_id,
+        date: mortality.date,
+        deadBirds: mortality.dead_birds,
+      })));
 
       // Calculate postura per flock from latest records
       const flockPostura = new Map<string, number>();
@@ -174,6 +199,9 @@ export default function ProducaoPage() {
         raca: f.breed,
         aves: f.bird_count,
         postura: flockPostura.has(f.id) ? `${flockPostura.get(f.id)!.toFixed(1)}%` : "—",
+        arrivalAgeWeeks: f.arrival_age_weeks,
+        arrivalDate: f.arrival_date,
+        status: f.status,
       })));
 
       const mapped: Registro[] = productionData.map((r) => ({
@@ -207,6 +235,44 @@ export default function ProducaoPage() {
     }) ?? null;
   }, [form.data, form.loteId, withdrawalTreatments]);
 
+  const liveBirdsByFlock = useMemo(() => {
+    const referenceDate = form.data || toIsoDate(new Date());
+    return new Map(lotes.map((lote) => [
+      lote.id,
+      calculateLiveBirdsAtDate([{
+        id: lote.id,
+        birdCount: lote.aves,
+        arrivalAgeWeeks: lote.arrivalAgeWeeks,
+        arrivalDate: lote.arrivalDate,
+      }], mortalities, referenceDate),
+    ]));
+  }, [form.data, lotes, mortalities]);
+
+  const productionEligibilityDate = form.data || toIsoDate(new Date());
+  const eligibleLotes = useMemo(() => lotes.filter((lote) => getFlockProductionEligibility({
+    id: lote.id,
+    birdCount: lote.aves,
+    arrivalAgeWeeks: lote.arrivalAgeWeeks,
+    arrivalDate: lote.arrivalDate,
+  }, mortalities, productionEligibilityDate, lote.status === "descarte").isEligible), [lotes, mortalities, productionEligibilityDate]);
+
+  useEffect(() => {
+    if (!form.loteId || !form.data) return;
+    const selectedLote = lotes.find((lote) => lote.id === form.loteId);
+    if (!selectedLote) return;
+
+    const eligibility = getFlockProductionEligibility({
+      id: selectedLote.id,
+      birdCount: selectedLote.aves,
+      arrivalAgeWeeks: selectedLote.arrivalAgeWeeks,
+      arrivalDate: selectedLote.arrivalDate,
+    }, mortalities, form.data, selectedLote.status === "descarte");
+    if (eligibility.isEligible) return;
+
+    setForm((current) => current.loteId === selectedLote.id ? { ...current, loteId: "" } : current);
+    setError(eligibility.reason ?? "O lote não está apto para produção nesta data.");
+  }, [form.data, form.loteId, lotes, mortalities]);
+
   useEffect(() => {
     if (!activeWithdrawal) return;
     setForm((current) =>
@@ -220,21 +286,38 @@ export default function ProducaoPage() {
   }, [authLoading, farm, fetchData]);
 
   /* ── Derived Chart Data ── */
+  const productionMetrics = useMemo(() => {
+    const today = toIsoDate(new Date());
+    const effectiveEndDate = dateRange.startDate <= today && dateRange.endDate > today ? today : dateRange.endDate;
+    return calculateEggProductionMetrics({
+      flocks: lotes.map((lote) => ({
+        id: lote.id,
+        birdCount: lote.aves,
+        arrivalAgeWeeks: lote.arrivalAgeWeeks,
+        arrivalDate: lote.arrivalDate,
+      })),
+      mortalities,
+      startDate: dateRange.startDate,
+      endDate: effectiveEndDate,
+      totalEggs: registros.reduce((sum, registro) => sum + registro.total, 0),
+    });
+  }, [dateRange.endDate, dateRange.startDate, lotes, mortalities, registros]);
+
   const curvaProducao = useMemo(() => {
     const byDate = new Map<string, number>();
     for (const r of registros) {
       byDate.set(r.data, (byDate.get(r.data) || 0) + r.total);
     }
     const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-    const totalAves = lotes.reduce((s, l) => s + l.aves, 0);
-    const meta = Math.round(totalAves * 0.9);
-    return Array.from(byDate.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, ovos]) => {
-        const d = new Date(date + "T00:00:00");
-        return { day: days[d.getDay()], ovos, meta };
-      });
-  }, [registros, lotes]);
+    return productionMetrics.dailyTargets.map((target) => {
+      const date = new Date(`${target.date}T00:00:00`);
+      return {
+        day: days[date.getDay()],
+        ovos: byDate.get(target.date) ?? 0,
+        meta: target.eggGoal,
+      };
+    });
+  }, [productionMetrics.dailyTargets, registros]);
 
   const qualityData = useMemo(() => {
     const totals = registros.reduce(
@@ -249,7 +332,7 @@ export default function ProducaoPage() {
     const bons = totals.total - totals.quebrados - totals.sujos - totals.descartados;
     const t = totals.total || 1;
     return [
-      { name: "Bons", value: +((bons / t) * 100).toFixed(1), color: "#2d7a4f", qty: bons },
+      { name: "Comercializáveis", value: +((bons / t) * 100).toFixed(1), color: "#2d7a4f", qty: bons },
       { name: "Quebrados", value: +((totals.quebrados / t) * 100).toFixed(1), color: "#ef4444", qty: totals.quebrados },
       { name: "Sujos", value: +((totals.sujos / t) * 100).toFixed(1), color: "#f59e0b", qty: totals.sujos },
       { name: "Descartados", value: +((totals.descartados / t) * 100).toFixed(1), color: "#94a3b8", qty: totals.descartados },
@@ -258,76 +341,101 @@ export default function ProducaoPage() {
 
   const producaoPorLote = useMemo(() => {
     const colors = ["#2d7a4f", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
-    const byFlock = new Map<string, { code: string; ovos: number; birdCount: number }>();
+    const eggsByFlock = new Map<string, number>();
     for (const r of registros) {
-      const lote = lotes.find(l => l.id === r.loteId);
-      if (!lote) continue;
-      const existing = byFlock.get(r.loteId) || { code: lote.codigo, ovos: 0, birdCount: lote.aves };
-      existing.ovos += r.total;
-      byFlock.set(r.loteId, existing);
+      eggsByFlock.set(r.loteId, (eggsByFlock.get(r.loteId) ?? 0) + r.total);
     }
-    const numDays = new Set(registros.map(r => r.data)).size || 1;
-    return Array.from(byFlock.entries()).map(([, val], i) => ({
-      lote: val.code,
-      ovos: val.ovos,
-      taxa: val.birdCount > 0 ? Math.round((val.ovos / numDays / val.birdCount) * 100) : 0,
-      color: colors[i % colors.length],
-    }));
-  }, [registros, lotes]);
+    const periodEndDate = productionMetrics.dailyTargets.at(-1)?.date ?? dateRange.endDate;
+    return lotes
+      .filter((lote) => eggsByFlock.has(lote.id))
+      .map((lote, index) => {
+        const ovos = eggsByFlock.get(lote.id) ?? 0;
+        const metrics = calculateEggProductionMetrics({
+          flocks: [{
+            id: lote.id,
+            birdCount: lote.aves,
+            arrivalAgeWeeks: lote.arrivalAgeWeeks,
+            arrivalDate: lote.arrivalDate,
+          }],
+          mortalities,
+          startDate: dateRange.startDate,
+          endDate: periodEndDate,
+          totalEggs: ovos,
+        });
+        return {
+          lote: lote.codigo,
+          ovos,
+          taxa: Math.round(metrics.layingRate),
+          meta: metrics.layingRateGoal,
+          color: colors[index % colors.length],
+        };
+      });
+  }, [dateRange.endDate, dateRange.startDate, lotes, mortalities, productionMetrics.dailyTargets, registros]);
 
   /* ── Health Score (period-based) ── */
   const healthScore = useMemo(() => {
     if (registros.length === 0) return { score: 0, label: "Sem dados", color: "gray", posturaRate: 0, lossRate: 0 };
     const totalEggs = registros.reduce((s, r) => s + r.total, 0);
-    const totalLosses = registros.reduce((s, r) => s + r.quebrados + r.sujos + r.descartados, 0);
-    const totalAves = lotes.reduce((s, l) => s + l.aves, 0);
-    const numDays = new Set(registros.map(r => r.data)).size || 1;
-    const posturaRate = totalAves > 0 ? (totalEggs / numDays / totalAves) * 100 : 0;
+    const totalLosses = registros.reduce((s, r) => s + r.quebrados + r.sujos, 0);
+    const posturaRate = productionMetrics.layingRate;
     const lossRate = totalEggs > 0 ? (totalLosses / totalEggs) * 100 : 0;
-    const posturaScore = Math.min(posturaRate / 92, 1) * 70;
-    const qualityScore = Math.max(1 - lossRate / 5, 0) * 30;
+    const qualityRate = 100 - lossRate;
+    const posturaScore = productionMetrics.layingRateGoal > 0
+      ? Math.min(posturaRate / productionMetrics.layingRateGoal, 1) * 70
+      : 0;
+    const qualityScore = Math.min(qualityRate / 95, 1) * 30;
     const score = Math.round(posturaScore + qualityScore);
     const label = score >= 80 ? "Excelente" : score >= 60 ? "Bom" : score >= 40 ? "Atenção" : "Crítico";
     const color = score >= 80 ? "emerald" : score >= 60 ? "blue" : score >= 40 ? "amber" : "red";
     return { score, label, color, posturaRate, lossRate };
-  }, [registros, lotes]);
+  }, [productionMetrics.layingRate, productionMetrics.layingRateGoal, registros]);
 
   const taxaCalculada = useMemo(() => {
     const selectedLote = lotes.find((l) => l.id === form.loteId);
     const total = Number(form.total) || 0;
-    if (!selectedLote || selectedLote.aves === 0 || total === 0) return "—";
-    const taxa = (total / selectedLote.aves) * 100;
-    return taxa.toFixed(1) + "%";
-  }, [form.loteId, form.total, lotes]);
+    if (!selectedLote || !form.data || total === 0) return "—";
+    const metrics = calculateEggProductionMetrics({
+      flocks: [{
+        id: selectedLote.id,
+        birdCount: selectedLote.aves,
+        arrivalAgeWeeks: selectedLote.arrivalAgeWeeks,
+        arrivalDate: selectedLote.arrivalDate,
+      }],
+      mortalities,
+      startDate: form.data,
+      endDate: form.data,
+      totalEggs: total,
+    });
+    return metrics.eligibleBirdDays > 0 ? `${metrics.layingRate.toFixed(1)}%` : "—";
+  }, [form.data, form.loteId, form.total, lotes, mortalities]);
 
   /* KPIs */
   const kpis = useMemo(() => {
-    const totalAves = lotes.reduce((s, l) => s + l.aves, 0);
-
-    // All KPIs use period data (calendar-filtered registros)
     const periodTotal = registros.reduce((s, r) => s + r.total, 0);
     const periodQuebrados = registros.reduce((s, r) => s + r.quebrados, 0);
     const periodSujos = registros.reduce((s, r) => s + r.sujos, 0);
-    const numDays = new Set(registros.map(r => r.data)).size || 1;
-    const dailyAvg = Math.round(periodTotal / numDays);
-
-    // Produção: total eggs in the period, expected based on days * daily goal
-    const metaDiaria = Math.round(totalAves * 0.9);
-    const metaPeriodo = metaDiaria * numDays;
-    const metaPercent = metaPeriodo > 0 ? ((periodTotal / metaPeriodo) * 100).toFixed(0) : "0";
-
-    // Taxa de postura: average daily laying rate across the period
-    const taxaPostura = totalAves > 0 ? ((periodTotal / numDays / totalAves) * 100).toFixed(1) : "0";
-
-    // Qualidade: based on all eggs in the period
-    const qualidade = ((1 - (periodQuebrados + periodSujos) / (periodTotal || 1)) * 100);
-
-    const metaPostura = 90;
-    const metaQualidade = 98;
-    const metaMediaSemanal = Math.round(totalAves * 0.88);
-    const diffPostura = (Number(taxaPostura) - metaPostura).toFixed(1);
-    const diffQualidade = (qualidade - metaQualidade).toFixed(1);
-    const diffMedia = metaMediaSemanal > 0 ? (((dailyAvg - metaMediaSemanal) / metaMediaSemanal) * 100).toFixed(1) : "0";
+    const periodDays = productionMetrics.dailyTargets.length || 1;
+    const recordedDays = new Set(registros.map((registro) => registro.data)).size;
+    const dailyAvg = Math.round(periodTotal / periodDays);
+    const expectedDailyAvg = Math.round(productionMetrics.eggGoal / periodDays);
+    const productionPerformance = productionMetrics.eggGoal > 0
+      ? (periodTotal / productionMetrics.eggGoal) * 100
+      : 0;
+    const productionDiff = productionMetrics.eggGoal > 0 ? productionPerformance - 100 : 0;
+    const layingRateDiff = calculateRelativePercentageDifference(
+      productionMetrics.layingRate,
+      productionMetrics.layingRateGoal,
+    );
+    const qualidade = periodTotal > 0
+      ? (1 - (periodQuebrados + periodSujos) / periodTotal) * 100
+      : 0;
+    const metaQualidade = 95;
+    const qualityDiff = periodTotal > 0
+      ? calculateRelativePercentageDifference(qualidade, metaQualidade)
+      : 0;
+    const dailyAverageDiff = expectedDailyAvg > 0
+      ? ((dailyAvg - expectedDailyAvg) / expectedDailyAvg) * 100
+      : 0;
 
     return [
       {
@@ -337,30 +445,30 @@ export default function ProducaoPage() {
         iconBg: "bg-brand-50",
         iconColor: "text-brand-600",
         actual: periodTotal,
-        expectedVal: metaPeriodo,
-        expectedLabel: metaPeriodo.toLocaleString("pt-BR"),
+        expectedVal: productionMetrics.eggGoal,
+        expectedLabel: productionMetrics.eggGoal.toLocaleString("pt-BR"),
         unit: "ovos",
-        progress: Number(metaPercent),
-        progressColor: Number(metaPercent) >= 100 ? "bg-emerald-500" : Number(metaPercent) >= 90 ? "bg-amber-500" : "bg-red-500",
-        diff: Number(metaPercent) - 100,
-        diffLabel: `${(Number(metaPercent) - 100) > 0 ? "+" : ""}${(Number(metaPercent) - 100).toFixed(1)}%`,
-        subtitle: `${metaPercent}% do esperado`,
+        progress: productionPerformance,
+        progressColor: productionMetrics.eggGoal === 0 ? "bg-gray-300" : productionPerformance >= 100 ? "bg-emerald-500" : productionPerformance >= 90 ? "bg-amber-500" : "bg-red-500",
+        diff: productionDiff,
+        diffLabel: `${productionDiff > 0 ? "+" : ""}${productionDiff.toFixed(1)}%`,
+        subtitle: productionMetrics.eggGoal > 0 ? `${productionPerformance.toFixed(0)}% do esperado` : "Sem aves aptas no período",
       },
       {
         title: "Taxa de Postura",
-        value: `${taxaPostura}%`,
+        value: `${productionMetrics.layingRate.toFixed(1)}%`,
         icon: Target,
         iconBg: "bg-violet-50",
         iconColor: "text-violet-600",
-        actual: Number(taxaPostura),
-        expectedVal: metaPostura,
-        expectedLabel: `${metaPostura}%`,
+        actual: productionMetrics.layingRate,
+        expectedVal: productionMetrics.layingRateGoal,
+        expectedLabel: `${productionMetrics.layingRateGoal.toFixed(1)}%`,
         unit: "",
-        progress: Math.min(Number(taxaPostura), 100),
-        progressColor: Number(taxaPostura) >= 90 ? "bg-emerald-500" : Number(taxaPostura) >= 85 ? "bg-amber-500" : "bg-red-500",
-        diff: Number(diffPostura),
-        diffLabel: `${Number(diffPostura) > 0 ? "+" : ""}${diffPostura}%`,
-        subtitle: "Padrão: 85-92%",
+        progress: productionMetrics.layingRate,
+        progressColor: layingRateDiff >= 0 ? "bg-emerald-500" : layingRateDiff >= -5 ? "bg-amber-500" : "bg-red-500",
+        diff: layingRateDiff,
+        diffLabel: `${layingRateDiff > 0 ? "+" : ""}${layingRateDiff.toFixed(1)}%`,
+        subtitle: "Meta ponderada por fase produtiva",
       },
       {
         title: "Qualidade",
@@ -373,10 +481,10 @@ export default function ProducaoPage() {
         expectedLabel: `${metaQualidade}%`,
         unit: "",
         progress: qualidade,
-        progressColor: qualidade >= metaQualidade ? "bg-emerald-500" : qualidade >= 96 ? "bg-amber-400" : "bg-red-500",
-        diff: Number(diffQualidade),
-        diffLabel: `${Number(diffQualidade) > 0 ? "+" : ""}${diffQualidade}%`,
-        subtitle: `${periodQuebrados} quebrados · ${periodSujos} sujos`,
+        progressColor: periodTotal === 0 ? "bg-gray-300" : qualidade >= metaQualidade ? "bg-emerald-500" : qualidade >= 90 ? "bg-amber-400" : "bg-red-500",
+        diff: qualityDiff,
+        diffLabel: `${qualityDiff > 0 ? "+" : ""}${qualityDiff.toFixed(1)}%`,
+        subtitle: periodTotal > 0 ? `${periodQuebrados} quebrados · ${periodSujos} sujos` : "Sem registros de qualidade",
       },
       {
         title: "Média Diária no Período",
@@ -385,34 +493,34 @@ export default function ProducaoPage() {
         iconBg: "bg-teal-50",
         iconColor: "text-teal-600",
         actual: dailyAvg,
-        expectedVal: metaMediaSemanal,
-        expectedLabel: metaMediaSemanal.toLocaleString("pt-BR"),
+        expectedVal: expectedDailyAvg,
+        expectedLabel: expectedDailyAvg.toLocaleString("pt-BR"),
         unit: "ovos",
-        progress: metaMediaSemanal > 0 ? Math.min((dailyAvg / metaMediaSemanal) * 100, 100) : 0,
-        progressColor: dailyAvg >= metaMediaSemanal ? "bg-emerald-500" : dailyAvg >= metaMediaSemanal * 0.9 ? "bg-amber-500" : "bg-red-500",
-        diff: Number(diffMedia),
-        diffLabel: `${Number(diffMedia) > 0 ? "+" : ""}${diffMedia}%`,
-        subtitle: `${numDays} dias · ${registros.length} registros`,
+        progress: expectedDailyAvg > 0 ? (dailyAvg / expectedDailyAvg) * 100 : 0,
+        progressColor: expectedDailyAvg === 0 ? "bg-gray-300" : dailyAvg >= expectedDailyAvg ? "bg-emerald-500" : dailyAvg >= expectedDailyAvg * 0.9 ? "bg-amber-500" : "bg-red-500",
+        diff: dailyAverageDiff,
+        diffLabel: `${dailyAverageDiff > 0 ? "+" : ""}${dailyAverageDiff.toFixed(1)}%`,
+        subtitle: `${recordedDays} de ${periodDays} dias registrados · ${registros.length} registros`,
       },
     ];
-  }, [registros, lotes]);
+  }, [productionMetrics, registros]);
 
   /* Insights (period-based) */
   const insights = useMemo(() => {
     const arr: { type: "success" | "warning" | "info"; title: string; action: string }[] = [];
     if (registros.length === 0) return arr;
 
-    const totalAves = lotes.reduce((s, l) => s + l.aves, 0);
-    const metaDiaria = Math.round(totalAves * 0.9);
     const periodTotal = registros.reduce((s, r) => s + r.total, 0);
-    const numDays = new Set(registros.map(r => r.data)).size || 1;
-    const dailyAvg = Math.round(periodTotal / numDays);
+    const periodDays = productionMetrics.dailyTargets.length || 1;
+    const recordedDays = new Set(registros.map((registro) => registro.data)).size;
+    const dailyAvg = Math.round(periodTotal / periodDays);
+    const expectedDailyAvg = Math.round(productionMetrics.eggGoal / periodDays);
 
-    if (periodTotal > 0) {
-      if (dailyAvg >= metaDiaria) {
-        arr.push({ type: "success", title: `Média diária acima da meta (+${((dailyAvg / metaDiaria - 1) * 100).toFixed(0)}%)`, action: "Manter condições atuais de manejo e alimentação" });
+    if (expectedDailyAvg > 0) {
+      if (dailyAvg >= expectedDailyAvg) {
+        arr.push({ type: "success", title: `Média diária acima da meta (+${((dailyAvg / expectedDailyAvg - 1) * 100).toFixed(0)}%)`, action: "Manter condições atuais de manejo e alimentação" });
       } else {
-        const diff = metaDiaria > 0 ? (((metaDiaria - dailyAvg) / metaDiaria) * 100).toFixed(0) : "0";
+        const diff = (((expectedDailyAvg - dailyAvg) / expectedDailyAvg) * 100).toFixed(0);
         arr.push({ type: "warning", title: `Média diária abaixo do esperado (-${diff}%)`, action: "Verificar ventilação e consumo de ração" });
       }
     }
@@ -420,28 +528,28 @@ export default function ProducaoPage() {
     const quebrados = registros.reduce((s, r) => s + r.quebrados, 0);
     const sujos = registros.reduce((s, r) => s + r.sujos, 0);
     if (periodTotal > 0) {
-      const perdaRate = ((quebrados + sujos) / periodTotal * 100).toFixed(1);
-      if ((quebrados + sujos) / periodTotal > 0.01) {
+      const physicalLossRate = ((quebrados + sujos) / periodTotal) * 100;
+      if (physicalLossRate > 5) {
+        const perdaRate = physicalLossRate.toFixed(1);
         arr.push({ type: "warning", title: `Taxa de perdas em ${perdaRate}%`, action: "Possível problema nutricional — revisar ração e suplementos" });
       }
     }
 
-    const lowPerformance = lotes.filter(l => {
-      const p = parseFloat(l.postura);
-      return !isNaN(p) && p < 85;
-    });
+    const lowPerformance = producaoPorLote.filter((lote) => lote.taxa < lote.meta);
     if (lowPerformance.length > 0) {
-      arr.push({ type: "warning", title: `${lowPerformance.map(l => l.codigo).join(", ")} com postura abaixo de 85%`, action: "Avaliar saúde do lote e ajustar dieta" });
+      arr.push({ type: "warning", title: `${lowPerformance.map((lote) => lote.lote).join(", ")} com postura abaixo da meta da fase`, action: "Avaliar saúde do lote e ajustar dieta" });
     }
 
-    if (metaDiaria > 0 && dailyAvg >= metaDiaria * 0.95) {
+    if (recordedDays < periodDays) {
+      arr.push({ type: "info", title: `${recordedDays} de ${periodDays} dias possuem registro`, action: "Completar os dias sem lançamento para melhorar a análise do período" });
+    } else if (expectedDailyAvg > 0 && dailyAvg >= expectedDailyAvg * 0.95) {
       arr.push({ type: "success", title: `Média do período estável (${dailyAvg.toLocaleString("pt-BR")} ovos/dia)`, action: "Ritmo consistente — manter práticas atuais" });
-    } else if (metaDiaria > 0) {
+    } else if (expectedDailyAvg > 0) {
       arr.push({ type: "info", title: `Média do período abaixo da meta (${dailyAvg.toLocaleString("pt-BR")} ovos/dia)`, action: "Intensificar coleta e revisar horários de alimentação" });
     }
 
     return arr;
-  }, [registros, lotes]);
+  }, [producaoPorLote, productionMetrics.dailyTargets.length, productionMetrics.eggGoal, registros]);
 
   const filteredRegistros = useMemo(() => {
     if (!searchQuery.trim()) return registros;
@@ -480,12 +588,34 @@ export default function ProducaoPage() {
     const selectedLote = lotes.find(l => l.id === flockId);
     if (!selectedLote || !form.data.trim()) return;
 
+    const eligibility = getFlockProductionEligibility({
+      id: selectedLote.id,
+      birdCount: selectedLote.aves,
+      arrivalAgeWeeks: selectedLote.arrivalAgeWeeks,
+      arrivalDate: selectedLote.arrivalDate,
+    }, mortalities, form.data, selectedLote.status === "descarte");
+    if (!eligibility.isEligible) {
+      setError(eligibility.reason ?? "O lote não está apto para produção nesta data.");
+      return;
+    }
+
     const total = Number(form.total) || 0;
     const quebrados = Number(form.quebrados) || 0;
     const sujos = Number(form.sujos) || 0;
     const discardedInput = Number(form.descartados) || 0;
     const descartados = activeWithdrawal ? total : discardedInput;
-    const layingRate = selectedLote.aves > 0 ? (total / selectedLote.aves) * 100 : 0;
+    const dailyMetrics = calculateEggProductionMetrics({
+      flocks: [{
+        id: selectedLote.id,
+        birdCount: selectedLote.aves,
+        arrivalAgeWeeks: selectedLote.arrivalAgeWeeks,
+        arrivalDate: selectedLote.arrivalDate,
+      }],
+      mortalities,
+      startDate: form.data,
+      endDate: form.data,
+      totalEggs: total,
+    });
 
     setSaving(true);
     setError("");
@@ -498,8 +628,8 @@ export default function ProducaoPage() {
       broken_eggs: quebrados,
       dirty_eggs: sujos,
       discarded_eggs: descartados,
-      laying_rate: +layingRate.toFixed(2),
-      eggs_per_bird: selectedLote.aves > 0 ? +(total / selectedLote.aves).toFixed(4) : 0,
+      laying_rate: +dailyMetrics.layingRate.toFixed(2),
+      eggs_per_bird: dailyMetrics.eligibleBirdDays > 0 ? +(total / dailyMetrics.eligibleBirdDays).toFixed(4) : 0,
     };
 
     const supabase = createClient();
@@ -514,7 +644,7 @@ export default function ProducaoPage() {
       setModal(null);
       await fetchData();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao salvar registro.");
+      setError(getErrorMessage(err, "Erro ao salvar registro."));
     }
     setSaving(false);
   }
@@ -555,7 +685,7 @@ export default function ProducaoPage() {
       }),
     [insights]
   );
-  const farmHealthSummary = `Postura: ${healthScore.posturaRate.toFixed(1)}% | Meta: 92% | Perdas: ${healthScore.lossRate.toFixed(1)}%`;
+  const farmHealthSummary = `Postura: ${healthScore.posturaRate.toFixed(1)}% | Meta: ${productionMetrics.layingRateGoal.toFixed(1)}% | Perdas físicas: ${healthScore.lossRate.toFixed(1)}%`;
 
   /* ── Loading State ── */
   if (authLoading || loading) {
@@ -635,9 +765,10 @@ export default function ProducaoPage() {
               <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{kpi.value}</p>
               <span className={cn(
                 "inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full",
-                kpi.diff >= 0 ? "text-emerald-700 bg-emerald-50" : "text-red-600 bg-red-50"
+                kpi.diff > 0 ? "text-emerald-700 bg-emerald-50" : kpi.diff < 0 ? "text-red-600 bg-red-50" : "text-gray-600 bg-gray-100"
               )}>
-                {kpi.diff >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                {kpi.diff > 0 && <ArrowUpRight className="w-3 h-3" />}
+                {kpi.diff < 0 && <ArrowDownRight className="w-3 h-3" />}
                 {kpi.diffLabel}
               </span>
             </div>
@@ -670,9 +801,9 @@ export default function ProducaoPage() {
               </div>
               <span className={cn(
                 "text-[10px] font-semibold",
-                kpi.diff >= 0 ? "text-emerald-600" : "text-red-500"
+                kpi.diff > 0 ? "text-emerald-600" : kpi.diff < 0 ? "text-red-500" : "text-gray-500"
               )}>
-                {kpi.diff >= 0 ? "Acima" : "Abaixo"} do esperado
+                {kpi.diff > 0 ? "Acima do esperado" : kpi.diff < 0 ? "Abaixo do esperado" : "Na meta"}
               </span>
             </div>
           </div>
@@ -1012,9 +1143,7 @@ export default function ProducaoPage() {
                   labelStyle={{ fontWeight: 700, color: "#111827", marginBottom: "6px" }}
                   formatter={((value: unknown, name: unknown) => [Number(value).toLocaleString("pt-BR"), String(name) === "ovos" ? "Produção" : "Meta"]) satisfies TooltipFormatter}
                 />
-                {curvaProducao[0]?.meta > 0 && (
-                  <ReferenceLine y={curvaProducao[0].meta} stroke="#d1d5db" strokeDasharray="6 4" strokeWidth={1.5} />
-                )}
+                <Line type="monotone" dataKey="meta" stroke="#9ca3af" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="meta" />
                 <Area type="monotone" dataKey="ovos" stroke="#2d7a4f" strokeWidth={2.5} fill="url(#colorProd)" dot={{ r: 5, fill: "#fff", stroke: "#2d7a4f", strokeWidth: 2.5 }} activeDot={{ r: 7, fill: "#2d7a4f", stroke: "#fff", strokeWidth: 3 }} name="ovos" />
               </AreaChart>
             </ResponsiveContainer>
@@ -1111,8 +1240,8 @@ export default function ProducaoPage() {
         <div className="bg-white rounded-2xl border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-1">
             <div>
-              <h3 className="text-sm font-bold text-gray-900">Qualidade dos Ovos</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Distribuição da produção no período</p>
+              <h3 className="text-sm font-bold text-gray-900">Aproveitamento dos Ovos</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Distribuição comercial da produção no período</p>
             </div>
             <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">{qualityData[0]?.value || 0}% aproveitamento</span>
           </div>
@@ -1384,16 +1513,24 @@ export default function ProducaoPage() {
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Lote</label>
                   <select
                     value={form.loteId}
-                    onChange={(e) => setForm({ ...form, loteId: e.target.value })}
+                    onChange={(e) => {
+                      setError("");
+                      setForm({ ...form, loteId: e.target.value });
+                    }}
                     className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer"
                   >
                     <option value="">Selecionar lote...</option>
-                    {lotes.map((l) => (
+                    {eligibleLotes.map((l) => (
                       <option key={l.id} value={l.id}>
-                        {l.codigo} — {l.raca} ({l.aves.toLocaleString("pt-BR")} aves)
+                        {l.codigo} — {l.raca} ({(liveBirdsByFlock.get(l.id) ?? 0).toLocaleString("pt-BR")} aves vivas)
                       </option>
                     ))}
                   </select>
+                  {eligibleLotes.length === 0 && (
+                    <p className="mt-1 text-[10px] font-medium text-amber-600">
+                      Nenhum lote produtivo com aves vivas nesta data.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Data</label>
