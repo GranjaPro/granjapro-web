@@ -36,6 +36,8 @@ import type { Tables } from "@/lib/database.types";
 import { getFinancialSummaryInRange } from "@/lib/services/finances";
 import { getFarmBirdCount } from "@/lib/services/farms";
 import { getFeedInventory, type FeedInventoryCompatibilityRow } from "@/lib/services/inventory";
+import { calculateEggProductionMetrics } from "@/lib/domain/egg-production-metrics";
+import { calculateKpiVariation, getComparisonPeriod, type KpiVariation } from "@/lib/domain/kpi-comparison";
 import {
   createTask,
   deleteTask,
@@ -193,6 +195,12 @@ type DashboardAlert = {
 };
 type InventoryRow = Pick<FeedInventoryCompatibilityRow, "id" | "name" | "quantity" | "unit" | "status">;
 type MortalityAlertRow = Pick<Tables<"mortality">, "id" | "date" | "mortality_rate">;
+type FlockProductionMetricRow = Pick<
+  Tables<"flocks">,
+  "id" | "code" | "breed" | "bird_count" | "arrival_age_weeks" | "arrival_date"
+>;
+type FlockMortalityMetricRow = Pick<Tables<"mortality">, "flock_id" | "date" | "dead_birds">;
+type FeedCostMetricRow = Pick<Tables<"feed_consumption">, "cost_per_egg">;
 type OverdueTaskAlertRow = Pick<TaskRow, "id" | "title" | "date">;
 
 const todayStr = new Date().toISOString().split("T")[0];
@@ -205,6 +213,11 @@ const alertPriority: Record<DashboardAlertType, number> = {
 
 function toDateKey(date: Date) {
   return date.toISOString().split("T")[0];
+}
+
+function calculateAverageCostPerEgg(rows: FeedCostMetricRow[]): number {
+  if (rows.length === 0) return 0;
+  return rows.reduce((sum, row) => sum + Number(row.cost_per_egg ?? 0), 0) / rows.length;
 }
 
 function isSameCalendarDay(a: Date, b: Date) {
@@ -329,11 +342,18 @@ export default function DashboardPage() {
   const [productionData, setProductionData] = useState({
     date: "", eggsProduced: 0, brokenEggs: 0, dirtyEggs: 0, discardedEggs: 0, eggsSold: 0, eggPrice: 0, layingRate: 0, eggsPerBird: 0,
   });
+  const [productionGoals, setProductionGoals] = useState({ eggs: 0, layingRate: 0 });
+  const [kpiVariations, setKpiVariations] = useState<Record<"eggs" | "layingRate" | "costPerEgg" | "profit", KpiVariation>>({
+    eggs: { label: "0,0%", direction: "neutral" },
+    layingRate: { label: "0,0%", direction: "neutral" },
+    costPerEgg: { label: "0,0%", direction: "neutral" },
+    profit: { label: "0,0%", direction: "neutral" },
+  });
   const [feedData, setFeedData] = useState({
     quantity: 0, cost: 0, type: "", costPerEgg: 0,
   });
   const [financialData, setFinancialData] = useState({
-    revenue: 0, expenses: 0, profit: 0, feedCost: 0, laborCost: 0, otherExpenses: 0, revenueGoal: 0,
+    revenue: 0, expenses: 0, profit: 0, feedCost: 0, laborCost: 0, otherExpenses: 0,
   });
   const [barnsData, setBarnsData] = useState<{ id: string; name: string; birds: number; layingRate: number; status: "ok" | "warning"; createdAt: string }[]>([]);
   const [dbTasks, setDbTasks] = useState<DashboardTask[]>([]);
@@ -343,14 +363,6 @@ export default function DashboardPage() {
   // Chart production data
   const [chartProductionData, setChartProductionData] = useState<WeeklyDataPoint[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
-
-  // Fixed KPI goals
-  const kpiGoals = useMemo(() => ({
-    eggs: 15000,
-    layingRate: 92,
-    costPerEgg: 0.12,
-    profit: 0,
-  }), []);
 
   // Shared calendar filter
   const { dateRange, filterMode, rangeStart, rangeEnd, selectedDate } = useDateFilter();
@@ -383,23 +395,76 @@ export default function DashboardPage() {
 
     async function fetchDashboardData() {
       try {
+        const comparisonPeriod = getComparisonPeriod({
+          mode: filterMode,
+          startDate,
+          endDate,
+          todayDate: todayStr,
+        });
+        const metricEndDate = comparisonPeriod.currentEndDate;
         const threeDaysAgo = new Date();
         threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
         const threeDaysAgoStr = toDateKey(threeDaysAgo);
 
-        const [prodRes, feedRes, barnsRes, alertsRes, flocksRes, mortalityRes, overdueTasksRes, finSummary, birdCount] = await Promise.all([
-          supabase.from("egg_production").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
-          supabase.from("feed_consumption").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", endDate),
+        const [prodRes, previousProdRes, feedRes, previousFeedRes, barnsRes, alertsRes, flocksRes, mortalityRes, flockMortalityRes, overdueTasksRes, finSummary, previousFinSummary, birdCount] = await Promise.all([
+          supabase.from("egg_production").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", metricEndDate),
+          supabase.from("egg_production").select("eggs_produced").eq("farm_id", farmId).gte("date", comparisonPeriod.previousStartDate).lte("date", comparisonPeriod.previousEndDate),
+          supabase.from("feed_consumption").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", metricEndDate),
+          supabase.from("feed_consumption").select("cost_per_egg").eq("farm_id", farmId).gte("date", comparisonPeriod.previousStartDate).lte("date", comparisonPeriod.previousEndDate),
           supabase.from("barns").select("*").eq("farm_id", farmId).order("created_at"),
           supabase.from("alerts").select("*").eq("farm_id", farmId).eq("read", false).order("created_at", { ascending: false }).limit(5),
-          supabase.from("flocks").select("id, code, breed").eq("farm_id", farmId).order("created_at"),
+          supabase.from("flocks").select("id, code, breed, bird_count, arrival_age_weeks, arrival_date").eq("farm_id", farmId).order("created_at"),
           supabase.from("mortality").select("id, date, mortality_rate").eq("farm_id", farmId).gte("date", threeDaysAgoStr),
+          supabase.from("mortality").select("flock_id, date, dead_birds").eq("farm_id", farmId).lte("date", metricEndDate),
           supabase.from("tasks").select("id, title, date").eq("farm_id", farmId).eq("recurrence", "unica").lt("date", todayStr),
-          getFinancialSummaryInRange(farmId, startDate, endDate),
+          getFinancialSummaryInRange(farmId, startDate, metricEndDate),
+          getFinancialSummaryInRange(farmId, comparisonPeriod.previousStartDate, comparisonPeriod.previousEndDate),
           getFarmBirdCount(farmId),
         ]);
 
         if (flocksRes.data) setAvailableFlocks(flocksRes.data);
+
+        const productionRows = prodRes.data ?? [];
+        const totalEggs = productionRows.reduce((sum, row) => sum + row.eggs_produced, 0);
+        const previousTotalEggs = (previousProdRes.data ?? []).reduce((sum, row) => sum + row.eggs_produced, 0);
+        const metricFlocks = ((flocksRes.data ?? []) as FlockProductionMetricRow[]).map((flock) => ({
+          id: flock.id,
+          birdCount: flock.bird_count,
+          arrivalAgeWeeks: flock.arrival_age_weeks,
+          arrivalDate: flock.arrival_date,
+        }));
+        const metricMortalities = ((flockMortalityRes.data ?? []) as FlockMortalityMetricRow[]).map((mortality) => ({
+          flockId: mortality.flock_id,
+          date: mortality.date,
+          deadBirds: mortality.dead_birds,
+        }));
+        const productionMetrics = calculateEggProductionMetrics({
+          flocks: metricFlocks,
+          mortalities: metricMortalities,
+          startDate,
+          endDate: metricEndDate,
+          totalEggs,
+        });
+        const previousProductionMetrics = calculateEggProductionMetrics({
+          flocks: metricFlocks,
+          mortalities: metricMortalities,
+          startDate: comparisonPeriod.previousStartDate,
+          endDate: comparisonPeriod.previousEndDate,
+          totalEggs: previousTotalEggs,
+        });
+        const currentCostPerEgg = calculateAverageCostPerEgg(feedRes.data ?? []);
+        const previousCostPerEgg = calculateAverageCostPerEgg(previousFeedRes.data ?? []);
+
+        setKpiVariations({
+          eggs: calculateKpiVariation(totalEggs, previousTotalEggs),
+          layingRate: calculateKpiVariation(productionMetrics.layingRate, previousProductionMetrics.layingRate),
+          costPerEgg: calculateKpiVariation(currentCostPerEgg, previousCostPerEgg),
+          profit: calculateKpiVariation(finSummary.profit, previousFinSummary.profit),
+        });
+        setProductionGoals({
+          eggs: productionMetrics.eggGoal,
+          layingRate: productionMetrics.layingRateGoal,
+        });
 
         // Update farm info
         setFarmData({
@@ -413,15 +478,13 @@ export default function DashboardPage() {
         });
 
         // Aggregate production for selected period
-        if (prodRes.data && prodRes.data.length > 0) {
-          const totalEggs = prodRes.data.reduce((s, r) => s + r.eggs_produced, 0);
-          const totalBroken = prodRes.data.reduce((s, r) => s + (r.broken_eggs ?? 0), 0);
-          const totalDirty = prodRes.data.reduce((s, r) => s + (r.dirty_eggs ?? 0), 0);
-          const totalDiscarded = prodRes.data.reduce((s, r) => s + (r.discarded_eggs ?? 0), 0);
-          const totalSold = prodRes.data.reduce((s, r) => s + (r.eggs_sold ?? 0), 0);
-          const avgPrice = prodRes.data.reduce((s, r) => s + Number(r.egg_price ?? 0), 0) / prodRes.data.length;
-          const avgRate = prodRes.data.reduce((s, r) => s + Number(r.laying_rate ?? 0), 0) / prodRes.data.length;
-          const avgPerBird = prodRes.data.reduce((s, r) => s + Number(r.eggs_per_bird ?? 0), 0) / prodRes.data.length;
+        if (productionRows.length > 0) {
+          const totalBroken = productionRows.reduce((s, r) => s + (r.broken_eggs ?? 0), 0);
+          const totalDirty = productionRows.reduce((s, r) => s + (r.dirty_eggs ?? 0), 0);
+          const totalDiscarded = productionRows.reduce((s, r) => s + (r.discarded_eggs ?? 0), 0);
+          const totalSold = productionRows.reduce((s, r) => s + (r.eggs_sold ?? 0), 0);
+          const avgPrice = productionRows.reduce((s, r) => s + Number(r.egg_price ?? 0), 0) / productionRows.length;
+          const avgPerBird = productionRows.reduce((s, r) => s + Number(r.eggs_per_bird ?? 0), 0) / productionRows.length;
           setProductionData({
             date: startDate === endDate ? startDate : `${startDate} - ${endDate}`,
             eggsProduced: totalEggs,
@@ -430,7 +493,7 @@ export default function DashboardPage() {
             discardedEggs: totalDiscarded,
             eggsSold: totalSold,
             eggPrice: avgPrice,
-            layingRate: avgRate,
+            layingRate: productionMetrics.layingRate,
             eggsPerBird: avgPerBird,
           });
         } else {
@@ -452,12 +515,11 @@ export default function DashboardPage() {
         if (feedRes.data && feedRes.data.length > 0) {
           const totalQty = feedRes.data.reduce((s, r) => s + Number(r.quantity_kg), 0);
           const totalCost = feedRes.data.reduce((s, r) => s + Number(r.cost ?? 0), 0);
-          const avgCostPerEgg = feedRes.data.reduce((s, r) => s + Number(r.cost_per_egg ?? 0), 0) / feedRes.data.length;
           setFeedData({
             quantity: totalQty,
             cost: totalCost,
             type: feedRes.data[0].feed_type ?? "Ração Postura",
-            costPerEgg: avgCostPerEgg,
+            costPerEgg: currentCostPerEgg,
           });
         } else {
           setFeedData({
@@ -537,7 +599,6 @@ export default function DashboardPage() {
           feedCost: finSummary.categoryTotals.feed,
           laborCost: finSummary.categoryTotals.labor,
           otherExpenses: finSummary.expenses - finSummary.categoryTotals.feed - finSummary.categoryTotals.labor,
-          revenueGoal: finSummary.revenueGoal,
         });
 
         setDataLoaded(true);
@@ -548,7 +609,7 @@ export default function DashboardPage() {
     }
 
     fetchDashboardData();
-  }, [farm, dateRange]);
+  }, [farm, dateRange, filterMode]);
 
   useEffect(() => {
     void loadDashboardTasks();
@@ -899,7 +960,6 @@ export default function DashboardPage() {
   }, [filterMode, rangeStart, rangeEnd, selectedDate]);
 
   // Recompute KPI data from real state
-  const profitGoal = kpiGoals.profit > 0 ? kpiGoals.profit : financialData.revenue;
   const currentKpis = useMemo(() => {
     const { isMultiDay, days } = periodInfo;
     const avgPerDay = isMultiDay && days > 0 ? productionData.eggsProduced / days : 0;
@@ -912,48 +972,45 @@ export default function DashboardPage() {
         periodDetail: isMultiDay
           ? `Média: ${formatNumber(Math.round(avgPerDay))} ovos/dia`
           : undefined,
-        badge: "+3.2%",
-        badgeDir: "up" as "up" | "down" | "neutral",
+        badge: kpiVariations.eggs.label,
+        badgeDir: kpiVariations.eggs.direction,
         icon: Egg,
         color: "brand",
         gradient: "from-brand-500 to-brand-600",
         lightBg: "bg-brand-50",
         lightIcon: "text-brand-600",
-        progress: kpiGoals.eggs > 0 ? (productionData.eggsProduced / kpiGoals.eggs) * 100 : 0,
+        progress: productionGoals.eggs > 0 ? (productionData.eggsProduced / productionGoals.eggs) * 100 : 0,
         reached: formatNumber(productionData.eggsProduced),
-        goal: formatNumber(kpiGoals.eggs),
+        goal: formatNumber(productionGoals.eggs),
       },
       {
         key: "layingRate",
         title: "Taxa de Postura",
         value: `${productionData.layingRate.toFixed(1)}%`,
         periodDetail: isMultiDay ? "Média do período" : undefined,
-        badge: "+1.2%",
-        badgeDir: "up" as "up" | "down" | "neutral",
+        badge: kpiVariations.layingRate.label,
+        badgeDir: kpiVariations.layingRate.direction,
         icon: Target,
         color: "violet",
         gradient: "from-violet-500 to-violet-600",
         lightBg: "bg-violet-50",
         lightIcon: "text-violet-600",
-        progress: kpiGoals.layingRate > 0 ? (productionData.layingRate / kpiGoals.layingRate) * 100 : 0,
+        progress: productionGoals.layingRate > 0 ? (productionData.layingRate / productionGoals.layingRate) * 100 : 0,
         reached: `${productionData.layingRate.toFixed(1)}%`,
-        goal: `${kpiGoals.layingRate}%`,
+        goal: `${productionGoals.layingRate.toFixed(1)}%`,
       },
       {
         key: "costPerEgg",
         title: "Custo por Ovo",
         value: `R$ ${feedData.costPerEgg.toFixed(3)}`,
         periodDetail: isMultiDay ? "Média do período" : undefined,
-        badge: "-2.1%",
-        badgeDir: "up" as "up" | "down" | "neutral",
+        badge: kpiVariations.costPerEgg.label,
+        badgeDir: kpiVariations.costPerEgg.direction,
         icon: Wheat,
         color: "orange",
         gradient: "from-orange-500 to-orange-600",
         lightBg: "bg-orange-50",
         lightIcon: "text-orange-600",
-        progress: feedData.costPerEgg > 0 ? Math.min((kpiGoals.costPerEgg / feedData.costPerEgg) * 100, 100) : 0,
-        reached: `R$ ${feedData.costPerEgg.toFixed(3)}`,
-        goal: `R$ ${kpiGoals.costPerEgg.toFixed(3).replace(".", ",")}`,
       },
       {
         key: "profit",
@@ -962,19 +1019,16 @@ export default function DashboardPage() {
         periodDetail: isMultiDay
           ? `Média: ${formatCurrency(Math.round(financialData.profit / days))}/dia`
           : undefined,
-        badge: "+8.5%",
-        badgeDir: "up" as "up" | "down" | "neutral",
+        badge: kpiVariations.profit.label,
+        badgeDir: kpiVariations.profit.direction,
         icon: DollarSign,
         color: "emerald",
         gradient: "from-emerald-500 to-emerald-600",
         lightBg: "bg-emerald-50",
         lightIcon: "text-emerald-600",
-        progress: profitGoal > 0 ? (financialData.profit / profitGoal) * 100 : 0,
-        reached: formatCurrency(financialData.profit),
-        goal: formatCurrency(profitGoal),
       },
     ];
-  }, [productionData, feedData, financialData, periodInfo, kpiGoals, profitGoal]);
+  }, [productionData, productionGoals, kpiVariations, feedData, financialData, periodInfo]);
 
   const currentExpenseBreakdown = useMemo(() => [
     { name: "Ração", value: financialData.feedCost, color: "#f59e0b" },
@@ -1039,34 +1093,38 @@ export default function DashboardPage() {
                 </div>
                 <p className="text-[13px] font-semibold text-gray-600">{kpi.title}</p>
               </div>
-              <span className={cn(
-                "inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-lg",
-                kpi.badgeDir === "up" && "text-emerald-700 bg-emerald-50",
-                kpi.badgeDir === "down" && "text-red-600 bg-red-50",
-                kpi.badgeDir === "neutral" && "text-amber-700 bg-amber-50"
-              )}>
-                {kpi.badgeDir === "up" && <ArrowUpRight className="w-3 h-3" />}
-                {kpi.badgeDir === "down" && <ArrowDownRight className="w-3 h-3" />}
-                {kpi.badge}
-              </span>
+              {kpi.badge && (
+                <span className={cn(
+                  "inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-lg",
+                  kpi.badgeDir === "up" && "text-emerald-700 bg-emerald-50",
+                  kpi.badgeDir === "down" && "text-red-600 bg-red-50",
+                  kpi.badgeDir === "neutral" && "text-gray-600 bg-gray-100"
+                )}>
+                  {kpi.badgeDir === "up" && <ArrowUpRight className="w-3 h-3" />}
+                  {kpi.badgeDir === "down" && <ArrowDownRight className="w-3 h-3" />}
+                  {kpi.badge}
+                </span>
+              )}
             </div>
             <p className="text-2xl font-bold text-gray-900 tracking-tight">{kpi.value}</p>
             <p className="text-[12px] text-gray-500 mt-1 font-medium">
               {periodInfo.label}
               {kpi.periodDetail && <span className="ml-1">· {kpi.periodDetail}</span>}
             </p>
-            {/* Goal indicator */}
-            <div className="flex items-center justify-between mt-3 mb-1">
-              <span className="text-[11px] font-semibold text-gray-700">{kpi.reached}</span>
-              <span className="text-[11px] text-gray-400 font-medium">Meta: {kpi.goal}</span>
-            </div>
-            {/* Progress bar */}
-            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className={cn("h-full rounded-full transition-all duration-500", `bg-gradient-to-r ${kpi.gradient}`)}
-                style={{ width: `${Math.min(kpi.progress, 100)}%` }}
-              />
-            </div>
+            {kpi.goal && (
+              <>
+                <div className="flex items-center justify-between mt-3 mb-1">
+                  <span className="text-[11px] font-semibold text-gray-700">{kpi.reached}</span>
+                  <span className="text-[11px] text-gray-400 font-medium">Meta: {kpi.goal}</span>
+                </div>
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={cn("h-full rounded-full transition-all duration-500", `bg-gradient-to-r ${kpi.gradient}`)}
+                    style={{ width: `${Math.min(kpi.progress, 100)}%` }}
+                  />
+                </div>
+              </>
+            )}
           </div>
         ))}
       </div>
@@ -2075,24 +2133,6 @@ export default function DashboardPage() {
                 </div>
               </div>
               <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">{profitMargin}%</span>
-            </div>
-            {/* Revenue Goal Progress */}
-            <div className="mt-auto pt-2">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] text-gray-500 font-medium">Meta de receita mensal</span>
-                <span className="text-[11px] font-bold text-gray-700">
-                  {financialData.revenueGoal > 0 ? ((financialData.revenue / financialData.revenueGoal) * 100).toFixed(0) : 0}%
-                </span>
-              </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-brand-400 to-brand-600 rounded-full transition-all duration-700"
-                  style={{ width: `${financialData.revenueGoal > 0 ? (financialData.revenue / financialData.revenueGoal) * 100 : 0}%` }}
-                />
-              </div>
-              <p className="text-[11px] text-gray-400 mt-1.5">
-                {formatCurrency(financialData.revenue)} de {formatCurrency(financialData.revenueGoal)}
-              </p>
             </div>
           </div>
         </div>
