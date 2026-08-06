@@ -1,132 +1,51 @@
-## Guidelines for AI Agents and Code Assistants
-
-This file defines the fundamental rules of engagement for any Artificial Intelligence (AI) interacting with this repository. The goal is to keep the code clean, functional, and aligned with the "Get Shit Done" philosophy.
-
-When working on this project, you MUST strictly follow the rules below:
-
-#### 1. Reuse First (Don't Reinvent the Wheel)
-
-- Before creating any new function, component, class, or file, analyze the existing codebase.
-
-- Check if a solution, utility, or pattern is already implemented for the problem.
-
-- The number one priority is always code reuse.
-
- #### 2. Ask, Don't Guess! (Zero Hallucination)
-
-- If you identify gray areas, poorly explained requirements, lack of context, or ambiguities in my request:
-STOP AND ASK!
-
-- Ask clear and direct questions to clarify the doubt.
-
-- Under no circumstances try to guess business rules or fill gaps with assumptions.
-
-#### 3. Less Code is More Result (KISS / YAGNI)
-
-- Focus on solving the current problem in the simplest and most direct way possible.
-
-- Deliver the expected result by writing the smallest viable amount of code.
-
-- Avoid over-engineering and premature abstractions. You aren't gonna need it (YAGNI).
-
-#### 4. Sustainable Modularization
-
-- Write modular and focused code.
-- Functions and components must have a single responsibility (Single Responsibility Principle).
-
-- If a file or function is growing too large, split it logically to facilitate maintenance and readability.
-
-#### 5. Atomic Steps (Atomic Changes)
-
-- Make one structural or logical change at a time.
-
-- Do not rewrite entire files if the change is only in a specific function or snippet.
-
-- Small, fast, and iterative changes allow for quick testing (GSD) and avoid breaking what is already working.
-#### 6. Tests as a Contract
-
--The application's f unctionality is non-negotiable.
-
-- If you change the logic of a file, update or create the corresponding test in the same iteration to ensure functionality is maintained.
-
-- Do not deliver code that breaks existing tests.
-
-#### 7. Zero Tolerance for any in TypeScript
-
-- Never use the any type in TypeScript files.
-
-- Always use static typing best practices.
-
-- If types don't exist, create the necessary interfaces or types.
-
-- Typing must be strict, predictable, and help document the code.
-
-#### 8. Clean up unused code
-
-- When finding declared but unused variables, remove them from the code.
-
-### Clean Code
-
-#### 1. Meaningful Names
-
-- The name of a variable, function, or class should answer three big questions: why it exists, what it does, and how it is used.
-
-- Avoid generic names ( data, info, manager, utils) or confusing abbreviations.
-
-- If you need a comment to explain what a variable does, the name is wrong.
-
-#### 2. Tiny and Single-Purpose Functions (Do One Thing)
-
-- A function should do only ONE thing, do it well, and do only it (Single Responsibility Principle for functions).
-
-- Keep the number of parameters as small as possible (ideally 0 to 2). If you need more, encapsulate them in an object.
-
-- Separate commands from queries (Command Query Separation): a function should either change state or return information, never both.
-
-#### 3. Code is the Primary Documentation
-
-- Well-written code is self-explanatory. Avoid redundant comments or comments that explain "what" the code is doing.
-
-- Use comments ONLY to explain the "why" (design decisions, complex business rules, or reasons for not following a pattern).
-
-- Never leave commented-out (dead) code in the repository. Git serves as the history.
-
-#### 4. Clean Error Handling
-
-- Prefer throwing Exceptions rather than returning error codes or null.
-
-- Do not pass null as an argument to functions and avoid returning null (use patterns like Null Object or Optional if applicable).
-
-- Isolate error handling blocks from the main logic. Error handling is "one thing" that a function does.
-
-### Clean Architecture
-
-#### 1. The Dependency Rule
-
-- Source code dependencies must ALWAYS point inward, toward higher-level business rules.
-
-- Inner layers (Entities, Use Cases) cannot know absolutely anything about outer layers (UI, Database, Web Frameworks, external APIs).
-
-#### 2. Strict Responsibility Layers
-
-- Entities: Pure business rules (application agnostic).
-
-- Use Cases: Orchestrate the flow of data to and from the application, using the Entities.
-
-- Interface Adapters: Controllers, Presenters, and Gateways (Repositories) that convert data from the Core format to the Web/Database format and vice versa.
-
-- Details (Frameworks & Drivers): Libraries, web routes, ORMs. Keep this layer as thin as possible.
-
-#### 3. Frameworks and Databases are Details
-
-- Your architecture should not depend on the existence of React, Express, NestJS, Postgres, or MongoDB.
-
-- The application's "Core" (Use Cases and Entities) must be written in pure code and be completely isolated from external libraries.
-
-- Treat the database and user interface as plug-ins that can be replaced at any time without affecting business rules.
-
-#### 4. Dependency Inversion (DIP) and Absolute Testability
-
-- The application Core must define Interfaces (Ports), and outer layers (like Database Repositories) must implement these interfaces (Adapters).
-
-- Business rules must be 100% testable in isolation, without needing to boot up a web server, connect to a real database, or render a UI. Use mocks and stubs to inject dependencies in tests.
+# AGENTS.md
+
+## Core Rules
+
+* Read only the files required for the current task.
+* Reuse existing code, patterns, utilities, and dependencies before creating new ones.
+* Ask one concise question only when missing information blocks a safe implementation.
+* Make the smallest change that fully solves the requested problem.
+* Do not add features, abstractions, dependencies, or refactors outside the requested scope.
+* Keep changes atomic, focused, and easy to review.
+* Preserve existing behavior unless the request explicitly requires changing it.
+* Follow the repository's existing architecture, naming, formatting, and conventions.
+* Prefer simple, readable solutions over clever or overly generic ones.
+* Keep functions and modules small and focused on one responsibility.
+* Keep business rules independent from frameworks, databases, and external services.
+* Depend on interfaces defined by the application core, not concrete infrastructure.
+* Never use `any` in TypeScript; use explicit types or `unknown` with validation.
+* Remove code made unused by your changes, but do not perform unrelated cleanup.
+* Use meaningful names and avoid comments that only describe what the code does.
+* Comment only non-obvious business rules, constraints, or design decisions.
+* Never leave commented-out code in the repository.
+* Prefer explicit exceptions or typed results over silent failures and ambiguous `null` values.
+* Update or add focused tests whenever behavior changes.
+* Run only the tests, type checks, and linters relevant to the changed files.
+* Do not claim a command passed unless you actually executed it.
+* Do not rewrite entire files when a localized change is sufficient.
+* Do not output unchanged code, full files, or long explanations unless requested.
+* In the final response, report only the cause, changed files, validation, and remaining risks.
+* Search incrementally: inspect the requested file first, follow only direct dependencies, and stop once enough context exists to complete the task.
+* Do not reread files already inspected unless they changed or new evidence requires it.
+* Use targeted searches for symbols and references instead of browsing directories broadly.
+* Read only the relevant sections of large files whenever the tooling allows it.
+* Do not restate the request, repository rules, or previously established context.
+* Prefer repository tools, tests, type checkers, and linters over manually reasoning about generated output.
+* Do not generate plans for small, localized, and unambiguous changes.
+* Limit investigation to one likely path at a time; expand only when evidence disproves it.
+* Summarize large outputs, logs, and test results instead of reproducing them verbatim.
+* Avoid multiple implementation alternatives unless the requested approach is unsafe or infeasible.
+* Once validation passes and the acceptance criteria are met, stop.
+
+## Mandatory Approval Gate
+* Never modify code, files, dependencies, configurations, schemas, or tests before explicit approval.
+* Before implementation, inspect only the context required to produce a reliable plan.
+* Present the implementation plan with the problem, proposed solution, rationale, affected files, step-by-step changes, risks, tests, and exact code or diff to be applied.
+* Planning, analysis, code examples, and proposed diffs are read-only and do not authorize file changes.
+* Wait for the exact authorization: `planejamento aprovado, pode implementar`.
+* Do not treat messages such as `ok`, `certo`, `continue`, `parece bom`, or similar responses as implementation approval.
+* If the plan changes after approval, stop and request approval for the revised plan before continuing.
+* Implement only the approved files, code, and steps; do not include additional refactors, cleanup, or improvements.
+* After approval, do not repeat the full plan; implement it and report only changes, validation results, and deviations.
+* If implementation reveals an unexpected requirement, stop before modifying anything outside the approved plan.
