@@ -21,7 +21,6 @@ import {
   TrendingDown,
   TrendingUp,
   Minus,
-  Wrench,
   X,
   Zap,
 } from "lucide-react";
@@ -68,30 +67,6 @@ interface ChartPoint {
   breakdown: { label: string; liters: number }[];
 }
 
-// Infraestrutura hídrica registrada por galpão.
-interface BarnInfrastructure {
-  waterTankCleaning: string; // data da última limpeza da caixa d'água
-  drinkerCleaning: string;   // data da última limpeza dos bebedouros
-  totalDrinkers: number;     // total de bebedouros instalados
-  brokenDrinkers: number;    // bebedouros quebrados/inoperantes
-  hasLeak: boolean;          // ocorrência de vazamento
-  hasClog: boolean;          // ocorrência de entupimento
-  notes: string;             // observações livres
-}
-
-function defaultInfrastructure(): BarnInfrastructure {
-  return { waterTankCleaning: "", drinkerCleaning: "", totalDrinkers: 0, brokenDrinkers: 0, hasLeak: false, hasClog: false, notes: "" };
-}
-
-// Dias decorridos desde uma data ISO (null quando não informada).
-function daysSince(dateString: string): number | null {
-  if (!dateString) return null;
-  const then = new Date(dateString);
-  if (Number.isNaN(then.getTime())) return null;
-  const diff = Date.now() - then.getTime();
-  return Math.max(0, Math.floor(diff / 86_400_000));
-}
-
 // Referências do guia de manejo Novogen Brown (Seção 8 - Qualidade da Água, ITAVI 2012).
 // Consumo em produção varia de ~205 ml/ave/dia (clima ameno) a ~320 ml/ave/dia (calor).
 const PER_BIRD_IDEAL_MIN = 200; // ml/ave/dia
@@ -130,15 +105,6 @@ function estimateWaterFeedRatio(mlPerBird: number): number {
   return RATIO_ANCHORS[RATIO_ANCHORS.length - 1].ratio;
 }
 
-// Referências de infraestrutura.
-const BIRDS_PER_DRINKER_IDEAL = 10;       // aves por bebedouro (bico/nipple)
-const BIRDS_PER_DRINKER_WARN = 15;        // acima disso: pressão sobre os bebedouros
-const TANK_CLEANING_LIMIT_DAYS = 30;      // limpeza da caixa d'água: ideal ao menos mensal
-const DRINKER_CLEANING_LIMIT_DAYS = 7;    // higienização dos bebedouros: ideal semanal
-
-const INFRA_INPUT =
-  "w-full border border-gray-200 dark:border-white/10 dark:bg-slate-800 dark:text-slate-100 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all";
-
 // Tabela do guia: consumo de água conforme a temperatura do galpão.
 const TEMPERATURE_REFERENCE = [
   { temp: "15 °C", ratio: "1,7", perBird: "210 ml" },
@@ -153,44 +119,6 @@ const emptyForm: WaterForm = {
   flockId: "",
   quantityLiters: "",
 };
-
-// TEMP PREVIEW: dados mockados para validação visual sem login. Remover depois.
-const PREVIEW_MOCK = true;
-
-function buildMockData() {
-  const barns: Barn[] = [
-    { id: "barn-1", name: "Aviário Norte", current_birds: 480 },
-    { id: "barn-2", name: "Aviário Sul", current_birds: 520 },
-  ];
-  const flocks: Flock[] = [
-    { id: "flock-1", code: "LT-2024-A", bird_count: 480, barn_id: "barn-1" },
-    { id: "flock-2", code: "LT-2024-B", bird_count: 520, barn_id: "barn-2" },
-  ];
-  const records: WaterConsumptionRow[] = [];
-  const perDayBase = [232, 240, 228, 245, 238, 250, 236, 242, 230, 248, 244, 239, 236, 251];
-  for (let i = perDayBase.length - 1; i >= 0; i -= 1) {
-    const day = new Date();
-    day.setDate(day.getDate() - i);
-    const date = day.toISOString().split("T")[0];
-    const total = perDayBase[perDayBase.length - 1 - i];
-    records.push(
-      { id: `w-${date}-a`, created_at: date, farm_id: "mock", barn_id: "barn-1", flock_id: "flock-1", date, quantity_liters: Math.round(total * 0.46) },
-      { id: `w-${date}-b`, created_at: date, farm_id: "mock", barn_id: "barn-2", flock_id: "flock-2", date, quantity_liters: Math.round(total * 0.56) },
-    );
-  }
-  const totalLiters = records.reduce((sum, r) => sum + Number(r.quantity_liters), 0);
-  const feedKg = Math.round(totalLiters / 1.8); // relação água:ração ≈ 1,8 : 1
-  const isoDaysAgo = (days: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() - days);
-    return d.toISOString().split("T")[0];
-  };
-  const infrastructure: Record<string, BarnInfrastructure> = {
-    "barn-1": { waterTankCleaning: isoDaysAgo(12), drinkerCleaning: isoDaysAgo(3), totalDrinkers: 48, brokenDrinkers: 1, hasLeak: false, hasClog: false, notes: "Linha A revisada na última limpeza." },
-    "barn-2": { waterTankCleaning: isoDaysAgo(34), drinkerCleaning: isoDaysAgo(8), totalDrinkers: 50, brokenDrinkers: 3, hasLeak: true, hasClog: false, notes: "" },
-  };
-  return { barns, flocks, records, feedKg, infrastructure };
-}
 
 function formatDate(date: string) {
   return new Date(`${date}T00:00:00`).toLocaleDateString("pt-BR");
@@ -214,21 +142,8 @@ export default function AguaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [infrastructure, setInfrastructure] = useState<Record<string, BarnInfrastructure>>({});
-  const [infraBarnId, setInfraBarnId] = useState("");
-  const [infraFormOpen, setInfraFormOpen] = useState(false);
 
   const loadData = useCallback(async () => {
-    if (PREVIEW_MOCK) {
-      const mock = buildMockData();
-      setRecords(mock.records);
-      setBarns(mock.barns);
-      setFlocks(mock.flocks);
-      setFeedKg(mock.feedKg);
-      setInfrastructure(mock.infrastructure);
-      setIsLoading(false);
-      return;
-    }
     if (!farm?.id) return;
     setIsLoading(true);
     setError(null);
@@ -263,23 +178,6 @@ export default function AguaPage() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
-
-  // Garante uma entrada de infraestrutura para cada galpão e seleciona o primeiro.
-  useEffect(() => {
-    if (barns.length === 0) return;
-    setInfrastructure((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const barn of barns) {
-        if (!next[barn.id]) {
-          next[barn.id] = defaultInfrastructure();
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-    setInfraBarnId((prev) => (prev && barns.some((barn) => barn.id === prev) ? prev : barns[0].id));
-  }, [barns]);
 
   const barnNameById = useMemo(
     () => new Map(barns.map((barn) => [barn.id, barn.name])),
@@ -493,32 +391,10 @@ export default function AguaPage() {
       arr.push({ type: "warning", title: `${flagged.length} galpão(ões) fora do padrão`, action: `Comparar manejo: ${flagged.map((row) => row.name).join(", ")}.` });
     }
 
-    for (const barn of barns) {
-      const data = infrastructure[barn.id];
-      if (!data) continue;
-      const dTank = daysSince(data.waterTankCleaning);
-      const dDrinker = daysSince(data.drinkerCleaning);
-      if (dTank !== null && dTank > TANK_CLEANING_LIMIT_DAYS) {
-        arr.push({ type: "warning", title: `Caixa d'água sem limpeza há ${dTank}d (${barn.name})`, action: `Higienizar — recomendado a cada ${TANK_CLEANING_LIMIT_DAYS} dias.` });
-      }
-      if (dDrinker !== null && dDrinker > DRINKER_CLEANING_LIMIT_DAYS) {
-        arr.push({ type: "warning", title: `Bebedouros sem limpeza há ${dDrinker}d (${barn.name})`, action: `Higienizar — recomendado a cada ${DRINKER_CLEANING_LIMIT_DAYS} dias.` });
-      }
-      if (data.brokenDrinkers > 0) {
-        arr.push({ type: "warning", title: `${data.brokenDrinkers} bebedouro(s) quebrado(s) em ${barn.name}`, action: "Substituir para garantir acesso uniforme à água." });
-      }
-      if (data.hasLeak) {
-        arr.push({ type: "warning", title: `Vazamento registrado em ${barn.name}`, action: "Inspecionar a linha e corrigir para evitar desperdício e cama úmida." });
-      }
-      if (data.hasClog) {
-        arr.push({ type: "warning", title: `Entupimento registrado em ${barn.name}`, action: "Desobstruir a linha para manter a vazão dos bebedouros." });
-      }
-    }
-
     arr.push({ type: "info", title: "Água é o nutriente nº 1", action: "Mantenha água limpa e fresca (<20 °C) disponível o tempo todo." });
 
     return arr;
-  }, [hasData, status, trend, mlPerBirdPerDay, waterFeedRatio, barnComparison, infrastructure, barns]);
+  }, [hasData, status, trend, mlPerBirdPerDay, waterFeedRatio, barnComparison]);
 
   const chartData = useMemo<ChartPoint[]>(() => {
     const byDate = new Map<string, { liters: number; flocks: Map<string, number> }>();
@@ -630,14 +506,6 @@ export default function AguaPage() {
     }
   }
 
-  function updateInfra(patch: Partial<BarnInfrastructure>) {
-    if (!infraBarnId) return;
-    setInfrastructure((prev) => ({
-      ...prev,
-      [infraBarnId]: { ...(prev[infraBarnId] ?? defaultInfrastructure()), ...patch },
-    }));
-  }
-
   if (isLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -652,14 +520,6 @@ export default function AguaPage() {
   const deviationText = trend ? `${trend.deviationPct >= 0 ? "+" : ""}${trend.deviationPct.toFixed(0)}%` : "—";
   const deviationMagnitude = trend ? Math.abs(trend.deviationPct) : 0;
   const DeviationIcon = !trend || deviationMagnitude < 1 ? Minus : trend.deviationPct > 0 ? TrendingUp : TrendingDown;
-
-  const selectedBarn = barns.find((barn) => barn.id === infraBarnId);
-  const infra = infrastructure[infraBarnId] ?? defaultInfrastructure();
-  const barnBirds = selectedBarn?.current_birds ?? 0;
-  const functionalDrinkers = Math.max(infra.totalDrinkers - infra.brokenDrinkers, 0);
-  const birdsPerDrinker = functionalDrinkers > 0 ? barnBirds / functionalDrinkers : null;
-  const daysSinceTank = daysSince(infra.waterTankCleaning);
-  const daysSinceDrinker = daysSince(infra.drinkerCleaning);
 
   const toneCircle =
     status.tone === "emerald"
@@ -818,7 +678,7 @@ export default function AguaPage() {
       </div>
 
       {/* Main Layout Grid */}
-      <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-4">
         {/* Left Column: Chart */}
         <section className="lg:col-span-2 flex flex-col bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 dark:border-white/10 dark:bg-slate-900">
           <div className="mb-4 flex items-start justify-between gap-3">
@@ -865,6 +725,58 @@ export default function AguaPage() {
           </div>
         </section>
 
+        {/* Assistente de Granja */}
+        <section className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900 flex flex-col">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm flex-shrink-0">
+              <Zap className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100">Assistente de Granja</h2>
+              <p className="text-xs text-gray-400 dark:text-slate-500">Baseado nos dados do período</p>
+            </div>
+          </div>
+          <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
+            {waterInsights.map((ins, index) => {
+              const link = insightHref(`${ins.title} ${ins.action}`);
+              return (
+              <div
+                key={index}
+                className={cn(
+                  "p-3 rounded-xl border-l-[3px]",
+                  ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500 dark:bg-emerald-950/20",
+                  ins.type === "warning" && "bg-amber-50/50 border-l-amber-500 dark:bg-amber-950/20",
+                  ins.type === "info" && "bg-blue-50/50 border-l-blue-500 dark:bg-blue-950/20"
+                )}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <div
+                    className={cn(
+                      "w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0",
+                      ins.type === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
+                      ins.type === "warning" && "bg-amber-100 dark:bg-amber-900/40",
+                      ins.type === "info" && "bg-blue-100 dark:bg-blue-900/40"
+                    )}
+                  >
+                    {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />}
+                    {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />}
+                    {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600 dark:text-blue-400" />}
+                  </div>
+                  <span className="text-xs font-semibold text-gray-800 dark:text-slate-200">{ins.title}</span>
+                </div>
+                <div className="ml-7 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                  <p className={cn("text-[11px] font-medium", ins.type === "success" ? "text-emerald-600 dark:text-emerald-400" : ins.type === "warning" ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400")}>→ {ins.action}</p>
+                  <Link href={link.href} className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 hover:underline dark:text-indigo-400">
+                    {link.label}
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+              </div>
+              );
+            })}
+          </div>
+        </section>
+
         {/* Right Column: Records Log */}
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm dark:border-white/10 dark:bg-slate-900 flex flex-col overflow-hidden">
           <div className="border-b border-gray-100 p-4 dark:border-white/10 flex-shrink-0">
@@ -902,133 +814,8 @@ export default function AguaPage() {
         </section>
       </div>
 
-      {/* Infraestrutura + comparativo + assistente */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 sm:gap-4">
-      <section className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900 flex flex-col">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/20 flex items-center justify-center flex-shrink-0">
-              <Wrench className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100">Infraestrutura Hídrica</h2>
-              <p className="text-xs text-gray-400 dark:text-slate-500">Equipamentos e manutenção por galpão</p>
-            </div>
-          </div>
-          {barns.length > 0 && (
-            <div className="flex items-center gap-2.5">
-              <label className="flex-1 sm:w-48">
-                <span className="sr-only">Galpão</span>
-                <select
-                  value={infraBarnId}
-                  onChange={(event) => setInfraBarnId(event.target.value)}
-                  className={cn(INFRA_INPUT, "bg-white cursor-pointer")}
-                >
-                  {barns.map((barn) => <option key={barn.id} value={barn.id}>{barn.name}</option>)}
-                </select>
-              </label>
-              <button
-                type="button"
-                onClick={() => setInfraFormOpen((open) => !open)}
-                aria-expanded={infraFormOpen}
-                className={cn(
-                  "flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all",
-                  infraFormOpen
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : "bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:hover:bg-blue-950/40"
-                )}
-                title={infraFormOpen ? "Fechar formulário" : "Editar infraestrutura"}
-              >
-                <Plus className={cn("w-5 h-5 transition-transform", infraFormOpen && "rotate-45")} />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {barns.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-slate-400">Cadastre um galpão para registrar a infraestrutura hídrica.</p>
-        ) : (
-          <div className="flex-1 flex flex-col gap-4">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 flex-1 auto-rows-fr">
-              <InfraStat
-                label="Aves por bebedouro"
-                value={birdsPerDrinker !== null ? birdsPerDrinker.toFixed(1) : "—"}
-                hint={`Ideal ≤ ${BIRDS_PER_DRINKER_IDEAL}`}
-                tone={birdsPerDrinker === null ? "neutral" : birdsPerDrinker <= BIRDS_PER_DRINKER_IDEAL ? "emerald" : birdsPerDrinker <= BIRDS_PER_DRINKER_WARN ? "amber" : "red"}
-              />
-              <InfraStat
-                label="Bebedouros quebrados"
-                value={`${infra.brokenDrinkers} de ${infra.totalDrinkers}`}
-                hint={`${functionalDrinkers} em uso`}
-                tone={infra.brokenDrinkers === 0 ? "emerald" : "red"}
-              />
-              <InfraStat
-                label="Limpeza da caixa"
-                value={daysSinceTank === null ? "—" : `há ${daysSinceTank}d`}
-                hint={`Ideal ≤ ${TANK_CLEANING_LIMIT_DAYS}d`}
-                tone={daysSinceTank === null ? "neutral" : daysSinceTank <= TANK_CLEANING_LIMIT_DAYS ? "emerald" : "amber"}
-              />
-              <InfraStat
-                label="Limpeza dos bebedouros"
-                value={daysSinceDrinker === null ? "—" : `há ${daysSinceDrinker}d`}
-                hint={`Ideal ≤ ${DRINKER_CLEANING_LIMIT_DAYS}d`}
-                tone={daysSinceDrinker === null ? "neutral" : daysSinceDrinker <= DRINKER_CLEANING_LIMIT_DAYS ? "emerald" : "amber"}
-              />
-              <InfraStat
-                label="Vazamento"
-                value={infra.hasLeak ? "Registrado" : "Sem ocorrência"}
-                hint={infra.hasLeak ? "Inspecionar a linha" : "Linha sem vazamento"}
-                tone={infra.hasLeak ? "red" : "emerald"}
-              />
-              <InfraStat
-                label="Entupimento"
-                value={infra.hasClog ? "Registrado" : "Sem ocorrência"}
-                hint={infra.hasClog ? "Desobstruir a linha" : "Vazão normal"}
-                tone={infra.hasClog ? "red" : "emerald"}
-              />
-            </div>
-
-            {infraFormOpen && (
-              <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50/60 dark:bg-slate-800/40 p-4 sm:p-5 space-y-4">
-                <p className="text-xs font-semibold text-gray-600 dark:text-slate-400">Atualizar infraestrutura · {selectedBarn?.name}</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <Field label="Última limpeza da caixa d'água">
-                    <input type="date" value={infra.waterTankCleaning} onChange={(event) => updateInfra({ waterTankCleaning: event.target.value })} className={INFRA_INPUT} />
-                  </Field>
-                  <Field label="Última limpeza dos bebedouros">
-                    <input type="date" value={infra.drinkerCleaning} onChange={(event) => updateInfra({ drinkerCleaning: event.target.value })} className={INFRA_INPUT} />
-                  </Field>
-                  <Field label="Total de bebedouros">
-                    <input type="number" min="0" value={infra.totalDrinkers || ""} onChange={(event) => updateInfra({ totalDrinkers: Math.max(0, Math.floor(Number(event.target.value) || 0)) })} placeholder="0" className={INFRA_INPUT} />
-                  </Field>
-                  <Field label="Bebedouros quebrados">
-                    <input type="number" min="0" value={infra.brokenDrinkers || ""} onChange={(event) => updateInfra({ brokenDrinkers: Math.max(0, Math.floor(Number(event.target.value) || 0)) })} placeholder="0" className={INFRA_INPUT} />
-                  </Field>
-                  <Field label="Ocorrência de vazamento">
-                    <OccurrenceToggle value={infra.hasLeak} onChange={(value) => updateInfra({ hasLeak: value })} />
-                  </Field>
-                  <Field label="Ocorrência de entupimento">
-                    <OccurrenceToggle value={infra.hasClog} onChange={(value) => updateInfra({ hasClog: value })} />
-                  </Field>
-                </div>
-
-                <Field label="Observações">
-                  <textarea
-                    value={infra.notes}
-                    onChange={(event) => updateInfra({ notes: event.target.value })}
-                    rows={2}
-                    placeholder="Ex.: linha de bebedouros revisada, troca de nipple, ajuste de pressão…"
-                    className={cn(INFRA_INPUT, "resize-none")}
-                  />
-                </Field>
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-
       {/* Comparativo entre galpões */}
-      <section className="lg:col-span-1 bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900">
+      <section className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900">
         <div className="flex items-center gap-2.5 mb-5">
           <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/20 flex items-center justify-center flex-shrink-0">
             <Scale className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -1071,59 +858,6 @@ export default function AguaPage() {
           </div>
         )}
       </section>
-
-      {/* Assistente de Granja */}
-      <section className="lg:col-span-1 bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900 flex flex-col">
-        <div className="flex items-center gap-2.5 mb-4">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm flex-shrink-0">
-            <Zap className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100">Assistente de Granja</h2>
-            <p className="text-xs text-gray-400 dark:text-slate-500">Baseado nos dados do período</p>
-          </div>
-        </div>
-        <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-          {waterInsights.map((ins, index) => {
-            const link = insightHref(`${ins.title} ${ins.action}`);
-            return (
-            <div
-              key={index}
-              className={cn(
-                "p-3 rounded-xl border-l-[3px]",
-                ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500 dark:bg-emerald-950/20",
-                ins.type === "warning" && "bg-amber-50/50 border-l-amber-500 dark:bg-amber-950/20",
-                ins.type === "info" && "bg-blue-50/50 border-l-blue-500 dark:bg-blue-950/20"
-              )}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <div
-                  className={cn(
-                    "w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0",
-                    ins.type === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
-                    ins.type === "warning" && "bg-amber-100 dark:bg-amber-900/40",
-                    ins.type === "info" && "bg-blue-100 dark:bg-blue-900/40"
-                  )}
-                >
-                  {ins.type === "success" && <TrendingUp className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />}
-                  {ins.type === "warning" && <AlertTriangle className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />}
-                  {ins.type === "info" && <Lightbulb className="w-2.5 h-2.5 text-blue-600 dark:text-blue-400" />}
-                </div>
-                <span className="text-xs font-semibold text-gray-800 dark:text-slate-200">{ins.title}</span>
-              </div>
-              <div className="ml-7 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                <p className={cn("text-[11px] font-medium", ins.type === "success" ? "text-emerald-600 dark:text-emerald-400" : ins.type === "warning" ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400")}>→ {ins.action}</p>
-                <Link href={link.href} className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 hover:underline dark:text-indigo-400">
-                  {link.label}
-                  <ArrowRight className="w-3 h-3" />
-                </Link>
-              </div>
-            </div>
-            );
-          })}
-        </div>
-      </section>
-      </div>
 
       {/* Painel educativo - "como interpretar" baseado no guia de manejo */}
       <section className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3">
@@ -1408,48 +1142,5 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <span className="mb-1.5 block text-xs font-semibold text-gray-600 dark:text-slate-400">{label}</span>
       {children}
     </label>
-  );
-}
-
-function InfraStat({ label, value, hint, tone }: { label: string; value: string; hint: string; tone: "neutral" | "emerald" | "amber" | "red" }) {
-  const toneClass = {
-    neutral: "text-gray-800 dark:text-slate-100",
-    emerald: "text-emerald-600 dark:text-emerald-400",
-    amber: "text-amber-600 dark:text-amber-400",
-    red: "text-red-600 dark:text-red-400",
-  }[tone];
-  return (
-    <div className="h-full flex flex-col rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50/60 dark:bg-slate-800/40 p-3">
-      <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{label}</p>
-      <p className={cn("mt-auto pt-2 text-lg font-bold leading-tight", toneClass)}>{value}</p>
-      <p className="mt-0.5 text-[11px] text-gray-400 dark:text-slate-500">{hint}</p>
-    </div>
-  );
-}
-
-function OccurrenceToggle({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <div className="inline-flex rounded-xl border border-gray-200 dark:border-white/10 p-1 bg-gray-50 dark:bg-slate-800">
-      <button
-        type="button"
-        onClick={() => onChange(false)}
-        className={cn(
-          "px-4 py-1.5 text-sm font-semibold rounded-lg transition-all",
-          !value ? "bg-emerald-500 text-white shadow-sm" : "text-gray-500 dark:text-slate-400"
-        )}
-      >
-        Não
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange(true)}
-        className={cn(
-          "px-4 py-1.5 text-sm font-semibold rounded-lg transition-all",
-          value ? "bg-red-500 text-white shadow-sm" : "text-gray-500 dark:text-slate-400"
-        )}
-      >
-        Sim
-      </button>
-    </div>
   );
 }
