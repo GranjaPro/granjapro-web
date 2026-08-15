@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useState, useMemo, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useMemo, type ReactNode } from "react";
+import { getMonthDateRange } from "@/lib/domain/date-filter-range";
 
 export type FilterMode = "dia" | "intervalo" | "mes";
 
@@ -27,7 +28,7 @@ function toLocalDateString(d: Date): string {
 }
 
 export function DateFilterProvider({ children }: { children: ReactNode }) {
-  const [filterMode, setFilterMode] = useState<FilterMode>("dia");
+  const [filterMode, setFilterMode] = useState<FilterMode>("mes");
   const [rangeStart, setRangeStart] = useState<Date | null>(new Date());
   const [rangeEnd, setRangeEnd] = useState<Date | null>(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -43,10 +44,7 @@ export function DateFilterProvider({ children }: { children: ReactNode }) {
       startDate = toLocalDateString(rangeStart);
       endDate = toLocalDateString(rangeEnd);
     } else if (filterMode === "mes") {
-      const year = selectedDate.getFullYear();
-      const month = selectedDate.getMonth();
-      startDate = toLocalDateString(new Date(year, month, 1));
-      endDate = toLocalDateString(new Date(year, month + 1, 0));
+      ({ startDate, endDate } = getMonthDateRange(selectedDate));
     } else {
       const end = new Date();
       const start = new Date();
