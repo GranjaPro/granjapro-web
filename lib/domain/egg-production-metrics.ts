@@ -1,5 +1,6 @@
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
 const WEEK_IN_MILLISECONDS = 7 * DAY_IN_MILLISECONDS;
+const HIGH_LAYING_RATE_CONFIRMATION_THRESHOLD = 150;
 
 export interface ProductiveFlock {
   id: string;
@@ -22,6 +23,26 @@ interface EggProductionMetricInput {
   totalEggs: number;
 }
 
+export interface FlockProductionRecord {
+  flockId: string | null;
+  date: string;
+  eggsProduced: number;
+}
+
+interface RecordedFlockProductionMetricInput {
+  flock: ProductiveFlock;
+  mortalities: FlockMortality[];
+  productionRecords: FlockProductionRecord[];
+  startDate: string;
+  endDate: string;
+}
+
+export interface RecordedFlockProductionMetrics extends EggProductionMetrics {
+  liveBirds: number;
+  recordedDays: number;
+  totalEggs: number;
+}
+
 export interface EggProductionMetrics {
   eggGoal: number;
   layingRate: number;
@@ -41,6 +62,22 @@ export interface FlockProductionEligibility {
   isEligible: boolean;
   reason?: string;
 }
+
+export function requiresHighLayingRateConfirmation(layingRate: number): boolean {
+  return layingRate >= HIGH_LAYING_RATE_CONFIRMATION_THRESHOLD;
+}
+
+export type ProductionPhase =
+  | "cria"
+  | "recria"
+  | "pre-postura"
+  | "inicio-producao"
+  | "subida-producao"
+  | "pico"
+  | "producao-estavel"
+  | "declinio-inicial"
+  | "declinio-acentuado"
+  | "final-ciclo";
 
 export function calculateLiveBirdsAtDate(
   flocks: ProductiveFlock[],
@@ -76,6 +113,40 @@ export function getExpectedLayingRate(ageWeeks: number): number {
   if (ageWeeks < 75) return 88;
   if (ageWeeks <= 90) return 80;
   return 68;
+}
+
+export function getProductionPhase(ageWeeks: number): ProductionPhase {
+  if (ageWeeks < 6) return "cria";
+  if (ageWeeks < 17) return "recria";
+  if (ageWeeks < 18) return "pre-postura";
+  if (ageWeeks < 22) return "inicio-producao";
+  if (ageWeeks < 25) return "subida-producao";
+  if (ageWeeks < 35) return "pico";
+  if (ageWeeks < 60) return "producao-estavel";
+  if (ageWeeks < 75) return "declinio-inicial";
+  if (ageWeeks <= 90) return "declinio-acentuado";
+  return "final-ciclo";
+}
+
+const productionPhaseLabels: Record<ProductionPhase, string> = {
+  cria: "Cria",
+  recria: "Recria",
+  "pre-postura": "Pré-postura",
+  "inicio-producao": "Início da produção",
+  "subida-producao": "Subida da produção",
+  pico: "Pico",
+  "producao-estavel": "Produção estável",
+  "declinio-inicial": "Declínio inicial",
+  "declinio-acentuado": "Declínio acentuado",
+  "final-ciclo": "Final de ciclo",
+};
+
+export function getProductionPhaseName(phase: ProductionPhase): string {
+  return productionPhaseLabels[phase];
+}
+
+export function getProductionPhaseLabel(ageWeeks: number): string {
+  return getProductionPhaseName(getProductionPhase(ageWeeks));
 }
 
 function getAgeAtDate(flock: ProductiveFlock, date: Date): number | undefined {
@@ -201,5 +272,53 @@ export function calculateEggProductionMetrics({
     layingRateGoal: eligibleBirdDays > 0 ? (exactEggGoal / eligibleBirdDays) * 100 : 0,
     eligibleBirdDays,
     dailyTargets,
+  };
+}
+
+export function calculateRecordedFlockProductionMetrics({
+  flock,
+  mortalities,
+  productionRecords,
+  startDate,
+  endDate,
+}: RecordedFlockProductionMetricInput): RecordedFlockProductionMetrics {
+  const eggsByDate = new Map<string, number>();
+
+  productionRecords.forEach((record) => {
+    if (record.flockId !== flock.id || record.date < startDate || record.date > endDate) return;
+    eggsByDate.set(record.date, (eggsByDate.get(record.date) ?? 0) + record.eggsProduced);
+  });
+
+  const eligibleDailyMetrics = [...eggsByDate.entries()]
+    .sort(([firstDate], [secondDate]) => firstDate.localeCompare(secondDate))
+    .map(([date, totalEggs]) => ({
+      totalEggs,
+      metrics: calculateEggProductionMetrics({
+        flocks: [flock],
+        mortalities,
+        startDate: date,
+        endDate: date,
+        totalEggs,
+      }),
+    }))
+    .filter(({ metrics }) => metrics.eligibleBirdDays > 0);
+
+  const totalEggs = eligibleDailyMetrics.reduce((sum, day) => sum + day.totalEggs, 0);
+  const eligibleBirdDays = eligibleDailyMetrics.reduce((sum, day) => sum + day.metrics.eligibleBirdDays, 0);
+  const exactEggGoal = eligibleDailyMetrics.reduce((sum, day) => {
+    const { metrics } = day;
+    const target = metrics.dailyTargets[0];
+    return sum + (target ? target.eligibleBirds * (target.layingRateGoal / 100) : 0);
+  }, 0);
+
+  return {
+    eggGoal: Math.round(exactEggGoal),
+    layingRate: eligibleBirdDays > 0 ? (totalEggs / eligibleBirdDays) * 100 : 0,
+    layingRateGoal: eligibleBirdDays > 0 ? (exactEggGoal / eligibleBirdDays) * 100 : 0,
+    eligibleBirdDays,
+    dailyTargets: eligibleDailyMetrics.flatMap(({ metrics }) => metrics.dailyTargets),
+    liveBirds: calculateLiveBirdsAtDate([flock], mortalities, endDate),
+    recordedDays: eligibleDailyMetrics.length,
+    totalEggs,
   };
 }
