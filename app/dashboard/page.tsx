@@ -35,9 +35,13 @@ import { createClient } from "@/lib/supabase/client";
 import type { Tables } from "@/lib/database.types";
 import { getFinancialSummaryInRange } from "@/lib/services/finances";
 import { getFarmBirdCount } from "@/lib/services/farms";
-import { getFeedInventory, type FeedInventoryCompatibilityRow } from "@/lib/services/inventory";
-import { calculateEggProductionMetrics } from "@/lib/domain/egg-production-metrics";
+import {
+  calculateEggProductionMetrics,
+  calculateRecordedFlockProductionMetrics,
+} from "@/lib/domain/egg-production-metrics";
+import { calculateFeedFinancialMetrics } from "@/lib/domain/financial-kpi-metrics";
 import { calculateKpiVariation, getComparisonPeriod, type KpiVariation } from "@/lib/domain/kpi-comparison";
+import { formatTaskCompletionDate, shouldMarkTaskOccurrenceMissed, toLocalDateKey } from "@/lib/domain/task-timing";
 import {
   createTask,
   deleteTask,
@@ -97,6 +101,7 @@ interface DashboardTask {
   recurrence: TaskRecurrence;
   flockId: string | null;
   notes: string;
+  completedAt: string | null;
 }
 
 const taskIconMap: Record<TaskIconKey, { icon: LucideIcon; label: string; color: string; bg: string }> = {
@@ -183,41 +188,59 @@ type ProductionChartRow = {
   eggs_produced: number;
   laying_rate: number | null;
 };
-type DashboardAlertType = "danger" | "warning" | "info";
-type DashboardAlert = {
-  id: string;
-  type: DashboardAlertType;
-  msg: string;
-  time: string;
-  action: string;
-  risk: string;
-  href?: string;
-};
-type InventoryRow = Pick<FeedInventoryCompatibilityRow, "id" | "name" | "quantity" | "unit" | "status">;
-type MortalityAlertRow = Pick<Tables<"mortality">, "id" | "date" | "mortality_rate">;
 type FlockProductionMetricRow = Pick<
   Tables<"flocks">,
-  "id" | "code" | "breed" | "bird_count" | "arrival_age_weeks" | "arrival_date"
+  "id" | "code" | "breed" | "bird_count" | "arrival_age_weeks" | "arrival_date" | "status"
 >;
 type FlockMortalityMetricRow = Pick<Tables<"mortality">, "flock_id" | "date" | "dead_birds">;
-type FeedCostMetricRow = Pick<Tables<"feed_consumption">, "cost_per_egg">;
-type OverdueTaskAlertRow = Pick<TaskRow, "id" | "title" | "date">;
-
-const todayStr = new Date().toISOString().split("T")[0];
-const yesterdayStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0]; })();
-const alertPriority: Record<DashboardAlertType, number> = {
-  danger: 0,
-  warning: 1,
-  info: 2,
+type DashboardFlockStatus = {
+  id: string;
+  code: string;
+  liveBirds: number;
+  layingRate: number;
+  layingRateGoal: number;
+  recordedDays: number;
 };
+type FeedFinancialMetricRow = Pick<
+  Tables<"feed_consumption">,
+  "date" | "flock_id" | "quantity_kg" | "cost"
+>;
+type ProductionFinancialMetricRow = Pick<
+  Tables<"egg_production">,
+  "date" | "flock_id" | "eggs_produced"
+>;
 
-function toDateKey(date: Date) {
-  return date.toISOString().split("T")[0];
+function FinancialSummaryVariationBadge({
+  variation,
+  lowerIsBetter = false,
+}: {
+  variation: KpiVariation;
+  lowerIsBetter?: boolean;
+}) {
+  const isPositive = variation.direction === "neutral"
+    ? null
+    : lowerIsBetter
+      ? variation.direction === "down"
+      : variation.direction === "up";
+
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-0.5 text-[11px] font-semibold px-2 py-0.5 rounded-md",
+      isPositive === true && "text-emerald-700 bg-emerald-50",
+      isPositive === false && "text-red-600 bg-red-50",
+      isPositive === null && "text-gray-600 bg-gray-100",
+    )}>
+      {variation.direction === "up" && <ArrowUpRight className="w-3 h-3" />}
+      {variation.direction === "down" && <ArrowDownRight className="w-3 h-3" />}
+      {variation.label}
+    </span>
+  );
 }
 
-function calculateAverageCostPerEgg(rows: FeedCostMetricRow[]): number {
-  if (rows.length === 0) return 0;
-  return rows.reduce((sum, row) => sum + Number(row.cost_per_egg ?? 0), 0) / rows.length;
+const todayStr = toLocalDateKey(new Date());
+
+function toDateKey(date: Date) {
+  return toLocalDateKey(date);
 }
 
 function isSameCalendarDay(a: Date, b: Date) {
@@ -257,70 +280,9 @@ function mapDashboardTask(task: TaskRow, selectedDateKey: string, exception: Tas
     recurrence: task.recurrence,
     flockId: task.flock_id,
     notes: task.notes ?? "",
+    completedAt: exception?.completed_at ? formatTaskCompletionDate(exception.completed_at) : null,
   };
 }
-
-function formatInventoryQuantity(quantity: number, unit: string) {
-  return `${formatNumber(quantity)} ${unit}`.trim();
-}
-
-function mapInventoryAlerts(items: InventoryRow[]): DashboardAlert[] {
-  return items
-    .filter((item) => item.status === "baixo" || item.status === "alerta")
-    .map((item) => ({
-      id: `inventory-${item.id}`,
-      type: item.status === "baixo" ? "danger" : "warning",
-      msg: `Estoque ${item.status === "baixo" ? "baixo" : "em alerta"}: ${item.name} (${formatInventoryQuantity(item.quantity, item.unit)} restante)`,
-      time: "Agora",
-      action: "Ver estoque",
-      risk: "Pode faltar insumo para alimentacao e manejo.",
-      href: "/dashboard/inventory",
-    }));
-}
-
-function mapMortalityAlerts(records: MortalityAlertRow[]): DashboardAlert[] {
-  return records
-    .filter((record) => Number(record.mortality_rate) >= 0.5)
-    .map((record) => ({
-      id: `mortality-${record.id}`,
-      type: "danger",
-      msg: `Pico de mortalidade: ${formatNumber(Number(record.mortality_rate))}% em ${record.date}`,
-      time: "Ultimos 3 dias",
-      action: "Investigar",
-      risk: "Pode indicar surto sanitario ou falha de manejo.",
-      href: "/dashboard/mortality",
-    }));
-}
-
-function mapOverdueTaskAlerts(tasks: OverdueTaskAlertRow[], exceptions: TaskExceptionRow[]): DashboardAlert[] {
-  const doneTaskIds = new Set(exceptions.filter((exception) => exception.status === "done").map((exception) => exception.task_id));
-
-  return tasks
-    .filter((task) => !doneTaskIds.has(task.id))
-    .map((task) => ({
-      id: `task-${task.id}`,
-      type: "danger",
-      msg: `Tarefa atrasada: ${task.title}`,
-      time: task.date,
-      action: "Resolver",
-      risk: "Atividades pendentes podem comprometer o controle diario da granja.",
-      href: "#dashboard-tasks",
-    }));
-}
-
-function sortDashboardAlerts(alerts: DashboardAlert[]) {
-  return [...alerts].sort((a, b) => alertPriority[a.type] - alertPriority[b.type]);
-}
-
-/* ── Setup alerts for first-time users ── */
-const setupAlerts: DashboardAlert[] = [
-  { id: "setup-1", type: "info" as const, msg: "Registre a produção pela primeira vez", time: "Configuração", action: "Registrar", risk: "Sem dados de produção, o dashboard não poderá exibir suas métricas.", href: "/dashboard/production?register=true" },
-  { id: "setup-2", type: "info" as const, msg: "Registre a ração pela primeira vez", time: "Configuração", action: "Registrar", risk: "Sem controle de ração, você não saberá o custo real por ovo.", href: "/dashboard/racao?register=true" },
-  { id: "setup-3", type: "info" as const, msg: "Registre seus ganhos e gastos", time: "Configuração", action: "Registrar", risk: "Sem dados financeiros, não é possível calcular seu lucro.", href: "/dashboard/finances" },
-  { id: "setup-4", type: "info" as const, msg: "Cadastre seus clientes", time: "Configuração", action: "Cadastrar", risk: "Sem clientes cadastrados, você não poderá registrar vendas.", href: "/dashboard/customers" },
-  { id: "setup-5", type: "info" as const, msg: "Registre suas vendas", time: "Configuração", action: "Registrar", risk: "Sem vendas registradas, a receita não aparecerá no dashboard.", href: "/dashboard/sales" },
-  { id: "setup-6", type: "info" as const, msg: "Registre seus estoques", time: "Configuração", action: "Registrar", risk: "Sem controle de estoque, você pode ficar sem insumos.", href: "/dashboard/inventory" },
-];
 
 export default function DashboardPage() {
   const { profile, farm } = useAuth();
@@ -331,7 +293,6 @@ export default function DashboardPage() {
     (requiredPlan: "pro" | "premium") => hideAdvancedFeatures && !hasMinimumPlan(plan, requiredPlan),
     [hideAdvancedFeatures, plan]
   );
-  const showDashboardAlerts = !shouldHideAdvancedFeature("pro");
   const showDashboardTasks = !shouldHideAdvancedFeature("premium");
   const showDashboardAssistant = !shouldHideAdvancedFeature("premium");
 
@@ -355,18 +316,45 @@ export default function DashboardPage() {
   const [financialData, setFinancialData] = useState({
     revenue: 0, expenses: 0, profit: 0, feedCost: 0, laborCost: 0, otherExpenses: 0,
   });
-  const [barnsData, setBarnsData] = useState<{ id: string; name: string; birds: number; layingRate: number; status: "ok" | "warning"; createdAt: string }[]>([]);
+  const [financialSummaryVariations, setFinancialSummaryVariations] = useState<Record<"revenue" | "expenses" | "profit", KpiVariation>>({
+    revenue: { label: "0,0%", direction: "neutral" },
+    expenses: { label: "0,0%", direction: "neutral" },
+    profit: { label: "0,0%", direction: "neutral" },
+  });
+  const [flockStatusData, setFlockStatusData] = useState<DashboardFlockStatus[]>([]);
   const [dbTasks, setDbTasks] = useState<DashboardTask[]>([]);
-  const [dbAlerts, setDbAlerts] = useState<{ id: string; type: "danger" | "warning" | "info"; msg: string; time: string; action: string; risk: string; href?: string }[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   // Chart production data
   const [chartProductionData, setChartProductionData] = useState<WeeklyDataPoint[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
 
+  const [taskClock, setTaskClock] = useState(() => new Date());
+  const taskTodayKey = useMemo(() => toLocalDateKey(taskClock), [taskClock]);
+  const taskYesterdayKey = useMemo(() => {
+    const yesterday = new Date(taskClock);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return toLocalDateKey(yesterday);
+  }, [taskClock]);
+
+  useEffect(() => {
+    const updateTaskClock = () => setTaskClock(new Date());
+    const intervalId = window.setInterval(updateTaskClock, 60_000);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) updateTaskClock();
+    };
+
+    window.addEventListener("focus", updateTaskClock);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", updateTaskClock);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
   // Shared calendar filter
   const { dateRange, filterMode, rangeStart, rangeEnd, selectedDate } = useDateFilter();
-  const selectedDateKey = useMemo(() => toDateKey(selectedDate), [selectedDate]);
 
   const sameDay = (a: Date, b: Date) =>
     a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
@@ -374,17 +362,18 @@ export default function DashboardPage() {
   const loadDashboardTasks = useCallback(async () => {
     if (!farm?.id) return;
 
-    const baseTasks = await getTaskSchedule(farm.id, selectedDateKey);
-    const occurrences = baseTasks.filter((task) => taskOccursOn(task, selectedDate));
-    const exceptions = await getTaskExceptions(farm.id, selectedDateKey, occurrences.map((task) => task.id));
+    const taskToday = new Date(`${taskTodayKey}T00:00:00`);
+    const baseTasks = await getTaskSchedule(farm.id, taskTodayKey);
+    const occurrences = baseTasks.filter((task) => taskOccursOn(task, taskToday));
+    const exceptions = await getTaskExceptions(farm.id, taskTodayKey, occurrences.map((task) => task.id));
     const exceptionByTaskId = new Map(exceptions.map((exception) => [exception.task_id, exception]));
 
     setDbTasks(
       occurrences
-        .map((task) => mapDashboardTask(task, selectedDateKey, exceptionByTaskId.get(task.id)))
+        .map((task) => mapDashboardTask(task, taskTodayKey, exceptionByTaskId.get(task.id)))
         .sort((a, b) => a.time.localeCompare(b.time)),
     );
-  }, [farm?.id, selectedDate, selectedDateKey]);
+  }, [farm?.id, taskTodayKey]);
 
   // Fetch real data from Supabase when farm or dateRange changes
   useEffect(() => {
@@ -402,21 +391,14 @@ export default function DashboardPage() {
           todayDate: todayStr,
         });
         const metricEndDate = comparisonPeriod.currentEndDate;
-        const threeDaysAgo = new Date();
-        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-        const threeDaysAgoStr = toDateKey(threeDaysAgo);
-
-        const [prodRes, previousProdRes, feedRes, previousFeedRes, barnsRes, alertsRes, flocksRes, mortalityRes, flockMortalityRes, overdueTasksRes, finSummary, previousFinSummary, birdCount] = await Promise.all([
+        const [prodRes, previousProdRes, feedRes, previousFeedRes, barnsRes, flocksRes, flockMortalityRes, finSummary, previousFinSummary, birdCount] = await Promise.all([
           supabase.from("egg_production").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", metricEndDate),
-          supabase.from("egg_production").select("eggs_produced").eq("farm_id", farmId).gte("date", comparisonPeriod.previousStartDate).lte("date", comparisonPeriod.previousEndDate),
+          supabase.from("egg_production").select("date, flock_id, eggs_produced").eq("farm_id", farmId).gte("date", comparisonPeriod.previousStartDate).lte("date", comparisonPeriod.previousEndDate),
           supabase.from("feed_consumption").select("*").eq("farm_id", farmId).gte("date", startDate).lte("date", metricEndDate),
-          supabase.from("feed_consumption").select("cost_per_egg").eq("farm_id", farmId).gte("date", comparisonPeriod.previousStartDate).lte("date", comparisonPeriod.previousEndDate),
+          supabase.from("feed_consumption").select("date, flock_id, quantity_kg, cost").eq("farm_id", farmId).gte("date", comparisonPeriod.previousStartDate).lte("date", comparisonPeriod.previousEndDate),
           supabase.from("barns").select("*").eq("farm_id", farmId).order("created_at"),
-          supabase.from("alerts").select("*").eq("farm_id", farmId).eq("read", false).order("created_at", { ascending: false }).limit(5),
-          supabase.from("flocks").select("id, code, breed, bird_count, arrival_age_weeks, arrival_date").eq("farm_id", farmId).order("created_at"),
-          supabase.from("mortality").select("id, date, mortality_rate").eq("farm_id", farmId).gte("date", threeDaysAgoStr),
+          supabase.from("flocks").select("id, code, breed, bird_count, arrival_age_weeks, arrival_date, status").eq("farm_id", farmId).order("created_at"),
           supabase.from("mortality").select("flock_id, date, dead_birds").eq("farm_id", farmId).lte("date", metricEndDate),
-          supabase.from("tasks").select("id, title, date").eq("farm_id", farmId).eq("recurrence", "unica").lt("date", todayStr),
           getFinancialSummaryInRange(farmId, startDate, metricEndDate),
           getFinancialSummaryInRange(farmId, comparisonPeriod.previousStartDate, comparisonPeriod.previousEndDate),
           getFarmBirdCount(farmId),
@@ -452,13 +434,45 @@ export default function DashboardPage() {
           endDate: comparisonPeriod.previousEndDate,
           totalEggs: previousTotalEggs,
         });
-        const currentCostPerEgg = calculateAverageCostPerEgg(feedRes.data ?? []);
-        const previousCostPerEgg = calculateAverageCostPerEgg(previousFeedRes.data ?? []);
+        const mapFinancialFeed = (rows: FeedFinancialMetricRow[]) => rows.map((row) => ({
+          date: row.date,
+          flockId: row.flock_id,
+          quantityKg: Number(row.quantity_kg),
+          cost: Number(row.cost),
+        }));
+        const mapFinancialProduction = (rows: ProductionFinancialMetricRow[]) => rows.map((row) => ({
+          date: row.date,
+          flockId: row.flock_id,
+          eggsProduced: row.eggs_produced,
+        }));
+        const currentFeedFinancialMetrics = calculateFeedFinancialMetrics({
+          flocks: metricFlocks,
+          mortalities: metricMortalities,
+          feedRecords: mapFinancialFeed(feedRes.data ?? []),
+          productionRecords: mapFinancialProduction(productionRows),
+          startDate,
+          endDate: metricEndDate,
+        });
+        const previousFeedFinancialMetrics = calculateFeedFinancialMetrics({
+          flocks: metricFlocks,
+          mortalities: metricMortalities,
+          feedRecords: mapFinancialFeed(previousFeedRes.data ?? []),
+          productionRecords: mapFinancialProduction(previousProdRes.data ?? []),
+          startDate: comparisonPeriod.previousStartDate,
+          endDate: comparisonPeriod.previousEndDate,
+        });
+        const currentCostPerEgg = currentFeedFinancialMetrics.costPerEgg ?? 0;
+        const previousCostPerEgg = previousFeedFinancialMetrics.costPerEgg ?? 0;
 
         setKpiVariations({
           eggs: calculateKpiVariation(totalEggs, previousTotalEggs),
           layingRate: calculateKpiVariation(productionMetrics.layingRate, previousProductionMetrics.layingRate),
           costPerEgg: calculateKpiVariation(currentCostPerEgg, previousCostPerEgg),
+          profit: calculateKpiVariation(finSummary.profit, previousFinSummary.profit),
+        });
+        setFinancialSummaryVariations({
+          revenue: calculateKpiVariation(finSummary.revenue, previousFinSummary.revenue),
+          expenses: calculateKpiVariation(finSummary.expenses, previousFinSummary.expenses),
           profit: calculateKpiVariation(finSummary.profit, previousFinSummary.profit),
         });
         setProductionGoals({
@@ -530,66 +544,39 @@ export default function DashboardPage() {
           });
         }
 
-        // Barns (static status for now, could be improved with period stats)
-        if (barnsRes.data && barnsRes.data.length > 0) {
-          setBarnsData(barnsRes.data.map((b) => ({
-            id: b.id,
-            name: b.name,
-            birds: b.current_birds,
-            layingRate: 0,
-            status: (b.status === "active" ? "ok" : "warning") as "ok" | "warning",
-            createdAt: b.created_at,
-          })));
-        }
-
-        const realAlerts: DashboardAlert[] = (alertsRes.data ?? []).map((a) => ({
-          id: a.id,
-          type: (a.type === "error" ? "danger" : a.type) as "danger" | "warning" | "info",
-          msg: a.message,
-          time: new Date(a.created_at).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
-          action: "Ver",
-          risk: "",
+        const flockProductionRecords = productionRows.map((row) => ({
+          flockId: row.flock_id,
+          date: row.date,
+          eggsProduced: row.eggs_produced,
         }));
+        const dashboardFlocks = ((flocksRes.data ?? []) as FlockProductionMetricRow[])
+          .filter((flock) => flock.status.toLowerCase() !== "descarte")
+          .map((flock) => {
+            const metrics = calculateRecordedFlockProductionMetrics({
+              flock: {
+                id: flock.id,
+                birdCount: flock.bird_count,
+                arrivalAgeWeeks: flock.arrival_age_weeks,
+                arrivalDate: flock.arrival_date,
+              },
+              mortalities: metricMortalities,
+              productionRecords: flockProductionRecords,
+              startDate,
+              endDate: metricEndDate,
+            });
 
-        const hasProduction = (prodRes.data?.length ?? 0) > 0;
-        const hasFeed = (feedRes.data?.length ?? 0) > 0;
-        const hasFinance = (finSummary.revenue > 0 || finSummary.expenses > 0);
-        const overdueTasks = overdueTasksRes.data ?? [];
-
-        // Check customers & sales & inventory
-        const [custRes, salesRes, inventoryItems, overdueTaskExceptionsRes] = await Promise.all([
-          supabase.from("customers").select("id", { count: "exact", head: true }).eq("farm_id", farmId),
-          supabase.from("sales").select("id", { count: "exact", head: true }).eq("farm_id", farmId),
-          getFeedInventory(farmId),
-          overdueTasks.length > 0
-            ? supabase
-                .from("task_exceptions")
-                .select("*")
-                .eq("farm_id", farmId)
-                .in("task_id", overdueTasks.map((task) => task.id))
-            : Promise.resolve({ data: [] as TaskExceptionRow[], error: null }),
-        ]);
-        const hasCustomers = (custRes.count ?? 0) > 0;
-        const hasSales = (salesRes.count ?? 0) > 0;
-        const hasInventory = inventoryItems.length > 0;
-
-        const pending = setupAlerts.filter((s) => {
-          if (s.id === "setup-1" && hasProduction) return false;
-          if (s.id === "setup-2" && hasFeed) return false;
-          if (s.id === "setup-3" && hasFinance) return false;
-          if (s.id === "setup-4" && hasCustomers) return false;
-          if (s.id === "setup-5" && hasSales) return false;
-          if (s.id === "setup-6" && hasInventory) return false;
-          return true;
-        });
-
-        setDbAlerts(sortDashboardAlerts([
-          ...realAlerts,
-          ...mapInventoryAlerts(inventoryItems),
-          ...mapMortalityAlerts(mortalityRes.data ?? []),
-          ...mapOverdueTaskAlerts(overdueTasks, overdueTaskExceptionsRes.data ?? []),
-          ...pending,
-        ]));
+            return {
+              id: flock.id,
+              code: flock.code,
+              liveBirds: metrics.liveBirds,
+              layingRate: metrics.layingRate,
+              layingRateGoal: metrics.layingRateGoal,
+              recordedDays: metrics.recordedDays,
+            };
+          })
+          .filter((flock) => flock.liveBirds > 0)
+          .slice(0, 3);
+        setFlockStatusData(dashboardFlocks);
 
         // Financial summary for selected period
         setFinancialData({
@@ -785,32 +772,26 @@ export default function DashboardPage() {
   // Auto-mark overdue tasks as "missed"
   useEffect(() => {
     if (dbTasks.length === 0) return;
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const currentMinutes = taskClock.getHours() * 60 + taskClock.getMinutes();
     setTaskStatuses((prev) => {
       const next = { ...prev };
       let changed = false;
       dbTasks.forEach((t) => {
         const status = next[t.id] ?? "pending";
         if (status === "done" || status === "missed") return;
-        // Past date → missed
-        if (t.date < todayStr) {
+        if (shouldMarkTaskOccurrenceMissed({
+          occurrenceDate: t.date,
+          today: taskTodayKey,
+          scheduledTime: t.time,
+          currentMinutes,
+        })) {
           next[t.id] = "missed";
           changed = true;
-          return;
-        }
-        // Today + time passed by more than 60min → missed
-        if (t.date === todayStr && t.time && t.time !== "--:--") {
-          const [h, m] = t.time.split(":").map(Number);
-          if (h * 60 + m + 60 < currentMinutes) {
-            next[t.id] = "missed";
-            changed = true;
-          }
         }
       });
       return changed ? next : prev;
     });
-  }, [dbTasks, todayStr]);
+  }, [dbTasks, taskClock, taskTodayKey]);
 
   const [openDropdown, setOpenDropdown] = useState<number | string | null>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
@@ -867,7 +848,7 @@ export default function DashboardPage() {
       flock_id: newTaskFlockId === "all" ? null : newTaskFlockId,
       title: newTaskTitle.trim(),
       scheduled_time: newTaskTime || null,
-      date: newTaskDate || selectedDateKey,
+      date: newTaskDate || taskTodayKey,
       category: newTaskCategory,
       priority: newTaskPriority,
       recurrence: newTaskRecurrence,
@@ -882,7 +863,7 @@ export default function DashboardPage() {
     setNewTaskRecurrence("unica");
     setNewTaskFlockId("all");
     setShowNewTask(false);
-  }, [farm?.id, loadDashboardTasks, newTaskCategory, newTaskDate, newTaskFlockId, newTaskPriority, newTaskRecurrence, newTaskTime, newTaskTitle, selectedDateKey]);
+  }, [farm?.id, loadDashboardTasks, newTaskCategory, newTaskDate, newTaskFlockId, newTaskPriority, newTaskRecurrence, newTaskTime, newTaskTitle, taskTodayKey]);
 
   const updateDashboardTaskStatus = useCallback(async (task: DashboardTask, status: DashboardTaskStatus) => {
     if (!farm?.id) return;
@@ -1030,6 +1011,12 @@ export default function DashboardPage() {
     ];
   }, [productionData, productionGoals, kpiVariations, feedData, financialData, periodInfo]);
 
+  const financialComparisonData: Array<{
+    month: string;
+    receita: number;
+    despesas: number;
+  }> = [];
+
   const currentExpenseBreakdown = useMemo(() => [
     { name: "Ração", value: financialData.feedCost, color: "#f59e0b" },
     { name: "Mão de obra", value: financialData.laborCost, color: "#8b5cf6" },
@@ -1129,132 +1116,10 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* ── PRIORITY BLOCK: Alerts + Tasks (2 columns) ── */}
-      {(showDashboardAlerts || showDashboardTasks) && (
-      <div className={cn("grid grid-cols-1 gap-4", showDashboardAlerts && showDashboardTasks && "xl:grid-cols-2")}>
-        {/* Alertas Ativos */}
-        {showDashboardAlerts && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px] overflow-hidden dark:border-white/10 dark:bg-slate-900/80">
-          <div className="flex items-center justify-between mb-5 flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-red-500 flex items-center justify-center shadow-sm">
-                <AlertTriangle className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-gray-900 dark:text-slate-100">Alertas ativos</h3>
-                <p className="text-[11px] text-gray-400 font-medium dark:text-slate-400">
-                  {dbAlerts.filter(a => a.type === "danger").length > 0 && (
-                    <span className="text-red-600 font-semibold dark:text-red-300">{dbAlerts.filter(a => a.type === "danger").length} urgente · </span>
-                  )}
-                  {dbAlerts.length} alertas no total
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
-              <span className="text-[11px] font-bold text-white bg-red-500 px-2.5 py-1 rounded-lg">{dbAlerts.length}</span>
-            </div>
-          </div>
-          {plan === "essencial" ? (
-            <LockedOverlay message="Desbloqueie os alertas de controle" targetPlan="pro">
-              <div className="space-y-3 overflow-y-auto flex-1 dashboard-scroll pr-1 -mr-1 py-1">
-                {dbAlerts.map((a) => (
-                  <div
-                    key={a.id}
-                    className={cn(
-                      "rounded-xl p-4 border",
-                      a.type === "danger" && "bg-red-50 border-red-200 dark:!border-red-400/20 dark:!bg-red-500/10",
-                      a.type === "warning" && "bg-amber-50 border-amber-200 dark:!border-amber-400/20 dark:!bg-amber-500/10",
-                      a.type === "info" && "bg-blue-50 border-blue-200 dark:!border-sky-400/20 dark:!bg-sky-500/10"
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5", a.type === "danger" && "bg-red-100", a.type === "warning" && "bg-amber-100", a.type === "info" && "bg-blue-100")}>
-                        <AlertTriangle className="w-4 h-4 text-gray-400 dark:text-slate-300" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-gray-600 dark:text-slate-200">{a.msg}</p>
-                        <p className="text-[11px] text-gray-400 mt-1 dark:text-slate-400">Se ignorar: {a.risk}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </LockedOverlay>
-          ) : (
-          <div className="space-y-3 overflow-y-auto flex-1 dashboard-scroll pr-1 -mr-1 py-1">
-            {dbAlerts.map((a) => {
-              return (
-                <div
-                  key={a.id}
-                  className={cn(
-                    "rounded-xl p-4 border transition-all duration-200 cursor-pointer hover:shadow-md hover:-translate-y-0.5 dark:hover:shadow-black/20",
-                    a.type === "danger" && "bg-red-50 border-red-200 hover:border-red-300 dark:!border-red-400/20 dark:!bg-red-500/10 dark:hover:!border-red-300/35 dark:hover:!bg-red-500/15",
-                    a.type === "warning" && "bg-amber-50 border-amber-200 hover:border-amber-300 dark:!border-amber-400/20 dark:!bg-amber-500/10 dark:hover:!border-amber-300/35 dark:hover:!bg-amber-500/15",
-                    a.type === "info" && "bg-blue-50 border-blue-200 hover:border-blue-300 dark:!border-sky-400/20 dark:!bg-sky-500/10 dark:hover:!border-sky-300/35 dark:hover:!bg-sky-500/15"
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={cn(
-                      "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
-                      a.type === "danger" && "bg-red-100 dark:bg-red-500/15",
-                      a.type === "warning" && "bg-amber-100 dark:bg-amber-500/15",
-                      a.type === "info" && "bg-blue-100 dark:bg-sky-500/15"
-                    )}>
-                      <AlertTriangle className={cn(
-                        "w-4 h-4",
-                        a.type === "danger" && "text-red-600 dark:text-red-300",
-                        a.type === "warning" && "text-amber-600 dark:text-amber-300",
-                        a.type === "info" && "text-blue-600 dark:text-sky-300"
-                      )} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        "text-[13px] font-semibold leading-snug",
-                        a.type === "danger" && "text-red-800 dark:text-red-200",
-                        a.type === "warning" && "text-amber-800 dark:text-amber-200",
-                        a.type === "info" && "text-blue-800 dark:text-sky-200"
-                      )}>
-                        {a.msg}
-                      </p>
-                      <p className="text-[11px] text-gray-500 mt-1 leading-relaxed italic dark:text-slate-300">
-                        Se ignorar: {a.risk}
-                      </p>
-                      <div className="flex items-center justify-between mt-2.5">
-                        <p className="text-[11px] text-gray-400 dark:text-slate-400">{a.time}</p>
-                        {a.href ? (
-                          <Link href={a.href} className={cn(
-                            "text-[11px] font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-colors",
-                            a.type === "danger" && "text-white bg-red-500 hover:bg-red-600 dark:bg-red-400 dark:text-red-950 dark:hover:bg-red-300",
-                            a.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300 dark:bg-amber-300 dark:text-amber-950 dark:hover:bg-amber-200",
-                            a.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300 dark:bg-sky-300 dark:text-sky-950 dark:hover:bg-sky-200"
-                          )}>
-                            {a.action}
-                          </Link>
-                        ) : (
-                          <button className={cn(
-                            "text-[11px] font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-colors",
-                            a.type === "danger" && "text-white bg-red-500 hover:bg-red-600 dark:bg-red-400 dark:text-red-950 dark:hover:bg-red-300",
-                            a.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300 dark:bg-amber-300 dark:text-amber-950 dark:hover:bg-amber-200",
-                            a.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300 dark:bg-sky-300 dark:text-sky-950 dark:hover:bg-sky-200"
-                          )}>
-                            {a.action}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          )}
-        </div>
-        )}
-
-        {/* Tarefas do Dia */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-10">
+      {/* Tarefas do Dia */}
         {showDashboardTasks && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px] overflow-hidden dark:border-white/10 dark:bg-slate-900/80">
+        <div className="order-3 md:col-span-2 xl:col-span-3 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col overflow-hidden dark:border-white/10 dark:bg-slate-900/80">
           <span id="dashboard-tasks" className="sr-only" aria-hidden="true" />
           <div className="flex items-center justify-between mb-5 flex-shrink-0">
             <div className="flex items-center gap-3">
@@ -1272,6 +1137,13 @@ export default function DashboardPage() {
               <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
               {plan === "premium" && (
                 <>
+                  <Link
+                    href="/dashboard/operacional"
+                    className="inline-flex items-center gap-0.5 text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors"
+                  >
+                    Ver mais
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
                   <div className="relative w-10 h-10">
                     <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
                       <circle cx="18" cy="18" r="15" fill="none" className="stroke-gray-200 dark:stroke-slate-700" strokeWidth="3" />
@@ -1329,7 +1201,7 @@ export default function DashboardPage() {
             {dbTasks.map((t) => {
               const status = taskStatuses[t.id] ?? "pending";
               const isMissed = status === "missed";
-              const isDelayed = !isMissed && status !== "done" && t.date < todayStr;
+              const isDelayed = !isMissed && status !== "done" && t.date < taskTodayKey;
               const isDone = status === "done";
               const ico = taskIconMap[t.iconKey] ?? taskIconMap.clipboard;
               const TaskIcon = ico.icon;
@@ -1373,6 +1245,7 @@ export default function DashboardPage() {
                         <span className="text-[11px] text-gray-400 flex items-center gap-1 dark:text-slate-500"><Clock className="w-3 h-3" /> {t.time}</span>
                         <span className="text-[11px] text-gray-400">· {flockLabel}</span>
                         <span className="text-[11px] text-gray-400">· {recurrenceLabel[t.recurrence] ?? t.recurrence}</span>
+                        {t.completedAt && <span className="text-[11px] text-emerald-600">· concluída em {t.completedAt}</span>}
                       </div>
                     </div>
                     <button onClick={() => void removeDashboardTask(t)} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer dark:hover:bg-red-500/10">
@@ -1414,8 +1287,6 @@ export default function DashboardPage() {
           )}
         </div>
         )}
-      </div>
-      )}
 
       {/* Task Status Dropdown (portal) */}
       {openDropdown !== null && dropdownPos && (
@@ -1561,11 +1432,11 @@ export default function DashboardPage() {
                 const VIcon = vIco.icon;
                 const vPri = priorityConfig[viewTask.priority] ?? priorityConfig.media;
                 const viewMissed = taskStatuses[viewTask.id] === "missed";
-                const viewDelayed = !viewMissed && taskStatuses[viewTask.id] !== "done" && viewTask.date < todayStr;
+                const viewDelayed = !viewMissed && taskStatuses[viewTask.id] !== "done" && viewTask.date < taskTodayKey;
                 const viewDone = taskStatuses[viewTask.id] === "done";
                 const formatDetailDate = (d: string) => {
-                  if (d === todayStr) return "Hoje";
-                  if (d === yesterdayStr) return "Ontem";
+                  if (d === taskTodayKey) return "Hoje";
+                  if (d === taskYesterdayKey) return "Ontem";
                   const [y, m, day] = d.split("-");
                   return `${day}/${m}/${y}`;
                 };
@@ -1743,69 +1614,87 @@ export default function DashboardPage() {
         </ModalPortal>
       )}
 
-      {/* ── Barn Status Strip ── */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      {/* ── Flock Status Strip ── */}
+      <div className="order-7 col-span-full bg-white rounded-2xl border border-gray-100 p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Activity className="w-4 h-4 text-brand-600" />
-            <h3 className="text-sm font-bold text-gray-900">Status dos Galpões</h3>
+            <h3 className="text-sm font-bold text-gray-900">Status dos Lotes</h3>
           </div>
-          <button className="text-xs text-brand-600 font-semibold hover:text-brand-700 cursor-pointer transition-colors flex items-center gap-1">
+          <Link href="/dashboard/flocks" className="text-xs text-brand-600 font-semibold hover:text-brand-700 cursor-pointer transition-colors flex items-center gap-1">
             Ver todos <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+          </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {barnsData.map((barn) => (
-            <div
-              key={barn.id}
-              className={cn(
-                "relative rounded-xl p-4 border transition-all duration-200 cursor-pointer hover:shadow-md hover:-translate-y-0.5",
-                barn.layingRate >= 90 ? "border-emerald-200 bg-emerald-50/30 hover:border-emerald-300" : barn.layingRate >= 88 ? "border-brand-200 bg-brand-50/30 hover:border-brand-300" : barn.layingRate >= 85 ? "border-amber-200 bg-amber-50/50 hover:border-amber-300" : "border-red-200 bg-red-50/50 hover:border-red-300"
-              )}
-            >
+          {flockStatusData.map((flock) => {
+            const differenceFromGoal = flock.layingRate - flock.layingRateGoal;
+            const hasProductionData = flock.recordedDays > 0 && flock.layingRateGoal > 0;
+            const isExcellent = hasProductionData && differenceFromGoal >= 5;
+            const isWithinGoal = hasProductionData && differenceFromGoal >= 0;
+            const isNearGoal = hasProductionData && differenceFromGoal >= -5;
+
+            return (
+              <Link
+                key={flock.id}
+                href={`/dashboard/flocks/detalhes/${flock.id}`}
+                className={cn(
+                  "relative rounded-xl p-4 border transition-all duration-200 cursor-pointer hover:shadow-md hover:-translate-y-0.5",
+                  !hasProductionData && "border-gray-200 bg-gray-50/50 hover:border-gray-300",
+                  isExcellent && "border-emerald-200 bg-emerald-50/30 hover:border-emerald-300",
+                  !isExcellent && isWithinGoal && "border-brand-200 bg-brand-50/30 hover:border-brand-300",
+                  !isWithinGoal && isNearGoal && "border-amber-200 bg-amber-50/50 hover:border-amber-300",
+                  hasProductionData && !isNearGoal && "border-red-200 bg-red-50/50 hover:border-red-300",
+                )}
+              >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-bold text-gray-900">{barn.name}</span>
+                <span className="text-sm font-bold text-gray-900">{flock.code}</span>
                 <span className={cn(
                   "w-2 h-2 rounded-full",
-                  barn.layingRate >= 90 ? "bg-emerald-500" : barn.layingRate >= 88 ? "bg-brand-500" : barn.layingRate >= 85 ? "bg-amber-500" : "bg-red-500"
+                  !hasProductionData && "bg-gray-400",
+                  isExcellent && "bg-emerald-500",
+                  !isExcellent && isWithinGoal && "bg-brand-500",
+                  !isWithinGoal && isNearGoal && "bg-amber-500",
+                  hasProductionData && !isNearGoal && "bg-red-500",
                 )} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-[11px] text-gray-400 font-medium">Aves</p>
-                  <p className="text-sm font-bold text-gray-800">{formatNumber(barn.birds)}</p>
+                  <p className="text-[11px] text-gray-400 font-medium">Aves vivas</p>
+                  <p className="text-sm font-bold text-gray-800">{formatNumber(flock.liveBirds)}</p>
                 </div>
                 <div>
                   <p className="text-[11px] text-gray-400 font-medium">Postura</p>
                   <p className={cn(
                     "text-sm font-bold",
-                    barn.layingRate >= 88 ? "text-emerald-600" : barn.layingRate >= 85 ? "text-amber-600" : "text-red-600"
+                    !hasProductionData && "text-gray-500",
+                    isWithinGoal && "text-emerald-600",
+                    !isWithinGoal && isNearGoal && "text-amber-600",
+                    hasProductionData && !isNearGoal && "text-red-600",
                   )}>
-                    {barn.layingRate}%
+                    {flock.layingRate.toFixed(1)}%
                   </p>
                 </div>
               </div>
               {(() => {
-                const isNew = barn.createdAt && (Date.now() - new Date(barn.createdAt).getTime()) < 5 * 24 * 60 * 60 * 1000;
-                if (barn.layingRate >= 90) return (
-                  <div className="mt-2 flex items-center gap-1.5 text-emerald-700 bg-emerald-100/80 rounded-lg px-2.5 py-1.5">
-                    <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
-                    <span className="text-[11px] font-medium">Desempenho excelente</span>
-                  </div>
-                );
-                if (barn.layingRate >= 88) return (
-                  <div className="mt-2 flex items-center gap-1.5 text-brand-700 bg-brand-100/80 rounded-lg px-2.5 py-1.5">
-                    <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
-                    <span className="text-[11px] font-medium">Postura dentro da meta</span>
-                  </div>
-                );
-                if (isNew) return (
+                if (!hasProductionData) return (
                   <div className="mt-2 flex items-center gap-1.5 text-gray-500 bg-gray-100/80 rounded-lg px-2.5 py-1.5">
                     <Clock className="w-3 h-3 flex-shrink-0" />
                     <span className="text-[11px] font-medium">Aguardando dados</span>
                   </div>
                 );
-                if (barn.layingRate >= 85) return (
+                if (isExcellent) return (
+                  <div className="mt-2 flex items-center gap-1.5 text-emerald-700 bg-emerald-100/80 rounded-lg px-2.5 py-1.5">
+                    <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
+                    <span className="text-[11px] font-medium">Desempenho excelente</span>
+                  </div>
+                );
+                if (isWithinGoal) return (
+                  <div className="mt-2 flex items-center gap-1.5 text-brand-700 bg-brand-100/80 rounded-lg px-2.5 py-1.5">
+                    <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
+                    <span className="text-[11px] font-medium">Postura dentro da meta</span>
+                  </div>
+                );
+                if (isNearGoal) return (
                   <div className="mt-2 flex items-center gap-1.5 text-amber-700 bg-amber-100/80 rounded-lg px-2.5 py-1.5">
                     <AlertTriangle className="w-3 h-3 flex-shrink-0" />
                     <span className="text-[11px] font-medium">Postura abaixo da meta</span>
@@ -1818,15 +1707,19 @@ export default function DashboardPage() {
                   </div>
                 );
               })()}
-            </div>
-          ))}
+              </Link>
+            );
+          })}
+          {flockStatusData.length === 0 && (
+            <p className="col-span-full py-5 text-center text-xs text-gray-400">Nenhum lote ativo com aves vivas.</p>
+          )}
         </div>
       </div>
 
       {/* ── Production Chart + AI Insights ── */}
-      <div className={cn("grid grid-cols-1 gap-4", showDashboardAssistant && "xl:grid-cols-3")}>
+      <div className="contents">
         {/* Chart */}
-        <div className={cn("bg-white rounded-2xl border border-gray-100 p-6", showDashboardAssistant && "xl:col-span-2")}>
+        <div className="order-1 xl:col-span-4 bg-white rounded-2xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-sm font-bold text-gray-900">{chartTitle}</h3>
             <div className="flex items-center gap-4">
@@ -1871,7 +1764,7 @@ export default function DashboardPage() {
 
         {/* AI Performance Insights */}
         {showDashboardAssistant && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
+        <div className="order-2 xl:col-span-3 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm">
@@ -2019,9 +1912,9 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Financial Row: Revenue Chart + Expense Breakdown + Profit Summary ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+      <div className="contents">
         {/* Revenue vs Expenses */}
-        <div className="xl:col-span-5 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
+        <div className="order-6 md:col-span-2 xl:col-span-4 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-sm font-bold text-gray-900">Receita vs Despesas</h3>
             <div className="flex items-center gap-3">
@@ -2036,25 +1929,33 @@ export default function DashboardPage() {
             </div>
           </div>
           <p className="text-[11px] text-gray-400 mb-5">Últimos 6 meses</p>
-          <div className="h-[200px] min-w-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={[]} margin={{ top: 5, right: 5, left: -15, bottom: 0 }} barGap={3}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dy={8} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px" }}
-                  formatter={(value: unknown) => [`R$ ${Number(value).toLocaleString("pt-BR")}`, undefined]}
-                />
-                <Bar dataKey="receita" fill="#2d7a4f" radius={[5, 5, 0, 0]} name="Receita" />
-                <Bar dataKey="despesas" fill="#e24a4a" radius={[5, 5, 0, 0]} name="Despesas" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {financialComparisonData.length === 0 ? (
+            <div className="h-[200px] flex items-center justify-center">
+              <p className="max-w-xs text-center text-sm text-gray-400">
+                Não há dados suficientes para comparar receitas e despesas.
+              </p>
+            </div>
+          ) : (
+            <div className="h-[200px] min-w-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={financialComparisonData} margin={{ top: 5, right: 5, left: -15, bottom: 0 }} barGap={3}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dy={8} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dx={-4} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px" }}
+                    formatter={(value: unknown) => [`R$ ${Number(value).toLocaleString("pt-BR")}`, undefined]}
+                  />
+                  <Bar dataKey="receita" fill="#2d7a4f" radius={[5, 5, 0, 0]} name="Receita" />
+                  <Bar dataKey="despesas" fill="#e24a4a" radius={[5, 5, 0, 0]} name="Despesas" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
 
         {/* Expense Breakdown Donut */}
-        <div className="xl:col-span-3 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
+        <div className="order-5 xl:col-span-3 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
           <h3 className="text-sm font-bold text-gray-900 mb-1">Despesas</h3>
           <p className="text-[11px] text-gray-400 mb-3">Total: {formatCurrency(financialData.expenses)}</p>
           <div className="flex-1 flex items-center justify-center">
@@ -2095,8 +1996,8 @@ export default function DashboardPage() {
         </div>
 
         {/* Profit Summary Card */}
-        <div className="xl:col-span-4 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
-          <h3 className="text-sm font-bold text-gray-900 mb-5">Resumo Financeiro Últimos 30 Dias</h3>
+        <div className="order-4 xl:col-span-3 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
+          <h3 className="text-sm font-bold text-gray-900 mb-5">Resumo Financeiro do Período</h3>
           <div className="space-y-4 flex-1">
             <div className="flex items-center justify-between py-3 border-b border-gray-50">
               <div className="flex items-center gap-3">
@@ -2108,7 +2009,7 @@ export default function DashboardPage() {
                   <p className="text-sm font-bold text-gray-900">{formatCurrency(financialData.revenue)}</p>
                 </div>
               </div>
-              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">+8.5%</span>
+              <FinancialSummaryVariationBadge variation={financialSummaryVariations.revenue} />
             </div>
             <div className="flex items-center justify-between py-3 border-b border-gray-50">
               <div className="flex items-center gap-3">
@@ -2120,7 +2021,7 @@ export default function DashboardPage() {
                   <p className="text-sm font-bold text-gray-900">{formatCurrency(financialData.expenses)}</p>
                 </div>
               </div>
-              <span className="text-[11px] font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-md">-3.2%</span>
+              <FinancialSummaryVariationBadge variation={financialSummaryVariations.expenses} lowerIsBetter />
             </div>
             <div className="flex items-center justify-between py-3 border-b border-gray-50">
               <div className="flex items-center gap-3">
@@ -2130,12 +2031,15 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-[11px] text-gray-400 font-medium">Lucro Líquido</p>
                   <p className="text-sm font-bold text-emerald-600">{formatCurrency(financialData.profit)}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Margem: {profitMargin}%</p>
                 </div>
               </div>
-              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">{profitMargin}%</span>
+              <FinancialSummaryVariationBadge variation={financialSummaryVariations.profit} />
             </div>
           </div>
         </div>
+      </div>
+
       </div>
 
       <UpgradePopup open={showTaskUpgrade} onClose={() => setShowTaskUpgrade(false)} targetPlan="premium" />
