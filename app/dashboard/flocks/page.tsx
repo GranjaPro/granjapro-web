@@ -1,23 +1,30 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Layers, Plus, Pencil, Trash2, X, Check, Search, FileText, Loader2, Bird, AlertTriangle } from "lucide-react";
+import { Layers, Plus, Pencil, Trash2, X, Check, Search, FileText, Loader2, Bird } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { insightHref } from "@/lib/insight-links";
-import { hasMinimumPlan } from "@/lib/plans";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import ModalPortal from "@/components/ui/modal-portal";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
-import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
 import type { TablesInsert } from "@/lib/database.types";
+import {
+  calculateEggProductionMetrics,
+  calculateRecordedFlockProductionMetrics,
+  getProductionPhase,
+  getProductionPhaseLabel,
+  getProductionPhaseName,
+  type ProductionPhase,
+} from "@/lib/domain/egg-production-metrics";
 
-type ProductionStage = "cria" | "recria" | "pre-postura" | "producao" | "pico" | "estavel" | "declinio" | "descarte";
+type PersistedProductionStage = "cria" | "recria" | "pre-postura" | "producao" | "pico" | "estavel" | "declinio" | "descarte";
 
-function getProductionStage(ageWeeks: number): ProductionStage {
+function getPersistedProductionStage(ageWeeks: number): PersistedProductionStage {
   if (ageWeeks <= 5) return "cria";
   if (ageWeeks <= 16) return "recria";
   if (ageWeeks <= 18) return "pre-postura";
@@ -43,7 +50,7 @@ interface Lote {
   bird_count: number;
   arrival_age_weeks: number;
   production_system: string;
-  status: ProductionStage;
+  status: PersistedProductionStage;
   supplier: string | null;
   supplier_contact: string | null;
   arrival_date: string;
@@ -52,6 +59,8 @@ interface Lote {
   avg_weight_kg: number | null;
   barn_id: string;
   barn_name: string | null;
+  live_birds: number;
+  laying_rate: number | null;
 }
 
 interface Barn {
@@ -60,17 +69,6 @@ interface Barn {
   capacity: number;
   current_birds: number;
   production_system?: string;
-}
-
-interface ActiveAlert {
-  id: string;
-  type: "danger" | "warning" | "info";
-  msg: string;
-  time: string;
-  action: string;
-  risk: string;
-  href?: string;
-  source: "db" | "setup" | "derived";
 }
 
 type FlockWithBarnName = {
@@ -89,13 +87,6 @@ type FlockWithBarnName = {
   avg_weight_kg: number | null;
   barn_id: string;
   barns?: { name?: string | null } | null;
-};
-
-type AlertRow = {
-  id: string;
-  type: "info" | "warning" | "error";
-  message: string;
-  created_at: string;
 };
 
 const sistemaLabel: Record<string, string> = {
@@ -120,38 +111,31 @@ const sistemaColor: Record<string, string> = {
   "organico": "text-green-800 bg-green-100",
 };
 
-const stageLabel: Record<ProductionStage, string> = {
-  cria: "Cria",
-  recria: "Recria",
-  "pre-postura": "Pré-Postura",
-  producao: "Produção",
-  pico: "Pico",
-  estavel: "Estável",
-  declinio: "Declínio",
-  descarte: "Descarte",
-};
-
-const stageColor: Record<ProductionStage, string> = {
+const stageColor: Record<ProductionPhase, string> = {
   cria: "text-purple-700 bg-purple-100",
   recria: "text-indigo-700 bg-indigo-100",
   "pre-postura": "text-cyan-700 bg-cyan-100",
-  producao: "text-blue-700 bg-blue-100",
-  pico: "text-emerald-700 bg-emerald-100",
-  estavel: "text-brand-700 bg-brand-100",
-  declinio: "text-amber-700 bg-amber-100",
-  descarte: "text-red-700 bg-red-100",
+  "inicio-producao": "text-blue-700 bg-blue-100",
+  "subida-producao": "text-teal-700 bg-teal-100",
+  pico: "text-emerald-800 bg-emerald-100",
+  "producao-estavel": "text-brand-700 bg-brand-100",
+  "declinio-inicial": "text-amber-700 bg-amber-100",
+  "declinio-acentuado": "text-orange-700 bg-orange-100",
+  "final-ciclo": "text-red-700 bg-red-100",
 };
 
-const setupAlerts: ActiveAlert[] = [
-  { id: "setup-1", type: "info", msg: "Registre a producao pela primeira vez", time: "Configuracao", action: "Registrar", risk: "Sem dados de producao, o dashboard nao podera exibir suas metricas.", href: "/dashboard/production?register=true", source: "setup" },
-  { id: "setup-2", type: "info", msg: "Registre a racao pela primeira vez", time: "Configuracao", action: "Registrar", risk: "Sem controle de racao, voce nao sabera o custo real por ovo.", href: "/dashboard/racao?register=true", source: "setup" },
-  { id: "setup-3", type: "info", msg: "Registre seus ganhos e gastos", time: "Configuracao", action: "Registrar", risk: "Sem dados financeiros, nao e possivel calcular seu lucro.", href: "/dashboard/finances", source: "setup" },
-  { id: "setup-4", type: "info", msg: "Cadastre seus clientes", time: "Configuracao", action: "Cadastrar", risk: "Sem clientes cadastrados, voce nao podera registrar vendas.", href: "/dashboard/customers", source: "setup" },
-  { id: "setup-5", type: "info", msg: "Registre suas vendas", time: "Configuracao", action: "Registrar", risk: "Sem vendas registradas, a receita nao aparecera no dashboard.", href: "/dashboard/sales", source: "setup" },
-  { id: "setup-6", type: "info", msg: "Registre seus estoques", time: "Configuracao", action: "Registrar", risk: "Sem controle de estoque, voce pode ficar sem insumos.", href: "/dashboard/inventory", source: "setup" },
+const filterPhases: ProductionPhase[] = [
+  "cria",
+  "recria",
+  "pre-postura",
+  "inicio-producao",
+  "subida-producao",
+  "pico",
+  "producao-estavel",
+  "declinio-inicial",
+  "declinio-acentuado",
+  "final-ciclo",
 ];
-
-const DISMISSED_FLOCK_ALERTS_KEY = "granja-pro-dismissed-flock-alerts";
 
 type ModalMode = "add" | "edit" | null;
 
@@ -183,17 +167,14 @@ const emptyForm = {
 
 export default function LotesPage() {
   const { farm, loading: authLoading } = useAuth();
-  const { plan, hideAdvancedFeatures } = usePlan();
+  const { plan } = usePlan();
 
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [barns, setBarns] = useState<Barn[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
-  const [filterStage, setFilterStage] = useState<ProductionStage | "todos">("todos");
-  const [activeAlerts, setActiveAlerts] = useState<ActiveAlert[]>([]);
-  const [closingAlertIds, setClosingAlertIds] = useState<string[]>([]);
-  const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([]);
+  const [filterStage, setFilterStage] = useState<ProductionPhase | "todos">("todos");
   const [modal, setModal] = useState<ModalMode>(null);
   const [editing, setEditing] = useState<Lote | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
@@ -202,20 +183,6 @@ export default function LotesPage() {
 
   const farmRef = useRef(farm);
   farmRef.current = farm;
-  const alertDismissTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(DISMISSED_FLOCK_ALERTS_KEY);
-      if (stored) setDismissedAlertIds(JSON.parse(stored));
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      Object.values(alertDismissTimeoutsRef.current).forEach(clearTimeout);
-    };
-  }, []);
 
   const fetchData = useCallback(async () => {
     const currentFarm = farmRef.current;
@@ -223,7 +190,8 @@ export default function LotesPage() {
     setLoading(true);
     const supabase = createClient();
     try {
-      const [flocksRes, barnsRes, alertsRes, prodRes, feedRes, finRes, custRes, salesRes, invRes] = await Promise.all([
+      const today = new Date().toISOString().slice(0, 10);
+      const [flocksRes, barnsRes, productionRes, mortalityRes] = await Promise.all([
         supabase
           .from("flocks")
           .select("*, barns(name)")
@@ -235,37 +203,73 @@ export default function LotesPage() {
           .eq("farm_id", currentFarm.id)
           .order("name"),
         supabase
-          .from("alerts")
-          .select("*")
+          .from("egg_production")
+          .select("flock_id, date, eggs_produced")
           .eq("farm_id", currentFarm.id)
-          .eq("read", false)
-          .order("created_at", { ascending: false })
-          .limit(5),
-        supabase.from("egg_production").select("id", { count: "exact", head: true }).eq("farm_id", currentFarm.id),
-        supabase.from("feed_consumption").select("id", { count: "exact", head: true }).eq("farm_id", currentFarm.id),
-        supabase.from("financial_transactions").select("id", { count: "exact", head: true }).eq("farm_id", currentFarm.id),
-        supabase.from("customers").select("id", { count: "exact", head: true }).eq("farm_id", currentFarm.id),
-        supabase.from("sales").select("id", { count: "exact", head: true }).eq("farm_id", currentFarm.id),
-        supabase.from("feed_inventory").select("id", { count: "exact", head: true }).eq("farm_id", currentFarm.id),
+          .lte("date", today),
+        supabase
+          .from("mortality")
+          .select("flock_id, date, dead_birds")
+          .eq("farm_id", currentFarm.id)
+          .lte("date", today),
       ]);
 
-      const mappedLotes: Lote[] = ((flocksRes.data ?? []) as FlockWithBarnName[]).map((f) => ({
-        id: f.id,
-        code: f.code,
-        breed: f.breed,
-        bird_count: f.bird_count,
-        arrival_age_weeks: f.arrival_age_weeks ?? 0,
-        production_system: f.production_system,
-        status: f.status as ProductionStage,
-        supplier: f.supplier,
-        supplier_contact: f.supplier_contact,
-        arrival_date: f.arrival_date,
-        origin: f.origin,
-        lineage: f.lineage,
-        avg_weight_kg: f.avg_weight_kg,
-        barn_id: f.barn_id,
-        barn_name: f.barns?.name ?? null,
+      const productionRecords = (productionRes.data ?? []).map((record) => ({
+        flockId: record.flock_id,
+        date: record.date,
+        eggsProduced: record.eggs_produced,
       }));
+      const mortalities = (mortalityRes.data ?? []).map((mortality) => ({
+        flockId: mortality.flock_id,
+        date: mortality.date,
+        deadBirds: mortality.dead_birds,
+      }));
+      const mappedLotes: Lote[] = ((flocksRes.data ?? []) as FlockWithBarnName[]).map((flock) => {
+        const arrivalAgeWeeks = flock.arrival_age_weeks ?? 0;
+        const stayStartDate = flock.arrival_date <= today ? flock.arrival_date : today;
+        const flockMetric = {
+          id: flock.id,
+          birdCount: flock.bird_count,
+          arrivalAgeWeeks,
+          arrivalDate: flock.arrival_date,
+        };
+        const productionMetrics = calculateRecordedFlockProductionMetrics({
+          flock: flockMetric,
+          mortalities,
+          productionRecords,
+          startDate: stayStartDate,
+          endDate: today,
+        });
+        const stayMetrics = calculateEggProductionMetrics({
+          flocks: [flockMetric],
+          mortalities,
+          startDate: stayStartDate,
+          endDate: today,
+          totalEggs: productionMetrics.totalEggs,
+        });
+
+        return {
+          id: flock.id,
+          code: flock.code,
+          breed: flock.breed,
+          bird_count: flock.bird_count,
+          arrival_age_weeks: arrivalAgeWeeks,
+          production_system: flock.production_system,
+          status: flock.status as PersistedProductionStage,
+          supplier: flock.supplier,
+          supplier_contact: flock.supplier_contact,
+          arrival_date: flock.arrival_date,
+          origin: flock.origin,
+          lineage: flock.lineage,
+          avg_weight_kg: flock.avg_weight_kg,
+          barn_id: flock.barn_id,
+          barn_name: flock.barns?.name ?? null,
+          live_birds: productionMetrics.liveBirds,
+          laying_rate: productionMetrics.recordedDays > 0 && stayMetrics.eligibleBirdDays > 0
+            ? stayMetrics.layingRate
+            : null,
+        };
+      });
 
       setLotes(mappedLotes);
 
@@ -273,43 +277,8 @@ export default function LotesPage() {
         setBarns(barnsRes.data as Barn[]);
       }
 
-      const realAlerts: ActiveAlert[] = ((alertsRes.data ?? []) as AlertRow[]).map((alert) => ({
-        id: String(alert.id),
-        type: (alert.type === "error" ? "danger" : alert.type) as ActiveAlert["type"],
-        msg: alert.message,
-        time: new Date(alert.created_at).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
-        action: "Ver",
-        risk: "",
-        source: "db",
-      }));
-
-      const criaAlerts: ActiveAlert[] = mappedLotes
-        .filter((lote) => getProductionStage(calculateCurrentAge(lote.arrival_date, lote.arrival_age_weeks)) === "cria")
-        .map((lote) => ({
-          id: `cria-${lote.id}`,
-          type: "warning",
-          msg: `O lote ${lote.code} está em estágio de cria`,
-          time: "Monitoramento",
-          action: "Ver lote",
-          risk: "Observe O comportamento dos pintinhos. O agrupamento excessivo pode indicar frio, corrente de ar ou distribuição inadequada de aquecimento o afastamento excessivo pode indicar calor.",
-          href: `/dashboard/flocks/detalhes/${lote.id}`,
-          source: "derived",
-        }));
-
-      const pendingSetup = setupAlerts.filter((alert) => {
-        if (alert.id === "setup-1" && (prodRes.count ?? 0) > 0) return false;
-        if (alert.id === "setup-2" && (feedRes.count ?? 0) > 0) return false;
-        if (alert.id === "setup-3" && (finRes.count ?? 0) > 0) return false;
-        if (alert.id === "setup-4" && (custRes.count ?? 0) > 0) return false;
-        if (alert.id === "setup-5" && (salesRes.count ?? 0) > 0) return false;
-        if (alert.id === "setup-6" && (invRes.count ?? 0) > 0) return false;
-        return true;
-      });
-
-      setActiveAlerts([...realAlerts, ...criaAlerts, ...pendingSetup]);
     } catch (err) {
       console.error("Error fetching flocks:", err);
-      setActiveAlerts([]);
     }
     setLoading(false);
   }, []);
@@ -318,44 +287,6 @@ export default function LotesPage() {
     if (authLoading || !farm) return;
     fetchData();
   }, [authLoading, farm, fetchData]);
-
-  function dismissLocalAlert(alertId: string) {
-    setDismissedAlertIds((prev) => {
-      if (prev.includes(alertId)) return prev;
-      const next = [...prev, alertId];
-      try {
-        window.localStorage.setItem(DISMISSED_FLOCK_ALERTS_KEY, JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-  }
-
-  async function dismissAlert(alert: ActiveAlert) {
-    if (closingAlertIds.includes(alert.id)) return;
-
-    setClosingAlertIds((prev) => [...prev, alert.id]);
-
-    alertDismissTimeoutsRef.current[alert.id] = setTimeout(async () => {
-      setActiveAlerts((prev) => prev.filter((item) => item.id !== alert.id));
-
-      if (alert.source === "db") {
-        const supabase = createClient();
-        const { error: updateErr } = await supabase
-          .from("alerts")
-          .update({ read: true, resolved: true })
-          .eq("id", alert.id);
-
-        if (updateErr) {
-          await fetchData();
-        }
-      } else {
-        dismissLocalAlert(alert.id);
-      }
-
-      setClosingAlertIds((prev) => prev.filter((id) => id !== alert.id));
-      delete alertDismissTimeoutsRef.current[alert.id];
-    }, 220);
-  }
 
   function openAdd() {
     setForm({ ...emptyForm });
@@ -418,7 +349,7 @@ export default function LotesPage() {
       bird_count: Number(form.bird_count) || 0,
       arrival_age_weeks: arrivalAgeWeeks,
       production_system: form.production_system,
-      status: getProductionStage(currentAge),
+      status: getPersistedProductionStage(currentAge),
       supplier: form.supplier || null,
       supplier_contact: unformatPhone(form.supplier_contact) || null,
       arrival_date: form.arrival_date,
@@ -495,14 +426,12 @@ export default function LotesPage() {
 
   const filtered = lotes.filter((l) => {
     const matchesSearch = l.code.toLowerCase().includes(search.toLowerCase()) || l.breed.toLowerCase().includes(search.toLowerCase());
-    const stage = getProductionStage(calculateCurrentAge(l.arrival_date, l.arrival_age_weeks));
+    const stage = getProductionPhase(calculateCurrentAge(l.arrival_date, l.arrival_age_weeks));
     const matchesStage = filterStage === "todos" || stage === filterStage;
     return matchesSearch && matchesStage;
   });
-  const visibleActiveAlerts = activeAlerts.filter((alert) => !dismissedAlertIds.includes(alert.id));
-  const urgentAlertsCount = visibleActiveAlerts.filter((alert) => alert.type === "danger").length;
-  const productiveLotes = lotes.filter((l) => ["producao", "pico", "estavel"].includes(getProductionStage(calculateCurrentAge(l.arrival_date, l.arrival_age_weeks)))).length;
-  const criticalLotes = lotes.filter((l) => ["declinio", "descarte"].includes(getProductionStage(calculateCurrentAge(l.arrival_date, l.arrival_age_weeks)))).length;
+  const productiveLotes = lotes.filter((l) => ["inicio-producao", "subida-producao", "pico", "producao-estavel"].includes(getProductionPhase(calculateCurrentAge(l.arrival_date, l.arrival_age_weeks)))).length;
+  const criticalLotes = lotes.filter((l) => ["declinio-inicial", "declinio-acentuado", "final-ciclo"].includes(getProductionPhase(calculateCurrentAge(l.arrival_date, l.arrival_age_weeks)))).length;
   const transitionLotes = lotes.length - productiveLotes - criticalLotes;
   const overcrowdedBarns = barns.filter((barn) => barn.capacity > 0 && barn.current_birds > barn.capacity).length;
   const performanceScore = lotes.length === 0
@@ -589,169 +518,13 @@ export default function LotesPage() {
           <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
           <input type="text" placeholder="Buscar lote ou raça..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none w-full" />
         </div>
-        {!loading && !(hideAdvancedFeatures && !hasMinimumPlan(plan, "pro")) && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col max-h-[420px] overflow-hidden dark:border-white/10 dark:bg-slate-900/80">
-            <div className="flex items-center justify-between mb-5 flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-red-500 flex items-center justify-center shadow-sm">
-                  <AlertTriangle className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-gray-900 dark:text-slate-100">Alertas ativos</h3>
-                  <p className="text-[11px] text-gray-400 font-medium dark:text-slate-400">
-                    {urgentAlertsCount > 0 && (
-                      <span className="text-red-600 font-semibold dark:text-red-300">{urgentAlertsCount} urgente · </span>
-                    )}
-                    {visibleActiveAlerts.length} alertas no total
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
-                <span className="text-[11px] font-bold text-white bg-red-500 px-2.5 py-1 rounded-lg">{visibleActiveAlerts.length}</span>
-              </div>
-            </div>
-            {plan === "essencial" ? (
-              <LockedOverlay message="Desbloqueie os alertas de controle" targetPlan="pro">
-                <div className="space-y-3 overflow-y-auto flex-1 pr-1 -mr-1 py-1">
-                  {visibleActiveAlerts.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500 dark:border-white/10 dark:text-slate-400">
-                      Nenhum alerta ativo.
-                    </div>
-                  ) : visibleActiveAlerts.map((alert) => (
-                    <div
-                      key={alert.id}
-                      className={cn(
-                        "rounded-xl p-4 border",
-                        alert.type === "danger" && "bg-red-50 border-red-200 dark:!border-red-400/20 dark:!bg-red-500/10",
-                        alert.type === "warning" && "bg-amber-50 border-amber-200 dark:!border-amber-400/20 dark:!bg-amber-500/10",
-                        alert.type === "info" && "bg-blue-50 border-blue-200 dark:!border-sky-400/20 dark:!bg-sky-500/10"
-                      )}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5", alert.type === "danger" && "bg-red-100", alert.type === "warning" && "bg-amber-100", alert.type === "info" && "bg-blue-100")}>
-                          <AlertTriangle className="w-4 h-4 text-gray-400 dark:text-slate-300" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-semibold text-gray-600 dark:text-slate-200">{alert.msg}</p>
-                          {alert.risk && <p className="text-[11px] text-gray-400 mt-1 dark:text-slate-400">Se ignorar: {alert.risk}</p>}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </LockedOverlay>
-            ) : (
-            <div className="space-y-3 overflow-y-auto flex-1 pr-1 -mr-1 py-1">
-              {visibleActiveAlerts.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500 dark:border-white/10 dark:text-slate-400">
-                  Nenhum alerta ativo.
-                </div>
-              ) : visibleActiveAlerts.map((alert) => {
-                const isClosing = closingAlertIds.includes(alert.id);
-                return (
-                  <div
-                    key={alert.id}
-                    className={cn(
-                      "overflow-hidden transition-all duration-200 ease-out",
-                      isClosing ? "max-h-0 opacity-0 -translate-y-1" : "max-h-64 opacity-100 translate-y-0"
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "relative rounded-xl p-4 pr-12 border transition-all duration-200 dark:hover:shadow-black/20",
-                        alert.type === "danger" && "bg-red-50 border-red-200 dark:!border-red-400/20 dark:!bg-red-500/10 dark:hover:!border-red-300/35 dark:hover:!bg-red-500/15",
-                        alert.type === "warning" && "bg-amber-50 border-amber-200 dark:!border-amber-400/20 dark:!bg-amber-500/10 dark:hover:!border-amber-300/35 dark:hover:!bg-amber-500/15",
-                        alert.type === "info" && "bg-blue-50 border-blue-200 dark:!border-sky-400/20 dark:!bg-sky-500/10 dark:hover:!border-sky-300/35 dark:hover:!bg-sky-500/15"
-                      )}
-                    >
-                      <button
-                        type="button"
-                        aria-label="Excluir aviso"
-                        onClick={() => void dismissAlert(alert)}
-                        className="absolute right-3 top-3 rounded-md p-1 text-gray-400 transition-colors hover:bg-white/70 hover:text-gray-600 dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-slate-200"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={cn(
-                            "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
-                            alert.type === "danger" && "bg-red-100 dark:bg-red-500/15",
-                            alert.type === "warning" && "bg-amber-100 dark:bg-amber-500/15",
-                            alert.type === "info" && "bg-blue-100 dark:bg-sky-500/15"
-                          )}
-                        >
-                          <AlertTriangle
-                            className={cn(
-                              "w-4 h-4",
-                              alert.type === "danger" && "text-red-600 dark:text-red-300",
-                              alert.type === "warning" && "text-amber-600 dark:text-amber-300",
-                              alert.type === "info" && "text-blue-600 dark:text-sky-300"
-                            )}
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p
-                            className={cn(
-                              "text-[13px] font-semibold leading-snug",
-                              alert.type === "danger" && "text-red-800 dark:text-red-200",
-                              alert.type === "warning" && "text-amber-800 dark:text-amber-200",
-                              alert.type === "info" && "text-blue-800 dark:text-sky-200"
-                            )}
-                          >
-                            {alert.msg}
-                          </p>
-                          {alert.risk && (
-                            <p className="text-[11px] text-gray-500 mt-1 leading-relaxed italic dark:text-slate-300">
-                              Se ignorar: {alert.risk}
-                            </p>
-                          )}
-                          <div className="flex items-center justify-between mt-2.5">
-                            <p className="text-[11px] text-gray-400 dark:text-slate-400">{alert.time}</p>
-                            {alert.href ? (
-                              <Link
-                                href={alert.href}
-                                className={cn(
-                                  "text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors",
-                                  alert.type === "danger" && "text-white bg-red-500 hover:bg-red-600 dark:bg-red-400 dark:text-red-950 dark:hover:bg-red-300",
-                                  alert.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300 dark:bg-amber-300 dark:text-amber-950 dark:hover:bg-amber-200",
-                                  alert.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300 dark:bg-sky-300 dark:text-sky-950 dark:hover:bg-sky-200"
-                                )}
-                              >
-                                {alert.action}
-                              </Link>
-                            ) : (
-                              <button
-                                type="button"
-                                className={cn(
-                                  "text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors",
-                                  alert.type === "danger" && "text-white bg-red-500 hover:bg-red-600 dark:bg-red-400 dark:text-red-950 dark:hover:bg-red-300",
-                                  alert.type === "warning" && "text-amber-800 bg-amber-200 hover:bg-amber-300 dark:bg-amber-300 dark:text-amber-950 dark:hover:bg-amber-200",
-                                  alert.type === "info" && "text-blue-800 bg-blue-200 hover:bg-blue-300 dark:bg-sky-300 dark:text-sky-950 dark:hover:bg-sky-200"
-                                )}
-                              >
-                                {alert.action}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            )}
-          </div>
-        )}
         <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1 w-fit">
-          {(["todos", "cria", "recria", "pre-postura", "producao", "pico", "estavel", "declinio", "descarte"] as const).filter((s) => {
-            if (s === "todos") return true;
-            return lotes.some((l) => getProductionStage(calculateCurrentAge(l.arrival_date, l.arrival_age_weeks)) === s);
+          {(["todos", ...filterPhases] as const).filter((s) => {
+            if (s === "todos" || s === "pico") return true;
+            return lotes.some((l) => getProductionPhase(calculateCurrentAge(l.arrival_date, l.arrival_age_weeks)) === s);
           }).map((s) => {
             const isActive = filterStage === s;
-            const label = s === "todos" ? "Todos" : stageLabel[s];
+            const label = s === "todos" ? "Todos" : getProductionPhaseName(s);
             return (
               <button
                 key={s}
@@ -797,28 +570,52 @@ export default function LotesPage() {
         /* Table */
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full table-fixed">
-              <colgroup>
-                <col className="w-[9%]" />
-                <col className="w-[9%]" />
-                <col className="w-[7%]" />
-                <col className="w-[7%]" />
-                <col className="w-[11%]" />
-                <col className="w-[11%]" />
-                <col className="w-[9%]" />
-                <col className="w-[9%]" />
-                <col className="w-[10%]" />
-                <col className="w-[9%]" />
-              </colgroup>
+            <table className="w-full min-w-[1500px]">
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Código</th>
                   <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Raça</th>
-                  <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Aves</th>
-                  <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Idade</th>
+                  <th className="text-left text-xs font-bold text-gray-900 px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      Aves iniciais
+                      <InfoTooltip label="Aves iniciais" description="Quantidade de aves registrada na entrada do lote, antes das mortalidades." />
+                    </span>
+                  </th>
+                  <th className="text-left text-xs font-bold text-gray-900 px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      Aves vivas
+                      <InfoTooltip label="Aves vivas" description="Quantidade inicial menos todas as mortalidades registradas até hoje." formula="Aves iniciais − mortalidades acumuladas" />
+                    </span>
+                  </th>
+                  <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">
+                    <span className="inline-flex items-center gap-1.5">
+                      Idade
+                      <InfoTooltip label="Idade" description="Idade na chegada somada às semanas completas de permanência do lote na granja." />
+                    </span>
+                  </th>
                   <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Galpão</th>
-                  <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Sistema</th>
-                  <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Estágio</th>
+                  <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">
+                    <span className="inline-flex items-center gap-1.5">
+                      Sistema
+                      <InfoTooltip label="Sistema" description="Sistema produtivo definido no galpão. Quando ausente, utiliza o sistema informado no cadastro do lote." />
+                    </span>
+                  </th>
+                  <th className="text-left text-xs font-bold text-gray-900 px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      Fase produtiva
+                      <InfoTooltip label="Fase produtiva" description="Fase atual calculada pela idade do lote conforme as faixas produtivas definidas." />
+                    </span>
+                  </th>
+                  <th className="text-left text-xs font-bold text-gray-900 px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      Taxa de postura
+                      <InfoTooltip
+                        label="Taxa de postura"
+                        description="Percentual acumulado de produção durante toda a fase produtiva do lote. Dias produtivos sem registro contam como produção zero."
+                        formula="Ovos válidos acumulados ÷ soma das aves vivas em todos os dias produtivos × 100"
+                      />
+                    </span>
+                  </th>
                   <th className="text-left text-xs font-bold text-gray-900 px-6 py-4">Chegada</th>
                   <th className="text-center text-xs font-bold text-gray-900 px-6 py-4">Detalhes</th>
                   <th className="text-right text-xs font-bold text-gray-900 px-6 py-4">Ações</th>
@@ -830,6 +627,7 @@ export default function LotesPage() {
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">{l.code}</td>
                     <td className="px-6 py-4 text-sm text-gray-700">{l.breed}</td>
                     <td className="px-6 py-4 text-sm text-gray-700">{l.bird_count.toLocaleString("pt-BR")}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">{l.live_birds.toLocaleString("pt-BR")}</td>
                     <td className="px-6 py-4 text-sm text-gray-700">{calculateCurrentAge(l.arrival_date, l.arrival_age_weeks)} sem.</td>
                     <td className="px-6 py-4 text-sm text-gray-700">{l.barn_name ?? "—"}</td>
                     <td className="px-6 py-4">
@@ -845,16 +643,22 @@ export default function LotesPage() {
                     </td>
                     <td className="px-6 py-4">
                       {(() => {
-                        const stage = getProductionStage(calculateCurrentAge(l.arrival_date, l.arrival_age_weeks));
+                        const ageWeeks = calculateCurrentAge(l.arrival_date, l.arrival_age_weeks);
+                        const stage = getProductionPhase(ageWeeks);
                         return (
                           <span className={cn("text-[11px] font-semibold px-3 py-1 rounded-full", stageColor[stage])}>
-                            {stageLabel[stage]}
+                            {getProductionPhaseLabel(ageWeeks)}
                           </span>
                         );
                       })()}
                     </td>
+                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                      {l.laying_rate === null
+                        ? "—"
+                        : `${l.laying_rate.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`}
+                    </td>
                     <td className="px-6 py-4 text-sm text-gray-700">
-                      {new Date(l.arrival_date).toLocaleDateString("pt-BR")}
+                      {new Date(`${l.arrival_date}T12:00:00`).toLocaleDateString("pt-BR")}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <Link href={"/dashboard/flocks/detalhes/" + l.id} className="inline-flex items-center justify-center p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
@@ -875,7 +679,7 @@ export default function LotesPage() {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="text-center py-16 text-gray-400 text-sm">Nenhum lote encontrado.</td>
+                    <td colSpan={12} className="text-center py-16 text-gray-400 text-sm">Nenhum lote encontrado.</td>
                   </tr>
                 )}
               </tbody>
