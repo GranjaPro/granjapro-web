@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import ModalPortal from "@/components/ui/modal-portal";
 import {
@@ -63,6 +63,8 @@ import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
 import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
 import { calculateFeedKpiMetrics, calculateFeedStockMetrics } from "@/lib/domain/feed-kpi-metrics";
+import { calculateFeedFinancialMetrics } from "@/lib/domain/financial-kpi-metrics";
+import { calculateKpiVariation, getComparisonPeriod, type KpiVariation } from "@/lib/domain/kpi-comparison";
 import type { FlockMortality, ProductiveFlock } from "@/lib/domain/egg-production-metrics";
 
 /* ── Types ── */
@@ -130,6 +132,7 @@ type FeedConsumptionWithBarn = Tables<"feed_consumption"> & {
 type ProductionRow = Tables<"egg_production">;
 type FlockRow = Tables<"flocks">;
 type FeedMetricKey = "cost" | "quantity_kg";
+type FeedFinancialMetrics = ReturnType<typeof calculateFeedFinancialMetrics>;
 
 const tipoLabel: Record<TipoRacao, string> = {
   milho: "Milho Mix",
@@ -207,6 +210,99 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+interface FeedCostTooltipProps {
+  label: string;
+  description: string;
+  formula: string;
+}
+
+function FeedCostTooltip({ label, description, formula }: FeedCostTooltipProps) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+
+  const updatePosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+
+    const viewportPadding = 8;
+    const gap = 8;
+    const triggerRect = trigger.getBoundingClientRect();
+    const tooltipWidth = tooltipRef.current?.offsetWidth ?? 208;
+    const tooltipHeight = tooltipRef.current?.offsetHeight ?? 144;
+    const maximumLeft = Math.max(viewportPadding, window.innerWidth - tooltipWidth - viewportPadding);
+    const left = Math.min(
+      Math.max(triggerRect.right - tooltipWidth, viewportPadding),
+      maximumLeft,
+    );
+    const preferredTop = triggerRect.bottom + gap;
+    const top = preferredTop + tooltipHeight <= window.innerHeight - viewportPadding
+      ? preferredTop
+      : Math.max(viewportPadding, triggerRect.top - tooltipHeight - gap);
+
+    setPosition({ top, left });
+  }, []);
+
+  const openTooltip = useCallback(() => {
+    updatePosition();
+    setIsOpen(true);
+  }, [updatePosition]);
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isOpen, updatePosition]);
+
+  return (
+    <div className="flex-shrink-0" onMouseEnter={openTooltip} onMouseLeave={() => setIsOpen(false)}>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={`Fórmula de ${label}`}
+        aria-expanded={isOpen}
+        onFocus={openTooltip}
+        onBlur={() => setIsOpen(false)}
+        className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800"
+      >
+        <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
+      </button>
+      {isOpen && (
+        <ModalPortal>
+          <div
+            ref={tooltipRef}
+            role="tooltip"
+            className="fixed z-[100] w-52 pointer-events-none bg-white rounded-xl border border-gray-200 shadow-lg p-3"
+            style={{ top: position.top, left: position.left }}
+          >
+            <p className="text-[11px] font-semibold text-gray-800 mb-1">Sobre {label}</p>
+            <p className="text-[10px] text-gray-500 leading-relaxed">{description}</p>
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <p className="text-[10px] text-gray-400">Fórmula: {formula}</p>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+    </div>
+  );
+}
+
+function formatFeedCurrency(value: number | undefined, maximumFractionDigits = 3): string {
+  if (value === undefined) return "—";
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits,
+  });
+}
+
 export default function RacaoPage() {
   const { plan, hideAdvancedFeatures } = usePlan();
   const showProFeatures = !hideAdvancedFeatures || hasMinimumPlan(plan, "pro");
@@ -232,7 +328,7 @@ export default function RacaoPage() {
   const [mortalities, setMortalities] = useState<FlockMortality[]>([]);
 
   // Shared calendar filter
-  const { dateRange } = useDateFilter();
+  const { dateRange, filterMode } = useDateFilter();
 
   // Dynamic Data States
   const [monthlyRS, setMonthlyRS] = useState<{ mes: string; valor: number }[]>([]);
@@ -241,6 +337,10 @@ export default function RacaoPage() {
   const [productionRecords, setProductionRecords] = useState<ProductionRow[]>([]);
   const [waterRecords, setWaterRecords] = useState<WaterConsumptionRow[]>([]);
   const [distType, setDistType] = useState<{ tipo: string; kg: number; pct: number; color: string }[]>([]);
+  const [feedFinancialMetrics, setFeedFinancialMetrics] = useState<{
+    current: FeedFinancialMetrics;
+    previous: FeedFinancialMetrics;
+  } | null>(null);
 
   const calculateMonthly = useCallback((data: FeedConsumptionWithBarn[], key: FeedMetricKey) => {
     const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -319,11 +419,20 @@ export default function RacaoPage() {
       setFarmId(profile.farm_id);
 
       const { startDate, endDate } = dateRange;
+      const comparisonPeriod = getComparisonPeriod({
+        mode: filterMode,
+        startDate,
+        endDate,
+        todayDate: getTodayDateInputValue(),
+      });
+      const currentEndDate = comparisonPeriod.currentEndDate;
 
-      const mortalityEndDate = endDate > getTodayDateInputValue() ? endDate : getTodayDateInputValue();
-      const [feedData, prodData, inventoryData, barnsData, flocksData, waterData, locationsRes, mortalityRes] = await Promise.all([
-        getFeedByDateRange(profile.farm_id, startDate, endDate),
-        getProductionByDateRange(profile.farm_id, startDate, endDate),
+      const mortalityEndDate = currentEndDate > getTodayDateInputValue() ? currentEndDate : getTodayDateInputValue();
+      const [feedData, prodData, previousFeedData, previousProdData, inventoryData, barnsData, flocksData, waterData, locationsRes, mortalityRes] = await Promise.all([
+        getFeedByDateRange(profile.farm_id, startDate, currentEndDate),
+        getProductionByDateRange(profile.farm_id, startDate, currentEndDate),
+        getFeedByDateRange(profile.farm_id, comparisonPeriod.previousStartDate, comparisonPeriod.previousEndDate),
+        getProductionByDateRange(profile.farm_id, comparisonPeriod.previousStartDate, comparisonPeriod.previousEndDate),
         getFeedInventory(profile.farm_id),
         getBarns(profile.farm_id),
         getFlocks(profile.farm_id),
@@ -355,6 +464,8 @@ export default function RacaoPage() {
       const typedFlocks = flocksData as FlockRow[];
       const typedFeedData = feedData as FeedConsumptionWithBarn[];
       const typedProdData = prodData as ProductionRow[];
+      const typedPreviousFeedData = previousFeedData as FeedConsumptionWithBarn[];
+      const typedPreviousProdData = previousProdData as ProductionRow[];
 
       setBarns(typedBarns.map((b) => ({
         id: b.id,
@@ -374,6 +485,46 @@ export default function RacaoPage() {
         status: f.status || "",
         barnId: f.barn_id,
       })));
+      const metricFlocks: ProductiveFlock[] = typedFlocks.map((flock) => ({
+        id: flock.id,
+        birdCount: flock.bird_count,
+        arrivalAgeWeeks: flock.arrival_age_weeks,
+        arrivalDate: flock.arrival_date,
+      }));
+      const metricMortalities = (mortalityRes.data ?? []).map((mortality) => ({
+        flockId: mortality.flock_id,
+        date: mortality.date,
+        deadBirds: mortality.dead_birds,
+      }));
+      const mapFinancialFeed = (rows: FeedConsumptionWithBarn[]) => rows.map((row) => ({
+        date: row.date,
+        flockId: row.flock_id,
+        quantityKg: Number(row.quantity_kg),
+        cost: Number(row.cost),
+      }));
+      const mapFinancialProduction = (rows: ProductionRow[]) => rows.map((row) => ({
+        date: row.date,
+        flockId: row.flock_id,
+        eggsProduced: row.eggs_produced,
+      }));
+      setFeedFinancialMetrics({
+        current: calculateFeedFinancialMetrics({
+          flocks: metricFlocks,
+          mortalities: metricMortalities,
+          feedRecords: mapFinancialFeed(typedFeedData),
+          productionRecords: mapFinancialProduction(typedProdData),
+          startDate,
+          endDate: currentEndDate,
+        }),
+        previous: calculateFeedFinancialMetrics({
+          flocks: metricFlocks,
+          mortalities: metricMortalities,
+          feedRecords: mapFinancialFeed(typedPreviousFeedData),
+          productionRecords: mapFinancialProduction(typedPreviousProdData),
+          startDate: comparisonPeriod.previousStartDate,
+          endDate: comparisonPeriod.previousEndDate,
+        }),
+      });
 
       // Map Table
       const mapped: RegistroRacao[] = typedFeedData.map((d) => {
@@ -435,7 +586,7 @@ export default function RacaoPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [calculateMonthly, mapDailyEfficiency, calculateDistribution, dateRange, showProFeatures]);
+  }, [calculateMonthly, mapDailyEfficiency, calculateDistribution, dateRange, filterMode, showProFeatures]);
 
   useEffect(() => {
     loadData();
@@ -1212,22 +1363,83 @@ export default function RacaoPage() {
               <DollarSign className="w-3.5 h-3.5 text-white" />
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-bold text-gray-900">Resumo Financeiro</h3>
-              <p className="text-[11px] text-gray-400 font-medium">Indicadores de custo e receita</p>
+              <h3 className="text-sm font-bold text-gray-900">Resumo de Custos da Ração</h3>
+              <p className="text-[11px] text-gray-400 font-medium">Custos do consumo no período</p>
             </div>
             <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0 px-2 py-0.5 text-[10px]" />
           </div>
           {(() => {
+            const current = feedFinancialMetrics?.current;
+            const previous = feedFinancialMetrics?.previous;
             const financeCards = [
-              { label: "Custo/Dúzia", value: "R$ 0,52", meta: "R$ 0,48", diff: +8.3, icon: DollarSign, iconBg: "bg-orange-50", iconColor: "text-orange-600" },
-              { label: "Custo/kg", value: "R$ 0,44", meta: "R$ 0,42", diff: +4.8, icon: Wheat, iconBg: "bg-orange-50", iconColor: "text-orange-600" },
-              { label: "Custo/Ovo", value: "R$ 0,043", meta: "R$ 0,040", diff: +7.5, icon: Egg, iconBg: "bg-orange-50", iconColor: "text-orange-600" },
-              { label: "Custo/Ave", value: "R$ 0,14", meta: "R$ 0,15", diff: -6.7, icon: Activity, iconBg: "bg-orange-50", iconColor: "text-orange-600" },
+              {
+                label: "Custo/Dúzia",
+                value: formatFeedCurrency(current?.costPerDozen),
+                detail: `${current?.comparableEggs.toLocaleString("pt-BR") ?? 0} ovos comparáveis`,
+                currentValue: current?.costPerDozen,
+                previousValue: previous?.costPerDozen,
+                lowerIsBetter: true,
+                description: "Custo alimentar necessário para produzir doze ovos nos mesmos lotes e datas com consumo registrado.",
+                formula: "Custo alimentar/ovo × 12",
+                icon: DollarSign,
+                iconBg: "bg-orange-50",
+                iconColor: "text-orange-600",
+              },
+              {
+                label: "Custo/kg",
+                value: formatFeedCurrency(current?.costPerKg),
+                detail: `${current?.totalFeedKg.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) ?? 0} kg consumidos`,
+                currentValue: current?.costPerKg,
+                previousValue: previous?.costPerKg,
+                lowerIsBetter: true,
+                description: "Custo médio de cada quilograma de ração efetivamente consumido no período.",
+                formula: "Custo total do consumo ÷ Quilogramas consumidos",
+                icon: Wheat,
+                iconBg: "bg-orange-50",
+                iconColor: "text-orange-600",
+              },
+              {
+                label: "Custo Alimentar/Ovo",
+                value: formatFeedCurrency(current?.costPerEgg),
+                detail: "Somente lotes-dias comparáveis",
+                currentValue: current?.costPerEgg,
+                previousValue: previous?.costPerEgg,
+                lowerIsBetter: true,
+                description: "Parcela do custo de ração atribuída a cada ovo, considerando apenas consumo e produção com o mesmo lote e data.",
+                formula: "Custo da ração comparável ÷ Ovos correspondentes",
+                icon: Egg,
+                iconBg: "bg-orange-50",
+                iconColor: "text-orange-600",
+              },
+              {
+                label: "Custo/Ave/Dia",
+                value: formatFeedCurrency(current?.costPerBirdDay),
+                detail: `${current?.comparableBirdDays.toLocaleString("pt-BR") ?? 0} aves-dia comparáveis`,
+                currentValue: current?.costPerBirdDay,
+                previousValue: previous?.costPerBirdDay,
+                lowerIsBetter: true,
+                description: "Custo médio diário de ração por ave viva nos lotes e datas com produção correspondente.",
+                formula: "Custo da ração comparável ÷ Aves vivas-dia",
+                icon: Activity,
+                iconBg: "bg-orange-50",
+                iconColor: "text-orange-600",
+              },
             ];
             const grid = (
               <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-                {financeCards.map((c, index) => {
-                  const isOver = c.diff > 0;
+                {financeCards.map((c) => {
+                  const canCompare = c.currentValue !== undefined && c.previousValue !== undefined;
+                  const variation: KpiVariation | null = canCompare
+                    ? calculateKpiVariation(c.currentValue ?? 0, c.previousValue ?? 0)
+                    : null;
+                  const isNewValue = variation?.label === "Novo";
+                  const isImprovement = variation?.direction === "up"
+                    ? !c.lowerIsBetter
+                    : variation?.direction === "down"
+                      ? c.lowerIsBetter
+                      : isNewValue
+                        ? !c.lowerIsBetter
+                        : null;
                   return (
                     <div key={c.label} className="bg-gray-50 rounded-xl border border-gray-100 p-3 flex flex-col transition-colors hover:border-gray-200">
                       <div className="flex items-center justify-between gap-2 mb-2">
@@ -1237,28 +1449,27 @@ export default function RacaoPage() {
                           </div>
                           <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider leading-tight truncate">{c.label}</span>
                         </div>
-                        <div className="relative group flex-shrink-0">
-                          <button className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
-                            <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
-                          </button>
-                          <div
-                            className={cn(
-                              "absolute top-7 w-52 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50",
-                              index % 2 === 0 ? "left-0" : "right-0"
-                            )}
-                          >
-                            <p className="text-[11px] font-semibold text-gray-800 mb-1">Sobre {c.label}</p>
-                            <p className="text-[10px] text-gray-500 leading-relaxed">Indicador financeiro calculado com base nos custos de ração e na produção do período.</p>
-                          </div>
-                        </div>
+                        <FeedCostTooltip
+                          label={c.label}
+                          description={c.description}
+                          formula={c.formula}
+                        />
                       </div>
                       <p className="text-base font-bold text-gray-900">{c.value}</p>
                       <div className="flex items-center justify-between mt-auto pt-1.5">
-                        <span className="text-[9px] text-gray-400">{c.meta}</span>
-                        <span className={cn("inline-flex items-center gap-0.5 text-[9px] font-bold px-1 py-0.5 rounded-full", isOver ? "text-red-600 bg-red-50" : "text-emerald-600 bg-emerald-50")}>
-                          {isOver ? <ArrowUpRight className="w-2.5 h-2.5" /> : <ArrowDownRight className="w-2.5 h-2.5" />}
-                          {isOver ? "+" : ""}{c.diff.toFixed(1)}%
-                        </span>
+                        <span className="text-[9px] text-gray-400 truncate">{c.detail}</span>
+                        {variation && (
+                          <span className={cn(
+                            "inline-flex items-center gap-0.5 text-[9px] font-bold px-1 py-0.5 rounded-full",
+                            isImprovement === true && "text-emerald-600 bg-emerald-50",
+                            isImprovement === false && "text-red-600 bg-red-50",
+                            isImprovement === null && "text-gray-600 bg-gray-100",
+                          )}>
+                            {variation.direction === "up" && <ArrowUpRight className="w-2.5 h-2.5" />}
+                            {variation.direction === "down" && <ArrowDownRight className="w-2.5 h-2.5" />}
+                            {variation.label}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
