@@ -25,9 +25,13 @@ interface TaskDialogProps {
   open: boolean;
   mode: "create" | "edit";
   values: TaskDialogValues;
+  scopeLabel?: string;
+  scopeValue?: string;
+  scopeOptions?: TaskDialogOption<string>[];
   categoryOptions: TaskDialogOption<TaskCategory>[];
   priorityOptions: TaskDialogOption<TaskPriority>[];
   recurrenceOptions: TaskDialogOption<TaskRecurrence>[];
+  onScopeChange?: (value: string) => void;
   onChange: (values: TaskDialogValues) => void;
   onClose: () => void;
   onSave: () => void;
@@ -37,9 +41,13 @@ export function TaskDialog({
   open,
   mode,
   values,
+  scopeLabel,
+  scopeValue,
+  scopeOptions,
   categoryOptions,
   priorityOptions,
   recurrenceOptions,
+  onScopeChange,
   onChange,
   onClose,
   onSave,
@@ -59,6 +67,20 @@ export function TaskDialog({
             </button>
           </div>
           <div className="p-5 space-y-4">
+            {scopeOptions && scopeValue !== undefined && onScopeChange && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">{scopeLabel ?? "Escopo"}</label>
+                <select
+                  value={scopeValue}
+                  onChange={(event) => onScopeChange(event.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                >
+                  {scopeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5">Titulo</label>
               <input

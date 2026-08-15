@@ -17,7 +17,6 @@ import {
   AlertTriangle,
   RotateCcw,
   Filter,
-  X,
   Loader2,
   Egg,
   Wheat,
@@ -27,8 +26,6 @@ import {
   Sparkles,
   Users,
   Bell,
-  AlertCircle,
-  TrendingUp,
   XCircle,
   Thermometer,
   Bug,
@@ -48,9 +45,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
-import { PlanAwareCalendarFilter, useDateFilter } from "@/components/date-filter";
-import { usePlan } from "@/components/plan/plan-provider";
-import { hasMinimumPlan } from "@/lib/plans";
+import { formatTaskCompletionDate } from "@/lib/domain/task-timing";
 import { createClient } from "@/lib/supabase/client";
 import {
   TaskDialog,
@@ -127,17 +122,11 @@ interface Task {
   done: boolean;
   doneAt: string | null;
   missed: boolean;
+  flockId: string | null;
+  flockCode: string | null;
   barn: string | null;
   notes: string;
   iconKey: TaskIconKey;
-}
-
-interface FlockAlert {
-  id: string;
-  type: "warning" | "info" | "critical";
-  message: string;
-  time: string;
-  dismissed: boolean;
 }
 
 const categoryConfig: Record<TaskCategory, { label: string; icon: typeof Egg; color: string; bg: string }> = {
@@ -161,16 +150,6 @@ const recurrenceLabel: Record<TaskRecurrence, string> = {
   mensal: "Mensal",
   unica: "Única",
 };
-
-function generateMockAlerts(loteCode: string): FlockAlert[] {
-  return [
-    { id: "a1", type: "warning", message: `Consumo de ração abaixo da meta nos últimos 3 dias`, time: "08:15", dismissed: false },
-    { id: "a2", type: "info", message: `Pesagem programada para próxima semana`, time: "07:00", dismissed: false },
-    { id: "a3", type: "critical", message: `Mortalidade acima do esperado ontem (0.4%)`, time: "06:30", dismissed: false },
-    { id: "a4", type: "info", message: `Lote ${loteCode} completa 4 semanas em 3 dias`, time: "07:00", dismissed: false },
-    { id: "a5", type: "warning", message: `Temperatura do galpão fora da faixa ideal ontem à tarde`, time: "16:00", dismissed: false },
-  ];
-}
 
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -198,10 +177,15 @@ function taskOccursOn(task: TaskRow, selectedDate: Date) {
 
 function completedTime(exception: TaskExceptionRow | undefined) {
   if (!exception?.completed_at) return null;
-  return new Date(exception.completed_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return formatTaskCompletionDate(exception.completed_at);
 }
 
-function mapTaskOccurrence(task: TaskRow, selectedDateKey: string, exception: TaskExceptionRow | undefined): Task {
+function mapTaskOccurrence(
+  task: TaskRow,
+  selectedDateKey: string,
+  exception: TaskExceptionRow | undefined,
+  flockCodeById: Map<string, string>,
+): Task {
   return {
     id: `${task.id}:${selectedDateKey}`,
     baseTaskId: task.id,
@@ -214,33 +198,27 @@ function mapTaskOccurrence(task: TaskRow, selectedDateKey: string, exception: Ta
     done: exception?.status === "done",
     doneAt: completedTime(exception),
     missed: exception?.status === "missed",
+    flockId: task.flock_id,
+    flockCode: task.flock_id ? flockCodeById.get(task.flock_id) ?? null : null,
     barn: null,
     notes: task.notes ?? "",
     iconKey: defaultIconForCategory[task.category],
   };
 }
 
-export default function OperacionalLotePage() {
+export default function OperationalTasksPage() {
   const params = useParams();
-  const loteId = params.loteId as string;
+  const loteId = typeof params.loteId === "string" ? params.loteId : undefined;
   const { farm, loading: authLoading } = useAuth();
-  const { plan } = usePlan();
-  const {
-    dateRange,
-    setFilterMode,
-    setRangeStart,
-    setRangeEnd,
-    setSelectedDate: setGlobalSelectedDate,
-  } = useDateFilter();
-  const canUseDateFilter = hasMinimumPlan(plan, "pro");
 
-  const [lote, setLote] = useState<Lote | null>(null);
+  const [lotes, setLotes] = useState<Lote[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [selectedDate, setSelectedDateState] = useState(new Date());
   const [filterCategory, setFilterCategory] = useState<TaskCategory | "all">("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [alerts, setAlerts] = useState<FlockAlert[]>([]);
+  const [filterFlockId, setFilterFlockId] = useState("all");
+  const [taskFlockId, setTaskFlockId] = useState(loteId ?? "all");
   const selectedDateKey = useMemo(() => toDateKey(selectedDate), [selectedDate]);
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
@@ -256,25 +234,29 @@ export default function OperacionalLotePage() {
 
     setTasks(
       occurrences
-        .map((task) => mapTaskOccurrence(task, selectedDateKey, exceptionByTaskId.get(task.id)))
+        .map((task) => mapTaskOccurrence(
+          task,
+          selectedDateKey,
+          exceptionByTaskId.get(task.id),
+          new Map(lotes.map((flock) => [flock.id, flock.code])),
+        ))
         .sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime)),
     );
-  }, [farm?.id, loteId, selectedDate, selectedDateKey]);
+  }, [farm?.id, loteId, lotes, selectedDate, selectedDateKey]);
 
   useEffect(() => {
     if (!farm?.id) return;
     const supabase = createClient();
-    supabase
+    let query = supabase
       .from("flocks")
       .select("id, code, breed, bird_count, arrival_age_weeks, arrival_date")
-      .eq("id", loteId)
       .eq("farm_id", farm.id)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          setLote(data as Lote);
-          setAlerts(generateMockAlerts(data.code));
-        }
+      .order("code");
+
+    if (loteId) query = query.eq("id", loteId);
+
+    query.then(({ data }) => {
+        setLotes((data ?? []) as Lote[]);
         setInitialLoading(false);
       });
   }, [farm?.id, loteId]);
@@ -283,21 +265,9 @@ export default function OperacionalLotePage() {
     void loadTasks();
   }, [loadTasks]);
 
-  useEffect(() => {
-    if (!canUseDateFilter) return;
-    setSelectedDateState(new Date(`${dateRange.startDate}T00:00:00`));
-  }, [canUseDateFilter, dateRange.startDate]);
-
   const setOperationalDate = useCallback((date: Date) => {
     setSelectedDateState(date);
-
-    if (!canUseDateFilter) return;
-
-    setFilterMode("dia");
-    setRangeStart(date);
-    setRangeEnd(date);
-    setGlobalSelectedDate(date);
-  }, [canUseDateFilter, setFilterMode, setGlobalSelectedDate, setRangeEnd, setRangeStart]);
+  }, []);
 
   const changeDate = useCallback((offset: number) => {
     const next = new Date(selectedDate);
@@ -326,20 +296,17 @@ export default function OperacionalLotePage() {
     await loadTasks();
   }, [loadTasks]);
 
-  const dismissAlert = useCallback((id: string) => {
-    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, dismissed: true } : a)));
-  }, []);
-
   const filteredTasks = useMemo(
-    () => (filterCategory === "all" ? tasks : tasks.filter((t) => t.category === filterCategory)),
-    [tasks, filterCategory],
+    () => tasks.filter((task) =>
+      (filterCategory === "all" || task.category === filterCategory)
+      && (filterFlockId === "all" || (filterFlockId === "general" ? task.flockId === null : task.flockId === filterFlockId)),
+    ),
+    [filterCategory, filterFlockId, tasks],
   );
 
   const pendingTasks = useMemo(() => filteredTasks.filter((t) => !t.done && !t.missed), [filteredTasks]);
   const doneTasks = useMemo(() => filteredTasks.filter((t) => t.done), [filteredTasks]);
   const missedTasks = useMemo(() => filteredTasks.filter((t) => t.missed && !t.done), [filteredTasks]);
-  const activeAlerts = useMemo(() => alerts.filter((a) => !a.dismissed), [alerts]);
-
   const totalCount = tasks.length;
   const doneCount = tasks.filter((t) => t.done).length;
   const progressPercent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
@@ -368,6 +335,7 @@ export default function OperacionalLotePage() {
 
   const resetForm = useCallback(() => {
     setEditingTask(null);
+    setTaskFlockId(loteId ?? "all");
     setTaskFormValues({
       title: "",
       category: "geral",
@@ -376,7 +344,7 @@ export default function OperacionalLotePage() {
       recurrence: "unica",
       notes: "",
     });
-  }, []);
+  }, [loteId]);
 
   const openAddModal = useCallback(() => {
     resetForm();
@@ -385,6 +353,7 @@ export default function OperacionalLotePage() {
 
   const openEditModal = useCallback((task: Task) => {
     setEditingTask(task);
+    setTaskFlockId(task.flockId ?? "all");
     setTaskFormValues({
       title: task.title,
       category: task.category,
@@ -401,6 +370,7 @@ export default function OperacionalLotePage() {
 
     if (editingTask) {
       await updateTask(editingTask.baseTaskId, {
+        flock_id: loteId ?? (taskFlockId === "all" ? null : taskFlockId),
         title: taskFormValues.title.trim(),
         category: taskFormValues.category,
         priority: taskFormValues.priority,
@@ -411,7 +381,7 @@ export default function OperacionalLotePage() {
     } else {
       await createTask({
         farm_id: farm.id,
-        flock_id: loteId,
+        flock_id: loteId ?? (taskFlockId === "all" ? null : taskFlockId),
         title: taskFormValues.title.trim(),
         category: taskFormValues.category,
         priority: taskFormValues.priority,
@@ -425,7 +395,7 @@ export default function OperacionalLotePage() {
     await loadTasks();
     resetForm();
     setShowAddModal(false);
-  }, [editingTask, farm?.id, loadTasks, loteId, resetForm, selectedDateKey, taskFormValues]);
+  }, [editingTask, farm?.id, loadTasks, loteId, resetForm, selectedDateKey, taskFlockId, taskFormValues]);
 
   if (authLoading || initialLoading) {
     return (
@@ -435,7 +405,9 @@ export default function OperacionalLotePage() {
     );
   }
 
-  if (!lote) {
+  const lote = loteId ? lotes[0] : null;
+
+  if (loteId && !lote) {
     return (
       <div className="text-center py-20">
         <p className="text-sm text-gray-500">Lote não encontrado</p>
@@ -451,22 +423,23 @@ export default function OperacionalLotePage() {
       {/* Header */}
       <div>
         <Link
-          href={`/dashboard/flocks/detalhes/${loteId}`}
+          href={loteId ? `/dashboard/flocks/detalhes/${loteId}` : "/dashboard"}
           className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-4"
         >
           <ArrowLeft className="w-4 h-4" />
-          Voltar para {lote.code}
+          {lote ? `Voltar para ${lote.code}` : "Voltar para o dashboard"}
         </Link>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <Users className="w-5 h-5 text-violet-600" />
-              <h1 className="text-xl font-bold text-gray-900">Operacional — {lote.code}</h1>
+              <h1 className="text-xl font-bold text-gray-900">{lote ? `Operacional — ${lote.code}` : "Operacional"}</h1>
             </div>
-            <p className="text-sm text-gray-500 mt-1">Tarefas diárias, alertas e acompanhamento do lote</p>
+            <p className="text-sm text-gray-500 mt-1">
+              {lote ? "Tarefas diárias e acompanhamento do lote" : "Tarefas diárias e acompanhamento de todos os lotes"}
+            </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <PlanAwareCalendarFilter />
             <button
               onClick={openAddModal}
               className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 transition-colors cursor-pointer"
@@ -477,32 +450,6 @@ export default function OperacionalLotePage() {
           </div>
         </div>
       </div>
-
-      {/* Alerts */}
-      {activeAlerts.length > 0 && (
-        <div className="space-y-2">
-          {activeAlerts.map((alert) => (
-            <div
-              key={alert.id}
-              className={cn(
-                "rounded-xl border px-4 py-3 flex items-start gap-3",
-                alert.type === "critical" ? "bg-red-50 border-red-200" : alert.type === "warning" ? "bg-amber-50 border-amber-200" : "bg-blue-50 border-blue-200",
-              )}
-            >
-              <AlertCircle className={cn("w-4 h-4 mt-0.5 shrink-0", alert.type === "critical" ? "text-red-600" : alert.type === "warning" ? "text-amber-600" : "text-blue-600")} />
-              <div className="flex-1 min-w-0">
-                <p className={cn("text-sm font-medium", alert.type === "critical" ? "text-red-900" : alert.type === "warning" ? "text-amber-900" : "text-blue-900")}>
-                  {alert.message}
-                </p>
-                <span className="text-[11px] text-gray-500 mt-0.5 block">{alert.time}</span>
-              </div>
-              <button onClick={() => dismissAlert(alert.id)} className="shrink-0 p-1 rounded-lg hover:bg-white/50 cursor-pointer">
-                <X className="w-3.5 h-3.5 text-gray-500" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Week strip */}
       <div className="bg-white rounded-2xl border border-gray-100 p-4">
@@ -595,6 +542,18 @@ export default function OperacionalLotePage() {
       {/* Category filter */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         <Filter className="w-4 h-4 text-gray-400 shrink-0" />
+        {!loteId && (
+          <select
+            value={filterFlockId}
+            onChange={(event) => setFilterFlockId(event.target.value)}
+            aria-label="Filtrar tarefas por lote"
+            className="shrink-0 rounded-lg border-0 bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600 outline-none focus:ring-2 focus:ring-brand-500/20"
+          >
+            <option value="all">Todos os lotes</option>
+            <option value="general">Tarefas gerais</option>
+            {lotes.map((flock) => <option key={flock.id} value={flock.id}>{flock.code}</option>)}
+          </select>
+        )}
         <button
           onClick={() => setFilterCategory("all")}
           className={cn(
@@ -641,6 +600,7 @@ export default function OperacionalLotePage() {
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[11px] text-gray-400 flex items-center gap-1"><Clock className="w-3 h-3" /> {task.scheduledTime}</span>
                         <span className="text-[11px] text-gray-400">· {recurrenceLabel[task.recurrence]}</span>
+                        {!loteId && <span className="text-[11px] font-medium text-brand-600">· {task.flockCode ?? "Todos os lotes"}</span>}
                       </div>
                     </div>
                     <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold", pri.color)}>{pri.label}</span>
@@ -676,7 +636,8 @@ export default function OperacionalLotePage() {
                       <p className="text-sm font-medium text-gray-500 line-through truncate">{task.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[11px] text-gray-400 flex items-center gap-1"><Clock className="w-3 h-3" /> {task.scheduledTime}</span>
-                        {task.doneAt && <span className="text-[11px] text-emerald-500">concluída às {task.doneAt}</span>}
+                        {task.doneAt && <span className="text-[11px] text-emerald-500">concluída em {task.doneAt}</span>}
+                        {!loteId && <span className="text-[11px] font-medium text-brand-600">· {task.flockCode ?? "Todos os lotes"}</span>}
                       </div>
                     </div>
                     <button onClick={() => void deleteTask(task)} className="shrink-0 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
@@ -707,6 +668,7 @@ export default function OperacionalLotePage() {
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[11px] text-red-400 flex items-center gap-1"><Clock className="w-3 h-3" /> {task.scheduledTime}</span>
                         <span className="text-[11px] font-medium text-red-500">não realizada</span>
+                        {!loteId && <span className="text-[11px] font-medium text-brand-600">· {task.flockCode ?? "Todos os lotes"}</span>}
                       </div>
                     </div>
                     <button
@@ -735,6 +697,12 @@ export default function OperacionalLotePage() {
         open={showAddModal}
         mode={editingTask ? "edit" : "create"}
         values={taskFormValues}
+        scopeLabel={!loteId ? "Lote" : undefined}
+        scopeValue={!loteId ? taskFlockId : undefined}
+        scopeOptions={!loteId ? [
+          { value: "all", label: "Todos os lotes" },
+          ...lotes.map((flock) => ({ value: flock.id, label: flock.code })),
+        ] : undefined}
         categoryOptions={Object.entries(categoryConfig).map(([value, config]) => ({
           value: value as TaskCategory,
           label: config.label,
@@ -748,6 +716,7 @@ export default function OperacionalLotePage() {
           label,
         }))}
         onChange={setTaskFormValues}
+        onScopeChange={!loteId ? setTaskFlockId : undefined}
         onClose={() => setShowAddModal(false)}
         onSave={() => void saveTask()}
       />

@@ -62,6 +62,7 @@ type SidebarNavItem =
 type SidebarNavLink = Extract<SidebarNavItem, { href: string }>;
 
 const ROUTE_PLAN_REQUIREMENTS: Record<string, PlanType> = {
+  "/dashboard/operacional": "premium",
   "/dashboard/workers": "pro",
   "/dashboard/reports": "pro",
   "/dashboard/agua": "pro",
@@ -84,9 +85,7 @@ const sidebarNav: SidebarNavItem[] = [
   { label: "Equipamentos", href: "/dashboard/equipment", icon: Wrench },
   { type: "divider" as const },
   { label: "Assistente IA", href: "/dashboard/ai", icon: Bot },
-  { label: "Funcionários", href: "/dashboard/workers", icon: Users, minimumPlan: "pro" },
   { label: "Relatórios", href: "/dashboard/reports", icon: FileText, minimumPlan: "pro" },
-  { label: "Feedback", href: "/dashboard/feedback", icon: MessageSquare },
 ];
 
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
@@ -448,12 +447,41 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
             href="/dashboard/select-plan"
             onClick={() => setSidebarOpen(false)}
             className={cn(
-              "group mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-brand-300/80 hover:bg-white/[0.07] hover:text-white transition-all duration-200 w-full cursor-pointer",
-              collapsed && "justify-center px-0"
+              "group mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-200 w-full cursor-pointer",
+              collapsed && "justify-center px-0",
+              pathname === "/dashboard/select-plan"
+                ? "bg-brand-500/90 text-white shadow-lg shadow-brand-500/20"
+                : "text-brand-300/80 hover:bg-white/[0.07] hover:text-white",
             )}
           >
-            <CreditCard className="w-[18px] h-[18px] text-brand-400/70 group-hover:text-brand-300 flex-shrink-0" strokeWidth={1.8} />
+            <CreditCard
+              className={cn(
+                "w-[18px] h-[18px] flex-shrink-0 transition-colors",
+                pathname === "/dashboard/select-plan" ? "text-white" : "text-brand-400/70 group-hover:text-brand-300",
+              )}
+              strokeWidth={pathname === "/dashboard/select-plan" ? 2.2 : 1.8}
+            />
             {!collapsed && <span className="truncate">Meu plano</span>}
+          </Link>
+          <Link
+            href="/dashboard/feedback"
+            onClick={() => setSidebarOpen(false)}
+            className={cn(
+              "group mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-200 w-full cursor-pointer",
+              collapsed && "justify-center px-0",
+              pathname === "/dashboard/feedback"
+                ? "bg-brand-500/90 text-white shadow-lg shadow-brand-500/20"
+                : "text-brand-300/80 hover:bg-white/[0.07] hover:text-white",
+            )}
+          >
+            <MessageSquare
+              className={cn(
+                "w-[18px] h-[18px] flex-shrink-0 transition-colors",
+                pathname === "/dashboard/feedback" ? "text-white" : "text-brand-400/70 group-hover:text-brand-300",
+              )}
+              strokeWidth={pathname === "/dashboard/feedback" ? 2.2 : 1.8}
+            />
+            {!collapsed && <span className="truncate">Feedback</span>}
           </Link>
           <button
             onClick={signOut}
