@@ -256,14 +256,14 @@ create table public.egg_production (
   barn_id uuid references public.barns on delete cascade,
   flock_id uuid references public.flocks on delete cascade,
   date date not null,
-  eggs_produced int not null,
-  broken_eggs int default 0,
-  dirty_eggs int default 0,
-  discarded_eggs int default 0,
+  eggs_produced int not null check (eggs_produced >= 0),
+  broken_eggs int default 0 check (broken_eggs >= 0),
+  dirty_eggs int default 0 check (dirty_eggs >= 0),
+  discarded_eggs int default 0 check (discarded_eggs >= 0),
   eggs_sold int default 0,
   egg_price numeric(10,2) default 0,
-  laying_rate numeric(5,2) default 0,
-  eggs_per_bird numeric(5,2) default 0
+  laying_rate numeric default 0,
+  eggs_per_bird numeric default 0
 );
 
 alter table public.egg_production enable row level security;
@@ -306,8 +306,7 @@ create table public.feed_consumption (
   date date not null,
   quantity_kg numeric(10,2) not null,
   cost numeric(10,2) default 0,
-  feed_type text default 'Ração Postura',
-  cost_per_egg numeric(10,4) default 0
+  feed_type text default 'Ração Postura'
 );
 
 alter table public.feed_consumption enable row level security;

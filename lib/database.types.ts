@@ -659,7 +659,6 @@ export interface Database {
           cost: number;
           feed_type: string;
           feed_inventory_id: string | null;
-          cost_per_egg: number;
         };
         Insert: {
           id?: string;
@@ -672,7 +671,6 @@ export interface Database {
           cost?: number;
           feed_type?: string;
           feed_inventory_id?: string | null;
-          cost_per_egg?: number;
         };
         Update: {
           id?: string;
@@ -685,7 +683,6 @@ export interface Database {
           cost?: number;
           feed_type?: string;
           feed_inventory_id?: string | null;
-          cost_per_egg?: number;
         };
       };
       water_consumption: {

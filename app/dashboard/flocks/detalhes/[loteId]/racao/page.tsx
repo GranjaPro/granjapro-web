@@ -53,7 +53,6 @@ interface FeedRecord {
   quantity_kg: number;
   cost: number;
   feed_type: string;
-  cost_per_egg: number;
 }
 
 interface ProductionRecord {
@@ -299,7 +298,6 @@ function buildMockFeedData(lote: Lote, startDate: string, endDate: string) {
       quantity_kg: quantityKg,
       cost,
       feed_type: feedType,
-      cost_per_egg: 0,
     };
   });
 
