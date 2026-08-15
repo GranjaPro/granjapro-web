@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
@@ -141,7 +141,12 @@ function daysSinceArrival(dateStr: string) {
 
 export default function DetalhesLotePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const loteId = params.loteId as string;
+  const cameFromProduction = searchParams.get("origem") === "producao";
+  const originSuffix = cameFromProduction ? "?origem=producao" : "";
+  const backHref = cameFromProduction ? "/dashboard/production" : "/dashboard/flocks";
+  const backLabel = cameFromProduction ? "Voltar para Produção" : "Voltar para Lotes";
   const { farm, loading: authLoading } = useAuth();
   const { plan } = usePlan();
   const { dateRange } = useDateFilter();
@@ -280,9 +285,9 @@ export default function DetalhesLotePage() {
   if (!lote) {
     return (
       <div className="space-y-6">
-        <Link href="/dashboard/flocks" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-600 transition-colors">
+        <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-600 transition-colors">
           <ArrowLeft className="w-4 h-4" />
-          Voltar para Lotes
+          {backLabel}
         </Link>
         <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
           <p className="text-gray-400">Lote não encontrado.</p>
@@ -296,7 +301,7 @@ export default function DetalhesLotePage() {
   const topCards = [
     {
       label: "Produção",
-      href: `/dashboard/flocks/detalhes/${loteId}/producao`,
+      href: `/dashboard/flocks/detalhes/${loteId}/producao${originSuffix}`,
       icon: Egg,
       iconBg: "bg-amber-50",
       iconColor: "text-amber-600",
@@ -307,7 +312,7 @@ export default function DetalhesLotePage() {
     },
     {
       label: "Saúde",
-      href: `/dashboard/flocks/detalhes/${loteId}/saude`,
+      href: `/dashboard/flocks/detalhes/${loteId}/saude${originSuffix}`,
       icon: HeartPulse,
       iconBg: "bg-emerald-50",
       iconColor: "text-emerald-600",
@@ -318,7 +323,7 @@ export default function DetalhesLotePage() {
     },
     {
       label: "Mortalidade",
-      href: `/dashboard/flocks/detalhes/${loteId}/mortalidade`,
+      href: `/dashboard/flocks/detalhes/${loteId}/mortalidade${originSuffix}`,
       icon: Skull,
       iconBg: "bg-red-50",
       iconColor: "text-red-500",
@@ -329,7 +334,7 @@ export default function DetalhesLotePage() {
     },
     {
       label: "Histórico Sanitário",
-      href: `/dashboard/flocks/detalhes/${loteId}/historico-sanitario`,
+      href: `/dashboard/flocks/detalhes/${loteId}/historico-sanitario${originSuffix}`,
       icon: ShieldCheck,
       iconBg: "bg-teal-50",
       iconColor: "text-teal-600",
@@ -343,7 +348,7 @@ export default function DetalhesLotePage() {
   const bottomCards = [
     {
       label: "Consumo de Água",
-      href: `/dashboard/flocks/detalhes/${loteId}/agua`,
+      href: `/dashboard/flocks/detalhes/${loteId}/agua${originSuffix}`,
       icon: Droplets,
       iconBg: "bg-blue-50",
       iconColor: "text-blue-600",
@@ -354,7 +359,7 @@ export default function DetalhesLotePage() {
     },
     {
       label: "Consumo de Ração",
-      href: `/dashboard/flocks/detalhes/${loteId}/racao`,
+      href: `/dashboard/flocks/detalhes/${loteId}/racao${originSuffix}`,
       icon: Wheat,
       iconBg: "bg-orange-50",
       iconColor: "text-orange-600",
@@ -365,7 +370,7 @@ export default function DetalhesLotePage() {
     },
     {
       label: "Operacional",
-      href: `/dashboard/flocks/detalhes/${loteId}/operacional`,
+      href: `/dashboard/flocks/detalhes/${loteId}/operacional${originSuffix}`,
       icon: Users,
       iconBg: "bg-violet-50",
       iconColor: "text-violet-600",
@@ -380,9 +385,9 @@ export default function DetalhesLotePage() {
     <div className="space-y-6">
       {/* Back + Header */}
       <div>
-        <Link href="/dashboard/flocks" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-600 transition-colors mb-4">
+        <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-600 transition-colors mb-4">
           <ArrowLeft className="w-4 h-4" />
-          Voltar para Lotes
+          {backLabel}
         </Link>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex items-center gap-3">

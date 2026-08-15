@@ -27,9 +27,10 @@ import {
   CircleDollarSign,
   AlertOctagon,
   Loader2,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { insightHref } from "@/lib/insight-links";
 import { AssistantCard } from "@/components/dashboard/assistant-card";
 import {
@@ -51,8 +52,10 @@ import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
 import type { Tables } from "@/lib/database.types";
-import { calculateEggProductionMetrics, calculateLiveBirdsAtDate, getFlockProductionEligibility, type FlockMortality } from "@/lib/domain/egg-production-metrics";
-import { calculateRelativePercentageDifference } from "@/lib/domain/kpi-comparison";
+import { calculateEggProductionMetrics, calculateLiveBirdsAtDate, getFlockProductionEligibility, requiresHighLayingRateConfirmation, type FlockMortality } from "@/lib/domain/egg-production-metrics";
+import { calculateFeedKpiMetrics } from "@/lib/domain/feed-kpi-metrics";
+import { calculateProductionFinancialMetrics } from "@/lib/domain/financial-kpi-metrics";
+import { calculateKpiVariation, calculateRelativePercentageDifference, getComparisonPeriod, type KpiVariation } from "@/lib/domain/kpi-comparison";
 
 /* ── Interfaces ── */
 interface Lote {
@@ -81,11 +84,27 @@ type FlockRow = Pick<Tables<"flocks">, "id" | "code" | "breed" | "bird_count" | 
 type EggProductionRow = Tables<"egg_production"> & {
   flocks: Pick<Tables<"flocks">, "code" | "breed" | "bird_count"> | null;
 };
+type FeedFinancialRow = Pick<Tables<"feed_consumption">, "date" | "flock_id" | "quantity_kg" | "cost">;
+type TransactionFinancialRow = Pick<Tables<"financial_transactions">, "date" | "type" | "category" | "amount">;
+type ProductionFinancialMetrics = ReturnType<typeof calculateProductionFinancialMetrics>;
 type WithdrawalTreatment = Pick<
   Tables<"health_records">,
   "id" | "flock_id" | "date" | "title" | "active_ingredient" | "withdrawal_period_days"
 >;
 type TooltipFormatter = (value: unknown, name: unknown) => [string, string];
+type ProductionFinancialCard = {
+  label: string;
+  value: string;
+  detail: string;
+  description: string;
+  formula: string;
+  icon: LucideIcon;
+  iconBg: string;
+  iconColor: string;
+  currentValue?: number;
+  previousValue?: number;
+  lowerIsBetter: boolean;
+};
 
 function toIsoDate(date: Date) {
   const year = date.getFullYear();
@@ -102,7 +121,84 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function formatMetricCurrency(value: number | undefined, maximumFractionDigits = 2): string {
+  if (value === undefined) return "—";
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits,
+  });
+}
+
+function ProductionFinancialMetricCard({ card }: { card: ProductionFinancialCard | undefined }) {
+  if (!card) return null;
+  const canCompare = card.currentValue !== undefined && card.previousValue !== undefined;
+  const variation: KpiVariation | null = canCompare
+    ? calculateKpiVariation(card.currentValue ?? 0, card.previousValue ?? 0)
+    : null;
+  const isNewValue = variation?.label === "Novo";
+  const isImprovement = variation?.direction === "up"
+    ? !card.lowerIsBetter
+    : variation?.direction === "down"
+      ? card.lowerIsBetter
+      : isNewValue
+        ? !card.lowerIsBetter
+        : null;
+
+  return (
+    <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 transition-colors hover:border-gray-200">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", card.iconBg)}>
+            <card.icon className={cn("w-4 h-4", card.iconColor)} />
+          </div>
+          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">{card.label}</span>
+        </div>
+        <div className="relative group">
+          <button type="button" aria-label={`Fórmula de ${card.label}`} className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
+            <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
+          </button>
+          <div className="absolute right-0 top-7 w-64 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
+            <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é {card.label}?</p>
+            <p className="text-[10px] text-gray-500 leading-relaxed">{card.description}</p>
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <p className="text-[10px] text-gray-400">Fórmula: {card.formula}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p className="text-xl font-bold text-gray-900">{card.value}</p>
+      <div className="flex items-center justify-between mt-2 gap-1">
+        <span className="text-[10px] text-gray-400 truncate">{card.detail}</span>
+        {variation && (
+          <span className={cn(
+            "inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0",
+            isImprovement === true && "text-emerald-600 bg-emerald-50",
+            isImprovement === false && "text-red-600 bg-red-50",
+            isImprovement === null && "text-gray-600 bg-gray-100",
+          )}>
+            {variation.direction === "up" && <ArrowUpRight className="w-3 h-3" />}
+            {variation.direction === "down" && <ArrowDownRight className="w-3 h-3" />}
+            {variation.label}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 type ModalMode = "add" | "edit" | null;
+type HighProductionConfirmation = {
+  eggs: number;
+  layingRate: number;
+  liveBirds: number;
+};
+type DuplicateProductionConfirmation = {
+  flockCode: string;
+  date: string;
+  highProductionConfirmed: boolean;
+};
 
 export default function ProducaoPage() {
   const searchParams = useSearchParams();
@@ -115,6 +211,10 @@ export default function ProducaoPage() {
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [mortalities, setMortalities] = useState<FlockMortality[]>([]);
   const [withdrawalTreatments, setWithdrawalTreatments] = useState<WithdrawalTreatment[]>([]);
+  const [financialMetrics, setFinancialMetrics] = useState<{
+    current: ProductionFinancialMetrics;
+    previous: ProductionFinancialMetrics;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -126,11 +226,20 @@ export default function ProducaoPage() {
     if (searchParams.get("register") === "true") setModal("add");
   }, [searchParams]);
   const [editing, setEditing] = useState<Registro | null>(null);
-  const [form, setForm] = useState({ loteId: "", data: "", total: "", quebrados: "", sujos: "", descartados: "" });
+  const [form, setForm] = useState({
+    loteId: "",
+    data: toIsoDate(new Date()),
+    total: "",
+    quebrados: "",
+    sujos: "",
+    descartados: "",
+  });
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [highProductionConfirmation, setHighProductionConfirmation] = useState<HighProductionConfirmation | null>(null);
+  const [duplicateProductionConfirmation, setDuplicateProductionConfirmation] = useState<DuplicateProductionConfirmation | null>(null);
 
   // Shared calendar filter
-  const { dateRange } = useDateFilter();
+  const { dateRange, filterMode } = useDateFilter();
 
   /* ── Data Fetching ── */
   const farmRef = useRef(farm);
@@ -144,15 +253,40 @@ export default function ProducaoPage() {
 
     try {
       const { startDate, endDate } = dateRange;
+      const comparisonPeriod = getComparisonPeriod({
+        mode: filterMode,
+        startDate,
+        endDate,
+        todayDate: toIsoDate(new Date()),
+      });
+      const currentEndDate = comparisonPeriod.currentEndDate;
 
-      const [productionRes, flocksRes, withdrawalRes, mortalityRes] = await Promise.all([
+      const [
+        productionRes,
+        previousProductionRes,
+        flocksRes,
+        withdrawalRes,
+        mortalityRes,
+        feedRes,
+        previousFeedRes,
+        transactionRes,
+        previousTransactionRes,
+        latestSaleRes,
+        previousLatestSaleRes,
+      ] = await Promise.all([
         supabase
           .from("egg_production")
           .select("*, flocks(code, breed, bird_count)")
           .eq("farm_id", currentFarm.id)
           .gte("date", startDate)
-          .lte("date", endDate)
+          .lte("date", currentEndDate)
           .order("date", { ascending: false }),
+        supabase
+          .from("egg_production")
+          .select("*")
+          .eq("farm_id", currentFarm.id)
+          .gte("date", comparisonPeriod.previousStartDate)
+          .lte("date", comparisonPeriod.previousEndDate),
         supabase
           .from("flocks")
           .select("id, code, breed, bird_count, arrival_age_weeks, arrival_date, status")
@@ -168,13 +302,62 @@ export default function ProducaoPage() {
           .from("mortality")
           .select("flock_id, date, dead_birds")
           .eq("farm_id", currentFarm.id)
-          .lte("date", endDate),
+          .lte("date", currentEndDate),
+        supabase
+          .from("feed_consumption")
+          .select("date, flock_id, quantity_kg, cost")
+          .eq("farm_id", currentFarm.id)
+          .gte("date", startDate)
+          .lte("date", currentEndDate),
+        supabase
+          .from("feed_consumption")
+          .select("date, flock_id, quantity_kg, cost")
+          .eq("farm_id", currentFarm.id)
+          .gte("date", comparisonPeriod.previousStartDate)
+          .lte("date", comparisonPeriod.previousEndDate),
+        supabase
+          .from("financial_transactions")
+          .select("date, type, category, amount")
+          .eq("farm_id", currentFarm.id)
+          .gte("date", startDate)
+          .lte("date", currentEndDate),
+        supabase
+          .from("financial_transactions")
+          .select("date, type, category, amount")
+          .eq("farm_id", currentFarm.id)
+          .gte("date", comparisonPeriod.previousStartDate)
+          .lte("date", comparisonPeriod.previousEndDate),
+        supabase
+          .from("sales")
+          .select("unit_price")
+          .eq("farm_id", currentFarm.id)
+          .lte("date", currentEndDate)
+          .order("date", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("sales")
+          .select("unit_price")
+          .eq("farm_id", currentFarm.id)
+          .lte("date", comparisonPeriod.previousEndDate)
+          .order("date", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
 
       if (flocksRes.error) throw flocksRes.error;
       if (productionRes.error) throw productionRes.error;
       if (withdrawalRes.error) throw withdrawalRes.error;
       if (mortalityRes.error) throw mortalityRes.error;
+      if (previousProductionRes.error) throw previousProductionRes.error;
+      if (feedRes.error) throw feedRes.error;
+      if (previousFeedRes.error) throw previousFeedRes.error;
+      if (transactionRes.error) throw transactionRes.error;
+      if (previousTransactionRes.error) throw previousTransactionRes.error;
+      if (latestSaleRes.error) throw latestSaleRes.error;
+      if (previousLatestSaleRes.error) throw previousLatestSaleRes.error;
 
       const flocksData = (flocksRes.data ?? []) as FlockRow[];
       const productionData = (productionRes.data ?? []) as EggProductionRow[];
@@ -215,13 +398,110 @@ export default function ProducaoPage() {
         descartados: r.discarded_eggs || 0,
         taxa: r.laying_rate != null ? `${Number(r.laying_rate).toFixed(1)}%` : "—",
       }));
+
+      const metricFlocks = flocksData
+        .filter((flock) => flock.status.toLowerCase() !== "descarte")
+        .map((flock) => ({
+          id: flock.id,
+          birdCount: flock.bird_count,
+          arrivalAgeWeeks: flock.arrival_age_weeks,
+          arrivalDate: flock.arrival_date,
+        }));
+      const metricMortalities = (mortalityRes.data ?? []).map((mortality) => ({
+        flockId: mortality.flock_id,
+        date: mortality.date,
+        deadBirds: mortality.dead_birds,
+      }));
+      const currentFeed = (feedRes.data ?? []) as FeedFinancialRow[];
+      const previousFeed = (previousFeedRes.data ?? []) as FeedFinancialRow[];
+      const currentProduction = productionData;
+      const previousProduction = previousProductionRes.data ?? [];
+      const mapFeedRecords = (rows: FeedFinancialRow[]) => rows.map((row) => ({
+        date: row.date,
+        flockId: row.flock_id,
+        quantityKg: Number(row.quantity_kg),
+        cost: Number(row.cost),
+      }));
+      const mapEggRecords = (rows: Tables<"egg_production">[]) => rows.map((row) => ({
+        date: row.date,
+        flockId: row.flock_id,
+        eggsProduced: row.eggs_produced,
+      }));
+      const currentFeedKpis = calculateFeedKpiMetrics({
+        flocks: metricFlocks,
+        mortalities: metricMortalities,
+        feedRecords: mapFeedRecords(currentFeed),
+        productionRecords: mapEggRecords(currentProduction),
+        startDate,
+        endDate: currentEndDate,
+        targetFeedGramsPerBird: 130,
+      });
+      const previousFeedKpis = calculateFeedKpiMetrics({
+        flocks: metricFlocks,
+        mortalities: metricMortalities,
+        feedRecords: mapFeedRecords(previousFeed),
+        productionRecords: mapEggRecords(previousProduction),
+        startDate: comparisonPeriod.previousStartDate,
+        endDate: comparisonPeriod.previousEndDate,
+        targetFeedGramsPerBird: 130,
+      });
+      const currentBirdDays = calculateEggProductionMetrics({
+        flocks: metricFlocks,
+        mortalities: metricMortalities,
+        startDate,
+        endDate: currentEndDate,
+        totalEggs: 0,
+      }).eligibleBirdDays;
+      const previousBirdDays = calculateEggProductionMetrics({
+        flocks: metricFlocks,
+        mortalities: metricMortalities,
+        startDate: comparisonPeriod.previousStartDate,
+        endDate: comparisonPeriod.previousEndDate,
+        totalEggs: 0,
+      }).eligibleBirdDays;
+      const mapProductionFinance = (rows: Tables<"egg_production">[]) => rows.map((row) => ({
+        date: row.date,
+        eggsProduced: row.eggs_produced,
+        brokenEggs: row.broken_eggs,
+        dirtyEggs: row.dirty_eggs,
+        discardedEggs: row.discarded_eggs,
+      }));
+      const mapTransactions = (rows: TransactionFinancialRow[]) => rows.map((row) => ({
+        date: row.date,
+        type: row.type,
+        category: row.category,
+        amount: Number(row.amount),
+      }));
+
+      setFinancialMetrics({
+        current: calculateProductionFinancialMetrics({
+          productionRecords: mapProductionFinance(currentProduction),
+          feedRecords: mapFeedRecords(currentFeed),
+          transactions: mapTransactions((transactionRes.data ?? []) as TransactionFinancialRow[]),
+          startDate,
+          endDate: currentEndDate,
+          productiveBirdDays: currentBirdDays,
+          efficiencyKgPerEgg: currentFeedKpis.comparablePairCount > 0 ? currentFeedKpis.efficiencyKgPerEgg : undefined,
+          latestSalePricePerDozen: latestSaleRes.data ? Number(latestSaleRes.data.unit_price) : undefined,
+        }),
+        previous: calculateProductionFinancialMetrics({
+          productionRecords: mapProductionFinance(previousProduction),
+          feedRecords: mapFeedRecords(previousFeed),
+          transactions: mapTransactions((previousTransactionRes.data ?? []) as TransactionFinancialRow[]),
+          startDate: comparisonPeriod.previousStartDate,
+          endDate: comparisonPeriod.previousEndDate,
+          productiveBirdDays: previousBirdDays,
+          efficiencyKgPerEgg: previousFeedKpis.comparablePairCount > 0 ? previousFeedKpis.efficiencyKgPerEgg : undefined,
+          latestSalePricePerDozen: previousLatestSaleRes.data ? Number(previousLatestSaleRes.data.unit_price) : undefined,
+        }),
+      });
       setRegistros(mapped);
     } catch (err: unknown) {
       console.error("Erro ao carregar dados de produção:", err);
       setError("Erro ao carregar dados de produção.");
     }
     setLoading(false);
-  }, [dateRange]);
+  }, [dateRange, filterMode]);
 
   const activeWithdrawal = useMemo(() => {
     if (!form.loteId || !form.data) return null;
@@ -562,9 +842,18 @@ export default function ProducaoPage() {
   }, [registros, searchQuery]);
 
   function openAdd() {
-    setForm({ loteId: "", data: "", total: "", quebrados: "", sujos: "", descartados: "" });
+    setForm({
+      loteId: "",
+      data: toIsoDate(new Date()),
+      total: "",
+      quebrados: "",
+      sujos: "",
+      descartados: "",
+    });
     setEditing(null);
     setError("");
+    setHighProductionConfirmation(null);
+    setDuplicateProductionConfirmation(null);
     setModal("add");
   }
 
@@ -579,10 +868,15 @@ export default function ProducaoPage() {
     });
     setEditing(r);
     setError("");
+    setHighProductionConfirmation(null);
+    setDuplicateProductionConfirmation(null);
     setModal("edit");
   }
 
-  async function save() {
+  async function save(
+    highProductionConfirmed = false,
+    duplicateProductionConfirmed = false,
+  ) {
     if (!farm) return;
     const flockId = form.loteId;
     const selectedLote = lotes.find(l => l.id === flockId);
@@ -604,6 +898,12 @@ export default function ProducaoPage() {
     const sujos = Number(form.sujos) || 0;
     const discardedInput = Number(form.descartados) || 0;
     const descartados = activeWithdrawal ? total : discardedInput;
+
+    if ([total, quebrados, sujos, descartados].some((value) => value < 0)) {
+      setError("A produção e as quantidades de ovos não podem ser negativas.");
+      return;
+    }
+
     const dailyMetrics = calculateEggProductionMetrics({
       flocks: [{
         id: selectedLote.id,
@@ -617,8 +917,60 @@ export default function ProducaoPage() {
       totalEggs: total,
     });
 
+    if (highProductionConfirmed) {
+      setHighProductionConfirmation(null);
+    }
+
+    if (requiresHighLayingRateConfirmation(dailyMetrics.layingRate) && !highProductionConfirmed) {
+      setHighProductionConfirmation({
+        eggs: total,
+        layingRate: dailyMetrics.layingRate,
+        liveBirds: dailyMetrics.eligibleBirdDays,
+      });
+      return;
+    }
+
+    const supabase = createClient();
+
+    if (modal === "add" && !duplicateProductionConfirmed) {
+      setSaving(true);
+
+      const { data: existingRecord, error: duplicateCheckError } = await supabase
+        .from("egg_production")
+        .select("id")
+        .eq("farm_id", farm.id)
+        .eq("flock_id", flockId)
+        .eq("date", form.data)
+        .limit(1)
+        .maybeSingle();
+
+      setSaving(false);
+
+      if (duplicateCheckError) {
+        setError(getErrorMessage(
+          duplicateCheckError,
+          "Erro ao verificar registros existentes.",
+        ));
+        return;
+      }
+
+      if (existingRecord) {
+        setDuplicateProductionConfirmation({
+          flockCode: selectedLote.codigo,
+          date: form.data,
+          highProductionConfirmed,
+        });
+        return;
+      }
+    }
+
+    if (duplicateProductionConfirmed) {
+      setDuplicateProductionConfirmation(null);
+    }
+
     setSaving(true);
     setError("");
+    setHighProductionConfirmation(null);
 
     const record = {
       farm_id: farm.id,
@@ -632,7 +984,6 @@ export default function ProducaoPage() {
       eggs_per_bird: dailyMetrics.eligibleBirdDays > 0 ? +(total / dailyMetrics.eligibleBirdDays).toFixed(4) : 0,
     };
 
-    const supabase = createClient();
     try {
       if (modal === "add") {
         const { error: insertErr } = await supabase.from("egg_production").insert(record);
@@ -686,6 +1037,95 @@ export default function ProducaoPage() {
     [insights]
   );
   const farmHealthSummary = `Postura: ${healthScore.posturaRate.toFixed(1)}% | Meta: ${productionMetrics.layingRateGoal.toFixed(1)}% | Perdas físicas: ${healthScore.lossRate.toFixed(1)}%`;
+  const productionFinancialCards = useMemo<ProductionFinancialCard[]>(() => {
+    if (!financialMetrics) return [];
+    const { current, previous } = financialMetrics;
+    const operatingResult = current.revenue - current.operatingCost;
+    const lossValue = current.lossValuePerDay;
+
+    return [
+      {
+        label: "Custo/Ovo",
+        value: formatMetricCurrency(current.costPerCommercialEgg, 3),
+        detail: `${current.commercialEggs.toLocaleString("pt-BR")} ovos comercializáveis`,
+        description: "Custo operacional para cada ovo disponível para comercialização. A compra de ração é substituída pelo custo da ração efetivamente consumida no período.",
+        formula: "(Ração consumida + demais despesas) ÷ Ovos comercializáveis",
+        icon: Wheat,
+        iconBg: "bg-orange-50",
+        iconColor: "text-orange-600",
+        currentValue: current.costPerCommercialEgg,
+        previousValue: previous.costPerCommercialEgg,
+        lowerIsBetter: true,
+      },
+      {
+        label: "Margem",
+        value: current.operatingMarginPercent === undefined ? "—" : `${current.operatingMarginPercent.toFixed(1)}%`,
+        detail: `Resultado: ${formatCurrency(operatingResult)}`,
+        description: "Percentual da receita que permanece após descontar o custo operacional do período.",
+        formula: "(Receita − Custo operacional) ÷ Receita × 100",
+        icon: BarChart3,
+        iconBg: "bg-amber-50",
+        iconColor: "text-amber-600",
+        currentValue: current.operatingMarginPercent,
+        previousValue: previous.operatingMarginPercent,
+        lowerIsBetter: false,
+      },
+      {
+        label: "Receita/Dia",
+        value: formatMetricCurrency(current.revenuePerDay),
+        detail: `${formatCurrency(current.revenue)} no período`,
+        description: "Receita média reconhecida por dia transcorrido no período selecionado.",
+        formula: "Receita do período ÷ Dias transcorridos",
+        icon: TrendingUp,
+        iconBg: "bg-teal-50",
+        iconColor: "text-teal-600",
+        currentValue: current.revenuePerDay,
+        previousValue: previous.revenuePerDay,
+        lowerIsBetter: false,
+      },
+      {
+        label: "Efic. Alimentar",
+        value: current.efficiencyKgPerEgg === undefined ? "—" : `${current.efficiencyKgPerEgg.toFixed(3).replace(".", ",")} kg/ovo`,
+        detail: "Somente lotes-dias comparáveis",
+        description: "Quantidade de ração consumida para produzir cada ovo, usando apenas registros com o mesmo lote e data. Quanto menor, mais eficiente.",
+        formula: "Ração dos lotes-dias comparáveis ÷ Ovos correspondentes",
+        icon: Wheat,
+        iconBg: "bg-violet-50",
+        iconColor: "text-violet-600",
+        currentValue: current.efficiencyKgPerEgg,
+        previousValue: previous.efficiencyKgPerEgg,
+        lowerIsBetter: true,
+      },
+      {
+        label: "Receita/Ave/Dia",
+        value: formatMetricCurrency(current.revenuePerProductiveBirdDay, 3),
+        detail: "Considera aves vivas e aptas",
+        description: "Receita média diária gerada por cada ave viva e apta a produzir durante o período.",
+        formula: "Receita do período ÷ Aves produtivas-dia",
+        icon: CircleDollarSign,
+        iconBg: "bg-teal-50",
+        iconColor: "text-teal-600",
+        currentValue: current.revenuePerProductiveBirdDay,
+        previousValue: previous.revenuePerProductiveBirdDay,
+        lowerIsBetter: false,
+      },
+      {
+        label: "Perda/Dia",
+        value: lossValue === undefined ? `${current.lostEggsPerDay.toFixed(1).replace(".", ",")} ovos/dia` : formatMetricCurrency(lossValue),
+        detail: lossValue === undefined
+          ? `${current.lostEggs.toLocaleString("pt-BR")} ovos perdidos no período`
+          : `${current.lostEggsPerDay.toFixed(1).replace(".", ",")} ovos perdidos/dia`,
+        description: "Média de ovos quebrados, sujos e descartados por dia. O valor em reais usa o preço da venda mais recente disponível até o fim do período; sem histórico, apenas a quantidade é exibida.",
+        formula: "Ovos perdidos ÷ Dias; com preço: Ovos perdidos × Preço/ovo ÷ Dias",
+        icon: AlertOctagon,
+        iconBg: "bg-red-50",
+        iconColor: "text-red-500",
+        currentValue: current.lostEggsPerDay,
+        previousValue: previous.lostEggsPerDay,
+        lowerIsBetter: true,
+      },
+    ];
+  }, [financialMetrics]);
 
   /* ── Loading State ── */
   if (authLoading || loading) {
@@ -912,192 +1352,9 @@ export default function ProducaoPage() {
             </LockedOverlay>
           ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {/* Custo por Ovo */}
-            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 transition-colors hover:border-gray-200">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
-                    <Wheat className="w-4 h-4 text-orange-600" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Custo/Ovo</span>
-                </div>
-                <div className="relative group">
-                  <button className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
-                    <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
-                  </button>
-                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Custo/Ovo?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Valor gasto para produzir cada ovo, incluindo ração, mão de obra, energia e insumos.</p>
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: Custo Total / Total de Ovos</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-xl font-bold text-gray-900">R$ 0,42</p>
-              <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 0,38</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                  <ArrowUpRight className="w-3 h-3" />
-                  +10.5%
-                </span>
-              </div>
-            </div>
-            {/* Margem */}
-            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 transition-colors hover:border-gray-200">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-                    <BarChart3 className="w-4 h-4 text-amber-600" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Margem</span>
-                </div>
-                <div className="relative group">
-                  <button className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
-                    <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
-                  </button>
-                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Margem?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Diferença percentual entre a receita e o custo total de produção. Margem alta indica maior lucro por ovo produzido.</p>
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: (Receita - Custo) / Receita × 100</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-xl font-bold text-gray-900">32.4%</p>
-              <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Esperado: 38%</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                  <ArrowDownRight className="w-3 h-3" />
-                  -5.6%
-                </span>
-              </div>
-            </div>
-            {/* Receita do Dia */}
-            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 transition-colors hover:border-gray-200">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0">
-                    <TrendingUp className="w-4 h-4 text-teal-600" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Receita/Dia</span>
-                </div>
-                <div className="relative group">
-                  <button className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
-                    <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
-                  </button>
-                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Receita/Dia?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Receita estimada gerada pela produção do dia, considerando o volume produzido e o preço médio de venda.</p>
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: Ovos produzidos x Preço médio por ovo</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-xl font-bold text-gray-900">R$ 1.520</p>
-              <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 1.600</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                  <ArrowDownRight className="w-3 h-3" />
-                  -5.0%
-                </span>
-              </div>
-            </div>
-            {/* Eficiência Alimentar */}
-            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 transition-colors hover:border-gray-200">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
-                    <Wheat className="w-4 h-4 text-violet-600" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Efic. Alimentar</span>
-                </div>
-                <div className="relative group">
-                  <button className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
-                    <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
-                  </button>
-                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Eficiência Alimentar?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Quantidade de ração consumida para produzir cada ovo. Quanto menor, mais eficiente.</p>
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: Ração Total (kg) / Total de Ovos</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-xl font-bold text-gray-900">0,128 kg</p>
-              <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Esperado: 0,120 kg</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                  <ArrowUpRight className="w-3 h-3" />
-                  +6.7%
-                </span>
-              </div>
-            </div>
-            {/* Receita por Ave */}
-            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 transition-colors hover:border-gray-200">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0">
-                    <CircleDollarSign className="w-4 h-4 text-teal-600" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Receita/Ave</span>
-                </div>
-                <div className="relative group">
-                  <button className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
-                    <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
-                  </button>
-                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Receita/Ave?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Receita média gerada por cada ave no período. Indica a produtividade econômica do plantel.</p>
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: Receita Total / Nº de Aves</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-xl font-bold text-gray-900">R$ 0,52</p>
-              <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Esperado: R$ 0,55</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                  <ArrowDownRight className="w-3 h-3" />
-                  -5.5%
-                </span>
-              </div>
-            </div>
-            {/* Perda Diária (R$) */}
-            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 transition-colors hover:border-gray-200">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
-                    <AlertOctagon className="w-4 h-4 text-red-500" />
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider leading-tight">Perda/Dia</span>
-                </div>
-                <div className="relative group">
-                  <button className="w-5 h-5 rounded-full border border-gray-200 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 dark:border-white/10 dark:bg-[#101d3a] dark:hover:bg-slate-800">
-                    <HelpCircle className="w-3 h-3 text-gray-500 dark:text-slate-300" />
-                  </button>
-                  <div className="absolute right-0 top-7 w-56 bg-white rounded-xl border border-gray-200 shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20">
-                    <p className="text-[11px] font-semibold text-gray-800 mb-1">O que é Perda Diária?</p>
-                    <p className="text-[10px] text-gray-500 leading-relaxed">Valor em reais perdido diariamente com ovos quebrados, sujos e descartados.</p>
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">Fórmula: (Quebrados + Sujos + Descartados) × Preço/Ovo</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-xl font-bold text-gray-900">R$ 18,50</p>
-              <div className="flex items-center justify-between mt-2 gap-1">
-                <span className="text-[10px] text-gray-400 truncate">Tolerado: R$ 12,00</span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                  <ArrowUpRight className="w-3 h-3" />
-                  +54.2%
-                </span>
-              </div>
-            </div>
+            {productionFinancialCards.map((card) => (
+              <ProductionFinancialMetricCard key={card.label} card={card} />
+            ))}
           </div>
           )}
         </div>
@@ -1334,7 +1591,10 @@ export default function ProducaoPage() {
                 const diff = hasPostura ? Math.round((taxa - avg) * 10) / 10 : 0;
                 return (
                   <div key={l.id}>
-                    <div className="flex items-center justify-between py-3 group gap-2 flex-wrap sm:flex-nowrap">
+                    <Link
+                      href={`/dashboard/flocks/detalhes/${l.id}?origem=producao`}
+                      className="flex items-center justify-between py-3 group gap-2 flex-wrap sm:flex-nowrap rounded-lg outline-none transition-colors hover:bg-gray-50/70 focus-visible:ring-2 focus-visible:ring-brand-500/30"
+                    >
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <div className={cn(
                           "w-8 h-8 rounded-lg flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0",
@@ -1373,7 +1633,7 @@ export default function ProducaoPage() {
                         )}
                         <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-500 transition-colors flex-shrink-0" />
                       </div>
-                    </div>
+                    </Link>
                     {i < lotes.length - 1 && <div className="border-t border-gray-50" />}
                   </div>
                 );
@@ -1450,7 +1710,7 @@ export default function ProducaoPage() {
                     )}>{r.taxa}</span>
                   </td>
                   <td className="px-6 py-4 text-center">
-                    <Link href={`/dashboard/production/historico/${r.loteId}`} className="inline-flex items-center justify-center p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer">
+                    <Link href={`/dashboard/flocks/detalhes/${r.loteId}/producao?origem=producao`} className="inline-flex items-center justify-center p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer">
                       <FileText className="w-4 h-4" />
                     </Link>
                   </td>
@@ -1547,6 +1807,7 @@ export default function ProducaoPage() {
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Total de Ovos</label>
                 <input
                   type="number"
+                  min={0}
                   value={form.total}
                   onChange={(e) => {
                     const total = e.target.value;
@@ -1562,6 +1823,7 @@ export default function ProducaoPage() {
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Quebrados</label>
                   <input
                     type="number"
+                    min={0}
                     value={form.quebrados}
                     onChange={(e) => setForm({ ...form, quebrados: e.target.value })}
                     placeholder="12"
@@ -1572,6 +1834,7 @@ export default function ProducaoPage() {
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Sujos</label>
                   <input
                     type="number"
+                    min={0}
                     value={form.sujos}
                     onChange={(e) => setForm({ ...form, sujos: e.target.value })}
                     placeholder="18"
@@ -1582,9 +1845,10 @@ export default function ProducaoPage() {
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Descartados</label>
                   <input
                     type="number"
-                  value={form.descartados}
-                  onChange={(e) => setForm({ ...form, descartados: activeWithdrawal ? form.total : e.target.value })}
-                  disabled={Boolean(activeWithdrawal)}
+                    min={0}
+                    value={form.descartados}
+                    onChange={(e) => setForm({ ...form, descartados: activeWithdrawal ? form.total : e.target.value })}
+                    disabled={Boolean(activeWithdrawal)}
                     placeholder="5"
                     className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all"
                   />
@@ -1604,7 +1868,7 @@ export default function ProducaoPage() {
             <div className="flex items-center justify-end gap-2 pt-2">
               <button onClick={() => setModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
               <button
-                onClick={save}
+                onClick={() => void save()}
                 disabled={!form.loteId || !form.data || saving}
                 className={cn(
                   "inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold rounded-xl transition-colors cursor-pointer shadow-sm",
@@ -1615,6 +1879,70 @@ export default function ProducaoPage() {
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                 {saving ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </div>
+        </div>
+        </ModalPortal>
+      )}
+
+      {highProductionConfirmation && (
+        <ModalPortal>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setHighProductionConfirmation(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4" onClick={(event) => event.stopPropagation()}>
+            <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-gray-900">Confirmar produção elevada</h3>
+              <p className="text-sm text-gray-500 mt-2">
+                A taxa estimada é de{" "}
+                <span className="font-semibold text-gray-700">
+                  {highProductionConfirmation.layingRate.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                </span>
+                , com {highProductionConfirmation.eggs.toLocaleString("pt-BR")} ovos para{" "}
+                {highProductionConfirmation.liveBirds.toLocaleString("pt-BR")} aves vivas. O registro está correto?
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-1">
+              <button onClick={() => setHighProductionConfirmation(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">
+                Revisar
+              </button>
+              <button onClick={() => void save(true)} disabled={saving} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 disabled:bg-gray-300 rounded-xl transition-colors cursor-pointer shadow-sm">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                {saving ? "Salvando..." : "Confirmar e salvar"}
+              </button>
+            </div>
+          </div>
+        </div>
+        </ModalPortal>
+      )}
+
+      {duplicateProductionConfirmation && (
+        <ModalPortal>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setDuplicateProductionConfirmation(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4" onClick={(event) => event.stopPropagation()}>
+            <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-gray-900">Produção já registrada</h3>
+              <p className="text-sm text-gray-500 mt-2">
+                O lote <span className="font-semibold text-gray-700">{duplicateProductionConfirmation.flockCode}</span>{" "}
+                já possui um registro de produção em {formatDate(duplicateProductionConfirmation.date)}. Deseja registrar outra produção para a mesma data?
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-1">
+              <button onClick={() => setDuplicateProductionConfirmation(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">
+                Revisar
+              </button>
+              <button
+                onClick={() => void save(duplicateProductionConfirmation.highProductionConfirmed, true)}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 disabled:bg-gray-300 rounded-xl transition-colors cursor-pointer shadow-sm"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                {saving ? "Salvando..." : "Registrar mesmo assim"}
               </button>
             </div>
           </div>
