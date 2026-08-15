@@ -77,13 +77,6 @@ const PER_BIRD_HIGH_LIMIT = 360; // acima disso: alerta de consumo alto
 const RATIO_IDEAL_MIN = 1.6;
 const RATIO_IDEAL_MAX = 2.5;
 
-const COMPARE_BADGE: Record<"emerald" | "amber" | "red" | "gray", string> = {
-  emerald: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300",
-  amber: "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300",
-  red: "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300",
-  gray: "bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400",
-};
-
 // Estima a relação água:ração a partir do consumo por ave (ml/ave/dia), seguindo a
 // tendência do guia: quanto mais a ave bebe (calor), maior a relação água:ração.
 const RATIO_ANCHORS = [
@@ -829,30 +822,76 @@ export default function AguaPage() {
         {barnComparison.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-slate-400">Cadastre galpões para comparar o consumo.</p>
         ) : (
-          <div className="space-y-2.5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {barnComparison.map((row) => (
-              <div key={row.id} className="rounded-xl border border-gray-200 dark:border-white/10 p-3">
-                <div className="flex items-center justify-between gap-2">
+              <div
+                key={row.id}
+                className={cn(
+                  "relative rounded-xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+                  row.tone === "gray" &&
+                    "border-gray-200 bg-gray-50/50 hover:border-gray-300 dark:border-white/10 dark:bg-slate-800/30",
+                  row.tone === "emerald" &&
+                    "border-emerald-200 bg-emerald-50/30 hover:border-emerald-300 dark:border-emerald-900/60 dark:bg-emerald-950/20",
+                  row.tone === "amber" &&
+                    "border-amber-200 bg-amber-50/50 hover:border-amber-300 dark:border-amber-900/60 dark:bg-amber-950/20",
+                  row.tone === "red" &&
+                    "border-red-200 bg-red-50/50 hover:border-red-300 dark:border-red-900/60 dark:bg-red-950/20"
+                )}
+              >
+                <div className="mb-3 flex items-center justify-between gap-2">
                   <span className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate">{row.name}</span>
-                  <span className={cn("inline-flex flex-shrink-0 items-center rounded-lg px-2 py-0.5 text-xs font-semibold", COMPARE_BADGE[row.tone])}>
-                    {row.statusLabel}
-                  </span>
+                  <span
+                    className={cn(
+                      "h-2 w-2 flex-shrink-0 rounded-full",
+                      row.tone === "gray" && "bg-gray-400",
+                      row.tone === "emerald" && "bg-emerald-500",
+                      row.tone === "amber" && "bg-amber-500",
+                      row.tone === "red" && "bg-red-500"
+                    )}
+                  />
                 </div>
-                <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-[11px] text-gray-400 dark:text-slate-500">Consumo por ave</p>
-                    <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">
+                    <p className="text-[11px] font-medium text-gray-400 dark:text-slate-500">Consumo por ave</p>
+                    <p className="text-sm font-bold text-gray-800 dark:text-slate-200">
                       {row.mlPerBird > 0 ? `${row.mlPerBird.toFixed(0)} ml` : "—"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[11px] text-gray-400 dark:text-slate-500">Água:ração</p>
-                    <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">
+                    <p className="text-[11px] font-medium text-gray-400 dark:text-slate-500">Água:ração</p>
+                    <p
+                      className={cn(
+                        "text-sm font-bold",
+                        row.tone === "gray" && "text-gray-500 dark:text-slate-400",
+                        row.tone === "emerald" && "text-emerald-600 dark:text-emerald-400",
+                        row.tone === "amber" && "text-amber-600 dark:text-amber-400",
+                        row.tone === "red" && "text-red-600 dark:text-red-400"
+                      )}
+                    >
                       {row.mlPerBird > 0 ? `${row.ratio.toFixed(1).replace(".", ",")} : 1` : "—"}
                     </p>
                   </div>
                 </div>
-                <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">{row.observation}</p>
+                <div
+                  className={cn(
+                    "mt-2 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5",
+                    row.tone === "gray" && "bg-gray-100/80 text-gray-500 dark:bg-slate-800 dark:text-slate-400",
+                    row.tone === "emerald" && "bg-emerald-100/80 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+                    row.tone === "amber" && "bg-amber-100/80 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+                    row.tone === "red" && "bg-red-100/80 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                  )}
+                >
+                  {row.tone === "emerald" ? (
+                    <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+                  ) : row.tone === "gray" ? (
+                    <Minus className="h-3 w-3 flex-shrink-0" />
+                  ) : (
+                    <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                  )}
+                  <span className="text-[11px] font-medium">
+                    {row.statusLabel} · {row.observation}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
