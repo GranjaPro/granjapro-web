@@ -1766,54 +1766,108 @@ export default function SaudePage() {
                 )}
                 {form.tipo === "Vacinação" && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl border border-brand-100 bg-brand-50/40 p-3">
-                    <input type="text" value={form.targetDisease} onChange={(e) => setForm({ ...form, targetDisease: e.target.value })} placeholder="Doença alvo" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-                    <input type="text" value={form.brandName} onChange={(e) => setForm({ ...form, brandName: e.target.value })} placeholder="Nome comercial / marca" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-                    <input type="text" value={form.batch} onChange={(e) => setForm({ ...form, batch: e.target.value })} placeholder="Lote da vacina" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-                    <input type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-                    <input type="text" value={form.manufacturer} onChange={(e) => setForm({ ...form, manufacturer: e.target.value })} placeholder="Fabricante" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-                    <select value={form.applicationRoute} onChange={(e) => setForm({ ...form, applicationRoute: e.target.value as NonNullable<HealthRecordRow["application_route"]> })} className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
-                      <option value="water">Água</option>
-                      <option value="ocular">Ocular</option>
-                      <option value="spray">Spray</option>
-                      <option value="wing web">Membrana da asa</option>
-                      <option value="intramuscular">Intramuscular</option>
-                      <option value="subcutaneous">Subcutânea</option>
-                    </select>
-                    <input type="number" value={form.doses} onChange={(e) => setForm({ ...form, doses: e.target.value })} placeholder="Quantidade de doses" className="border border-gray-200 rounded-xl px-3 py-2 text-sm md:col-span-2" />
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Doença alvo</label>
+                      <input type="text" value={form.targetDisease} onChange={(e) => setForm({ ...form, targetDisease: e.target.value })} placeholder="Ex: Newcastle" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nome comercial / marca</label>
+                      <input type="text" value={form.brandName} onChange={(e) => setForm({ ...form, brandName: e.target.value })} placeholder="Informe a marca" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Lote da vacina</label>
+                      <input type="text" value={form.batch} onChange={(e) => setForm({ ...form, batch: e.target.value })} placeholder="Informe o lote" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Data de validade</label>
+                      <input type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Fabricante</label>
+                      <input type="text" value={form.manufacturer} onChange={(e) => setForm({ ...form, manufacturer: e.target.value })} placeholder="Informe o fabricante" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Via de aplicação</label>
+                      <select value={form.applicationRoute} onChange={(e) => setForm({ ...form, applicationRoute: e.target.value as NonNullable<HealthRecordRow["application_route"]> })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
+                        <option value="water">Água</option>
+                        <option value="ocular">Ocular</option>
+                        <option value="spray">Spray</option>
+                        <option value="wing web">Membrana da asa</option>
+                        <option value="intramuscular">Intramuscular</option>
+                        <option value="subcutaneous">Subcutânea</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Quantidade de doses</label>
+                      <input type="number" value={form.doses} onChange={(e) => setForm({ ...form, doses: e.target.value })} placeholder="Informe a quantidade" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    </div>
                   </div>
                 )}
                 {form.tipo === "Tratamento" && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl border border-amber-100 bg-amber-50/40 p-3">
-                    <input type="text" value={form.activeIngredient} onChange={(e) => setForm({ ...form, activeIngredient: e.target.value })} placeholder="Princípio ativo" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-                    <input type="text" value={form.dosageDilution} onChange={(e) => setForm({ ...form, dosageDilution: e.target.value })} placeholder="Dosagem / diluição" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-                    <input type="number" value={form.withdrawalPeriodDays} onChange={(e) => setForm({ ...form, withdrawalPeriodDays: e.target.value })} placeholder="Carência (dias)" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-                    <input type="text" value={form.disposalDestination} onChange={(e) => setForm({ ...form, disposalDestination: e.target.value })} placeholder="Destino de descarte" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-                    <input type="text" value={form.prescriptionRef} onChange={(e) => setForm({ ...form, prescriptionRef: e.target.value })} placeholder="Receita / referência" className="border border-gray-200 rounded-xl px-3 py-2 text-sm md:col-span-2" />
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Princípio ativo</label>
+                      <input type="text" value={form.activeIngredient} onChange={(e) => setForm({ ...form, activeIngredient: e.target.value })} placeholder="Informe o princípio ativo" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Dosagem / diluição</label>
+                      <input type="text" value={form.dosageDilution} onChange={(e) => setForm({ ...form, dosageDilution: e.target.value })} placeholder="Informe a dosagem" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Carência (dias)</label>
+                      <input type="number" value={form.withdrawalPeriodDays} onChange={(e) => setForm({ ...form, withdrawalPeriodDays: e.target.value })} placeholder="Informe o período" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Destino de descarte</label>
+                      <input type="text" value={form.disposalDestination} onChange={(e) => setForm({ ...form, disposalDestination: e.target.value })} placeholder="Informe o destino" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Receita / referência</label>
+                      <input type="text" value={form.prescriptionRef} onChange={(e) => setForm({ ...form, prescriptionRef: e.target.value })} placeholder="Informe a referência" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    </div>
                   </div>
                 )}
                 {form.tipo === "Inspeção" && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl border border-sky-100 bg-sky-50/40 p-3">
-                    <select value={form.fecesAspect} onChange={(e) => setForm({ ...form, fecesAspect: e.target.value as DailyInspectionRow["feces_aspect"] })} className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
-                      <option value="Normal">Fezes normais</option>
-                      <option value="Diarrhea">Diarreia</option>
-                      <option value="Blood">Sangue</option>
-                    </select>
-                    <select value={form.respiratorySymptoms} onChange={(e) => setForm({ ...form, respiratorySymptoms: e.target.value as DailyInspectionRow["respiratory_symptoms"] })} className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
-                      <option value="None">Sem sintomas respiratórios</option>
-                      <option value="Snick">Espirro / ruído respiratório</option>
-                      <option value="Coryza">Coriza</option>
-                    </select>
-                    <select value={form.behavior} onChange={(e) => setForm({ ...form, behavior: e.target.value as DailyInspectionRow["behavior"] })} className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
-                      <option value="Normal">Comportamento normal</option>
-                      <option value="Huddled">Aglomeradas</option>
-                      <option value="Feather Pecking">Bicagem de penas</option>
-                    </select>
-                    <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-                      <input type="checkbox" checked={form.lightTimerOps} onChange={(e) => setForm({ ...form, lightTimerOps: e.target.checked })} />
-                      Timer de luz operando
-                    </label>
-                    <input type="number" step="0.1" value={form.waterChlorinePpm} onChange={(e) => setForm({ ...form, waterChlorinePpm: e.target.value })} placeholder="Cloro da água (ppm)" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-                    <input type="number" step="0.1" value={form.waterPh} onChange={(e) => setForm({ ...form, waterPh: e.target.value })} placeholder="pH da água" className="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Aspecto das fezes</label>
+                      <select value={form.fecesAspect} onChange={(e) => setForm({ ...form, fecesAspect: e.target.value as DailyInspectionRow["feces_aspect"] })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
+                        <option value="Normal">Normal</option>
+                        <option value="Diarrhea">Diarreia</option>
+                        <option value="Blood">Sangue</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Sintomas respiratórios</label>
+                      <select value={form.respiratorySymptoms} onChange={(e) => setForm({ ...form, respiratorySymptoms: e.target.value as DailyInspectionRow["respiratory_symptoms"] })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
+                        <option value="None">Nenhum</option>
+                        <option value="Snick">Espirro / ruído respiratório</option>
+                        <option value="Coryza">Coriza</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Comportamento</label>
+                      <select value={form.behavior} onChange={(e) => setForm({ ...form, behavior: e.target.value as DailyInspectionRow["behavior"] })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
+                        <option value="Normal">Normal</option>
+                        <option value="Huddled">Aglomeradas</option>
+                        <option value="Feather Pecking">Bicagem de penas</option>
+                      </select>
+                    </div>
+                    <div>
+                      <span className="block text-xs font-semibold text-gray-600 mb-1.5">Timer de luz</span>
+                      <label className="flex min-h-[42px] items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-700 transition-all focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-300">
+                        <input type="checkbox" checked={form.lightTimerOps} onChange={(e) => setForm({ ...form, lightTimerOps: e.target.checked })} />
+                        Operando normalmente
+                      </label>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Cloro da água (ppm)</label>
+                      <input type="number" step="0.1" value={form.waterChlorinePpm} onChange={(e) => setForm({ ...form, waterChlorinePpm: e.target.value })} placeholder="Informe a concentração" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">pH da água</label>
+                      <input type="number" step="0.1" value={form.waterPh} onChange={(e) => setForm({ ...form, waterPh: e.target.value })} placeholder="Informe o pH" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    </div>
                   </div>
                 )}
               </div>
