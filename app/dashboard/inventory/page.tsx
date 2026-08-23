@@ -394,7 +394,21 @@ export default function EstoquePage() {
   async function saveFeedItem() {
     const currentFarm = farmRef.current;
     const trimmedName = feedForm.name.trim();
-    if (!currentFarm || !trimmedName) return;
+    if (!currentFarm || !trimmedName || saving) return;
+
+    const quantity = numberOrUndefined(feedForm.quantity) ?? 0;
+    const unitCost = numberOrUndefined(feedForm.unitCost);
+    const totalCost = numberOrUndefined(feedForm.totalCost);
+    if (quantity < 0 || (unitCost !== undefined && unitCost < 0) || (totalCost !== undefined && totalCost < 0)) {
+      setErrorMessage("Quantidade e custos não podem ser negativos.");
+      return;
+    }
+
+    const purchaseCost = totalCost && totalCost > 0 ? totalCost : quantity * (unitCost ?? 0);
+    if (feedModal === "add" && purchaseCost <= 0) {
+      setErrorMessage("Informe um custo total maior que zero para criar o item e sua despesa.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -407,12 +421,12 @@ export default function EstoquePage() {
         type: feedForm.feedType.trim() || null,
         feed_category: feedForm.feedCategory.trim() || null,
         feed_type: feedForm.feedType.trim() || null,
-        quantity: numberOrUndefined(feedForm.quantity) ?? 0,
+        quantity,
         unit: feedForm.unit,
         status: "normal" as const,
         supplier: feedForm.supplier.trim() || null,
-        unit_cost: numberOrUndefined(feedForm.unitCost) ?? null,
-        total_cost: numberOrUndefined(feedForm.totalCost) ?? null,
+        unit_cost: unitCost ?? null,
+        total_cost: totalCost ?? (purchaseCost > 0 ? purchaseCost : null),
         lot_number: null,
         minimum_quantity: 0,
         expiration_date: feedForm.itemCategory === "equipment" ? null : feedForm.expirationDate || null,
@@ -427,8 +441,8 @@ export default function EstoquePage() {
 
       setFeedModal(null);
       await fetchData();
-    } catch (error) {
-      console.error(error);
+    } catch (error: unknown) {
+      setErrorMessage(getErrorMessage(error, "Não foi possível salvar o item de estoque."));
     } finally {
       setSaving(false);
     }

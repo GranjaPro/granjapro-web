@@ -1,14 +1,16 @@
 import { createClient } from "@/lib/supabase/client";
-import type { Tables } from "@/lib/database.types";
+import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 import { transactionCategories, type TransactionCategoryKey } from "@/lib/constants/transaction-categories";
+import { parsePositiveAmount } from "@/lib/domain/financial-transaction";
 
 export type FinancialTransaction = Tables<"financial_transactions">;
+export type FinancialTransactionInsert = TablesInsert<"financial_transactions">;
+export type FinancialTransactionUpdate = TablesUpdate<"financial_transactions">;
 
 export interface FinancialSummaryData {
   revenue: number;
   expenses: number;
   profit: number;
-  revenueGoal: number;
   categoryTotals: Record<TransactionCategoryKey, number>;
 }
 
@@ -92,7 +94,6 @@ export async function getFinancialSummaryInRange(
     revenue,
     expenses,
     profit: revenue - expenses,
-    revenueGoal: 20000, // Temporarily hardcoded as per dashboard Meta
     categoryTotals,
   };
 }
@@ -114,7 +115,13 @@ export async function getTransactionsByDateRange(
   return data ?? [];
 }
 
-export async function createTransaction(record: Record<string, any>) {
+function assertValidAmount(amount: number): void {
+  const result = parsePositiveAmount(String(amount));
+  if (!result.valid) throw new Error(result.message);
+}
+
+export async function createTransaction(record: FinancialTransactionInsert) {
+  assertValidAmount(record.amount);
   const supabase = createClient();
   const { data, error } = await supabase
     .from("financial_transactions")
@@ -125,7 +132,8 @@ export async function createTransaction(record: Record<string, any>) {
   return data;
 }
 
-export async function updateTransaction(recordId: string, updates: Record<string, any>) {
+export async function updateTransaction(recordId: string, updates: FinancialTransactionUpdate) {
+  if (updates.amount !== undefined) assertValidAmount(updates.amount);
   const supabase = createClient();
   const { data, error } = await supabase
     .from("financial_transactions")
@@ -144,40 +152,4 @@ export async function deleteTransaction(recordId: string) {
     .delete()
     .eq("id", recordId);
   if (error) throw error;
-}
-
-export async function createRevenueFromSale(
-  farmId: string,
-  saleId: string,
-  date: string,
-  amount: number,
-  description: string
-): Promise<FinancialTransaction | null> {
-  const supabase = createClient();
-
-  const { data: existing } = await supabase
-    .from("financial_transactions")
-    .select("id")
-    .eq("farm_id", farmId)
-    .eq("reference", `sale:${saleId}`)
-    .maybeSingle();
-
-  if (existing) return null;
-
-  const { data, error } = await supabase
-    .from("financial_transactions")
-    .insert({
-      farm_id: farmId,
-      date,
-      type: "revenue",
-      category: "sales",
-      description,
-      amount,
-      reference: `sale:${saleId}`,
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
 }

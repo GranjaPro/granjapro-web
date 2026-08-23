@@ -479,7 +479,7 @@ create table public.financial_transactions (
   type text not null check (type in ('revenue', 'expense')),
   category text not null,
   description text not null,
-  amount numeric(12,2) not null,
+  amount numeric(12,2) not null check (amount > 0),
   payment_method text,
   reference text
 );
@@ -566,10 +566,10 @@ create table public.sales (
   farm_id uuid references public.farms on delete cascade not null,
   customer_id uuid references public.customers on delete cascade,
   date date not null,
-  quantity int not null,
+  quantity int not null check (quantity > 0),
   egg_type text default 'Branco',
-  unit_price numeric(10,2) not null,
-  total numeric(12,2) not null,
+  unit_price numeric(10,2) not null check (unit_price > 0),
+  total numeric(12,2) not null check (total > 0),
   payment_status text default 'pending' check (payment_status in ('pending', 'paid', 'overdue')),
   notes text
 );
@@ -601,6 +601,101 @@ create policy "Users can delete sales in their farm"
   using (farm_id in (
     select id from public.farms where owner_id = auth.uid()
   ));
+
+alter table public.financial_transactions
+  add column sale_id uuid references public.sales(id) on delete cascade;
+
+alter table public.financial_transactions
+  add constraint financial_transactions_revenue_source check (
+    (type = 'revenue' and sale_id is not null)
+    or (type = 'expense' and sale_id is null)
+  );
+
+create unique index idx_financial_transactions_sale_unique
+  on public.financial_transactions(sale_id)
+  where sale_id is not null;
+
+create or replace function public.sync_sale_revenue()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  customer_name text;
+begin
+  select name into customer_name
+    from public.customers
+   where id = new.customer_id;
+
+  insert into public.financial_transactions (
+    farm_id,
+    date,
+    type,
+    category,
+    description,
+    amount,
+    reference,
+    sale_id
+  ) values (
+    new.farm_id,
+    new.date,
+    'revenue',
+    'sales',
+    'Venda - ' || coalesce(customer_name, 'Cliente não informado'),
+    new.total,
+    'sale:' || new.id::text,
+    new.id
+  )
+  on conflict (sale_id) where sale_id is not null do update set
+    farm_id = excluded.farm_id,
+    date = excluded.date,
+    category = excluded.category,
+    description = excluded.description,
+    amount = excluded.amount,
+    reference = excluded.reference;
+
+  return new;
+end;
+$$;
+
+create trigger sync_sale_revenue
+  after insert or update of farm_id, customer_id, date, total
+  on public.sales
+  for each row execute procedure public.sync_sale_revenue();
+
+drop policy "Users can insert transactions in their farm" on public.financial_transactions;
+drop policy "Users can update transactions in their farm" on public.financial_transactions;
+drop policy "Users can delete transactions in their farm" on public.financial_transactions;
+
+create policy "Users can insert expenses in their farm"
+  on public.financial_transactions for insert
+  with check (
+    type = 'expense'
+    and sale_id is null
+    and farm_id in (select id from public.farms where owner_id = auth.uid())
+  );
+
+create policy "Users can update expenses in their farm"
+  on public.financial_transactions for update
+  using (
+    type = 'expense'
+    and sale_id is null
+    and farm_id in (select id from public.farms where owner_id = auth.uid())
+  )
+  with check (
+    type = 'expense'
+    and sale_id is null
+    and farm_id in (select id from public.farms where owner_id = auth.uid())
+  );
+
+create policy "Users can delete expenses in their farm"
+  on public.financial_transactions for delete
+  using (
+    type = 'expense'
+    and sale_id is null
+    and farm_id in (select id from public.farms where owner_id = auth.uid())
+  );
 
 -- ============================================
 -- 11. TASKS

@@ -57,7 +57,6 @@ import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
 import { createClient } from "@/lib/supabase/client";
-import { createRevenueFromSale } from "@/lib/services/finances";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 
 /* ══════════════════════════════════════════════
@@ -109,6 +108,9 @@ export default function VendasPage() {
 
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
   const [editing, setEditing] = useState<Venda | null>(null);
+  const [saleFormError, setSaleFormError] = useState<string | null>(null);
+  const [savingSale, setSavingSale] = useState(false);
+  const savingSaleRef = useRef(false);
   const [form, setForm] = useState({
     data: new Date().toISOString().split("T")[0],
     clienteId: "",
@@ -341,6 +343,7 @@ export default function VendasPage() {
   function openAdd() {
     setForm({ data: new Date().toISOString().split("T")[0], clienteId: "", egg_type: "Branco", quantidade: "", precoUn: "", payment_status: "paid", notes: "" });
     setEditing(null);
+    setSaleFormError(null);
     setModal("add");
   }
 
@@ -355,17 +358,31 @@ export default function VendasPage() {
       notes: v.notes,
     });
     setEditing(v);
+    setSaleFormError(null);
     setModal("edit");
   }
 
   async function save() {
-    if (!form.data.trim() || !form.clienteId || !form.quantidade || !form.precoUn) return;
+    if (savingSaleRef.current) return;
+
+    const quantidade = Number(form.quantidade);
+    const precoUn = Number(form.precoUn);
+    if (!form.data.trim() || !form.clienteId) {
+      setSaleFormError("Preencha a data e selecione um cliente.");
+      return;
+    }
+    if (!Number.isInteger(quantidade) || quantidade <= 0) {
+      setSaleFormError("A quantidade deve ser um número inteiro maior que zero.");
+      return;
+    }
+    if (!Number.isFinite(precoUn) || precoUn <= 0) {
+      setSaleFormError("O preço por dúzia deve ser maior que zero.");
+      return;
+    }
+
     const currentFarm = farmRef.current;
     if (!currentFarm) return;
 
-    const quantidade = Number(form.quantidade) || 0;
-    const precoUn = Number(form.precoUn) || 0;
-    
     const record = {
       farm_id: currentFarm.id,
       customer_id: form.clienteId,
@@ -379,32 +396,27 @@ export default function VendasPage() {
     };
 
     const supabase = createClient();
+    savingSaleRef.current = true;
+    setSavingSale(true);
+    setSaleFormError(null);
     try {
       if (modal === "add") {
-        const { data: newSale, error } = await supabase
+        const { error } = await supabase
           .from("sales")
-          .insert(record)
-          .select()
-          .single();
+          .insert(record);
 
         if (error) throw error;
-
-        const customerName = customers.find(c => c.id === form.clienteId)?.name || "Venda";
-        await createRevenueFromSale(
-          currentFarm.id,
-          newSale.id,
-          record.date,
-          record.total,
-          `Venda - ${customerName}`
-        );
       } else if (editing) {
         const { error } = await supabase.from("sales").update(record).eq("id", editing.id);
         if (error) throw error;
       }
       setModal(null);
-      fetchData();
-    } catch (e) {
-      console.error(e);
+      await fetchData();
+    } catch {
+      setSaleFormError("Não foi possível salvar a venda. Tente novamente.");
+    } finally {
+      savingSaleRef.current = false;
+      setSavingSale(false);
     }
   }
 
@@ -1432,7 +1444,7 @@ export default function VendasPage() {
       {modal && (
         <ModalPortal>
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModal(null)} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !savingSale && setModal(null)} />
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -1443,7 +1455,7 @@ export default function VendasPage() {
                   {modal === "add" ? "Registrar Venda" : "Editar Venda"}
                 </h3>
               </div>
-              <button onClick={() => setModal(null)} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer">
+              <button onClick={() => setModal(null)} disabled={savingSale} aria-label="Fechar formulário de venda" className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">
                 <X className="w-4 h-4 text-gray-500" />
               </button>
             </div>
@@ -1472,7 +1484,7 @@ export default function VendasPage() {
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Status Pagamento</label>
-                  <select value={form.payment_status} onChange={(e) => setForm({ ...form, payment_status: e.target.value as any })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
+                  <select value={form.payment_status} onChange={(e) => setForm({ ...form, payment_status: e.target.value as "pending" | "paid" | "overdue" })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
                     <option value="paid">Pago</option>
                     <option value="pending">A Receber</option>
                     <option value="overdue">Atrasado</option>
@@ -1483,13 +1495,20 @@ export default function VendasPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Quantidade (dúzias)</label>
-                  <input type="number" min="1" value={form.quantidade} onChange={(e) => setForm({ ...form, quantidade: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  <input type="number" min="1" step="1" value={form.quantidade} onChange={(e) => { setForm({ ...form, quantidade: e.target.value }); setSaleFormError(null); }} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Preço / Dúzia (R$)</label>
-                  <input type="number" step="0.01" min="0" value={form.precoUn} onChange={(e) => setForm({ ...form, precoUn: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  <input type="number" step="0.01" min="0.01" value={form.precoUn} onChange={(e) => { setForm({ ...form, precoUn: e.target.value }); setSaleFormError(null); }} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
               </div>
+
+              {saleFormError && (
+                <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{saleFormError}</span>
+                </div>
+              )}
 
               <div>
                 <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Observações</label>
@@ -1505,11 +1524,11 @@ export default function VendasPage() {
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center gap-3">
-              <button onClick={() => setModal(null)} className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer">
+              <button onClick={() => setModal(null)} disabled={savingSale} className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">
                 Cancelar
               </button>
-              <button onClick={save} disabled={!form.data || !form.clienteId || !form.quantidade || !form.precoUn} className={cn("flex-1 px-4 py-2.5 text-sm font-semibold text-white rounded-xl transition-colors cursor-pointer shadow-sm shadow-brand-600/20", (!form.data || !form.clienteId || !form.quantidade || !form.precoUn) ? "bg-brand-300 cursor-not-allowed" : "bg-brand-600 hover:bg-brand-700")}>
-                {modal === "add" ? "Registrar" : "Salvar"}
+              <button onClick={save} disabled={savingSale || !form.data || !form.clienteId || !form.quantidade || !form.precoUn} className={cn("flex-1 px-4 py-2.5 text-sm font-semibold text-white rounded-xl transition-colors cursor-pointer shadow-sm shadow-brand-600/20", (savingSale || !form.data || !form.clienteId || !form.quantidade || !form.precoUn) ? "bg-brand-300 cursor-not-allowed" : "bg-brand-600 hover:bg-brand-700")}>
+                {savingSale ? "Salvando..." : modal === "add" ? "Registrar" : "Salvar"}
               </button>
             </div>
           </div>

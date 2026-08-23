@@ -1,25 +1,16 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import ModalPortal from "@/components/ui/modal-portal";
 import { insightHref } from "@/lib/insight-links";
 import {
   DollarSign,
-  TrendingUp,
-  TrendingDown,
   ArrowUpRight,
   ArrowDownRight,
   Wallet,
   PiggyBank,
   BarChart3,
-  Search,
-  Pencil,
-  Trash2,
-  Check,
-  X,
   Plus,
-  Sparkles,
   Zap,
   Droplets,
   Wrench,
@@ -27,12 +18,8 @@ import {
   Wheat,
   Pill,
   MoreHorizontal,
-  Target,
   AlertTriangle,
   CheckCircle2,
-  ArrowRight,
-  Receipt,
-  ShieldCheck,
   Scale,
   CircleDollarSign,
 } from "lucide-react";
@@ -40,14 +27,21 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
-import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
 import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
+import { TransactionModal, type TransactionFormState, type InventoryOption } from "@/components/finances/transaction-modal";
+import { TransactionTable, type FinancialTransactionRow } from "@/components/finances/transaction-table";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { hasMinimumPlan } from "@/lib/plans";
 import { cn } from "@/lib/utils";
 import { getTransactionsByDateRange, getFinancialSummaryInRange, createTransaction, updateTransaction, deleteTransaction, type FinancialTransaction, type FinancialSummaryData } from "@/lib/services/finances";
 import { getFarmBirdCount } from "@/lib/services/farms";
+import { getFeedInventory, type FeedInventoryCompatibilityRow } from "@/lib/services/inventory";
+import { getSalesByDateRange } from "@/lib/services/sales";
 import { transactionCategories, type TransactionCategoryKey } from "@/lib/constants/transaction-categories";
+import { inventoryLinkFromSelection, inventorySelectionKey, parseInventorySelectionKey, parsePositiveAmount } from "@/lib/domain/financial-transaction";
+import { calculateSalesFinancialMetrics, getSixMonthDateRange, groupMonthlySalesMetrics } from "@/lib/domain/financial-kpi-metrics";
+import { calculateKpiVariation, getComparisonPeriod } from "@/lib/domain/kpi-comparison";
+import type { Tables } from "@/lib/database.types";
 import {
   AreaChart,
   Area,
@@ -66,16 +60,7 @@ import {
 } from "recharts";
 
 
-interface TransactionRow {
-  id: string;
-  date: string;
-  type: "revenue" | "expense";
-  category: string;
-  description: string;
-  amount: number;
-  payment_method: string | null;
-  reference: string | null;
-}
+type FinanceSale = Tables<"sales"> & { customers: { name: string } | null };
 
 /* ══════════════════════════════════════════════
    COMPONENT
@@ -85,69 +70,89 @@ export default function FinancasPage() {
   const { farm } = useAuth();
   const { plan, hideAdvancedFeatures } = usePlan();
   const showFinancesProFeatures = !(hideAdvancedFeatures && !hasMinimumPlan(plan, "pro"));
-  const showFinancesPremiumFeatures = !(hideAdvancedFeatures && !hasMinimumPlan(plan, "premium"));
   const { dateRange, filterMode } = useDateFilter();
 
-  const [transactionRows, setTransactionRows] = useState<TransactionRow[]>([]);
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
+  const [historicalTransactions, setHistoricalTransactions] = useState<FinancialTransaction[]>([]);
+  const [sales, setSales] = useState<FinanceSale[]>([]);
+  const [historicalSales, setHistoricalSales] = useState<FinanceSale[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<FeedInventoryCompatibilityRow[]>([]);
   const [summary, setSummary] = useState<FinancialSummaryData | null>(null);
+  const [previousSummary, setPreviousSummary] = useState<FinancialSummaryData | null>(null);
   const [totalAves, setTotalAves] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const requestVersionRef = useRef(0);
 
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
-  const [editing, setEditing] = useState<TransactionRow | null>(null);
-  const [form, setForm] = useState({
+  const [editing, setEditing] = useState<FinancialTransactionRow | null>(null);
+  const [form, setForm] = useState<TransactionFormState>({
     date: "",
-    type: "expense" as "revenue" | "expense",
+    type: "expense",
     category: "feed",
     description: "",
     amount: "",
     paymentMethod: "",
+    inventorySelection: "",
   });
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [breakdownTab, setBreakdownTab] = useState<"cliente" | "lote" | "galpao">("cliente");
 
   const fetchData = useCallback(async () => {
-    if (!farm?.id) return;
+    const requestVersion = ++requestVersionRef.current;
+    if (!farm?.id) {
+      setTransactions([]);
+      setLoading(false);
+      return;
+    }
+
+    const comparisonPeriod = getComparisonPeriod({
+      mode: filterMode,
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      todayDate: new Date().toISOString().slice(0, 10),
+    });
+    const historyRange = getSixMonthDateRange(dateRange.endDate);
     setLoading(true);
+    setLoadError(null);
     try {
-      const [transRes, summaryRes, birdCount] = await Promise.all([
+      const [transRes, summaryRes, previousSummaryRes, historyTransRes, salesRes, historySalesRes, inventoryRes, birdCount] = await Promise.all([
         getTransactionsByDateRange(farm.id, dateRange.startDate, dateRange.endDate),
         getFinancialSummaryInRange(farm.id, dateRange.startDate, dateRange.endDate),
+        getFinancialSummaryInRange(farm.id, comparisonPeriod.previousStartDate, comparisonPeriod.previousEndDate),
+        getTransactionsByDateRange(farm.id, historyRange.startDate, historyRange.endDate),
+        getSalesByDateRange(farm.id, dateRange.startDate, dateRange.endDate),
+        getSalesByDateRange(farm.id, historyRange.startDate, historyRange.endDate),
+        getFeedInventory(farm.id),
         getFarmBirdCount(farm.id),
       ]);
 
+      if (requestVersion !== requestVersionRef.current) return;
       setTransactions(transRes);
-
-      const mappedRows: TransactionRow[] = transRes.map(t => ({
-        id: t.id,
-        date: t.date,
-        type: t.type as "revenue" | "expense",
-        category: t.category,
-        description: t.description,
-        amount: Number(t.amount),
-        payment_method: t.payment_method,
-        reference: t.reference,
-      }));
-
-      setTransactionRows(mappedRows);
+      setHistoricalTransactions(historyTransRes);
+      setSales(salesRes as unknown as FinanceSale[]);
+      setHistoricalSales(historySalesRes as unknown as FinanceSale[]);
+      setInventoryItems(inventoryRes);
       setSummary(summaryRes);
+      setPreviousSummary(previousSummaryRes);
       setTotalAves(birdCount);
-    } catch (err) {
-      console.error("Error fetching financial data:", err);
+    } catch (error: unknown) {
+      if (requestVersion === requestVersionRef.current) {
+        setLoadError(error instanceof Error ? error.message : "Não foi possível carregar os dados financeiros.");
+      }
     } finally {
-      setLoading(false);
+      if (requestVersion === requestVersionRef.current) setLoading(false);
     }
-  }, [farm?.id, dateRange]);
+  }, [farm?.id, dateRange, filterMode]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const periodoTransactions = useMemo(() => transactionRows, [transactionRows]);
-
-  const periodoLabel = filterMode === "dia" ? "Hoje" : filterMode === "intervalo" ? "Esta Semana" : "Este Mês";
+  const periodoLabel = filterMode === "dia" ? "Dia selecionado" : filterMode === "intervalo" ? "Período selecionado" : "Mês selecionado";
 
   const despesasFiltradas = useMemo(() => {
     if (!summary) return [];
@@ -172,20 +177,18 @@ export default function FinancasPage() {
     if (!transactions.length) return [];
     const map: Record<string, { dia: string; receita: number; despesa: number }> = {};
     transactions.forEach((t) => {
-      const key = filterMode === "mes"
-        ? t.date.substring(0, 7)
-        : t.date.substring(0, 10);
+      const key = t.date.substring(0, 10);
       if (!map[key]) map[key] = { dia: key, receita: 0, despesa: 0 };
       if (t.type === "revenue") map[key].receita += Number(t.amount);
       else if (t.type === "expense") map[key].despesa += Number(t.amount);
     });
     return Object.values(map).sort((a, b) => a.dia.localeCompare(b.dia));
-  }, [transactions, filterMode]);
+  }, [transactions]);
 
   const fluxoMensalData = useMemo(() => {
-    if (!transactions.length) return [];
+    if (!historicalTransactions.length) return [];
     const map: Record<string, { mes: string; receita: number; despesa: number; lucro: number }> = {};
-    transactions.forEach((t) => {
+    historicalTransactions.forEach((t) => {
       const ym = t.date.substring(0, 7);
       if (!map[ym]) map[ym] = { mes: ym, receita: 0, despesa: 0, lucro: 0 };
       if (t.type === "revenue") map[ym].receita += Number(t.amount);
@@ -194,21 +197,12 @@ export default function FinancasPage() {
     return Object.values(map)
       .map((m) => ({ ...m, lucro: m.receita - m.despesa }))
       .sort((a, b) => a.mes.localeCompare(b.mes));
-  }, [transactions]);
+  }, [historicalTransactions]);
 
-  const historicoPrecosData = useMemo(() => {
-    if (!transactions.length) return [];
-    const revenueByMonth: Record<string, { total: number; count: number }> = {};
-    transactions.filter(t => t.type === "revenue").forEach((t) => {
-      const ym = t.date.substring(0, 7);
-      if (!revenueByMonth[ym]) revenueByMonth[ym] = { total: 0, count: 0 };
-      revenueByMonth[ym].total += Number(t.amount);
-      revenueByMonth[ym].count += 1;
-    });
-    return Object.entries(revenueByMonth)
-      .map(([mes, d]) => ({ mes, preco: d.count > 0 ? d.total / d.count : 0 }))
-      .sort((a, b) => a.mes.localeCompare(b.mes));
-  }, [transactions]);
+  const historicoPrecosData = useMemo(
+    () => groupMonthlySalesMetrics(historicalSales).map((metric) => ({ mes: metric.month, preco: metric.averagePricePerDozen ?? 0 })),
+    [historicalSales],
+  );
 
   const totalDespesasFiltradas = summary?.expenses ?? 0;
   const receitaPeriodo = summary?.revenue ?? 0;
@@ -216,94 +210,86 @@ export default function FinancasPage() {
   const lucroLiquido = summary?.profit ?? 0;
   const margem = receitaPeriodo > 0 ? ((lucroLiquido / receitaPeriodo) * 100) : 0;
   const lucroPorAve = totalAves > 0 ? lucroLiquido / totalAves : 0;
-  const volumeTotal = periodoTransactions.filter(t => t.type === "revenue").length;
-  const precoMedio = volumeTotal > 0 ? receitaPeriodo / volumeTotal : 0;
-  const custoOvo = 0;
+  const salesMetrics = useMemo(() => calculateSalesFinancialMetrics(sales), [sales]);
+  const volumeTotal = salesMetrics.dozensSold;
+  const precoMedio = salesMetrics.averagePricePerDozen ?? 0;
+  const periodoRef = "vs período anterior";
 
-  const metaReceita = summary?.revenueGoal ?? 20000;
-  const progressoMeta = Math.min((receitaPeriodo / metaReceita) * 100, 100);
+  const revenueVariation = calculateKpiVariation(receitaPeriodo, previousSummary?.revenue ?? 0);
+  const expenseVariation = calculateKpiVariation(despesaPeriodo, previousSummary?.expenses ?? 0);
+  const profitVariation = calculateKpiVariation(lucroLiquido, previousSummary?.profit ?? 0);
+  const varReceita = { pct: revenueVariation.label, dir: revenueVariation.direction === "down" ? "down" as const : "up" as const };
+  const varDespesa = { pct: expenseVariation.label, dir: expenseVariation.direction === "down" ? "down" as const : "up" as const };
+  const varLucro = { pct: profitVariation.label, dir: profitVariation.direction === "down" ? "down" as const : "up" as const };
 
-  const prev = {
-    receita: filterMode === "dia" ? 1800 : filterMode === "intervalo" ? 8900 : 14200,
-    despesa: filterMode === "dia" ? 520 : filterMode === "intervalo" ? 3600 : 15200,
-    lucro: filterMode === "dia" ? 1280 : filterMode === "intervalo" ? 5300 : -1000,
-    lucroPorAve: filterMode === "dia" ? 0.45 : filterMode === "intervalo" ? 1.86 : -0.35,
-    precoMedio: filterMode === "dia" ? 13.0 : filterMode === "intervalo" ? 12.8 : 13.2,
-    volume: filterMode === "dia" ? 150 : filterMode === "intervalo" ? 720 : 1180,
-  };
-  const periodoRef = filterMode === "dia" ? "vs ontem" : filterMode === "intervalo" ? "vs semana anterior" : "vs mês anterior";
+  const inventoryNameByKey = useMemo(
+    () => new Map(inventoryItems.map((item) => [inventorySelectionKey({ table: item.inventory_table, id: item.id }), item.name])),
+    [inventoryItems],
+  );
 
-  function calcVar(current: number, previous: number): { pct: string; dir: "up" | "down" } {
-    if (previous === 0) return { pct: "+0.0%", dir: "up" };
-    const v = ((current - previous) / Math.abs(previous)) * 100;
-    return { pct: `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, dir: v >= 0 ? "up" : "down" };
-  }
+  const transactionRows = useMemo<FinancialTransactionRow[]>(() => transactions.map((transaction) => {
+    const inventoryKey = transaction.feed_inventory_id
+      ? inventorySelectionKey({ table: "feed", id: transaction.feed_inventory_id })
+      : transaction.medicine_inventory_id
+        ? inventorySelectionKey({ table: "medicine", id: transaction.medicine_inventory_id })
+        : transaction.packaging_inventory_id
+          ? inventorySelectionKey({ table: "packaging", id: transaction.packaging_inventory_id })
+          : transaction.equipment_inventory_id
+            ? inventorySelectionKey({ table: "equipment", id: transaction.equipment_inventory_id })
+            : null;
 
-  const varReceita = calcVar(receitaPeriodo, prev.receita);
-  const varDespesa = calcVar(despesaPeriodo, prev.despesa);
-  const varLucro = calcVar(lucroLiquido, prev.lucro);
+    return {
+      id: transaction.id,
+      date: transaction.date,
+      type: transaction.type,
+      category: transaction.category,
+      description: transaction.description,
+      amount: Number(transaction.amount),
+      paymentMethod: transaction.payment_method,
+      reference: transaction.reference,
+      inventoryName: inventoryKey ? inventoryNameByKey.get(inventoryKey) ?? null : null,
+    };
+  }), [inventoryNameByKey, transactions]);
 
   const filteredTransactions = useMemo(() => {
-    if (!searchQuery.trim()) return periodoTransactions;
+    if (!searchQuery.trim()) return transactionRows;
     const q = searchQuery.toLowerCase();
-    return periodoTransactions.filter(
+    return transactionRows.filter(
       (t) =>
         t.description.toLowerCase().includes(q) ||
         t.category.toLowerCase().includes(q) ||
+        t.inventoryName?.toLowerCase().includes(q) ||
         t.date.includes(q)
     );
-  }, [periodoTransactions, searchQuery]);
+  }, [transactionRows, searchQuery]);
 
   const receitaPorCliente = useMemo(() => {
     const map = new Map<string, { valor: number; vendas: number }>();
-    periodoTransactions.forEach((t) => {
-      const e = map.get(t.description) || { valor: 0, vendas: 0 };
-      map.set(t.description, { valor: e.valor + t.amount, vendas: e.vendas + 1 });
+    sales.forEach((sale) => {
+      const customerName = sale.customers?.name ?? "Cliente não informado";
+      const current = map.get(customerName) ?? { valor: 0, vendas: 0 };
+      map.set(customerName, { valor: current.valor + Number(sale.total), vendas: current.vendas + 1 });
     });
     return Array.from(map.entries()).map(([nome, d]) => ({ nome, ...d })).sort((a, b) => b.valor - a.valor);
-  }, [periodoTransactions]);
-
-  const receitaPorLote = useMemo(() => {
-    const map = new Map<string, { valor: number; volume: number }>();
-    periodoTransactions.forEach((t) => {
-      const catLabel = transactionCategories[t.category as TransactionCategoryKey]?.label || t.category;
-      const e = map.get(catLabel) || { valor: 0, volume: 0 };
-      map.set(catLabel, { valor: e.valor + t.amount, volume: e.volume + 1 });
-    });
-    return Array.from(map.entries()).map(([nome, d]) => ({ nome, ...d })).sort((a, b) => b.valor - a.valor);
-  }, [periodoTransactions]);
-
-  const receitaPorGalpao = useMemo(() => {
-    const map = new Map<string, number>();
-    periodoTransactions.forEach((t) => {
-      const label = t.type === "revenue" ? "Receita" : "Despesa";
-      map.set(label, (map.get(label) || 0) + t.amount);
-    });
-    return Array.from(map.entries()).map(([nome, valor]) => ({ nome, valor })).sort((a, b) => b.valor - a.valor);
-  }, [periodoTransactions]);
-
-  const breakdownData = breakdownTab === "cliente" ? receitaPorCliente : breakdownTab === "lote" ? receitaPorLote : receitaPorGalpao;
+  }, [sales]);
 
   const healthScore = useMemo(() => {
     let score = 0;
-    if (margem > 15) score += 30; else if (margem > 5) score += 15; else if (margem > 0) score += 5;
-    if (varReceita.dir === "up") score += 20; else score += 5;
-    if (varDespesa.dir === "down") score += 20; else score += 5;
-    if (progressoMeta > 75) score += 20; else if (progressoMeta > 50) score += 10;
+    if (margem > 15) score += 40; else if (margem > 5) score += 20; else if (margem > 0) score += 10;
+    if (varReceita.dir === "up") score += 25; else score += 5;
+    if (varDespesa.dir === "down") score += 25; else score += 5;
     if (lucroPorAve > 0) score += 10; else score += 0;
     return Math.min(score, 100);
-  }, [margem, varReceita, varDespesa, progressoMeta, lucroPorAve]);
+  }, [margem, varReceita, varDespesa, lucroPorAve]);
 
   const actionItems = useMemo(() => {
     const items: { icon: typeof AlertTriangle; text: string; type: "warning" | "success" | "info" }[] = [];
     if (margem < 10) items.push({ icon: AlertTriangle, text: "Margem abaixo de 10% — revise custos com ração", type: "warning" });
     if (varDespesa.dir === "up") items.push({ icon: AlertTriangle, text: `Despesas subiram ${varDespesa.pct} — investigue ração e energia`, type: "warning" });
-    if (precoMedio < 12.5 && precoMedio > 0) items.push({ icon: TrendingDown, text: "Preço médio em queda — renegocie com clientes", type: "warning" });
-    if (progressoMeta < 50 && filterMode === "mes") items.push({ icon: Target, text: `Meta de receita em ${progressoMeta.toFixed(0)}% — acelere vendas`, type: "info" });
     if (lucroLiquido > 0 && varLucro.dir === "up") items.push({ icon: CheckCircle2, text: `Lucro cresceu ${varLucro.pct} — tendência positiva`, type: "success" });
     if (varReceita.dir === "up") items.push({ icon: CheckCircle2, text: `Receita subiu ${varReceita.pct} — bom ritmo de vendas`, type: "success" });
     return items;
-  }, [margem, varDespesa, precoMedio, progressoMeta, lucroLiquido, varLucro, varReceita, filterMode]);
+  }, [margem, varDespesa, lucroLiquido, varLucro, varReceita]);
   const farmHealthInsights = useMemo<FarmHealthInsight[]>(
     () =>
       actionItems.map((item) => {
@@ -319,41 +305,79 @@ export default function FinancasPage() {
       }),
     [actionItems]
   );
-  const farmHealthSummary = `Margem: ${margem.toFixed(1)}% | Custo/ovo: ${formatCurrency(custoOvo)}`;
+  const farmHealthSummary = `Margem: ${margem.toFixed(1)}% | Resultado: ${formatCurrency(lucroLiquido)}`;
+
+  const inventoryOptions = useMemo<InventoryOption[]>(() => {
+    const groupLabels: Record<FeedInventoryCompatibilityRow["inventory_table"], string> = {
+      feed: "Ração",
+      medicine: "Medicamentos",
+      packaging: "Embalagens",
+      equipment: "Equipamentos",
+    };
+    return inventoryItems.map((item) => ({
+      key: inventorySelectionKey({ table: item.inventory_table, id: item.id }),
+      label: item.name,
+      group: groupLabels[item.inventory_table],
+    }));
+  }, [inventoryItems]);
 
   function openAdd() {
-    setForm({ date: "", type: "expense", category: "feed", description: "", amount: "", paymentMethod: "" });
+    setForm({ date: "", type: "expense", category: "feed", description: "", amount: "", paymentMethod: "", inventorySelection: "" });
+    setFormError(null);
     setEditing(null);
     setModal("add");
   }
 
-  function openEdit(t: TransactionRow) {
+  function openEdit(transaction: FinancialTransactionRow) {
+    const source = transactions.find((item) => item.id === transaction.id);
+    const selection = source?.feed_inventory_id
+      ? { table: "feed" as const, id: source.feed_inventory_id }
+      : source?.medicine_inventory_id
+        ? { table: "medicine" as const, id: source.medicine_inventory_id }
+        : source?.packaging_inventory_id
+          ? { table: "packaging" as const, id: source.packaging_inventory_id }
+          : source?.equipment_inventory_id
+            ? { table: "equipment" as const, id: source.equipment_inventory_id }
+            : null;
     setForm({
-      date: t.date,
-      type: t.type,
-      category: t.category,
-      description: t.description,
-      amount: String(t.amount),
-      paymentMethod: t.payment_method || "",
+      date: transaction.date,
+      type: "expense",
+      category: transaction.category,
+      description: transaction.description,
+      amount: String(transaction.amount),
+      paymentMethod: transaction.paymentMethod ?? "",
+      inventorySelection: selection ? inventorySelectionKey(selection) : "",
     });
-    setEditing(t);
+    setFormError(null);
+    setEditing(transaction);
     setModal("edit");
   }
 
   async function save() {
-    if (!form.date.trim() || !form.description.trim() || !form.amount) return;
+    if (submittingRef.current) return;
+    const amountResult = parsePositiveAmount(form.amount);
+    if (!amountResult.valid) {
+      setFormError(amountResult.message);
+      return;
+    }
     if (!farm?.id) return;
+
+    const inventorySelection = parseInventorySelectionKey(form.inventorySelection);
 
     const record = {
       farm_id: farm.id,
       date: form.date,
-      type: form.type,
-      category: form.type === "revenue" ? "sales" : form.category,
+      type: "expense" as const,
+      category: form.category,
       description: form.description,
-      amount: Number(form.amount),
+      amount: amountResult.amount,
       payment_method: form.paymentMethod || null,
+      ...inventoryLinkFromSelection(inventorySelection),
     };
 
+    submittingRef.current = true;
+    setSubmitting(true);
+    setFormError(null);
     try {
       if (modal === "add") {
         await createTransaction(record);
@@ -361,9 +385,12 @@ export default function FinancasPage() {
         await updateTransaction(editing.id, record);
       }
       setModal(null);
-      fetchData();
-    } catch (err) {
-      console.error("Error saving transaction:", err);
+      await fetchData();
+    } catch (error: unknown) {
+      setFormError(error instanceof Error ? error.message : "Não foi possível salvar a transação.");
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   }
 
@@ -371,18 +398,9 @@ export default function FinancasPage() {
     try {
       await deleteTransaction(id);
       setDeleteConfirm(null);
-      fetchData();
-    } catch (err) {
-      console.error("Error deleting transaction:", err);
-    }
-  }
-
-  function formatDate(dateStr: string) {
-    try {
-      const d = new Date(dateStr + "T00:00:00");
-      return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-    } catch {
-      return dateStr;
+      await fetchData();
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : "Não foi possível excluir a transação.");
     }
   }
 
@@ -405,15 +423,25 @@ export default function FinancasPage() {
         </div>
         <div className="flex items-center gap-3">
           <CalendarFilter />
+          <Link href="/dashboard/sales" className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-50">
+            Registrar venda
+          </Link>
           <button
             onClick={openAdd}
             className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20"
           >
             <Plus className="w-4 h-4" />
-            Registrar Venda
+            Registrar despesa
           </button>
         </div>
       </div>
+
+      {loadError && (
+        <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <span>{loadError}</span>
+        </div>
+      )}
 
       {/* Financial Health Banner */}
       {plan === "essencial" ? (
@@ -452,18 +480,6 @@ export default function FinancasPage() {
           <p className="text-xs font-semibold text-gray-500 mb-1">Receita</p>
           <p className="text-2xl font-bold text-gray-900 tracking-tight">{formatCurrency(receitaPeriodo)}</p>
           <p className="text-xs text-gray-400 mt-1 font-medium">Receita — {periodoLabel}</p>
-          <div className="mt-3 space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-400">Meta: {formatCurrency(metaReceita)}</span>
-              <span className="font-semibold text-gray-600">{progressoMeta.toFixed(0)}%</span>
-            </div>
-            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full bg-emerald-500 transition-all duration-700"
-                style={{ width: `${progressoMeta}%` }}
-              />
-            </div>
-          </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
@@ -570,82 +586,6 @@ export default function FinancasPage() {
         )}
       </div>
 
-      {/* AI Insight */}
-      {showFinancesPremiumFeatures && plan !== "premium" ? (
-        <div className="bg-gradient-to-r from-amber-50 via-orange-50/50 to-white border border-amber-200/60 rounded-2xl p-5 flex flex-col">
-          <div className="mb-5">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-sm shadow-amber-400/30">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <h3 className="text-sm font-bold text-gray-900">Assistente Financeiro</h3>
-                  <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
-                </div>
-                <p className="text-[11px] text-gray-400 font-medium">Análise financeira do período</p>
-                <div className="hidden">
-                  <div className="flex items-start gap-2 p-3 rounded-xl bg-white/60 border border-amber-100">
-                    <TrendingDown className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">Preço médio caiu 4%</p>
-                      <p className="text-xs text-gray-500 mt-0.5">Impacto: <span className="font-semibold text-red-600">- R$ 1.000</span> na receita mensal</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2 p-3 rounded-xl bg-white/60 border border-amber-100">
-                    <TrendingUp className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">Volume cresceu 8%</p>
-                      <p className="text-xs text-gray-500 mt-0.5">Compensa parcialmente a queda de preço</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="hidden">
-                  <ArrowRight className="w-4 h-4 text-brand-600 flex-shrink-0" />
-                  <p className="text-xs text-brand-800 font-medium">Sugestão: Negocie preços fixos com Mercado Central e Supermercado BH para proteger a margem</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <AssistantLockedPreview
-            lockedMessage="Desbloqueie o Assistente Financeiro"
-            className="grid grid-cols-1 md:grid-cols-2 gap-3"
-            itemClassName="bg-white/60 border border-amber-100 border-l-amber-500"
-          />
-        </div>
-      ) : showFinancesPremiumFeatures ? (
-        <div className="bg-gradient-to-r from-amber-50 via-orange-50/50 to-white border border-amber-200/60 rounded-2xl p-5">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-sm shadow-amber-400/30">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-bold text-gray-900 mb-2">Assistente Financeiro</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="flex items-start gap-2 p-3 rounded-xl bg-white/60 border border-amber-100">
-                  <TrendingDown className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">Preço médio caiu 4%</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Impacto: <span className="font-semibold text-red-600">- R$ 1.000</span> na receita mensal</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2 p-3 rounded-xl bg-white/60 border border-amber-100">
-                  <TrendingUp className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">Volume cresceu 8%</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Compensa parcialmente a queda de preço</p>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-2 p-2.5 rounded-xl bg-brand-50/50 border border-brand-100">
-                <ArrowRight className="w-4 h-4 text-brand-600 flex-shrink-0" />
-                <p className="text-xs text-brand-800 font-medium">Sugestão: Negocie preços fixos com Mercado Central e Supermercado BH para proteger a margem</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {/* Charts Row 1 */}
       <div className={cn("grid grid-cols-1 gap-6", showFinancesProFeatures && "lg:grid-cols-2")}>
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
@@ -674,7 +614,7 @@ export default function FinancasPage() {
               <YAxis axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`} />
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                formatter={(value: any, name: any) => [
+                formatter={(value, name) => [
                   `R$ ${Number(value).toLocaleString("pt-BR")}`,
                   String(name) === "receita" ? "Receita" : "Despesa"
                 ]}
@@ -714,7 +654,7 @@ export default function FinancasPage() {
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip
                   contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                  formatter={(value: any, name: any) => [
+                  formatter={(value, name) => [
                     formatCurrency(Number(value)),
                     String(name) === "receita" ? "Receita" : String(name) === "despesa" ? "Despesa" : "Lucro"
                   ]}
@@ -746,7 +686,7 @@ export default function FinancasPage() {
               </Pie>
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                formatter={(value: any, name: any) => [formatCurrency(Number(value)), String(name)]}
+                formatter={(value, name) => [formatCurrency(Number(value)), String(name)]}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -789,19 +729,14 @@ export default function FinancasPage() {
         </div>
 
         {plan === "essencial" ? (
-          <LockedOverlay message="Desbloqueie as receitas por categoria" targetPlan="pro" className="lg:col-span-5 h-full" preserveFirstChild>
+          <LockedOverlay message="Desbloqueie as receitas por cliente" targetPlan="pro" className="lg:col-span-5 h-full" preserveFirstChild>
             <div className="bg-white rounded-2xl border border-gray-100 p-6 h-full min-h-[304px]">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900">Receitas por Categoria</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Receita por categoria — {periodoLabel}</p>
+                  <h3 className="text-sm font-bold text-gray-900">Receitas por Cliente</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Somente vendas registradas — {periodoLabel}</p>
                 </div>
                 <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
-                <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-                  {(["Cliente", "Lote", "Galpão"]).map((label) => (
-                    <span key={label} className="px-3 py-1 text-[11px] font-semibold rounded-lg text-gray-500">{label}</span>
-                  ))}
-                </div>
               </div>
               <div className="h-[214px]" />
             </div>
@@ -810,33 +745,13 @@ export default function FinancasPage() {
           <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-100 p-6 h-full min-h-[304px]">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h3 className="text-sm font-bold text-gray-900">Receitas por Categoria</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Receita por categoria — {periodoLabel}</p>
+                <h3 className="text-sm font-bold text-gray-900">Receitas por Cliente</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Somente vendas registradas — {periodoLabel}</p>
               </div>
               <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
-              <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-                {([
-                  { key: "cliente" as const, label: "Cliente" },
-                  { key: "lote" as const, label: "Lote" },
-                  { key: "galpao" as const, label: "Galpão" },
-                ]).map((t) => (
-                  <button
-                    key={t.key}
-                    onClick={() => setBreakdownTab(t.key)}
-                    className={cn(
-                      "px-3 py-1 text-[11px] font-semibold rounded-lg transition-all duration-200 cursor-pointer",
-                      breakdownTab === t.key
-                        ? "bg-white text-gray-900 shadow-sm"
-                        : "text-gray-500 hover:text-gray-700"
-                    )}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
             </div>
             <div className="space-y-3">
-              {breakdownData.map((d: any, i: number) => {
+              {receitaPorCliente.map((d, i) => {
                 const pct = receitaPeriodo > 0 ? (d.valor / receitaPeriodo) * 100 : 0;
                 return (
                   <div key={d.nome} className="flex items-center gap-3">
@@ -851,11 +766,7 @@ export default function FinancasPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        {breakdownTab === "lote" ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-xs font-semibold">{d.nome}</span>
-                        ) : (
-                          <span className="text-sm font-medium text-gray-800 truncate">{d.nome}</span>
-                        )}
+                        <span className="text-sm font-medium text-gray-800 truncate">{d.nome}</span>
                         <span className="text-sm font-bold text-gray-900 ml-2">{formatCurrency(d.valor)}</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -868,7 +779,7 @@ export default function FinancasPage() {
                   </div>
                 );
               })}
-              {!loading && breakdownData.length === 0 && (
+              {!loading && receitaPorCliente.length === 0 && (
                 <p className="text-sm text-gray-400 text-center py-8">Nenhuma venda neste período</p>
               )}
             </div>
@@ -907,7 +818,7 @@ export default function FinancasPage() {
                 <YAxis domain={["auto", "auto"]} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} tickFormatter={(v) => `R$ ${v}`} />
                 <Tooltip
                   contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "13px", padding: "10px 14px" }}
-                  formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, "Preço/dz"]}
+                  formatter={(value) => [`R$ ${Number(value).toFixed(2)}`, "Preço/dz"]}
                 />
                 <Line type="monotone" dataKey="preco" stroke="#f59e0b" strokeWidth={2.5} dot={{ fill: "#f59e0b", r: 4, strokeWidth: 0 }} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2, fill: "#f59e0b" }} />
               </LineChart>
@@ -917,11 +828,8 @@ export default function FinancasPage() {
 
         <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col h-full min-h-[320px]">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-sm font-bold text-gray-900">Resumo de Hoje</h3>
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Tempo real
-            </span>
+            <h3 className="text-sm font-bold text-gray-900">Resumo do Período</h3>
+            <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[10px] font-semibold text-gray-600">{periodoLabel}</span>
           </div>
 
           <div className="space-y-3 flex-1">
@@ -938,219 +846,55 @@ export default function FinancasPage() {
                   R$ {totalAves > 0 ? (receitaPeriodo / totalAves).toFixed(2).replace(".", ",") : "0,00"}
                 </p>
               </div>
-              <div className="ml-10 flex items-start gap-1.5 p-2 rounded-lg bg-emerald-50/50">
-                <Sparkles className="w-3 h-3 text-emerald-500 mt-0.5 flex-shrink-0" />
-                <p className="text-[11px] text-emerald-700/80 leading-relaxed">Métricas reais baseadas em {totalAves} aves</p>
-              </div>
+              <p className="ml-10 rounded-lg bg-emerald-50/50 p-2 text-[11px] leading-relaxed text-emerald-700/80">Baseado em {totalAves} aves cadastradas</p>
             </div>
 
-            <div className="group relative p-4 rounded-xl bg-white border border-red-100 hover:border-red-200 hover:shadow-md hover:shadow-red-100/40 transition-all duration-200 cursor-default">
-              <div className="absolute top-0 left-0 w-1 h-full rounded-l-xl bg-red-400" />
+            <div className="group relative p-4 rounded-xl bg-white border border-blue-100 hover:border-blue-200 hover:shadow-md hover:shadow-blue-100/40 transition-all duration-200 cursor-default">
+              <div className="absolute top-0 left-0 w-1 h-full rounded-l-xl bg-blue-400" />
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
-                    <Receipt className="w-4 h-4 text-red-500" />
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                    <Scale className="w-4 h-4 text-blue-600" />
                   </div>
-                  <span className="text-sm font-bold text-gray-800">Custo / Ovo</span>
+                  <span className="text-sm font-bold text-gray-800">Resultado Líquido</span>
                 </div>
-                <p className="text-2xl font-extrabold text-red-600 tracking-tight">
-                  {formatCurrency(custoOvo)}
-                </p>
+                <p className={cn("text-2xl font-extrabold tracking-tight", lucroLiquido >= 0 ? "text-emerald-700" : "text-red-600")}>{formatCurrency(lucroLiquido)}</p>
               </div>
-              <div className="ml-10 flex items-start gap-1.5 p-2 rounded-lg bg-red-50/50">
-                <Sparkles className="w-3 h-3 text-red-400 mt-0.5 flex-shrink-0" />
-                <p className="text-[11px] text-red-600/80 leading-relaxed">Custo operacional dinâmico</p>
-              </div>
-            </div>
-
-            <div className="group relative p-4 rounded-xl bg-white border border-amber-100 hover:border-amber-200 hover:shadow-md hover:shadow-amber-100/40 transition-all duration-200 cursor-default">
-              <div className="absolute top-0 left-0 w-1 h-full rounded-l-xl bg-amber-400" />
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-                    <Target className="w-4 h-4 text-amber-600" />
-                  </div>
-                  <span className="text-sm font-bold text-gray-800">Meta Mensal</span>
-                </div>
-                <p className="text-2xl font-extrabold text-amber-700 tracking-tight">{progressoMeta.toFixed(0)}%</p>
-              </div>
-              <div className="ml-10">
-                <div className="flex items-center justify-between text-[10px] text-gray-400 mb-1">
-                  <span>{formatCurrency(receitaPeriodo)}</span>
-                  <span>{formatCurrency(metaReceita)}</span>
-                </div>
-                <div className="w-full h-2 bg-amber-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-700"
-                    style={{ width: `${progressoMeta}%` }}
-                  />
-                </div>
-              </div>
+              <p className="ml-10 rounded-lg bg-blue-50/50 p-2 text-[11px] leading-relaxed text-blue-700/80">Receitas menos despesas do período selecionado</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Selling Records Table */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
-          <div>
-            <h3 className="text-sm font-bold text-gray-900">Registros de Vendas</h3>
-            <p className="text-xs text-gray-400 mt-0.5">{filteredTransactions.length} transações — {periodoLabel}</p>
-          </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar por cliente, lote..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all w-full sm:w-64"
-            />
-          </div>
-        </div>
+      <TransactionTable
+        rows={filteredTransactions}
+        loading={loading}
+        periodLabel={periodoLabel}
+        searchQuery={searchQuery}
+        deleteConfirm={deleteConfirm}
+        onSearchChange={setSearchQuery}
+        onEdit={openEdit}
+        onDeleteRequest={setDeleteConfirm}
+        onDeleteCancel={() => setDeleteConfirm(null)}
+        onDeleteConfirm={handleDelete}
+      />
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Data</th>
-                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Tipo</th>
-                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Categoria</th>
-                <th className="text-left py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Descrição</th>
-                <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Valor</th>
-                <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTransactions.map((t) => (
-                <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                  <td className="py-3 px-3 text-gray-600">{formatDate(t.date)}</td>
-                  <td className="py-3 px-3">
-                    <span className={cn(
-                      "inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold",
-                      t.type === "revenue" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                    )}>
-                      {t.type === "revenue" ? "Receita" : "Despesa"}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 text-gray-600">{transactionCategories[t.category as TransactionCategoryKey]?.label || t.category}</td>
-                  <td className="py-3 px-3 font-medium text-gray-900">{t.description}</td>
-                  <td className="py-3 px-3 text-right font-bold text-gray-900">{formatCurrency(t.amount)}</td>
-                  <td className="py-3 px-3">
-                    <div className="flex items-center justify-end gap-1">
-                      {deleteConfirm === t.id ? (
-                        <>
-                          <button onClick={() => handleDelete(t.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Confirmar">
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => setDeleteConfirm(null)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="Cancelar">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => openEdit(t)} className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer" title="Editar">
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => setDeleteConfirm(t.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Excluir">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!loading && filteredTransactions.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="text-center py-12 text-gray-400">
-                    Nenhuma transação encontrada
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Modal */}
       {modal && (
-        <ModalPortal>
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModal(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold text-gray-900">
-                {modal === "add" ? "Registrar Transação" : "Editar Transação"}
-              </h3>
-              <button onClick={() => setModal(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Data</label>
-                  <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Tipo</label>
-                  <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as "revenue" | "expense" })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
-                    <option value="revenue">Receita</option>
-                    <option value="expense">Despesa</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {form.type === "expense" && (
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Categoria</label>
-                    <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
-                      {Object.entries(transactionCategories).map(([key, { label }]) => (
-                        <option key={key} value={key}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Descrição</label>
-                  <input type="text" placeholder="Ex: Compra de ração" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Valor (R$)</label>
-                  <input type="number" step="0.01" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Método de Pagamento</label>
-                  <input type="text" placeholder="Ex: PIX, Dinheiro" value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400" />
-                </div>
-              </div>
-
-              {form.amount && (
-                <div className={cn("p-3 rounded-xl text-center", form.type === "revenue" ? "bg-emerald-50" : "bg-red-50")}>
-                  <p className={cn("text-xs font-medium", form.type === "revenue" ? "text-emerald-600" : "text-red-600")}>Valor da transação</p>
-                  <p className={cn("text-lg font-bold", form.type === "revenue" ? "text-emerald-700" : "text-red-700")}>{formatCurrency(Number(form.amount) || 0)}</p>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3 mt-6">
-              <button onClick={() => setModal(null)} className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors cursor-pointer">
-                Cancelar
-              </button>
-              <button onClick={save} className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition-colors cursor-pointer shadow-sm">
-                {modal === "add" ? "Registrar" : "Salvar"}
-              </button>
-            </div>
-          </div>
-        </div>
-        </ModalPortal>
+        <TransactionModal
+          mode={modal}
+          form={form}
+          inventoryOptions={inventoryOptions}
+          error={formError}
+          submitting={submitting}
+          onChange={(nextForm) => {
+            setForm(nextForm);
+            setFormError(null);
+          }}
+          onClose={() => {
+            if (!submitting) setModal(null);
+          }}
+          onSubmit={save}
+        />
       )}
     </div>
   );

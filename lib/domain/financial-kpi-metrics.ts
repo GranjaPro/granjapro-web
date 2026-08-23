@@ -34,6 +34,12 @@ export interface FinancialEggRecord {
   eggsProduced: number;
 }
 
+export interface FinancialSaleRecord {
+  date: string;
+  quantity: number;
+  total: number;
+}
+
 interface ProductionFinancialMetricInput {
   productionRecords: FinancialProductionRecord[];
   feedRecords: FinancialFeedRecord[];
@@ -184,4 +190,36 @@ export function calculateFeedFinancialMetrics({
     comparableEggs,
     comparableBirdDays,
   };
+}
+
+export function calculateSalesFinancialMetrics(sales: FinancialSaleRecord[]) {
+  const dozensSold = sales.reduce((sum, sale) => sum + sale.quantity, 0);
+  const salesRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
+
+  return {
+    dozensSold,
+    salesRevenue,
+    averagePricePerDozen: dozensSold > 0 ? salesRevenue / dozensSold : undefined,
+  };
+}
+
+export function groupMonthlySalesMetrics(sales: FinancialSaleRecord[]) {
+  const monthly = new Map<string, FinancialSaleRecord[]>();
+
+  sales.forEach((sale) => {
+    const month = sale.date.slice(0, 7);
+    const current = monthly.get(month) ?? [];
+    current.push(sale);
+    monthly.set(month, current);
+  });
+
+  return Array.from(monthly.entries())
+    .map(([month, records]) => ({ month, ...calculateSalesFinancialMetrics(records) }))
+    .sort((left, right) => left.month.localeCompare(right.month));
+}
+
+export function getSixMonthDateRange(endDate: string) {
+  const end = new Date(`${endDate}T00:00:00Z`);
+  const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - 5, 1));
+  return { startDate: start.toISOString().slice(0, 10), endDate };
 }

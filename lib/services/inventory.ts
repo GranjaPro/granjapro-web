@@ -82,6 +82,27 @@ type InventorySelectedRow = {
 
 const DEFAULT_STORAGE_LOCATION_NAME = "Sem local definido";
 
+function assertNonNegativeNumber(label: string, value: number | null | undefined): void {
+  if (value !== null && value !== undefined && (!Number.isFinite(value) || value < 0)) {
+    throw new Error(`${label} não pode ser negativo.`);
+  }
+}
+
+function getPositivePurchaseCost(input: FeedInventoryCompatibilityInput): number {
+  assertNonNegativeNumber("A quantidade", input.quantity);
+  assertNonNegativeNumber("O custo unitário", input.unit_cost);
+  assertNonNegativeNumber("O custo total", input.total_cost ?? input.inventory_value);
+
+  const explicitTotal = input.total_cost ?? input.inventory_value;
+  const calculatedTotal = (input.quantity ?? 0) * (input.unit_cost ?? 0);
+  const purchaseCost = explicitTotal && explicitTotal > 0 ? explicitTotal : calculatedTotal;
+  if (!Number.isFinite(purchaseCost) || purchaseCost <= 0) {
+    throw new Error("Informe um custo total maior que zero para criar o item de estoque.");
+  }
+
+  return purchaseCost;
+}
+
 function getEntryDate(input: FeedInventoryCompatibilityInput) {
   return input.entry_date ?? input.arrival_date ?? new Date().toISOString().split("T")[0];
 }
@@ -276,6 +297,7 @@ export async function deleteStorageLocation(id: string): Promise<void> {
 export async function createInventoryItem(input: FeedInventoryCompatibilityInput) {
   const supabase = createClient();
   const table = input.inventory_table ?? "feed";
+  const purchaseCost = getPositivePurchaseCost(input);
   
   let locationId = input.location_id;
   if (!locationId) {
@@ -292,7 +314,7 @@ export async function createInventoryItem(input: FeedInventoryCompatibilityInput
     status: input.status ?? "normal",
     supplier: input.supplier ?? null,
     unit_cost: input.unit_cost ?? null,
-    total_cost: input.total_cost ?? input.inventory_value ?? null,
+    total_cost: purchaseCost,
     entry_date: getEntryDate(input),
     lot_number: input.lot_number ?? null,
     minimum_quantity: input.minimum_quantity ?? 0,
@@ -361,6 +383,10 @@ export async function createInventoryItem(input: FeedInventoryCompatibilityInput
 export async function updateInventoryItem(id: string, updates: Partial<FeedInventoryCompatibilityInput>) {
   const supabase = createClient();
   const table = updates.inventory_table ?? "feed";
+
+  assertNonNegativeNumber("A quantidade", updates.quantity);
+  assertNonNegativeNumber("O custo unitário", updates.unit_cost);
+  assertNonNegativeNumber("O custo total", updates.total_cost ?? updates.inventory_value);
 
   let locationId = updates.location_id;
   if (!locationId && updates.farm_id && updates.location !== undefined) {

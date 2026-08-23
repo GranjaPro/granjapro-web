@@ -34,8 +34,6 @@ export function FinancialSummary() {
   const revenue = data?.revenue ?? 0;
   const expenses = data?.expenses ?? 0;
   const profit = data?.profit ?? 0;
-  const revenueGoal = data?.revenueGoal ?? 20000;
-  const revenueProgress = Math.min((revenue / revenueGoal) * 100, 100);
 
   const monthLabel = filterMode === "mes" ? "Este Mês" : filterMode === "dia" ? "Hoje" : "Esta Semana";
 
@@ -60,19 +58,6 @@ export function FinancialSummary() {
             <span className="text-xs text-gray-500">Receita</span>
           </div>
           <span className="text-sm font-bold text-gray-900">{formatCurrency(revenue)}</span>
-        </div>
-
-        <div className="ml-9 space-y-1">
-          <div className="flex items-center justify-between text-xs text-gray-400">
-            <span>Meta: {formatCurrency(revenueGoal)}</span>
-            <span>{revenueProgress.toFixed(0)}%</span>
-          </div>
-          <div className="h-1.5 w-full rounded-full bg-gray-100">
-            <div
-              className="h-1.5 rounded-full bg-green-500 transition-all"
-              style={{ width: `${revenueProgress}%` }}
-            />
-          </div>
         </div>
 
         <div className="flex items-center justify-between">

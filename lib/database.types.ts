@@ -841,6 +841,11 @@ export interface Database {
           amount: number;
           payment_method: string | null;
           reference: string | null;
+          sale_id: string | null;
+          feed_inventory_id: string | null;
+          medicine_inventory_id: string | null;
+          packaging_inventory_id: string | null;
+          equipment_inventory_id: string | null;
         };
         Insert: {
           id?: string;
@@ -853,6 +858,11 @@ export interface Database {
           amount: number;
           payment_method?: string | null;
           reference?: string | null;
+          sale_id?: string | null;
+          feed_inventory_id?: string | null;
+          medicine_inventory_id?: string | null;
+          packaging_inventory_id?: string | null;
+          equipment_inventory_id?: string | null;
         };
         Update: {
           id?: string;
@@ -865,6 +875,11 @@ export interface Database {
           amount?: number;
           payment_method?: string | null;
           reference?: string | null;
+          sale_id?: string | null;
+          feed_inventory_id?: string | null;
+          medicine_inventory_id?: string | null;
+          packaging_inventory_id?: string | null;
+          equipment_inventory_id?: string | null;
         };
       };
       customers: {
