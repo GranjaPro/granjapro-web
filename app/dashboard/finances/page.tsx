@@ -28,6 +28,7 @@ import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
+import { FinancesPageSkeleton } from "@/components/dashboard/page-loading-skeletons";
 import { TransactionModal, type TransactionFormState, type InventoryOption } from "@/components/finances/transaction-modal";
 import { TransactionTable, type FinancialTransactionRow } from "@/components/finances/transaction-table";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
@@ -426,6 +427,8 @@ export default function FinancasPage() {
   function formatCurrency(value: number) {
     return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   }
+
+  if (loading) return <FinancesPageSkeleton />;
 
   return (
     <div className="space-y-6 relative">

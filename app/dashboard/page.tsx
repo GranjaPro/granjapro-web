@@ -74,6 +74,7 @@ import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { UpgradePopup } from "@/components/plan/upgrade-popup";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   X, Pencil, Trash2, Droplets, Eye, ShieldCheck, Thermometer, Bug, Scissors,
   Scale, Syringe, Hammer, Truck, Sun, Moon, Heart, Star, Flame, Leaf, Bell,
@@ -960,6 +961,8 @@ export default function DashboardPage() {
         gradient: "from-brand-500 to-brand-600",
         lightBg: "bg-brand-50",
         lightIcon: "text-brand-600",
+        tooltipDescription: "Soma dos ovos produzidos nos registros do período selecionado. Não desconta ovos quebrados, sujos, descartados ou vendidos. Quando o período inclui datas futuras, considera somente até hoje.",
+        tooltipFormula: "Soma de ovos produzidos no período",
         progress: productionGoals.eggs > 0 ? (productionData.eggsProduced / productionGoals.eggs) * 100 : 0,
         reached: formatNumber(productionData.eggsProduced),
         goal: formatNumber(productionGoals.eggs),
@@ -976,6 +979,8 @@ export default function DashboardPage() {
         gradient: "from-violet-500 to-violet-600",
         lightBg: "bg-violet-50",
         lightIcon: "text-violet-600",
+        tooltipDescription: "Ovos produzidos divididos pela soma das aves vivas elegíveis à postura em cada dia do período selecionado. Considera idade produtiva e mortalidades acumuladas; lotes fora da fase produtiva não entram.",
+        tooltipFormula: "Ovos produzidos ÷ aves-dia elegíveis × 100",
         progress: productionGoals.layingRate > 0 ? (productionData.layingRate / productionGoals.layingRate) * 100 : 0,
         reached: `${productionData.layingRate.toFixed(1)}%`,
         goal: `${productionGoals.layingRate.toFixed(1)}%`,
@@ -992,6 +997,8 @@ export default function DashboardPage() {
         gradient: "from-orange-500 to-orange-600",
         lightBg: "bg-orange-50",
         lightIcon: "text-orange-600",
+        tooltipDescription: "Custo dos consumos de ração com produção correspondente no mesmo lote e data, dividido pelos ovos desses registros comparáveis no período selecionado. Não inclui despesas registradas no Financeiro nem registros sem correspondência.",
+        tooltipFormula: "Custo de ração comparável ÷ ovos comparáveis",
       },
       {
         key: "profit",
@@ -1007,6 +1014,8 @@ export default function DashboardPage() {
         gradient: "from-emerald-500 to-emerald-600",
         lightBg: "bg-emerald-50",
         lightIcon: "text-emerald-600",
+        tooltipDescription: "Receitas menos despesas registradas no Financeiro no período selecionado. Vendas ainda não lançadas como receita e custos não registrados não entram no resultado.",
+        tooltipFormula: "Receitas registradas − despesas registradas",
       },
     ];
   }, [productionData, productionGoals, kpiVariations, feedData, financialData, periodInfo]);
@@ -1078,7 +1087,14 @@ export default function DashboardPage() {
                 <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", kpi.lightBg)}>
                   <kpi.icon className={cn("w-5 h-5", kpi.lightIcon)} />
                 </div>
-                <p className="text-[13px] font-semibold text-gray-600">{kpi.title}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[13px] font-semibold text-gray-600">{kpi.title}</p>
+                  <InfoTooltip
+                    label={kpi.title}
+                    description={kpi.tooltipDescription}
+                    formula={kpi.tooltipFormula}
+                  />
+                </div>
               </div>
               {kpi.badge && (
                 <span className={cn(

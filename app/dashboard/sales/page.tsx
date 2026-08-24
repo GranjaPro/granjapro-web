@@ -33,6 +33,7 @@ import {
   Receipt,
   CheckCircle2,
   Clock,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -55,10 +56,19 @@ import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
+import { SalesPageSkeleton } from "@/components/dashboard/page-loading-skeletons";
 import { createClient } from "@/lib/supabase/client";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { AccessibleDialog } from "@/components/ui/accessible-dialog";
 import { getSalePaymentState, type SalePaymentState } from "@/lib/domain/commercial-financial";
+import {
+  calculateSalesPriceCalculator,
+  type SalesPriceProductionRecord,
+  type SalesPriceTransaction,
+} from "@/lib/domain/sales-price-calculator";
+import { getTransactionsByDateRange } from "@/lib/services/finances";
+import { getProductionByDateRange } from "@/lib/services/production";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 /* ══════════════════════════════════════════════
    TYPES
@@ -112,10 +122,14 @@ export default function VendasPage() {
   const showSalesPremiumFeatures = !(hideAdvancedFeatures && !hasMinimumPlan(plan, "premium"));
   const farmRef = useRef(farm);
   farmRef.current = farm;
+  const requestVersionRef = useRef(0);
 
   const [vendas, setVendas] = useState<Venda[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [calculatorLoadState, setCalculatorLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [calculatorTransactions, setCalculatorTransactions] = useState<SalesPriceTransaction[]>([]);
+  const [calculatorProduction, setCalculatorProduction] = useState<SalesPriceProductionRecord[]>([]);
 
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
   const [editing, setEditing] = useState<Venda | null>(null);
@@ -151,13 +165,15 @@ export default function VendasPage() {
   const fetchData = useCallback(async () => {
     const currentFarm = farmRef.current;
     if (!currentFarm) return;
+    const requestVersion = ++requestVersionRef.current;
     setLoading(true);
+    setCalculatorLoadState("loading");
 
     const supabase = createClient();
     try {
       const { startDate, endDate } = dateRange;
       
-      const [salesRes, customersRes] = await Promise.all([
+      const [salesRes, customersRes, transactions, productionRecords] = await Promise.all([
         supabase
           .from("sales")
           .select("*, customers(name)")
@@ -169,8 +185,12 @@ export default function VendasPage() {
           .from("customers")
           .select("id, name, payment_terms_days")
           .eq("farm_id", currentFarm.id)
-          .order("name", { ascending: true })
+          .order("name", { ascending: true }),
+        getTransactionsByDateRange(currentFarm.id, startDate, endDate),
+        getProductionByDateRange(currentFarm.id, startDate, endDate),
       ]);
+
+      if (requestVersion !== requestVersionRef.current) return;
 
       if (salesRes.error) throw salesRes.error;
       if (customersRes.error) throw customersRes.error;
@@ -192,10 +212,22 @@ export default function VendasPage() {
         notes: s.notes || "",
       }));
       setVendas(mappedVendas);
+      setCalculatorTransactions(transactions.map((transaction) => ({
+        date: transaction.date,
+        type: transaction.type,
+        category: transaction.category,
+        amount: Number(transaction.amount),
+      })));
+      setCalculatorProduction(productionRecords.map((record) => ({
+        date: record.date,
+        eggsProduced: record.eggs_produced,
+      })));
+      setCalculatorLoadState("ready");
     } catch (e) {
       console.error(e);
+      if (requestVersion === requestVersionRef.current) setCalculatorLoadState("error");
     } finally {
-      setLoading(false);
+      if (requestVersion === requestVersionRef.current) setLoading(false);
     }
   }, [dateRange]);
 
@@ -254,6 +286,19 @@ export default function VendasPage() {
   const receitaUn = precoMedio / divisor;
   const custoUn = custoMedio / divisor;
   const lucroUn = receitaUn - custoUn;
+  const calculatorResult = useMemo(() => calculateSalesPriceCalculator({
+    transactions: calculatorTransactions,
+    productionRecords: calculatorProduction,
+    sales: vendas.map((sale) => ({
+      date: sale.data,
+      quantity: sale.quantidade,
+      total: sale.total,
+    })),
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
+    desiredMarginPercentage: margemDesejada,
+    unit: unidade,
+  }), [calculatorProduction, calculatorTransactions, dateRange, margemDesejada, unidade, vendas]);
 
   /* ── Dynamic breakdown from period vendas ── */
   const dynamicReceitaPorCliente = useMemo(() => {
@@ -487,9 +532,154 @@ export default function VendasPage() {
     return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   }
 
+  function renderCalculatorContent() {
+    const sliderColor = margemDesejada >= 35 ? "#10b981" : margemDesejada >= 28 ? "#f59e0b" : "#ef4444";
+    const sliderPct = ((margemDesejada - 10) / 50) * 100;
+
+    return (
+      <div className="space-y-5 flex-1">
+        <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-[11px] leading-relaxed text-blue-800">
+          Margem bruta estimada com base nas despesas registradas. Impostos, folha, taxas e outros custos só entram quando lançados. Registre todas as despesas na seção Financeiro para aproximar a estimativa da margem líquida.
+        </div>
+        <div>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <span className="text-sm font-bold text-gray-900 uppercase tracking-wider">Margem desejada</span>
+            <span className="text-3xl font-black tabular-nums tracking-tight" style={{ color: sliderColor }}>{margemDesejada.toFixed(1)}%</span>
+          </div>
+          <div className="relative">
+            <input
+              type="range"
+              min={10}
+              max={60}
+              step={0.1}
+              value={margemDesejada}
+              aria-label="Margem desejada"
+              onChange={(event) => setMargemDesejada(Number(event.target.value))}
+              className="w-full h-2 rounded-full appearance-none cursor-pointer"
+              style={{ background: `linear-gradient(to right, ${sliderColor} 0%, ${sliderColor} ${sliderPct}%, #f1f5f9 ${sliderPct}%, #f1f5f9 100%)`, accentColor: sliderColor }}
+            />
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-[10px] text-gray-400">10%</span>
+              <span className="text-[10px] text-gray-400">60%</span>
+            </div>
+          </div>
+        </div>
+
+        {calculatorLoadState === "loading" && (
+          <div className="flex min-h-48 items-center justify-center rounded-xl border border-gray-100 bg-gray-50/60">
+            <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
+            <span className="ml-2 text-sm font-medium text-gray-500">Carregando custos e produção...</span>
+          </div>
+        )}
+        {calculatorLoadState === "error" && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+            <p className="text-sm font-bold text-red-700">Não foi possível carregar os dados da calculadora.</p>
+            <p className="mt-1 text-xs text-red-600">Tente novamente ou selecione o período mais uma vez.</p>
+          </div>
+        )}
+        {calculatorLoadState === "ready" && calculatorResult.status === "unavailable" && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <div className="flex items-center gap-2 text-amber-800">
+              <AlertTriangle className="h-4 w-4" />
+              <p className="text-sm font-bold">Dados insuficientes</p>
+            </div>
+            <ul className="mt-2 space-y-1 text-xs leading-relaxed text-amber-700">
+              {calculatorResult.reasons.includes("missing-production") && <li>Nenhuma produção foi registrada no período selecionado.</li>}
+              {calculatorResult.reasons.includes("zero-production") && <li>A produção registrada no período totaliza zero ovos.</li>}
+              {calculatorResult.reasons.includes("missing-expenses") && <li>Nenhuma despesa foi registrada no Financeiro no período selecionado.</li>}
+            </ul>
+            <p className="mt-3 text-xs font-medium text-amber-800">
+              Registre os dados ausentes em <Link href="/dashboard/production" className="font-bold underline">Produção</Link> ou no <Link href="/dashboard/finances" className="font-bold underline">Financeiro</Link>. Nenhum período anterior será usado automaticamente.
+            </p>
+          </div>
+        )}
+        {calculatorLoadState === "ready" && calculatorResult.status === "ready" && (
+          <>
+            <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-orange-600">Custo de ração por ovo</p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-orange-800">
+                {calculatorResult.feedCostPerEgg !== undefined ? formatCurrency(calculatorResult.feedCostPerEgg) : "Não disponível"}
+              </p>
+              <p className="mt-0.5 text-[10px] text-orange-700">
+                {calculatorResult.feedCostPerEgg !== undefined
+                  ? "Valor informativo; não é a base do preço sugerido."
+                  : "Registre despesas de ração no Financeiro para calcular este indicador."}
+              </p>
+            </div>
+            <div className={cn("rounded-xl p-4 border-2 transition-colors duration-300", margemDesejada >= 35 ? "bg-emerald-50/50 border-emerald-200" : margemDesejada >= 28 ? "bg-amber-50/50 border-amber-200" : "bg-red-50/50 border-red-200")}>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Preço sugerido{unidadeSuffix}</p>
+              <div className="flex flex-col gap-1 mb-3 sm:flex-row sm:items-end sm:justify-between">
+                <p className="text-3xl font-bold text-gray-900 tracking-tight tabular-nums">{formatCurrency(calculatorResult.suggestedPrice)}</p>
+                {calculatorResult.requiredAdjustment !== undefined ? (
+                  <span className={cn("text-sm font-bold", calculatorResult.requiredAdjustment > 0 ? "text-red-500" : "text-emerald-600")}>
+                    {calculatorResult.requiredAdjustment > 0 ? "+" : ""}{formatCurrency(calculatorResult.requiredAdjustment)} vs atual
+                  </span>
+                ) : <span className="text-xs font-medium text-gray-400">Sem vendas no período para comparação</span>}
+              </div>
+              <div className="h-px bg-gray-200/60 mb-3" />
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div>
+                  <p className="text-[10px] text-gray-400 font-medium mb-0.5">Custo total</p>
+                  <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCurrency(calculatorResult.selectedCost)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 font-medium mb-0.5">Lucro sugerido{unidadeSuffix}</p>
+                  <p className="text-sm font-bold text-emerald-700 tabular-nums">{formatCurrency(calculatorResult.suggestedProfit)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 font-medium mb-0.5">Produção</p>
+                  <p className="text-sm font-bold text-gray-700 tabular-nums">{calculatorResult.producedDozens.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} dz</p>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-gray-500 font-medium">Preço atual</span>
+                <span className="text-sm font-bold text-gray-900 tabular-nums">{calculatorResult.currentPrice !== undefined ? formatCurrency(calculatorResult.currentPrice) : "Não disponível"}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-gray-500 font-medium">Margem bruta atual estimada</span>
+                <span className={cn(
+                  "text-sm font-bold",
+                  calculatorResult.currentMarginPercentage === undefined && "text-gray-400",
+                  calculatorResult.currentMarginPercentage !== undefined && calculatorResult.currentMarginPercentage >= 35 && "text-emerald-600",
+                  calculatorResult.currentMarginPercentage !== undefined && calculatorResult.currentMarginPercentage < 35 && calculatorResult.currentMarginPercentage >= 28 && "text-amber-600",
+                  calculatorResult.currentMarginPercentage !== undefined && calculatorResult.currentMarginPercentage < 28 && "text-red-500",
+                )}>
+                  {calculatorResult.currentMarginPercentage !== undefined ? `${calculatorResult.currentMarginPercentage.toFixed(1)}%` : "Não disponível"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-gray-500 font-medium">Ajuste necessário</span>
+                <span className={cn("text-sm font-bold tabular-nums text-right", calculatorResult.requiredAdjustment !== undefined && calculatorResult.requiredAdjustment > 0 ? "text-red-500" : "text-emerald-600")}>
+                  {calculatorResult.requiredAdjustment === undefined
+                    ? "Não disponível"
+                    : Math.abs(calculatorResult.requiredAdjustment) < 0.01
+                      ? "Nenhum"
+                      : `${calculatorResult.requiredAdjustment > 0 ? "+" : "−"}${formatCurrency(Math.abs(calculatorResult.requiredAdjustment))}`}
+                </span>
+              </div>
+              <div className="h-px bg-gray-100 my-1" />
+              <div className={cn("flex items-center justify-between gap-3 p-2.5 rounded-lg", calculatorResult.revenueImpact !== undefined && calculatorResult.revenueImpact >= 0 ? "bg-emerald-50/60" : "bg-red-50/60")}>
+                <span className="text-sm text-gray-700 font-semibold">Impacto na receita</span>
+                <span className={cn("text-sm font-black tabular-nums text-right", calculatorResult.revenueImpact !== undefined && calculatorResult.revenueImpact >= 0 ? "text-emerald-700" : "text-red-600")}>
+                  {calculatorResult.revenueImpact !== undefined
+                    ? `${calculatorResult.revenueImpact >= 0 ? "+" : "−"}${formatCurrency(Math.abs(calculatorResult.revenueImpact))}`
+                    : "Não disponível"}
+                </span>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   /* ══════════════════════════════════════════════
      RENDER
      ══════════════════════════════════════════════ */
+
+  if (loading) return <SalesPageSkeleton />;
 
   return (
     <div className="space-y-6">
@@ -962,14 +1152,20 @@ export default function VendasPage() {
         </div>
         )}
 
-        {/* Preço Ideal Sugerido */}
+        {/* Calculadora de Preço de Venda */}
         {plan !== "premium" ? (
-        <LockedOverlay message="Desbloqueie o preço ideal sugerido" targetPlan="premium" preserveFirstChild>
+        <LockedOverlay message="Desbloqueie a Calculadora de Preço de Venda" targetPlan="premium" preserveFirstChild>
         <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="text-sm font-bold text-gray-900">Preço Ideal Sugerido</h3>
-              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Baseado em custo + margem meta</p>
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-sm font-bold text-gray-900">Calculadora de Preço de Venda</h3>
+                <InfoTooltip
+                  label="Calculadora de Preço de Venda"
+                  description="Esta é uma estimativa de margem bruta baseada nas despesas registradas no sistema. Impostos, funcionários, folha de pagamento, taxas e despesas de outras fontes só entram no cálculo quando registrados. Para aproximar a estimativa da margem líquida, registre todos os custos do negócio na seção Financeiro."
+                />
+              </div>
+              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Custos e produção do período selecionado</p>
             </div>
             <div className="flex items-center gap-2">
               <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
@@ -981,7 +1177,9 @@ export default function VendasPage() {
               ]).map((u) => (
                 <button
                   key={u.key}
+                  type="button"
                   onClick={() => setUnidade(u.key)}
+                  aria-pressed={unidade === u.key}
                   className={cn(
                     "px-2.5 py-1 text-[10px] font-semibold rounded-md transition-all duration-200 cursor-pointer",
                     unidade === u.key
@@ -995,96 +1193,21 @@ export default function VendasPage() {
               </div>
             </div>
           </div>
-          {(() => {
-            const custoBase = custoUn;
-            const precoIdeal = custoBase / (1 - margemDesejada / 100);
-            const lucroIdeal = precoIdeal - custoBase;
-            const diff = Math.round((precoIdeal - receitaUn) * 100) / 100;
-            const sliderColor = margemDesejada >= 35 ? "#10b981" : margemDesejada >= 28 ? "#f59e0b" : "#ef4444";
-            const sliderPct = ((margemDesejada - 10) / 50) * 100;
-            return (
-              <div className="space-y-5 flex-1">
-                {/* Slider */}
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-bold text-gray-900 uppercase tracking-wider">Margem desejada</span>
-                    <span className="text-3xl font-black tabular-nums tracking-tight" style={{ color: sliderColor }}>{margemDesejada.toFixed(1)}%</span>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="range"
-                      min={10}
-                      max={60}
-                      step={0.1}
-                      value={margemDesejada}
-                      onChange={(e) => setMargemDesejada(Number(e.target.value))}
-                      className="w-full h-2 rounded-full appearance-none cursor-pointer"
-                      style={{ background: `linear-gradient(to right, ${sliderColor} 0%, ${sliderColor} ${sliderPct}%, #f1f5f9 ${sliderPct}%, #f1f5f9 100%)`, accentColor: sliderColor }}
-                    />
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-[10px] text-gray-400">10%</span>
-                      <span className="text-[10px] text-gray-400">60%</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Result */}
-                <div className={cn("rounded-xl p-4 border-2 transition-colors duration-300", margemDesejada >= 35 ? "bg-emerald-50/50 border-emerald-200" : margemDesejada >= 28 ? "bg-amber-50/50 border-amber-200" : "bg-red-50/50 border-red-200")}>
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Preço ideal{unidadeSuffix}</p>
-                  <div className="flex items-end justify-between mb-3">
-                    <p className="text-3xl font-bold text-gray-900 tracking-tight tabular-nums">R$ {precoIdeal.toFixed(2).replace(".", ",")}</p>
-                    <span className={cn("text-sm font-bold", diff > 0 ? "text-red-500" : "text-emerald-600")}>
-                      {diff > 0 ? "+" : ""}{diff.toFixed(2).replace(".", ",")} vs atual
-                    </span>
-                  </div>
-                  <div className="h-px bg-gray-200/60 mb-3" />
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <p className="text-[10px] text-gray-400 font-medium mb-0.5">Custo</p>
-                      <p className="text-sm font-bold text-gray-900 tabular-nums">R$ {custoBase.toFixed(2).replace(".", ",")}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-gray-400 font-medium mb-0.5">Lucro{unidadeSuffix}</p>
-                      <p className="text-sm font-bold text-emerald-700 tabular-nums">R$ {lucroIdeal.toFixed(2).replace(".", ",")}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-gray-400 font-medium mb-0.5">Lucro atual</p>
-                      <p className="text-sm font-bold text-gray-500 tabular-nums">R$ {lucroUn.toFixed(2).replace(".", ",")}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Comparison */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500 font-medium">Preço atual</span>
-                    <span className="text-sm font-bold text-gray-900 tabular-nums">R$ {receitaUn.toFixed(2).replace(".", ",")}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500 font-medium">Margem atual</span>
-                    <span className={cn("text-sm font-bold", margem >= 35 ? "text-emerald-600" : margem >= 28 ? "text-amber-600" : "text-red-500")}>{margem.toFixed(1)}%</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500 font-medium flex-shrink-0">Ajuste necessário</span>
-                    <span className={cn("text-sm font-bold tabular-nums text-right", diff > 0 ? "text-red-500" : "text-emerald-600")}>{diff > 0 ? `+R$ ${diff.toFixed(2).replace(".", ",")}` : diff < -0.01 ? `−R$ ${Math.abs(diff).toFixed(2).replace(".", ",")}` : "Nenhum"}</span>
-                  </div>
-                  <div className="h-px bg-gray-100 my-1" />
-                  <div className={cn("flex items-center justify-between p-2.5 rounded-lg", diff * volumeTotal >= 0 ? "bg-emerald-50/60" : "bg-red-50/60")}>
-                    <span className="text-sm text-gray-700 font-semibold">Impacto na receita</span>
-                    <span className={cn("text-sm font-black tabular-nums", diff * volumeTotal >= 0 ? "text-emerald-700" : "text-red-600")}>{diff * volumeTotal >= 0 ? "+" : ""}{formatCurrency(diff * volumeTotal)}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
+          {renderCalculatorContent()}
         </div>
         </LockedOverlay>
         ) : (
         <div className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="text-sm font-bold text-gray-900">Preço Ideal Sugerido</h3>
-              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Baseado em custo + margem meta</p>
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-sm font-bold text-gray-900">Calculadora de Preço de Venda</h3>
+                <InfoTooltip
+                  label="Calculadora de Preço de Venda"
+                  description="Esta é uma estimativa de margem bruta baseada nas despesas registradas no sistema. Impostos, funcionários, folha de pagamento, taxas e despesas de outras fontes só entram no cálculo quando registrados. Para aproximar a estimativa da margem líquida, registre todos os custos do negócio na seção Financeiro."
+                />
+              </div>
+              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Custos e produção do período selecionado</p>
             </div>
             <div className="flex items-center gap-2">
               <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
@@ -1096,7 +1219,9 @@ export default function VendasPage() {
               ]).map((u) => (
                 <button
                   key={u.key}
+                  type="button"
                   onClick={() => setUnidade(u.key)}
+                  aria-pressed={unidade === u.key}
                   className={cn(
                     "px-2.5 py-1 text-[10px] font-semibold rounded-md transition-all duration-200 cursor-pointer",
                     unidade === u.key
@@ -1110,83 +1235,7 @@ export default function VendasPage() {
               </div>
             </div>
           </div>
-          {(() => {
-            const custoBase = custoUn;
-            const precoIdeal = custoBase / (1 - margemDesejada / 100);
-            const lucroIdeal = precoIdeal - custoBase;
-            const diff = Math.round((precoIdeal - receitaUn) * 100) / 100;
-            const sliderColor = margemDesejada >= 35 ? "#10b981" : margemDesejada >= 28 ? "#f59e0b" : "#ef4444";
-            const sliderPct = ((margemDesejada - 10) / 50) * 100;
-            return (
-              <div className="space-y-5 flex-1">
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-bold text-gray-900 uppercase tracking-wider">Margem desejada</span>
-                    <span className="text-3xl font-black tabular-nums tracking-tight" style={{ color: sliderColor }}>{margemDesejada.toFixed(1)}%</span>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="range"
-                      min={10}
-                      max={60}
-                      step={0.1}
-                      value={margemDesejada}
-                      onChange={(e) => setMargemDesejada(Number(e.target.value))}
-                      className="w-full h-2 rounded-full appearance-none cursor-pointer"
-                      style={{ background: `linear-gradient(to right, ${sliderColor} 0%, ${sliderColor} ${sliderPct}%, #f1f5f9 ${sliderPct}%, #f1f5f9 100%)`, accentColor: sliderColor }}
-                    />
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-[10px] text-gray-400">10%</span>
-                      <span className="text-[10px] text-gray-400">60%</span>
-                    </div>
-                  </div>
-                </div>
-                <div className={cn("rounded-xl p-4 border-2 transition-colors duration-300", margemDesejada >= 35 ? "bg-emerald-50/50 border-emerald-200" : margemDesejada >= 28 ? "bg-amber-50/50 border-amber-200" : "bg-red-50/50 border-red-200")}>
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Preço ideal{unidadeSuffix}</p>
-                  <div className="flex items-end justify-between mb-3">
-                    <p className="text-3xl font-bold text-gray-900 tracking-tight tabular-nums">R$ {precoIdeal.toFixed(2).replace(".", ",")}</p>
-                    <span className={cn("text-sm font-bold", diff > 0 ? "text-red-500" : "text-emerald-600")}>
-                      {diff > 0 ? "+" : ""}{diff.toFixed(2).replace(".", ",")} vs atual
-                    </span>
-                  </div>
-                  <div className="h-px bg-gray-200/60 mb-3" />
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <p className="text-[10px] text-gray-400 font-medium mb-0.5">Custo</p>
-                      <p className="text-sm font-bold text-gray-900 tabular-nums">R$ {custoBase.toFixed(2).replace(".", ",")}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-gray-400 font-medium mb-0.5">Lucro{unidadeSuffix}</p>
-                      <p className="text-sm font-bold text-emerald-700 tabular-nums">R$ {lucroIdeal.toFixed(2).replace(".", ",")}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-gray-400 font-medium mb-0.5">Lucro atual</p>
-                      <p className="text-sm font-bold text-gray-500 tabular-nums">R$ {lucroUn.toFixed(2).replace(".", ",")}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500 font-medium">Preço atual</span>
-                    <span className="text-sm font-bold text-gray-900 tabular-nums">R$ {receitaUn.toFixed(2).replace(".", ",")}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500 font-medium">Margem atual</span>
-                    <span className={cn("text-sm font-bold", margem >= 35 ? "text-emerald-600" : margem >= 28 ? "text-amber-600" : "text-red-500")}>{margem.toFixed(1)}%</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500 font-medium flex-shrink-0">Ajuste necessário</span>
-                    <span className={cn("text-sm font-bold tabular-nums text-right", diff > 0 ? "text-red-500" : "text-emerald-600")}>{diff > 0 ? `+R$ ${diff.toFixed(2).replace(".", ",")}` : diff < -0.01 ? `−R$ ${Math.abs(diff).toFixed(2).replace(".", ",")}` : "Nenhum"}</span>
-                  </div>
-                  <div className="h-px bg-gray-100 my-1" />
-                  <div className={cn("flex items-center justify-between p-2.5 rounded-lg", diff * volumeTotal >= 0 ? "bg-emerald-50/60" : "bg-red-50/60")}>
-                    <span className="text-sm text-gray-700 font-semibold">Impacto na receita</span>
-                    <span className={cn("text-sm font-black tabular-nums", diff * volumeTotal >= 0 ? "text-emerald-700" : "text-red-600")}>{diff * volumeTotal >= 0 ? "+" : ""}{formatCurrency(diff * volumeTotal)}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
+          {renderCalculatorContent()}
         </div>
         )}
       </div>

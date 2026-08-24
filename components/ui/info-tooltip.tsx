@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { HelpCircle } from "lucide-react";
 import ModalPortal from "@/components/ui/modal-portal";
 
@@ -11,8 +11,10 @@ interface InfoTooltipProps {
 }
 
 export function InfoTooltip({ label, description, formula }: InfoTooltipProps) {
+  const tooltipId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const openBeforeClickRef = useRef(false);
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
 
@@ -58,8 +60,22 @@ export function InfoTooltip({ label, description, formula }: InfoTooltipProps) {
         type="button"
         aria-label={`Informações sobre ${label}`}
         aria-expanded={isOpen}
+        aria-describedby={isOpen ? tooltipId : undefined}
         onFocus={openTooltip}
         onBlur={() => setIsOpen(false)}
+        onPointerDown={() => {
+          openBeforeClickRef.current = isOpen;
+        }}
+        onClick={(event) => {
+          if (event.detail === 0) {
+            openTooltip();
+            return;
+          }
+          setIsOpen(!openBeforeClickRef.current);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setIsOpen(false);
+        }}
         className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/30"
       >
         <HelpCircle className="h-3.5 w-3.5" />
@@ -67,6 +83,7 @@ export function InfoTooltip({ label, description, formula }: InfoTooltipProps) {
       {isOpen && (
         <ModalPortal>
           <div
+            id={tooltipId}
             ref={tooltipRef}
             role="tooltip"
             className="fixed z-[100] w-60 rounded-xl border border-gray-200 bg-white p-3 text-left shadow-lg pointer-events-none"

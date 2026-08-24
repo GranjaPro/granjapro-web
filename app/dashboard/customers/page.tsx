@@ -51,6 +51,7 @@ import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
+import { CustomersPageSkeleton } from "@/components/dashboard/page-loading-skeletons";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { CustomerModal } from "@/components/customers/customer-modal";
 import { archiveCustomer, createCustomer, getCustomers, restoreCustomer, updateCustomer } from "@/lib/services/customers";
@@ -419,6 +420,8 @@ export default function ClientesPage() {
     const now = new Date();
     return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
   }
+
+  if (loading) return <CustomersPageSkeleton />;
 
   /* ══════════════════════════════════════════════
      CLIENT PROFILE VIEW
