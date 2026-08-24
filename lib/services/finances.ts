@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/client";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 import { transactionCategories, type TransactionCategoryKey } from "@/lib/constants/transaction-categories";
 import { parsePositiveAmount } from "@/lib/domain/financial-transaction";
+import { calculateCommercialFinancialMetrics, type CommercialFinancialMetrics } from "@/lib/domain/commercial-financial";
+import { getSalesByDateRange } from "@/lib/services/sales";
 
 export type FinancialTransaction = Tables<"financial_transactions">;
 export type FinancialTransactionInsert = TablesInsert<"financial_transactions">;
@@ -12,6 +14,11 @@ export interface FinancialSummaryData {
   expenses: number;
   profit: number;
   categoryTotals: Record<TransactionCategoryKey, number>;
+}
+
+export interface IntegratedFinancialSummary extends CommercialFinancialMetrics {
+  expenses: number;
+  cashResult: number;
 }
 
 export async function getMonthlyFinancials(farmId: string, year?: number, month?: number) {
@@ -95,6 +102,33 @@ export async function getFinancialSummaryInRange(
     expenses,
     profit: revenue - expenses,
     categoryTotals,
+  };
+}
+
+export async function getIntegratedFinancialSummary(
+  farmId: string,
+  startDate: string,
+  endDate: string,
+  today: string,
+): Promise<IntegratedFinancialSummary> {
+  const [summary, sales] = await Promise.all([
+    getFinancialSummaryInRange(farmId, startDate, endDate),
+    getSalesByDateRange(farmId, startDate, endDate),
+  ]);
+  const commercial = calculateCommercialFinancialMetrics(sales.map((sale) => ({
+    customerId: sale.customer_id,
+    date: sale.date,
+    dueDate: sale.due_date,
+    paidAt: sale.paid_at,
+    paymentStatus: sale.payment_status,
+    total: Number(sale.total),
+  })), startDate, endDate, today);
+
+  return {
+    ...commercial,
+    received: summary.revenue,
+    expenses: summary.expenses,
+    cashResult: summary.revenue - summary.expenses,
   };
 }
 

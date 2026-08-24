@@ -56,3 +56,11 @@ export async function deleteSale(saleId: string) {
     .eq("id", saleId);
   if (error) throw error;
 }
+
+export async function markSalePaid(saleId: string, paidAt: string) {
+  return updateSale(saleId, { payment_status: "paid", paid_at: paidAt });
+}
+
+export async function markSalePending(saleId: string) {
+  return updateSale(saleId, { payment_status: "pending", paid_at: null });
+}

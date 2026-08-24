@@ -3,7 +3,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import ModalPortal from "@/components/ui/modal-portal";
 import { insightHref } from "@/lib/insight-links";
 import {
   ShoppingCart,
@@ -58,6 +57,8 @@ import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
 import { createClient } from "@/lib/supabase/client";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
+import { AccessibleDialog } from "@/components/ui/accessible-dialog";
+import { getSalePaymentState, type SalePaymentState } from "@/lib/domain/commercial-financial";
 
 /* ══════════════════════════════════════════════
    TYPES
@@ -72,22 +73,32 @@ interface Venda {
   quantidade: number;
   precoUn: number;
   total: number;
-  payment_status: "pending" | "paid" | "overdue";
+  payment_status: "pending" | "paid";
+  dueDate: string;
+  paidAt: string | null;
   notes: string;
 }
 
 interface Customer {
   id: string;
   name: string;
+  payment_terms_days: number;
 }
 
 const EGG_TYPES = ["Branco", "Caipira", "Codorna", "Vermelho", "Jumbo", "Outros"];
 
-const STATUS_CONFIG = {
+const STATUS_CONFIG: Record<SalePaymentState, { label: string; color: string; bg: string; icon: typeof CheckCircle2 }> = {
   paid: { label: "Pago", color: "text-emerald-700", bg: "bg-emerald-50", icon: CheckCircle2 },
   pending: { label: "A Receber", color: "text-blue-700", bg: "bg-blue-50", icon: Receipt },
   overdue: { label: "Atrasado", color: "text-amber-700", bg: "bg-amber-50", icon: Clock },
+  delinquent: { label: "Inadimplente", color: "text-red-700", bg: "bg-red-50", icon: AlertTriangle },
 };
+
+function addDays(date: string, days: number): string {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
 
 /* ══════════════════════════════════════════════
    COMPONENT
@@ -117,7 +128,9 @@ export default function VendasPage() {
     egg_type: "Branco",
     quantidade: "",
     precoUn: "",
-    payment_status: "paid" as "pending" | "paid" | "overdue",
+    payment_status: "paid" as "pending" | "paid",
+    dueDate: new Date().toISOString().split("T")[0],
+    paidAt: new Date().toISOString().split("T")[0],
     notes: "",
   });
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -131,6 +144,8 @@ export default function VendasPage() {
 
   useEffect(() => {
     if (searchParams.get("register") === "true") setModal("add");
+    const saleId = searchParams.get("sale");
+    if (saleId) setSearchQuery(saleId);
   }, [searchParams]);
 
   const fetchData = useCallback(async () => {
@@ -152,7 +167,7 @@ export default function VendasPage() {
           .order("date", { ascending: false }),
         supabase
           .from("customers")
-          .select("id, name")
+          .select("id, name, payment_terms_days")
           .eq("farm_id", currentFarm.id)
           .order("name", { ascending: true })
       ]);
@@ -162,7 +177,7 @@ export default function VendasPage() {
 
       setCustomers(customersRes.data || []);
       
-      const mappedVendas: Venda[] = (salesRes.data || []).map((s: any) => ({
+      const mappedVendas: Venda[] = (salesRes.data || []).map((s) => ({
         id: s.id,
         data: s.date,
         clienteId: s.customer_id || "",
@@ -171,7 +186,9 @@ export default function VendasPage() {
         quantidade: s.quantity || 0,
         precoUn: s.unit_price || 0,
         total: s.total || 0,
-        payment_status: s.payment_status || "paid",
+        payment_status: s.payment_status,
+        dueDate: s.due_date,
+        paidAt: s.paid_at,
         notes: s.notes || "",
       }));
       setVendas(mappedVendas);
@@ -181,6 +198,16 @@ export default function VendasPage() {
       setLoading(false);
     }
   }, [dateRange]);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const paymentState = useCallback((sale: Venda) => getSalePaymentState({
+    customerId: sale.clienteId || null,
+    date: sale.data,
+    dueDate: sale.dueDate,
+    paidAt: sale.paidAt,
+    paymentStatus: sale.payment_status,
+    total: sale.total,
+  }, today), [today]);
 
   useEffect(() => {
     fetchData();
@@ -192,6 +219,7 @@ export default function VendasPage() {
     const q = searchQuery.toLowerCase();
     return vendas.filter(
       (v) =>
+        v.id.toLowerCase().includes(q) ||
         v.clienteNome.toLowerCase().includes(q) ||
         v.egg_type.toLowerCase().includes(q) ||
         v.data.includes(q) ||
@@ -249,10 +277,11 @@ export default function VendasPage() {
   const dynamicReceitaPorStatus = useMemo(() => {
     const map = new Map<string, number>();
     vendas.forEach((v) => {
-      map.set(v.payment_status, (map.get(v.payment_status) || 0) + v.total);
+      const state = paymentState(v);
+      map.set(state, (map.get(state) || 0) + v.total);
     });
     return Array.from(map.entries()).map(([status, valor]) => ({ status, valor })).sort((a, b) => b.valor - a.valor);
-  }, [vendas]);
+  }, [vendas, paymentState]);
 
   /* ── Charts Data ── */
   const receitaDiaria = useMemo(() => {
@@ -341,7 +370,8 @@ export default function VendasPage() {
 
   /* ── CRUD ── */
   function openAdd() {
-    setForm({ data: new Date().toISOString().split("T")[0], clienteId: "", egg_type: "Branco", quantidade: "", precoUn: "", payment_status: "paid", notes: "" });
+    const currentDate = new Date().toISOString().split("T")[0];
+    setForm({ data: currentDate, clienteId: "", egg_type: "Branco", quantidade: "", precoUn: "", payment_status: "paid", dueDate: currentDate, paidAt: currentDate, notes: "" });
     setEditing(null);
     setSaleFormError(null);
     setModal("add");
@@ -355,6 +385,8 @@ export default function VendasPage() {
       quantidade: String(v.quantidade),
       precoUn: String(v.precoUn),
       payment_status: v.payment_status,
+      dueDate: v.dueDate,
+      paidAt: v.paidAt ?? v.data,
       notes: v.notes,
     });
     setEditing(v);
@@ -379,6 +411,14 @@ export default function VendasPage() {
       setSaleFormError("O preço por dúzia deve ser maior que zero.");
       return;
     }
+    if (!form.dueDate || form.dueDate < form.data) {
+      setSaleFormError("O vencimento deve ser igual ou posterior à data da venda.");
+      return;
+    }
+    if (form.payment_status === "paid" && !form.paidAt) {
+      setSaleFormError("Informe a data do pagamento.");
+      return;
+    }
 
     const currentFarm = farmRef.current;
     if (!currentFarm) return;
@@ -392,6 +432,8 @@ export default function VendasPage() {
       unit_price: precoUn,
       total: quantidade * precoUn,
       payment_status: form.payment_status,
+      due_date: form.dueDate,
+      paid_at: form.payment_status === "paid" ? form.paidAt : null,
       notes: form.notes || null,
     };
 
@@ -423,11 +465,12 @@ export default function VendasPage() {
   async function deleteVenda(id: string) {
     const supabase = createClient();
     try {
-      await supabase.from("sales").delete().eq("id", id);
+      const { error } = await supabase.from("sales").delete().eq("id", id);
+      if (error) throw error;
       setDeleteConfirm(null);
-      fetchData();
-    } catch (e) {
-      console.error(e);
+      await fetchData();
+    } catch (error: unknown) {
+      setSaleFormError(error instanceof Error ? error.message : "Não foi possível excluir a venda.");
     }
   }
 
@@ -458,7 +501,7 @@ export default function VendasPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Vendas</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Registro de vendas, receitas e análise comercial</p>
+            <p className="text-sm text-gray-500 mt-0.5">Registro de vendas, faturamento e análise comercial</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -576,13 +619,13 @@ export default function VendasPage() {
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Receita */}
+        {/* Faturamento */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
               <DollarSign className="w-4.5 h-4.5 text-emerald-600" />
             </div>
-            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Receita</span>
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Faturamento</span>
           </div>
           <div className="flex items-end justify-between">
             <p className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{formatCurrency(receitaPeriodo)}</p>
@@ -710,11 +753,11 @@ export default function VendasPage() {
 
         {/* Top row: 3 metrics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-          {/* Receita */}
+          {/* Faturamento */}
           <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 hover:border-gray-200 transition-colors duration-200">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center"><DollarSign className="w-3.5 h-3.5 text-blue-600" /></div>
-              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Receita</span>
+              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Faturamento</span>
             </div>
             <p className="text-xl font-bold text-gray-900 tracking-tight">{formatCurrency(receitaPeriodo)}</p>
             <p className="text-[10px] text-gray-400 font-medium mt-1">100% da composição</p>
@@ -1158,14 +1201,14 @@ export default function VendasPage() {
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5 h-full min-h-[360px]">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="text-sm font-bold text-gray-900">Receita Diária</h3>
-              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Receita × Volume — Período Selecionado</p>
+              <h3 className="text-sm font-bold text-gray-900">Faturamento diário</h3>
+              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Faturamento × Volume — Período Selecionado</p>
             </div>
             <div className="flex items-center gap-3">
               <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                <span className="text-[10px] text-gray-400 font-medium">Receita</span>
+                <span className="text-[10px] text-gray-400 font-medium">Faturamento</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm bg-purple-200" />
@@ -1188,8 +1231,8 @@ export default function VendasPage() {
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
                 <Tooltip
                   contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "12px", padding: "10px 14px" }}
-                  formatter={((value: any, name: any) => [name === "receita" ? `R$ ${Number(value).toLocaleString("pt-BR")}` : `${value} dz`, name === "receita" ? "Receita" : "Volume"]) as any}
-                  labelFormatter={((l: any) => `Dia ${l}`) as any}
+                  formatter={(value, name) => [name === "receita" ? `R$ ${Number(value).toLocaleString("pt-BR")}` : `${String(value)} dz`, name === "receita" ? "Receita" : "Volume"]}
+                  labelFormatter={(label) => `Dia ${String(label)}`}
                 />
                 <Bar yAxisId="right" dataKey="volume" fill="#c4b5fd" radius={[4, 4, 0, 0]} barSize={20} opacity={0.6} />
                 <Area yAxisId="left" type="monotone" dataKey="receita" stroke="#10b981" strokeWidth={2.5} fill="url(#receitaGrad)" dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }} />
@@ -1202,14 +1245,14 @@ export default function VendasPage() {
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5 h-full min-h-[360px]">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="text-sm font-bold text-gray-900">Receita Diária</h3>
-              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Receita × Volume — Período Selecionado</p>
+              <h3 className="text-sm font-bold text-gray-900">Faturamento diário</h3>
+              <p className="text-[11px] text-gray-400 font-medium mt-0.5">Faturamento × Volume — Período Selecionado</p>
             </div>
             <div className="flex items-center gap-3">
               <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                <span className="text-[10px] text-gray-400 font-medium">Receita</span>
+                <span className="text-[10px] text-gray-400 font-medium">Faturamento</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm bg-purple-200" />
@@ -1232,8 +1275,8 @@ export default function VendasPage() {
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
                 <Tooltip
                   contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "12px", padding: "10px 14px" }}
-                  formatter={((value: any, name: any) => [name === "receita" ? `R$ ${Number(value).toLocaleString("pt-BR")}` : `${value} dz`, name === "receita" ? "Receita" : "Volume"]) as any}
-                  labelFormatter={((l: any) => `Dia ${l}`) as any}
+                  formatter={(value, name) => [name === "receita" ? `R$ ${Number(value).toLocaleString("pt-BR")}` : `${String(value)} dz`, name === "receita" ? "Receita" : "Volume"]}
+                  labelFormatter={(label) => `Dia ${String(label)}`}
                 />
                 <Bar yAxisId="right" dataKey="volume" fill="#c4b5fd" radius={[4, 4, 0, 0]} barSize={20} opacity={0.6} />
                 <Area yAxisId="left" type="monotone" dataKey="receita" stroke="#10b981" strokeWidth={2.5} fill="url(#receitaGrad2)" dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }} />
@@ -1267,7 +1310,7 @@ export default function VendasPage() {
                 <YAxis domain={[11, 15]} tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v.toFixed(1)}`} />
                 <Tooltip
                   contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "12px", padding: "10px 14px" }}
-                  formatter={((value: any, name: any) => [`R$ ${Number(value).toFixed(2).replace(".", ",")}`, name === "preco" ? "Preço Médio" : "Meta"]) as any}
+                  formatter={(value, name) => [`R$ ${Number(value).toFixed(2).replace(".", ",")}`, name === "preco" ? "Preço Médio" : "Meta"]}
                 />
                 <Line type="monotone" dataKey="meta" stroke="#d1d5db" strokeWidth={1.5} strokeDasharray="6 3" dot={false} />
                 <Line type="monotone" dataKey="preco" stroke="#8b5cf6" strokeWidth={2.5} dot={{ r: 4, fill: "#8b5cf6", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#8b5cf6", stroke: "#fff", strokeWidth: 2 }} />
@@ -1308,7 +1351,7 @@ export default function VendasPage() {
                 <YAxis domain={[11, 15]} tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v.toFixed(1)}`} />
                 <Tooltip
                   contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "12px", padding: "10px 14px" }}
-                  formatter={((value: any, name: any) => [`R$ ${Number(value).toFixed(2).replace(".", ",")}`, name === "preco" ? "Preço Médio" : "Meta"]) as any}
+                  formatter={(value, name) => [`R$ ${Number(value).toFixed(2).replace(".", ",")}`, name === "preco" ? "Preço Médio" : "Meta"]}
                 />
                 <Line type="monotone" dataKey="meta" stroke="#d1d5db" strokeWidth={1.5} strokeDasharray="6 3" dot={false} />
                 <Line type="monotone" dataKey="preco" stroke="#8b5cf6" strokeWidth={2.5} dot={{ r: 4, fill: "#8b5cf6", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#8b5cf6", stroke: "#fff", strokeWidth: 2 }} />
@@ -1373,11 +1416,18 @@ export default function VendasPage() {
               </thead>
               <tbody>
                 {filteredVendas.map((v) => {
-                  const statusConf = STATUS_CONFIG[v.payment_status] || STATUS_CONFIG.paid;
+                  const state = paymentState(v);
+                  const statusConf = STATUS_CONFIG[state];
                   return (
                     <tr key={v.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                       <td className="py-3.5 px-5 text-gray-500 font-medium">{formatDate(v.data)}</td>
-                      <td className="py-3.5 px-3 font-semibold text-gray-900">{v.clienteNome}</td>
+                      <td className="py-3.5 px-3 font-semibold text-gray-900">
+                        {v.clienteId ? (
+                          <Link href={`/dashboard/customers?customer=${v.clienteId}`} className="hover:text-brand-700 hover:underline">
+                            {v.clienteNome}
+                          </Link>
+                        ) : v.clienteNome}
+                      </td>
                       <td className="py-3.5 px-3">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-xs font-semibold">{v.egg_type}</span>
                       </td>
@@ -1442,40 +1492,38 @@ export default function VendasPage() {
 
       {/* ── Modal ── */}
       {modal && (
-        <ModalPortal>
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !savingSale && setModal(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
+        <AccessibleDialog titleId="sale-modal-title" onClose={() => setModal(null)} preventClose={savingSale} className="max-w-lg overflow-hidden">
+          <form onSubmit={(event) => { event.preventDefault(); save(); }}>
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center">
                   <ShoppingCart className="w-4.5 h-4.5 text-purple-600" />
                 </div>
-                <h3 className="text-base font-bold text-gray-900">
+                <h3 id="sale-modal-title" className="text-base font-bold text-gray-900">
                   {modal === "add" ? "Registrar Venda" : "Editar Venda"}
                 </h3>
               </div>
-              <button onClick={() => setModal(null)} disabled={savingSale} aria-label="Fechar formulário de venda" className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="button" onClick={() => setModal(null)} disabled={savingSale} aria-label="Fechar formulário de venda" className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">
                 <X className="w-4 h-4 text-gray-500" />
               </button>
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Data</label>
-                  <input type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  <input type="date" value={form.data} onChange={(e) => { const data = e.target.value; const customer = customers.find((item) => item.id === form.clienteId); setForm({ ...form, data, dueDate: form.payment_status === "paid" ? data : addDays(data, customer?.payment_terms_days ?? 0), paidAt: form.payment_status === "paid" ? data : form.paidAt }); }} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Cliente</label>
-                  <select value={form.clienteId} onChange={(e) => setForm({ ...form, clienteId: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
+                  <select value={form.clienteId} onChange={(e) => { const clienteId = e.target.value; const customer = customers.find((item) => item.id === clienteId); setForm({ ...form, clienteId, dueDate: form.payment_status === "paid" ? form.data : addDays(form.data, customer?.payment_terms_days ?? 0) }); }} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
                     <option value="">Selecione...</option>
                     {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Tipo de Ovo</label>
                   <select value={form.egg_type} onChange={(e) => setForm({ ...form, egg_type: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
@@ -1483,16 +1531,20 @@ export default function VendasPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Status Pagamento</label>
-                  <select value={form.payment_status} onChange={(e) => setForm({ ...form, payment_status: e.target.value as "pending" | "paid" | "overdue" })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
-                    <option value="paid">Pago</option>
-                    <option value="pending">A Receber</option>
-                    <option value="overdue">Atrasado</option>
+                  <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Condição de pagamento</label>
+                  <select value={form.payment_status} onChange={(e) => { const paymentStatus = e.target.value as "pending" | "paid"; const customer = customers.find((item) => item.id === form.clienteId); setForm({ ...form, payment_status: paymentStatus, dueDate: paymentStatus === "paid" ? form.data : addDays(form.data, customer?.payment_terms_days ?? 0), paidAt: paymentStatus === "paid" ? form.data : "" }); }} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer">
+                    <option value="paid">Pago agora</option>
+                    <option value="pending">A prazo</option>
                   </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{form.payment_status === "paid" ? "Data do pagamento" : "Data de vencimento"}</label>
+                <input type="date" value={form.payment_status === "paid" ? form.paidAt : form.dueDate} min={form.data} onChange={(e) => setForm(form.payment_status === "paid" ? { ...form, paidAt: e.target.value, dueDate: e.target.value } : { ...form, dueDate: e.target.value })} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Quantidade (dúzias)</label>
                   <input type="number" min="1" step="1" value={form.quantidade} onChange={(e) => { setForm({ ...form, quantidade: e.target.value }); setSaleFormError(null); }} className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
@@ -1524,16 +1576,15 @@ export default function VendasPage() {
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center gap-3">
-              <button onClick={() => setModal(null)} disabled={savingSale} className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="button" onClick={() => setModal(null)} disabled={savingSale} className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">
                 Cancelar
               </button>
-              <button onClick={save} disabled={savingSale || !form.data || !form.clienteId || !form.quantidade || !form.precoUn} className={cn("flex-1 px-4 py-2.5 text-sm font-semibold text-white rounded-xl transition-colors cursor-pointer shadow-sm shadow-brand-600/20", (savingSale || !form.data || !form.clienteId || !form.quantidade || !form.precoUn) ? "bg-brand-300 cursor-not-allowed" : "bg-brand-600 hover:bg-brand-700")}>
+              <button type="submit" disabled={savingSale || !form.data || !form.clienteId || !form.quantidade || !form.precoUn} className={cn("flex-1 px-4 py-2.5 text-sm font-semibold text-white rounded-xl transition-colors cursor-pointer shadow-sm shadow-brand-600/20", (savingSale || !form.data || !form.clienteId || !form.quantidade || !form.precoUn) ? "bg-brand-300 cursor-not-allowed" : "bg-brand-600 hover:bg-brand-700")}>
                 {savingSale ? "Salvando..." : modal === "add" ? "Registrar" : "Salvar"}
               </button>
             </div>
-          </div>
-        </div>
-        </ModalPortal>
+          </form>
+        </AccessibleDialog>
       )}
     </div>
   );

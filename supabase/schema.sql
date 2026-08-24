@@ -524,9 +524,19 @@ create table public.customers (
   type text default 'direct' check (type in ('market', 'restaurant', 'distributor', 'direct')),
   phone text,
   email text,
+  cnpj text check (cnpj is null or cnpj ~ '^[0-9]{14}$'),
   location text,
+  postal_code text check (postal_code is null or postal_code ~ '^[0-9]{8}$'),
+  street text,
+  address_number text,
+  address_complement text,
+  neighborhood text,
+  city text,
+  state text check (state is null or state ~ '^[A-Z]{2}$'),
   payment_terms text,
-  notes text
+  notes text,
+  payment_terms_days integer not null default 0 check (payment_terms_days between 0 and 365),
+  archived_at timestamptz
 );
 
 alter table public.customers enable row level security;
@@ -564,14 +574,20 @@ create table public.sales (
   id uuid default uuid_generate_v4() primary key,
   created_at timestamptz default now() not null,
   farm_id uuid references public.farms on delete cascade not null,
-  customer_id uuid references public.customers on delete cascade,
+  customer_id uuid references public.customers on delete restrict,
   date date not null,
   quantity int not null check (quantity > 0),
   egg_type text default 'Branco',
   unit_price numeric(10,2) not null check (unit_price > 0),
   total numeric(12,2) not null check (total > 0),
-  payment_status text default 'pending' check (payment_status in ('pending', 'paid', 'overdue')),
-  notes text
+  payment_status text not null default 'pending' check (payment_status in ('pending', 'paid')),
+  notes text,
+  due_date date not null,
+  paid_at date,
+  constraint sales_payment_consistency check (
+    (payment_status = 'paid' and paid_at is not null)
+    or (payment_status = 'pending' and paid_at is null)
+  )
 );
 
 alter table public.sales enable row level security;
@@ -624,6 +640,12 @@ as $$
 declare
   customer_name text;
 begin
+  if new.payment_status <> 'paid' then
+    delete from public.financial_transactions
+     where sale_id = new.id;
+    return new;
+  end if;
+
   select name into customer_name
     from public.customers
    where id = new.customer_id;
@@ -639,7 +661,7 @@ begin
     sale_id
   ) values (
     new.farm_id,
-    new.date,
+    new.paid_at,
     'revenue',
     'sales',
     'Venda - ' || coalesce(customer_name, 'Cliente não informado'),
@@ -660,7 +682,7 @@ end;
 $$;
 
 create trigger sync_sale_revenue
-  after insert or update of farm_id, customer_id, date, total
+  after insert or update of farm_id, customer_id, total, payment_status, paid_at
   on public.sales
   for each row execute procedure public.sync_sale_revenue();
 
@@ -840,7 +862,10 @@ create index idx_water_consumption_flock_id on public.water_consumption(flock_id
 create index idx_mortality_farm_date on public.mortality(farm_id, date);
 create index idx_financial_farm_date on public.financial_transactions(farm_id, date);
 create index idx_customers_farm_id on public.customers(farm_id);
+create unique index idx_customers_farm_cnpj_unique on public.customers(farm_id, cnpj) where cnpj is not null;
+create index idx_customers_farm_archived on public.customers(farm_id, archived_at);
 create index idx_sales_farm_date on public.sales(farm_id, date);
+create index idx_sales_farm_due_status on public.sales(farm_id, due_date, payment_status);
 create index idx_tasks_farm_date on public.tasks(farm_id, date);
 create index idx_tasks_farm_flock_date on public.tasks(farm_id, flock_id, date);
 create index idx_task_exceptions_farm_date on public.task_exceptions(farm_id, occurrence_date);

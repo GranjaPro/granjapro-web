@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import ModalPortal from "@/components/ui/modal-portal";
 import { insightHref } from "@/lib/insight-links";
 import {
@@ -9,7 +10,8 @@ import {
   Search,
   Plus,
   Pencil,
-  Trash2,
+  Archive,
+  RotateCcw,
   Check,
   X,
   Phone,
@@ -17,8 +19,6 @@ import {
   ShoppingBag,
   DollarSign,
   TrendingUp,
-  ArrowUpRight,
-  ArrowDownRight,
   ArrowRight,
   CalendarDays,
   Eye,
@@ -31,7 +31,6 @@ import {
   UserCheck,
   UserX,
   ShieldAlert,
-  Minus,
   Zap,
   Lightbulb,
   Crown,
@@ -52,32 +51,48 @@ import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
-import { createClient } from "@/lib/supabase/client";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
+import { CustomerModal } from "@/components/customers/customer-modal";
+import { archiveCustomer, createCustomer, getCustomers, restoreCustomer, updateCustomer } from "@/lib/services/customers";
+import { getSales } from "@/lib/services/sales";
+import { calculateCustomerCommercialMetrics, type SaleFinancialRecord } from "@/lib/domain/commercial-financial";
+import { formatCnpj, validateCustomerForm, type CustomerFormErrors, type CustomerFormState, type CustomerType } from "@/lib/domain/customer";
+import type { Tables } from "@/lib/database.types";
 
 /* ══════════════════════════════════════════════
    TYPES
    ══════════════════════════════════════════════ */
 
 type ClienteStatus = "pago" | "a_receber" | "atrasado" | "inadimplente" | "inativo";
-type ClienteTipo = "market" | "restaurant" | "distributor" | "direct";
+type ClienteTipo = CustomerType;
 
 interface Cliente {
   id: string;
   nome: string;
   telefone: string;
   email: string;
+  cnpj: string;
   localizacao: string;
+  postalCode: string;
+  street: string;
+  addressNumber: string;
+  addressComplement: string;
+  neighborhood: string;
+  city: string;
+  state: string;
   tipo: ClienteTipo;
   observacoes: string;
-  payment_terms: string;
+  payment_terms_days: number;
+  archivedAt: string | null;
   status: ClienteStatus;
   ultimaCompra: string | null;
   frequencia: number; // purchases per month
-  frequenciaTrend: number; // % change vs last month
   receitaMensal: number;
   ticketMedio: number;
   totalCompras: number;
+  recebido: number;
+  aReceber: number;
+  vencido: number;
 }
 
 const tipoLabels: Record<ClienteTipo, string> = {
@@ -102,24 +117,27 @@ const statusConfig: Record<ClienteStatus, { label: string; color: string; bg: st
   inativo: { label: "Inativo", color: "text-gray-500", bg: "bg-gray-50", border: "border-gray-200", icon: XCircle },
 };
 
-const tipoOptions: ClienteTipo[] = ["market", "restaurant", "distributor", "direct"];
-
 /* ══════════════════════════════════════════════
    COMPONENT
    ══════════════════════════════════════════════ */
 
 export default function ClientesPage() {
   const { farm } = useAuth();
+  const searchParams = useSearchParams();
   const { plan, hideAdvancedFeatures } = usePlan();
-  const farmRef = useRef(farm);
-  farmRef.current = farm;
+  const { dateRange } = useDateFilter();
   
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
   const [editing, setEditing] = useState<Cliente | null>(null);
-  const [form, setForm] = useState({ nome: "", telefone: "", localizacao: "", tipo: "" as ClienteTipo | "", observacoes: "", email: "", payment_terms: "" });
+  const [form, setForm] = useState<CustomerFormState>({ name: "", phone: "", email: "", cnpj: "", postalCode: "", street: "", addressNumber: "", addressComplement: "", neighborhood: "", city: "", state: "", type: "", notes: "", paymentTermsDays: "0" });
+  const [formErrors, setFormErrors] = useState<CustomerFormErrors>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<ClienteStatus | "todos">("todos");
@@ -129,92 +147,91 @@ export default function ClientesPage() {
 
   /* ── Fetch Data ── */
   const fetchData = useCallback(async () => {
-    const currentFarm = farmRef.current;
-    if (!currentFarm) return;
+    if (!farm?.id) {
+      setClientes([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-
-    const supabase = createClient();
+    setLoadError(null);
     try {
-      const [customersRes, salesRes] = await Promise.all([
-        supabase.from("customers").select("*").eq("farm_id", currentFarm.id).order("name"),
-        supabase.from("sales").select("*").eq("farm_id", currentFarm.id)
+      const [customersData, salesData] = await Promise.all([
+        getCustomers(farm.id, true),
+        getSales(farm.id),
       ]);
+      const salesByCustomer = new Map<string, Tables<"sales">[]>();
+      salesData.forEach((sale) => {
+        if (!sale.customer_id) return;
+        const current = salesByCustomer.get(sale.customer_id) ?? [];
+        current.push(sale);
+        salesByCustomer.set(sale.customer_id, current);
+      });
+      const today = new Date().toISOString().slice(0, 10);
 
-      if (customersRes.error) throw customersRes.error;
-      if (salesRes.error) throw salesRes.error;
-
-      const customersData = customersRes.data || [];
-      const salesData = salesRes.data || [];
-
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
-
-      const mappedClientes: Cliente[] = customersData.map((c: any) => {
-        const customerSales = salesData.filter((s: any) => s.customer_id === c.id);
+      const mappedClientes: Cliente[] = customersData.map((c) => {
+        const customerSales = salesByCustomer.get(c.id) ?? [];
         const totalCompras = customerSales.length;
-        
-        let status: ClienteStatus = "inativo";
-        let receitaMensal = 0;
-        let ticketMedio = 0;
-        let ultimaCompra: string | null = null;
-        let frequencia = 0;
-
-        if (totalCompras > 0) {
-          customerSales.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-          ultimaCompra = customerSales[0].date;
-          
-          const totalRevenue = customerSales.reduce((acc: number, s: any) => acc + s.total, 0);
-          ticketMedio = totalRevenue / totalCompras;
-          
-          const recentSales = customerSales.filter((s: any) => s.date >= thirtyDaysAgoStr);
-          receitaMensal = recentSales.reduce((acc: number, s: any) => acc + s.total, 0);
-          
-          // Frequência aproximada
-          const firstSaleDate = new Date(customerSales[customerSales.length - 1].date);
-          const today = new Date();
-          const monthsDiff = Math.max(1, (today.getTime() - firstSaleDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
-          frequencia = totalCompras / monthsDiff;
-
-          // Status calculation based on pending/overdue sales
-          const hasOverdue = customerSales.some((s: any) => s.payment_status === "overdue");
-          const hasPending = customerSales.some((s: any) => s.payment_status === "pending");
-          
-          if (hasOverdue) status = "atrasado";
-          else if (hasPending) status = "a_receber";
-          else status = "pago";
-        }
+        const financialSales: SaleFinancialRecord[] = customerSales.map((sale) => ({
+          customerId: sale.customer_id,
+          date: sale.date,
+          dueDate: sale.due_date,
+          paidAt: sale.paid_at,
+          paymentStatus: sale.payment_status,
+          total: Number(sale.total),
+        }));
+        const metrics = calculateCustomerCommercialMetrics(financialSales, dateRange.startDate, dateRange.endDate, today);
+        const statusMap = { paid: "pago", pending: "a_receber", overdue: "atrasado", delinquent: "inadimplente", inactive: "inativo" } as const;
+        const firstSaleDate = customerSales.reduce<string | null>((earliest, sale) => !earliest || sale.date < earliest ? sale.date : earliest, null);
+        const monthsDiff = firstSaleDate ? Math.max(1, (new Date().getTime() - new Date(`${firstSaleDate}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24 * 30)) : 1;
 
         return {
           id: c.id,
           nome: c.name,
           telefone: c.phone || "",
           email: c.email || "",
+          cnpj: c.cnpj || "",
           localizacao: c.location || "",
+          postalCode: c.postal_code || "",
+          street: c.street || "",
+          addressNumber: c.address_number || "",
+          addressComplement: c.address_complement || "",
+          neighborhood: c.neighborhood || "",
+          city: c.city || "",
+          state: c.state || "",
           tipo: c.type as ClienteTipo || "market",
           observacoes: c.notes || "",
-          payment_terms: c.payment_terms || "",
-          status,
-          ultimaCompra,
-          frequencia,
-          frequenciaTrend: 0, // placeholder, hard to calculate accurately without complex aggregation
-          receitaMensal,
-          ticketMedio,
+          payment_terms_days: c.payment_terms_days,
+          archivedAt: c.archived_at,
+          status: c.archived_at ? "inativo" : statusMap[metrics.status],
+          ultimaCompra: metrics.lastSaleDate,
+          frequencia: totalCompras / monthsDiff,
+          receitaMensal: metrics.billed,
+          ticketMedio: metrics.averageTicket,
           totalCompras,
+          recebido: metrics.received,
+          aReceber: metrics.receivable,
+          vencido: metrics.overdue + metrics.delinquent,
         };
       });
 
       setClientes(mappedClientes);
-    } catch (e) {
-      console.error(e);
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : "Não foi possível carregar os clientes.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [farm?.id, dateRange]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    const customerId = searchParams.get("customer");
+    if (!customerId) return;
+    const customer = clientes.find((item) => item.id === customerId);
+    if (customer) setSelectedCliente(customer);
+  }, [clientes, searchParams]);
 
   /* ── Derived data ── */
   const filteredClientes = useMemo(() => {
@@ -227,6 +244,8 @@ export default function ClientesPage() {
         (c) =>
           c.nome.toLowerCase().includes(q) ||
           c.localizacao.toLowerCase().includes(q) ||
+          c.email.toLowerCase().includes(q) ||
+          c.cnpj.includes(q.replace(/\D/g, "")) ||
           c.telefone.includes(q)
       );
     }
@@ -249,11 +268,11 @@ export default function ClientesPage() {
   const ticketMedioGeral = clientes.filter((c) => c.ticketMedio > 0).length > 0
     ? clientes.filter((c) => c.ticketMedio > 0).reduce((s, c) => s + c.ticketMedio, 0) / clientes.filter((c) => c.ticketMedio > 0).length
     : 0;
-  const valorAReceber = clientes.filter((c) => c.status === "a_receber").reduce((s, c) => s + c.receitaMensal, 0);
-  const dividaAtrasados = clientes.filter((c) => c.status === "atrasado").reduce((s, c) => s + c.receitaMensal, 0);
-  const dividaInadimplentes = clientes.filter((c) => c.status === "inadimplente").reduce((s, c) => s + c.receitaMensal, 0);
-  const receitaRecebida = clientes.filter((c) => c.status === "pago").reduce((s, c) => s + c.receitaMensal, 0);
-  const receitaPotencial = receitaTotal - clientes.filter((c) => c.status === "inativo").reduce((s, c) => s + c.receitaMensal, 0);
+  const valorAReceber = clientes.reduce((s, c) => s + c.aReceber, 0);
+  const dividaAtrasados = clientes.filter((c) => c.status === "atrasado").reduce((s, c) => s + c.vencido, 0);
+  const dividaInadimplentes = clientes.filter((c) => c.status === "inadimplente").reduce((s, c) => s + c.vencido, 0);
+  const receitaRecebida = clientes.reduce((s, c) => s + c.recebido, 0);
+  const receitaPotencial = receitaTotal;
   const pctRecebida = receitaPotencial > 0 ? (receitaRecebida / receitaPotencial) * 100 : 0;
 
   /* ── Top 5 Clientes ── */
@@ -283,59 +302,100 @@ export default function ClientesPage() {
 
   /* ── CRUD ── */
   function openAdd() {
-    setForm({ nome: "", telefone: "", email: "", payment_terms: "", localizacao: "", tipo: "", observacoes: "" });
+    setForm({ name: "", phone: "", email: "", cnpj: "", postalCode: "", street: "", addressNumber: "", addressComplement: "", neighborhood: "", city: "", state: "", paymentTermsDays: "0", type: "", notes: "" });
+    setFormErrors({});
+    setSubmitError(null);
     setEditing(null);
     setModal("add");
   }
 
   function openEdit(c: Cliente) {
-    setForm({ nome: c.nome, telefone: c.telefone, email: c.email, payment_terms: c.payment_terms, localizacao: c.localizacao, tipo: c.tipo, observacoes: c.observacoes });
+    setForm({ name: c.nome, phone: c.telefone, email: c.email, cnpj: c.cnpj, postalCode: c.postalCode, street: c.street, addressNumber: c.addressNumber, addressComplement: c.addressComplement, neighborhood: c.neighborhood, city: c.city, state: c.state, paymentTermsDays: String(c.payment_terms_days), type: c.tipo, notes: c.observacoes });
+    setFormErrors({});
+    setSubmitError(null);
     setEditing(c);
     setModal("edit");
   }
 
+  function closeModal() {
+    if (!submittingRef.current) setModal(null);
+  }
+
   async function save() {
-    if (!form.nome.trim() || !form.tipo) return;
-    const currentFarm = farmRef.current;
-    if (!currentFarm) return;
+    if (submittingRef.current) return;
+    const validation = validateCustomerForm(form);
+    if (!validation.valid) {
+      setFormErrors(validation.errors);
+      return;
+    }
+    if (!farm?.id) {
+      setSubmitError("Não foi possível identificar a granja atual.");
+      return;
+    }
 
     const record = {
-      farm_id: currentFarm.id,
-      name: form.nome,
-      type: form.tipo,
-      phone: form.telefone || null,
-      email: form.email || null,
-      location: form.localizacao || null,
-      payment_terms: form.payment_terms || null,
-      notes: form.observacoes || null
+      farm_id: farm.id,
+      name: validation.value.name,
+      type: validation.value.type,
+      phone: validation.value.phone,
+      email: validation.value.email,
+      cnpj: validation.value.cnpj,
+      location: validation.value.location,
+      postal_code: validation.value.postalCode,
+      street: validation.value.street,
+      address_number: validation.value.addressNumber,
+      address_complement: validation.value.addressComplement,
+      neighborhood: validation.value.neighborhood,
+      city: validation.value.city,
+      state: validation.value.state,
+      payment_terms: `${validation.value.paymentTermsDays} dias`,
+      payment_terms_days: validation.value.paymentTermsDays,
+      notes: validation.value.notes,
     };
 
-    const supabase = createClient();
+    submittingRef.current = true;
+    setSubmitting(true);
+    setFormErrors({});
+    setSubmitError(null);
     try {
       if (modal === "add") {
-        await supabase.from("customers").insert(record);
+        await createCustomer(record);
       } else if (editing) {
-        await supabase.from("customers").update(record).eq("id", editing.id);
+        await updateCustomer(editing.id, record);
       }
       setModal(null);
-      fetchData();
-      if (editing && selectedCliente?.id === editing.id) {
-        setSelectedCliente(prev => prev ? { ...prev, ...form, nome: form.nome, tipo: form.tipo as ClienteTipo, telefone: form.telefone, email: form.email, localizacao: form.localizacao, payment_terms: form.payment_terms, observacoes: form.observacoes } : null);
+      if (editing && selectedCliente?.id === editing.id) setSelectedCliente(null);
+      await fetchData();
+    } catch (error: unknown) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
+        setFormErrors({ cnpj: "Já existe um cliente com este CNPJ nesta granja." });
+        setSubmitError("Revise o CNPJ informado.");
+      } else {
+        setSubmitError(error instanceof Error ? error.message : "Não foi possível salvar o cliente. Tente novamente.");
       }
-    } catch (e) {
-      console.error(e);
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   }
 
-  async function deleteCliente(id: string) {
-    const supabase = createClient();
+  async function archiveCliente(id: string) {
     try {
-      await supabase.from("customers").delete().eq("id", id);
+      await archiveCustomer(id);
       setDeleteConfirm(null);
       if (selectedCliente?.id === id) setSelectedCliente(null);
-      fetchData();
-    } catch (e) {
-      console.error(e);
+      await fetchData();
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : "Não foi possível arquivar o cliente.");
+    }
+  }
+
+  async function restoreCliente(id: string) {
+    try {
+      await restoreCustomer(id);
+      await fetchData();
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : "Não foi possível restaurar o cliente.");
     }
   }
 
@@ -433,7 +493,7 @@ export default function ClientesPage() {
               </div>
             </div>
             <p className="text-2xl font-bold text-gray-900 tracking-tight">{formatCurrency(c.receitaMensal)}</p>
-            <p className="text-xs text-gray-400 mt-1 font-medium">Receita / Mês</p>
+            <p className="text-xs text-gray-400 mt-1 font-medium">Faturado no período</p>
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
@@ -442,8 +502,8 @@ export default function ClientesPage() {
                 <Receipt className="w-5 h-5 text-blue-600" />
               </div>
             </div>
-            <p className="text-2xl font-bold text-gray-900 tracking-tight">{formatCurrency(c.ticketMedio)}</p>
-            <p className="text-xs text-gray-400 mt-1 font-medium">Ticket Médio</p>
+            <p className="text-2xl font-bold text-gray-900 tracking-tight">{formatCurrency(c.recebido)}</p>
+            <p className="text-xs text-gray-400 mt-1 font-medium">Recebido no período</p>
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
@@ -452,23 +512,8 @@ export default function ClientesPage() {
                 <CalendarDays className="w-5 h-5 text-amber-600" />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <p className="text-2xl font-bold text-gray-900 tracking-tight">{c.frequencia.toFixed(1)}x</p>
-              {c.frequenciaTrend > 0 ? (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">
-                  <ArrowUpRight className="w-3 h-3" />+{c.frequenciaTrend}%
-                </span>
-              ) : c.frequenciaTrend < 0 ? (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
-                  <ArrowDownRight className="w-3 h-3" />{c.frequenciaTrend}%
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">
-                  <Minus className="w-3 h-3" />Estável
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-gray-400 mt-1 font-medium">Frequência / Mês</p>
+            <p className="text-2xl font-bold text-gray-900 tracking-tight">{formatCurrency(c.aReceber + c.vencido)}</p>
+            <p className="text-xs text-gray-400 mt-1 font-medium">Saldo em aberto</p>
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
@@ -517,6 +562,18 @@ export default function ClientesPage() {
                 <span className="text-sm text-gray-500">Telefone</span>
                 <span className="text-sm font-medium text-gray-900">{c.telefone || "—"}</span>
               </div>
+              <div className="flex items-center justify-between border-t border-gray-50 py-2">
+                <span className="text-sm text-gray-500">E-mail</span>
+                <span className="text-sm font-medium text-gray-900">{c.email || "—"}</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-gray-50 py-2">
+                <span className="text-sm text-gray-500">CNPJ</span>
+                <span className="text-sm font-medium text-gray-900">{c.cnpj ? formatCnpj(c.cnpj) : "—"}</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-gray-50 py-2">
+                <span className="text-sm text-gray-500">Prazo padrão</span>
+                <span className="text-sm font-medium text-gray-900">{c.payment_terms_days === 0 ? "À vista" : `${c.payment_terms_days} dias`}</span>
+              </div>
             </div>
           </div>
 
@@ -529,6 +586,9 @@ export default function ClientesPage() {
             <p className="text-sm text-gray-600 leading-relaxed">{c.observacoes || "Nenhuma observação registrada."}</p>
           </div>
         </div>
+        {modal && (
+          <CustomerModal mode={modal} form={form} errors={formErrors} submitError={submitError} submitting={submitting} onChange={(nextForm) => { setForm(nextForm); setFormErrors({}); }} onClose={closeModal} onSubmit={save} />
+        )}
       </div>
     );
   }
@@ -550,14 +610,24 @@ export default function ClientesPage() {
             <p className="text-sm text-gray-500 mt-0.5">Gestão de clientes e compradores</p>
           </div>
         </div>
-        <button
-          onClick={openAdd}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Cliente
-        </button>
+        <div className="flex items-center gap-3">
+          <CalendarFilter />
+          <button
+            onClick={openAdd}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20"
+          >
+            <Plus className="w-4 h-4" />
+            Novo Cliente
+          </button>
+        </div>
       </div>
+
+      {loadError && (
+        <div role="alert" className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+          <span>{loadError}</span>
+          <button type="button" onClick={fetchData} className="font-semibold underline underline-offset-2">Tentar novamente</button>
+        </div>
+      )}
 
       {/* KPI Cards */}
       {plan === "essencial" ? (
@@ -1286,25 +1356,29 @@ export default function ClientesPage() {
                       <td className="py-3 px-3 text-right font-medium text-gray-900">{c.ticketMedio > 0 ? formatCurrency(c.ticketMedio) : "—"}</td>
                       <td className="py-3 px-3">
                         <div className="flex items-center justify-end gap-1">
-                          {deleteConfirm === c.id ? (
+                          {c.archivedAt ? (
+                            <button onClick={() => restoreCliente(c.id)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600" aria-label={`Restaurar ${c.nome}`} title="Restaurar cliente">
+                              <RotateCcw className="w-4 h-4" />
+                            </button>
+                          ) : deleteConfirm === c.id ? (
                             <>
-                              <button onClick={() => deleteCliente(c.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Confirmar">
+                              <button onClick={() => archiveCliente(c.id)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-amber-600 transition-colors hover:bg-amber-50" aria-label={`Confirmar arquivamento de ${c.nome}`} title="Confirmar arquivamento">
                                 <Check className="w-4 h-4" />
                               </button>
-                              <button onClick={() => setDeleteConfirm(null)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="Cancelar">
+                              <button onClick={() => setDeleteConfirm(null)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100" aria-label="Cancelar arquivamento" title="Cancelar">
                                 <X className="w-4 h-4" />
                               </button>
                             </>
                           ) : (
                             <>
-                              <button onClick={() => setSelectedCliente(c)} className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer" title="Ver perfil">
+                              <button onClick={() => setSelectedCliente(c)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-brand-50 hover:text-brand-600" aria-label={`Ver perfil de ${c.nome}`} title="Ver perfil">
                                 <Eye className="w-4 h-4" />
                               </button>
-                              <button onClick={() => openEdit(c)} className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer" title="Editar">
+                              <button onClick={() => openEdit(c)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-brand-50 hover:text-brand-600" aria-label={`Editar ${c.nome}`} title="Editar">
                                 <Pencil className="w-4 h-4" />
                               </button>
-                              <button onClick={() => setDeleteConfirm(c.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Excluir">
-                                <Trash2 className="w-4 h-4" />
+                              <button onClick={() => setDeleteConfirm(c.id)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-amber-50 hover:text-amber-600" aria-label={`Arquivar ${c.nome}`} title="Arquivar cliente">
+                                <Archive className="w-4 h-4" />
                               </button>
                             </>
                           )}
@@ -1328,112 +1402,7 @@ export default function ClientesPage() {
 
       {/* ── Modal ── */}
       {modal && (
-        <ModalPortal>
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModal(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold text-gray-900">
-                {modal === "add" ? "Novo Cliente" : "Editar Cliente"}
-              </h3>
-              <button onClick={() => setModal(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Nome</label>
-                <input
-                  type="text"
-                  placeholder="Nome do cliente"
-                  value={form.nome}
-                  onChange={(e) => setForm({ ...form, nome: e.target.value })}
-                  className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Telefone</label>
-                  <input
-                    type="text"
-                    placeholder="(00) 0000-0000"
-                    value={form.telefone}
-                    onChange={(e) => setForm({ ...form, telefone: e.target.value })}
-                    className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Tipo de Cliente</label>
-                  <select
-                    value={form.tipo}
-                    onChange={(e) => setForm({ ...form, tipo: e.target.value as ClienteTipo })}
-                    className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all appearance-none cursor-pointer"
-                  >
-                    <option value="">Selecione...</option>
-                    {tipoOptions.map((t) => <option key={t} value={t}>{tipoLabels[t]}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">E-mail</label>
-                  <input
-                    type="email"
-                    placeholder="email@exemplo.com"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Termos Pagamento</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: 15 dias"
-                    value={form.payment_terms}
-                    onChange={(e) => setForm({ ...form, payment_terms: e.target.value })}
-                    className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Localização</label>
-                <input
-                  type="text"
-                  placeholder="Cidade, Estado"
-                  value={form.localizacao}
-                  onChange={(e) => setForm({ ...form, localizacao: e.target.value })}
-                  className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Observações</label>
-                <textarea
-                  placeholder="Notas sobre o cliente..."
-                  value={form.observacoes}
-                  onChange={(e) => setForm({ ...form, observacoes: e.target.value })}
-                  rows={3}
-                  className="w-full px-3.5 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all placeholder:text-gray-400 resize-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 mt-6">
-              <button onClick={() => setModal(null)} className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors cursor-pointer">
-                Cancelar
-              </button>
-              <button onClick={save} className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition-colors cursor-pointer shadow-sm">
-                {modal === "add" ? "Cadastrar" : "Salvar"}
-              </button>
-            </div>
-          </div>
-        </div>
-        </ModalPortal>
+        <CustomerModal mode={modal} form={form} errors={formErrors} submitError={submitError} submitting={submitting} onChange={(nextForm) => { setForm(nextForm); setFormErrors({}); }} onClose={closeModal} onSubmit={save} />
       )}
       {/* ── Cobrança Modal ── */}
       {cobrancaModal && (

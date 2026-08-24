@@ -6,7 +6,7 @@ export { getTodayFeed, getFeedByDateRange, createFeedRecord, updateFeedRecord, d
 export { getWaterByDateRange, getWaterByFlock, createWaterRecord, updateWaterRecord, deleteWaterRecord } from "./water";
 export { getTodayMortality, getMortalityByDateRange, getMortalityByFlock, createMortalityRecord, updateMortalityRecord, deleteMortalityRecord } from "./mortality";
 export { getMonthlyFinancials, getFinancialSummary, getTransactionsByDateRange, createTransaction, updateTransaction, deleteTransaction } from "./finances";
-export { getCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer } from "./customers";
+export { getCustomers, getCustomer, createCustomer, updateCustomer, archiveCustomer, restoreCustomer } from "./customers";
 export { getSales, getSalesByDateRange, createSale, updateSale, deleteSale } from "./sales";
 export {
   getTodayTasks,

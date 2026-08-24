@@ -40,6 +40,7 @@ import { getSalesByDateRange } from "@/lib/services/sales";
 import { transactionCategories, type TransactionCategoryKey } from "@/lib/constants/transaction-categories";
 import { inventoryLinkFromSelection, inventorySelectionKey, parseInventorySelectionKey, parsePositiveAmount } from "@/lib/domain/financial-transaction";
 import { calculateSalesFinancialMetrics, getSixMonthDateRange, groupMonthlySalesMetrics } from "@/lib/domain/financial-kpi-metrics";
+import { calculateCommercialFinancialMetrics } from "@/lib/domain/commercial-financial";
 import { calculateKpiVariation, getComparisonPeriod } from "@/lib/domain/kpi-comparison";
 import type { Tables } from "@/lib/database.types";
 import {
@@ -204,10 +205,27 @@ export default function FinancasPage() {
     [historicalSales],
   );
 
+  const commercialMetrics = useMemo(() => calculateCommercialFinancialMetrics(
+    sales.map((sale) => ({
+      customerId: sale.customer_id,
+      date: sale.date,
+      dueDate: sale.due_date,
+      paidAt: sale.paid_at,
+      paymentStatus: sale.payment_status,
+      total: Number(sale.total),
+    })),
+    dateRange.startDate,
+    dateRange.endDate,
+    new Date().toISOString().slice(0, 10),
+  ), [dateRange.endDate, dateRange.startDate, sales]);
   const totalDespesasFiltradas = summary?.expenses ?? 0;
   const receitaPeriodo = summary?.revenue ?? 0;
   const despesaPeriodo = summary?.expenses ?? 0;
   const lucroLiquido = summary?.profit ?? 0;
+  const faturamentoPeriodo = commercialMetrics.billed;
+  const valorAReceber = commercialMetrics.receivable;
+  const valorAtrasado = commercialMetrics.overdue;
+  const valorInadimplente = commercialMetrics.delinquent;
   const margem = receitaPeriodo > 0 ? ((lucroLiquido / receitaPeriodo) * 100) : 0;
   const lucroPorAve = totalAves > 0 ? lucroLiquido / totalAves : 0;
   const salesMetrics = useMemo(() => calculateSalesFinancialMetrics(sales), [sales]);
@@ -248,6 +266,7 @@ export default function FinancasPage() {
       paymentMethod: transaction.payment_method,
       reference: transaction.reference,
       inventoryName: inventoryKey ? inventoryNameByKey.get(inventoryKey) ?? null : null,
+      saleId: transaction.sale_id,
     };
   }), [inventoryNameByKey, transactions]);
 
@@ -477,9 +496,9 @@ export default function FinancasPage() {
               {varReceita.pct}
             </span>
           </div>
-          <p className="text-xs font-semibold text-gray-500 mb-1">Receita</p>
+          <p className="text-xs font-semibold text-gray-500 mb-1">Recebido</p>
           <p className="text-2xl font-bold text-gray-900 tracking-tight">{formatCurrency(receitaPeriodo)}</p>
-          <p className="text-xs text-gray-400 mt-1 font-medium">Receita — {periodoLabel}</p>
+          <p className="text-xs text-gray-400 mt-1 font-medium">Caixa de vendas — {periodoLabel}</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-200 transition-all duration-300">
@@ -527,7 +546,7 @@ export default function FinancasPage() {
               {varLucro.pct}
             </span>
           </div>
-          <p className="text-xs font-semibold text-gray-500 mb-1">Lucro Líquido</p>
+          <p className="text-xs font-semibold text-gray-500 mb-1">Resultado de caixa</p>
           <p className={cn(
             "text-2xl font-bold tracking-tight",
             lucroLiquido >= 0 ? "text-emerald-700" : "text-red-600"
@@ -584,6 +603,21 @@ export default function FinancasPage() {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: "Faturado", value: faturamentoPeriodo, detail: "Vendas realizadas no período", tone: "text-gray-900" },
+          { label: "A receber", value: valorAReceber, detail: "Ainda dentro do prazo", tone: "text-amber-700" },
+          { label: "Em atraso", value: valorAtrasado, detail: "Vencido há menos de 30 dias", tone: "text-orange-700" },
+          { label: "Inadimplente", value: valorInadimplente, detail: "Vencido há 30 dias ou mais", tone: "text-red-700" },
+        ].map((item) => (
+          <div key={item.label} className="rounded-2xl border border-gray-100 bg-white p-5">
+            <p className="text-xs font-semibold text-gray-500">{item.label}</p>
+            <p className={cn("mt-1 text-xl font-bold tracking-tight", item.tone)}>{formatCurrency(item.value)}</p>
+            <p className="mt-1 text-xs text-gray-400">{item.detail}</p>
+          </div>
+        ))}
       </div>
 
       {/* Charts Row 1 */}
@@ -733,7 +767,7 @@ export default function FinancasPage() {
             <div className="bg-white rounded-2xl border border-gray-100 p-6 h-full min-h-[304px]">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900">Receitas por Cliente</h3>
+                  <h3 className="text-sm font-bold text-gray-900">Faturamento por cliente</h3>
                   <p className="text-xs text-gray-400 mt-0.5">Somente vendas registradas — {periodoLabel}</p>
                 </div>
                 <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
@@ -745,14 +779,14 @@ export default function FinancasPage() {
           <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-100 p-6 h-full min-h-[304px]">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h3 className="text-sm font-bold text-gray-900">Receitas por Cliente</h3>
+                <h3 className="text-sm font-bold text-gray-900">Faturamento por cliente</h3>
                 <p className="text-xs text-gray-400 mt-0.5">Somente vendas registradas — {periodoLabel}</p>
               </div>
               <RequiredPlanBadge requiredPlan="pro" className="flex-shrink-0" />
             </div>
             <div className="space-y-3">
               {receitaPorCliente.map((d, i) => {
-                const pct = receitaPeriodo > 0 ? (d.valor / receitaPeriodo) * 100 : 0;
+                const pct = faturamentoPeriodo > 0 ? (d.valor / faturamentoPeriodo) * 100 : 0;
                 return (
                   <div key={d.nome} className="flex items-center gap-3">
                     <div className={cn(

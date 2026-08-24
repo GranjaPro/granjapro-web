@@ -1,12 +1,15 @@
 import { createClient } from "@/lib/supabase/client";
+import type { TablesInsert, TablesUpdate } from "@/lib/database.types";
 
-export async function getCustomers(farmId: string) {
+export async function getCustomers(farmId: string, includeArchived = false) {
   const supabase = createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("customers")
     .select("*")
     .eq("farm_id", farmId)
     .order("name", { ascending: true });
+  if (!includeArchived) query = query.is("archived_at", null);
+  const { data, error } = await query;
   if (error) throw error;
   return data;
 }
@@ -22,7 +25,7 @@ export async function getCustomer(customerId: string) {
   return data;
 }
 
-export async function createCustomer(customer: Record<string, any>) {
+export async function createCustomer(customer: TablesInsert<"customers">) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("customers")
@@ -33,7 +36,7 @@ export async function createCustomer(customer: Record<string, any>) {
   return data;
 }
 
-export async function updateCustomer(customerId: string, updates: Record<string, any>) {
+export async function updateCustomer(customerId: string, updates: TablesUpdate<"customers">) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("customers")
@@ -45,11 +48,20 @@ export async function updateCustomer(customerId: string, updates: Record<string,
   return data;
 }
 
-export async function deleteCustomer(customerId: string) {
+export async function archiveCustomer(customerId: string) {
   const supabase = createClient();
   const { error } = await supabase
     .from("customers")
-    .delete()
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", customerId);
+  if (error) throw error;
+}
+
+export async function restoreCustomer(customerId: string) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("customers")
+    .update({ archived_at: null })
     .eq("id", customerId);
   if (error) throw error;
 }

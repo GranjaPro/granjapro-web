@@ -892,8 +892,18 @@ export interface Database {
           type: "market" | "restaurant" | "distributor" | "direct";
           phone: string | null;
           email: string | null;
+          cnpj: string | null;
           location: string | null;
+          postal_code: string | null;
+          street: string | null;
+          address_number: string | null;
+          address_complement: string | null;
+          neighborhood: string | null;
+          city: string | null;
+          state: string | null;
           payment_terms: string | null;
+          payment_terms_days: number;
+          archived_at: string | null;
           notes: string | null;
         };
         Insert: {
@@ -905,8 +915,18 @@ export interface Database {
           type?: "market" | "restaurant" | "distributor" | "direct";
           phone?: string | null;
           email?: string | null;
+          cnpj?: string | null;
           location?: string | null;
+          postal_code?: string | null;
+          street?: string | null;
+          address_number?: string | null;
+          address_complement?: string | null;
+          neighborhood?: string | null;
+          city?: string | null;
+          state?: string | null;
           payment_terms?: string | null;
+          payment_terms_days?: number;
+          archived_at?: string | null;
           notes?: string | null;
         };
         Update: {
@@ -918,8 +938,18 @@ export interface Database {
           type?: "market" | "restaurant" | "distributor" | "direct";
           phone?: string | null;
           email?: string | null;
+          cnpj?: string | null;
           location?: string | null;
+          postal_code?: string | null;
+          street?: string | null;
+          address_number?: string | null;
+          address_complement?: string | null;
+          neighborhood?: string | null;
+          city?: string | null;
+          state?: string | null;
           payment_terms?: string | null;
+          payment_terms_days?: number;
+          archived_at?: string | null;
           notes?: string | null;
         };
       };
@@ -934,7 +964,9 @@ export interface Database {
           egg_type: string;
           unit_price: number;
           total: number;
-          payment_status: "pending" | "paid" | "overdue";
+          payment_status: "pending" | "paid";
+          due_date: string;
+          paid_at: string | null;
           notes: string | null;
         };
         Insert: {
@@ -947,7 +979,9 @@ export interface Database {
           egg_type?: string;
           unit_price: number;
           total: number;
-          payment_status?: "pending" | "paid" | "overdue";
+          payment_status?: "pending" | "paid";
+          due_date: string;
+          paid_at?: string | null;
           notes?: string | null;
         };
         Update: {
@@ -960,7 +994,9 @@ export interface Database {
           egg_type?: string;
           unit_price?: number;
           total?: number;
-          payment_status?: "pending" | "paid" | "overdue";
+          payment_status?: "pending" | "paid";
+          due_date?: string;
+          paid_at?: string | null;
           notes?: string | null;
         };
       };

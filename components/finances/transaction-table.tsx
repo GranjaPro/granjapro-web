@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Pencil, Search, Trash2, X } from "lucide-react";
+import Link from "next/link";
 import { transactionCategories, type TransactionCategoryKey } from "@/lib/constants/transaction-categories";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +15,7 @@ export interface FinancialTransactionRow {
   paymentMethod: string | null;
   reference: string | null;
   inventoryName: string | null;
+  saleId: string | null;
 }
 
 interface TransactionTableProps {
@@ -92,7 +94,13 @@ export function TransactionTable({
                   <td className="px-3 py-3">
                     <div className="flex items-center justify-end gap-1">
                       {generated ? (
-                        <span title="Edite este lançamento no módulo de origem" className="rounded-md bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-500">Origem protegida</span>
+                        row.saleId ? (
+                          <Link href={`/dashboard/sales?sale=${row.saleId}`} title="Abrir a venda de origem" className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100">
+                            Abrir venda
+                          </Link>
+                        ) : (
+                          <span title="Edite este lançamento no módulo de origem" className="rounded-md bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-500">Origem protegida</span>
+                        )
                       ) : deleteConfirm === row.id ? (
                         <>
                           <button type="button" onClick={() => onDeleteConfirm(row.id)} aria-label="Confirmar exclusão" className="rounded-lg p-1.5 text-red-500 transition-colors hover:bg-red-50"><Check className="h-4 w-4" /></button>
