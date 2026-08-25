@@ -66,6 +66,13 @@ import { calculateFeedKpiMetrics, calculateFeedStockMetrics } from "@/lib/domain
 import { calculateFeedFinancialMetrics } from "@/lib/domain/financial-kpi-metrics";
 import { calculateKpiVariation, getComparisonPeriod, type KpiVariation } from "@/lib/domain/kpi-comparison";
 import type { FlockMortality, ProductiveFlock } from "@/lib/domain/egg-production-metrics";
+import {
+  DEFAULT_LOW_STOCK_THRESHOLD,
+  getInventoryLowStockThresholdStorageKey,
+  isInventoryStockOld,
+  parseInventoryLowStockThreshold,
+  resolveInventoryStockStatus,
+} from "@/lib/domain/inventory-stock-status";
 
 /* ── Types ── */
 type TipoRacao = "milho" | "soja" | "comercial" | "custom";
@@ -99,6 +106,7 @@ interface ItemEstoque {
   valorTotal: number;
   inventoryTable: string;
   unitCost: number;
+  minimumQuantity: number;
 }
 
 interface Barn {
@@ -312,10 +320,11 @@ export default function RacaoPage() {
   const [estoque, setEstoque] = useState<ItemEstoque[]>([]);
   const [estoqueModal, setEstoqueModal] = useState<"add" | "view" | null>(null);
   const [storageLocations, setStorageLocations] = useState<StorageLocationRow[]>([]);
-  const [estoqueForm, setEstoqueForm] = useState({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal" as StatusEstoque, fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", custoUnitario: "", valorTotal: "" });
+  const [estoqueForm, setEstoqueForm] = useState({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", custoUnitario: "", valorTotal: "" });
   const [viewingEstoque, setViewingEstoque] = useState<ItemEstoque | null>(null);
   const [editingEstoque, setEditingEstoque] = useState(false);
-  const [editEstoqueForm, setEditEstoqueForm] = useState({ nome: "", categoria: "", quantidade: "", unidade: "", status: "normal" as StatusEstoque, fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", custoUnitario: "", valorTotal: "" });
+  const [editEstoqueForm, setEditEstoqueForm] = useState({ nome: "", categoria: "", quantidade: "", unidade: "", fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", custoUnitario: "", valorTotal: "" });
+  const [lowStockThreshold, setLowStockThreshold] = useState(DEFAULT_LOW_STOCK_THRESHOLD);
   const [modal, setModal] = useState<ModalMode>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [consumoMensalMode, setConsumoMensalMode] = useState<"rs" | "kg">("rs");
@@ -564,10 +573,11 @@ export default function RacaoPage() {
         fornecedor: d.notes || "",
         localizacao: d.location || "",
         lote: d.lot_number || "",
-        dataChegada: d.created_at,
+        dataChegada: d.arrival_date,
         valorTotal: Number(d.total_cost ?? 0),
         inventoryTable: d.inventory_table,
         unitCost: Number(d.unit_cost ?? 0),
+        minimumQuantity: Number(d.minimum_quantity),
       }));
       setEstoque(mappedInv);
 
@@ -595,12 +605,28 @@ export default function RacaoPage() {
   useEffect(() => {
     if (searchParams.get("register") === "true") setModal("add");
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!farmId) return;
+
+    const savedThreshold = window.localStorage.getItem(
+      getInventoryLowStockThresholdStorageKey(farmId),
+    );
+    setLowStockThreshold(
+      parseInventoryLowStockThreshold(savedThreshold) ?? DEFAULT_LOW_STOCK_THRESHOLD,
+    );
+  }, [farmId]);
+
+  const getEffectiveStockStatus = useCallback((item: ItemEstoque) => resolveInventoryStockStatus(
+    item.status,
+    item.quantidade,
+    item.minimumQuantity,
+    lowStockThreshold,
+    item.dataChegada,
+  ), [lowStockThreshold]);
+
   const isOldStock = useCallback((dataChegada?: string) => {
-    if (!dataChegada) return false;
-    const arrival = new Date(dataChegada + "T00:00:00");
-    const now = new Date();
-    const diffMs = now.getTime() - arrival.getTime();
-    return diffMs > 14 * 24 * 60 * 60 * 1000;
+    return isInventoryStockOld(dataChegada);
   }, []);
 
   const [editing, setEditing] = useState<RegistroRacao | null>(null);
@@ -684,7 +710,10 @@ export default function RacaoPage() {
     const totalConsumo = registros.reduce((s, r) => s + r.consumoKg, 0);
     const totalCusto = registros.reduce((s, r) => s + r.custoRS, 0);
     const custoPorKg = totalConsumo > 0 ? (totalCusto / totalConsumo) : 0;
-    const estoqueBaixo = estoque.filter((e) => e.status === "baixo" || e.status === "alerta").length;
+    const estoqueBaixo = estoque.filter((item) => {
+      const status = getEffectiveStockStatus(item);
+      return status === "baixo" || status === "alerta";
+    }).length;
     const custoPerOvo = totalEggs > 0 ? totalCusto / totalEggs : 0;
 
     const numDays = registros.length > 0 ? new Set(registros.map((r) => r.data)).size : 1;
@@ -779,13 +808,13 @@ export default function RacaoPage() {
         subtitle: `${estoqueBaixo} itens em alerta`,
       },
     ];
-  }, [registros, estoque, totalEggs, consumoHoje, avgConsumoPorGalinha]);
+  }, [registros, estoque, totalEggs, consumoHoje, avgConsumoPorGalinha, getEffectiveStockStatus]);
 
   /* Insights */
   const insights = useMemo(() => {
     const arr: { type: "success" | "warning" | "info"; title: string; action: string }[] = [];
-    const estoqueBaixo = estoque.filter((e) => e.status === "baixo");
-    const estoqueAlerta = estoque.filter((e) => e.status === "alerta");
+    const estoqueBaixo = estoque.filter((item) => getEffectiveStockStatus(item) === "baixo");
+    const estoqueAlerta = estoque.filter((item) => getEffectiveStockStatus(item) === "alerta");
 
     if (estoqueBaixo.length > 0) {
       arr.push({ type: "warning", title: `${estoqueBaixo.length} itens com estoque crítico`, action: `Repor urgente: ${estoqueBaixo.map(e => e.nome).join(", ")}` });
@@ -806,17 +835,17 @@ export default function RacaoPage() {
     arr.push({ type: "info", title: "Considere ajustar fórmula para o período de calor", action: "Reduzir ração energética e aumentar suplementação hídrica" });
 
     return arr;
-  }, [registros, estoque]);
+  }, [registros, estoque, getEffectiveStockStatus]);
   const feedHealth = useMemo(() => {
-    const lowStockCount = estoque.filter((item) => item.status === "baixo").length;
-    const alertStockCount = estoque.filter((item) => item.status === "alerta").length;
+    const lowStockCount = estoque.filter((item) => getEffectiveStockStatus(item) === "baixo").length;
+    const alertStockCount = estoque.filter((item) => getEffectiveStockStatus(item) === "alerta").length;
     const totalProblems = lowStockCount + alertStockCount;
 
     return {
       score: totalProblems === 0 ? 92 : totalProblems <= 2 ? 65 : 35,
       lowStockCount,
     };
-  }, [estoque]);
+  }, [estoque, getEffectiveStockStatus]);
   const farmHealthInsights = useMemo<FarmHealthInsight[]>(
     () =>
       insights.map((insight) => {
@@ -916,12 +945,9 @@ export default function RacaoPage() {
   }
 
   function formatDate(dateStr: string) {
-    try {
-      const d = new Date(dateStr + "T00:00:00");
-      return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-    } catch {
-      return dateStr;
-    }
+    const date = new Date(dateStr.includes("T") ? dateStr : `${dateStr}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return "Data não informada";
+    return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
   }
 
   if (error) {
@@ -1647,7 +1673,7 @@ export default function RacaoPage() {
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               <span className="text-[10px] sm:text-[11px] font-bold text-emerald-600 bg-emerald-50 px-1.5 sm:px-2 py-0.5 rounded-md whitespace-nowrap">
-                {estoque.filter(e => e.status === "normal").length}/{estoque.length} normais
+                {estoque.filter((item) => getEffectiveStockStatus(item) === "normal").length}/{estoque.length} normais
               </span>
               <button onClick={() => setEstoqueModal("add")} className="w-7 h-7 rounded-lg bg-brand-50 hover:bg-brand-100 flex items-center justify-center transition-colors cursor-pointer">
                 <Plus className="w-3.5 h-3.5 text-brand-600" />
@@ -1657,15 +1683,15 @@ export default function RacaoPage() {
           <div className="space-y-0 max-h-[320px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
             {estoque.map((item, i) => (
               <div key={item.id}>
-                <button onClick={() => { setViewingEstoque(item); setEditingEstoque(false); setEditEstoqueForm({ nome: item.nome, categoria: item.categoria, quantidade: String(item.quantidade), unidade: item.unidade, status: item.status, fornecedor: item.fornecedor || "", localizacaoId: item.locationId, lote: item.lote || "", dataChegada: item.dataChegada || "", custoUnitario: String(item.unitCost || ""), valorTotal: String(item.valorTotal || "") }); setEstoqueModal("view"); }} className="flex items-center justify-between py-2.5 group cursor-pointer hover:bg-gray-50/50 -mx-2 px-2 rounded-lg transition-colors w-full text-left">
+                <button onClick={() => { setViewingEstoque(item); setEditingEstoque(false); setEditEstoqueForm({ nome: item.nome, categoria: item.categoria, quantidade: String(item.quantidade), unidade: item.unidade, fornecedor: item.fornecedor || "", localizacaoId: item.locationId, lote: item.lote || "", dataChegada: item.dataChegada || "", custoUnitario: String(item.unitCost || ""), valorTotal: String(item.valorTotal || "") }); setEstoqueModal("view"); }} className="flex items-center justify-between py-2.5 group cursor-pointer hover:bg-gray-50/50 -mx-2 px-2 rounded-lg transition-colors w-full text-left">
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                     <div className={cn(
                       "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                      item.status === "normal" ? "bg-emerald-50" : item.status === "alerta" ? "bg-amber-50" : "bg-red-50"
+                      getEffectiveStockStatus(item) === "normal" ? "bg-emerald-50" : getEffectiveStockStatus(item) === "alerta" ? "bg-amber-50" : "bg-red-50"
                     )}>
                       <Package className={cn(
                         "w-4 h-4",
-                        item.status === "normal" ? "text-emerald-600" : item.status === "alerta" ? "text-amber-600" : "text-red-600"
+                        getEffectiveStockStatus(item) === "normal" ? "text-emerald-600" : getEffectiveStockStatus(item) === "alerta" ? "text-amber-600" : "text-red-600"
                       )} />
                     </div>
                     <div className="min-w-0">
@@ -1683,8 +1709,8 @@ export default function RacaoPage() {
                   </div>
                   <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
                     <span className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">{item.quantidade} {item.unidade}</span>
-                    <span className={cn("text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap", statusColor[item.status])}>
-                      {statusLabel[item.status]}
+                    <span className={cn("text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap", statusColor[getEffectiveStockStatus(item)])}>
+                      {statusLabel[getEffectiveStockStatus(item)]}
                     </span>
                     <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-500 transition-colors flex-shrink-0 hidden sm:block" />
                   </div>
@@ -1990,24 +2016,14 @@ export default function RacaoPage() {
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nome do Item</label>
                 <input type="text" value={estoqueForm.nome} onChange={(e) => setEstoqueForm({ ...estoqueForm, nome: e.target.value })} placeholder="Ex: Farelo de Milho" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Categoria</label>
-                  <select value={estoqueForm.categoria} onChange={(e) => setEstoqueForm({ ...estoqueForm, categoria: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
-                    <option value="Ração">Ração</option>
-                    <option value="Insumo">Insumo</option>
-                    <option value="Suplemento">Suplemento</option>
-                    <option value="Mineral">Mineral</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Status</label>
-                  <select value={estoqueForm.status} onChange={(e) => setEstoqueForm({ ...estoqueForm, status: e.target.value as StatusEstoque })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
-                    <option value="normal">Normal</option>
-                    <option value="alerta">Alerta</option>
-                    <option value="baixo">Baixo</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Categoria</label>
+                <select value={estoqueForm.categoria} onChange={(e) => setEstoqueForm({ ...estoqueForm, categoria: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
+                  <option value="Ração">Ração</option>
+                  <option value="Insumo">Insumo</option>
+                  <option value="Suplemento">Suplemento</option>
+                  <option value="Mineral">Mineral</option>
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -2071,7 +2087,6 @@ export default function RacaoPage() {
                       category: estoqueForm.categoria,
                       quantity: Number(estoqueForm.quantidade) || 0,
                       unit: estoqueForm.unidade,
-                      status: estoqueForm.status,
                       supplier: estoqueForm.fornecedor || null,
                       location_id: estoqueForm.localizacaoId || undefined,
                       lot_number: estoqueForm.lote || null,
@@ -2079,7 +2094,7 @@ export default function RacaoPage() {
                       unit_cost: Number(estoqueForm.custoUnitario),
                       total_cost: Number(estoqueForm.valorTotal) || Number(estoqueForm.quantidade) * Number(estoqueForm.custoUnitario),
                     });
-                    setEstoqueForm({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", status: "normal", fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", custoUnitario: "", valorTotal: "" });
+                    setEstoqueForm({ nome: "", categoria: "Ração", quantidade: "", unidade: "kg", fornecedor: "", localizacaoId: "", lote: "", dataChegada: "", custoUnitario: "", valorTotal: "" });
                     setEstoqueModal(null);
                     await loadData();
                   } catch (err) {
@@ -2150,39 +2165,14 @@ export default function RacaoPage() {
                     </select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Quantidade</label>
-                    <input
-                      type="number"
-                      value={editEstoqueForm.quantidade}
-                      onChange={(e) => setEditEstoqueForm({ ...editEstoqueForm, quantidade: e.target.value })}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
-                    <div className="flex gap-2">
-                      {([
-                        { value: "normal" as const, label: "Normal", color: "bg-emerald-500" },
-                        { value: "alerta" as const, label: "Alerta", color: "bg-amber-500" },
-                        { value: "baixo" as const, label: "Baixo", color: "bg-red-500" },
-                      ]).map((s) => (
-                        <button
-                          key={s.value}
-                          onClick={() => setEditEstoqueForm({ ...editEstoqueForm, status: s.value })}
-                          className={cn(
-                            "flex-1 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border",
-                            editEstoqueForm.status === s.value
-                              ? `${s.color} text-white border-transparent`
-                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                          )}
-                        >
-                          {s.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Quantidade</label>
+                  <input
+                    type="number"
+                    value={editEstoqueForm.quantidade}
+                    onChange={(e) => setEditEstoqueForm({ ...editEstoqueForm, quantidade: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -2234,7 +2224,6 @@ export default function RacaoPage() {
                           category: editEstoqueForm.categoria || viewingEstoque.categoria,
                           quantity: Number(editEstoqueForm.quantidade) || viewingEstoque.quantidade,
                           unit: editEstoqueForm.unidade || viewingEstoque.unidade,
-                          status: editEstoqueForm.status,
                           supplier: editEstoqueForm.fornecedor || null,
                           location_id: editEstoqueForm.localizacaoId || undefined,
                           lot_number: editEstoqueForm.lote || null,
@@ -2298,9 +2287,9 @@ export default function RacaoPage() {
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Status</p>
                     <span className={cn(
                       "inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-lg",
-                      statusColor[viewingEstoque.status]
+                      statusColor[getEffectiveStockStatus(viewingEstoque)]
                     )}>
-                      {statusLabel[viewingEstoque.status]}
+                      {statusLabel[getEffectiveStockStatus(viewingEstoque)]}
                     </span>
                   </div>
                 </div>

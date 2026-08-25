@@ -22,6 +22,19 @@ import {
 import { useAuth } from "@/components/auth/auth-provider";
 import { cn } from "@/lib/utils";
 import {
+  calculateInventoryStockPercent,
+  DEFAULT_LOW_STOCK_THRESHOLD,
+  getInventoryLowStockThresholdStorageKey,
+  parseInventoryLowStockThreshold,
+  resolveInventoryStockStatus,
+} from "@/lib/domain/inventory-stock-status";
+import {
+  calculateAverageInventoryOccupancy,
+  calculateCurrentInventoryValue,
+  formatInventoryExpirationAlert,
+  parseInventoryCapacity,
+} from "@/lib/domain/inventory-metrics";
+import {
   createInventoryItem,
   createStorageLocation,
   deleteInventoryItem,
@@ -63,6 +76,7 @@ type FeedForm = {
   feedCategory: string;
   feedType: string;
   quantity: string;
+  minimumQuantity: string;
   unit: string;
   supplier: string;
   unitCost: string;
@@ -87,6 +101,7 @@ const emptyFeedForm: FeedForm = {
   feedCategory: "",
   feedType: "comercial",
   quantity: "",
+  minimumQuantity: "",
   unit: "kg",
   supplier: "",
   unitCost: "",
@@ -98,7 +113,7 @@ const emptyFeedForm: FeedForm = {
 const storageCategoryLabels: Record<StorageCategory, string> = {
   feed: "Racao",
   medicine: "Medicamentos",
-  equipment: "Equipamentos",
+  equipment: "Equipamentos em estoque",
   packaging: "Embalagens",
 };
 
@@ -106,7 +121,7 @@ const inventoryTabs: Array<{ key: ActiveTab; label: string; icon: typeof Package
   { key: "all", label: "Todos", icon: Package },
   { key: "feed", label: "Racao", icon: Wheat },
   { key: "medicine", label: "Medicamentos", icon: Pill },
-  { key: "equipment", label: "Equipamentos", icon: Wrench },
+  { key: "equipment", label: "Equip. em estoque", icon: Wrench },
   { key: "packaging", label: "Embalagens", icon: Box },
 ];
 
@@ -146,13 +161,6 @@ function getErrorMessage(error: unknown, fallback: string) {
     .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
 
   return messageParts.length > 0 ? messageParts.join(" | ") : fallback;
-}
-
-function getFeedStockPercent(item: FeedInventoryCompatibilityRow) {
-  const minimumQuantity = Number(item.minimum_quantity);
-  const quantity = Number(item.quantity);
-  if (minimumQuantity <= 0) return quantity > 0 ? 100 : 0;
-  return Math.min(100, Math.round((quantity / minimumQuantity) * 100));
 }
 
 function getItemIcon(item: FeedInventoryCompatibilityRow) {
@@ -234,7 +242,7 @@ export default function EstoquePage() {
   const [editingStorage, setEditingStorage] = useState<StorageLocationRow | null>(null);
   const [editingFeed, setEditingFeed] = useState<FeedInventoryCompatibilityRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
-  const [lowStockThreshold, setLowStockThreshold] = useState("25");
+  const [lowStockThreshold, setLowStockThreshold] = useState(String(DEFAULT_LOW_STOCK_THRESHOLD));
   const [thresholdModalOpen, setThresholdModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -255,8 +263,9 @@ export default function EstoquePage() {
       ]);
       setStorageLocations(locations);
       setFeedItems(feed);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
+      setErrorMessage(getErrorMessage(error, "Não foi possível carregar os dados do estoque."));
     } finally {
       setLoading(false);
     }
@@ -267,9 +276,14 @@ export default function EstoquePage() {
   }, [fetchData]);
 
   useEffect(() => {
-    const savedThreshold = window.localStorage.getItem("inventoryLowStockThreshold");
-    if (savedThreshold) setLowStockThreshold(savedThreshold);
-  }, []);
+    if (!farm) return;
+
+    const savedThreshold = window.localStorage.getItem(
+      getInventoryLowStockThresholdStorageKey(farm.id),
+    );
+    const parsedThreshold = parseInventoryLowStockThreshold(savedThreshold);
+    setLowStockThreshold(String(parsedThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD));
+  }, [farm]);
 
   const visibleStorageLocations = storageLocations.filter((location) => {
     if (activeTab === "feed") return location.category === "feed";
@@ -298,18 +312,43 @@ export default function EstoquePage() {
     );
   });
 
-  const totalFeedValue = feedItems.reduce((sum, item) => sum + Number(item.total_cost ?? 0), 0);
-  const thresholdPercent = numberOrUndefined(lowStockThreshold) ?? 25;
-  const lowStockCount = feedItems.filter((item) => getFeedStockPercent(item) <= thresholdPercent).length;
+  const totalInventoryValue = feedItems.reduce(
+    (sum, item) => sum + calculateCurrentInventoryValue(
+      Number(item.quantity),
+      item.unit_cost === null ? null : Number(item.unit_cost),
+    ),
+    0,
+  );
+  const thresholdPercent = numberOrUndefined(lowStockThreshold) ?? DEFAULT_LOW_STOCK_THRESHOLD;
+  const lowStockItems = feedItems
+    .map((item) => ({
+      item,
+      stockPercent: calculateInventoryStockPercent(Number(item.quantity), Number(item.minimum_quantity)),
+    }))
+    .filter(({ stockPercent }) => stockPercent <= thresholdPercent);
+  const lowStockCount = lowStockItems.length;
   const activeStorageCount = storageLocations.filter((location) => location.status === "active").length;
-  const averageOccupancy = feedItems.length > 0
-    ? Math.round(feedItems.reduce((sum, item) => sum + getFeedStockPercent(item), 0) / feedItems.length)
-    : 0;
+  const averageOccupancy = calculateAverageInventoryOccupancy(
+    storageLocations.map((location) => {
+      const capacity = parseStorageCapacity(location.notes);
+      return {
+        id: location.id,
+        capacityQuantity: Number(capacity.quantity),
+        capacityUnit: capacity.unit,
+      };
+    }),
+    feedItems.map((item) => ({
+      locationId: item.location_id,
+      quantity: Number(item.quantity),
+      unit: item.unit,
+    })),
+  );
   const expiringFeedItems = feedItems
     .filter((item) => item.expiration_date)
     .map((item) => ({ item, days: daysUntil(item.expiration_date) }))
     .sort((left, right) => left.days - right.days);
-  const expiringSoonCount = expiringFeedItems.filter(({ days }) => days <= 30).length;
+  const expiringSoonItems = expiringFeedItems.filter(({ days }) => days <= 30);
+  const expiringSoonCount = expiringSoonItems.length;
   const alertCount = lowStockCount + expiringSoonCount;
 
   function openAddStorage() {
@@ -347,6 +386,7 @@ export default function EstoquePage() {
       feedCategory: item.feed_category ?? item.category ?? "",
       feedType: item.feed_type ?? item.type ?? "comercial",
       quantity: String(item.quantity),
+      minimumQuantity: String(item.minimum_quantity),
       unit: item.unit,
       supplier: item.supplier ?? "",
       unitCost: item.unit_cost === null ? "" : String(item.unit_cost),
@@ -362,6 +402,11 @@ export default function EstoquePage() {
     const currentFarm = farmRef.current;
     const trimmedName = storageForm.name.trim();
     if (!currentFarm || !trimmedName) return;
+
+    if (parseInventoryCapacity(storageForm.capacityQuantity) === null) {
+      setErrorMessage("A capacidade deve ser maior que zero.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -397,10 +442,15 @@ export default function EstoquePage() {
     if (!currentFarm || !trimmedName || saving) return;
 
     const quantity = numberOrUndefined(feedForm.quantity) ?? 0;
+    const minimumQuantity = numberOrUndefined(feedForm.minimumQuantity);
     const unitCost = numberOrUndefined(feedForm.unitCost);
     const totalCost = numberOrUndefined(feedForm.totalCost);
     if (quantity < 0 || (unitCost !== undefined && unitCost < 0) || (totalCost !== undefined && totalCost < 0)) {
       setErrorMessage("Quantidade e custos não podem ser negativos.");
+      return;
+    }
+    if (minimumQuantity === undefined || minimumQuantity <= 0) {
+      setErrorMessage("Informe um estoque mínimo maior que zero.");
       return;
     }
 
@@ -423,12 +473,11 @@ export default function EstoquePage() {
         feed_type: feedForm.feedType.trim() || null,
         quantity,
         unit: feedForm.unit,
-        status: "normal" as const,
         supplier: feedForm.supplier.trim() || null,
         unit_cost: unitCost ?? null,
         total_cost: totalCost ?? (purchaseCost > 0 ? purchaseCost : null),
         lot_number: null,
-        minimum_quantity: 0,
+        minimum_quantity: minimumQuantity,
         expiration_date: feedForm.itemCategory === "equipment" ? null : feedForm.expirationDate || null,
         notes: feedForm.notes.trim() || null,
       };
@@ -484,7 +533,7 @@ export default function EstoquePage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">Estoque</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Gerencie locais de armazenamento e estoque de racao</p>
+            <p className="mt-0.5 text-sm text-gray-500">Controle quantidades, custos e locais dos itens armazenados</p>
           </div>
         </div>
 
@@ -509,11 +558,47 @@ export default function EstoquePage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <MetricCard icon={Package} label="Valor em estoque" value={formatCurrency(totalFeedValue)} />
+        <MetricCard icon={Package} label="Valor em estoque" value={formatCurrency(totalInventoryValue)} />
         <MetricCard icon={Warehouse} label="Espacos" value={`${activeStorageCount}/${storageLocations.length}`} />
-        <MetricCard icon={Box} label="Ocupacao" value={`${averageOccupancy}%`} tone={averageOccupancy <= thresholdPercent ? "warning" : "neutral"} />
+        <MetricCard
+          icon={Box}
+          label="Ocupação média"
+          value={averageOccupancy === null ? "—" : `${averageOccupancy}%`}
+          tone={averageOccupancy !== null && averageOccupancy >= 90 ? "warning" : "neutral"}
+        />
         <MetricCard icon={ShieldAlert} label="Alertas" value={String(alertCount)} tone={alertCount > 0 ? "warning" : "ok"} />
       </div>
+
+      {alertCount > 0 && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4 text-amber-600" />
+            <h2 className="text-sm font-bold text-amber-900">Alertas de estoque</h2>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {lowStockItems.map(({ item, stockPercent }) => (
+              <div key={`stock-${item.inventory_table}-${item.id}`} className="rounded-xl border border-amber-100 bg-white px-3 py-2">
+                <p className="text-sm font-semibold text-gray-800">{item.name}</p>
+                <p className="mt-0.5 text-xs text-amber-700">
+                  Estoque em {stockPercent}% — limite configurado em {thresholdPercent}%.
+                </p>
+              </div>
+            ))}
+            {expiringSoonItems.map(({ item, days }) => (
+              <div key={`expiration-${item.inventory_table}-${item.id}`} className="rounded-xl border border-amber-100 bg-white px-3 py-2">
+                <p className="text-sm font-semibold text-gray-800">{item.name}</p>
+                <p className="mt-0.5 text-xs text-amber-700">
+                  {days < 0
+                    ? `Vencido há ${Math.abs(days)} dia${Math.abs(days) === 1 ? "" : "s"}.`
+                    : days === 0
+                      ? "Vence hoje."
+                      : `Vence em ${days} dia${days === 1 ? "" : "s"}.`}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="flex w-full gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1 sm:w-auto">
@@ -556,6 +641,15 @@ export default function EstoquePage() {
         </button>
       </div>
 
+      {activeTab === "equipment" && (
+        <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <Wrench className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-600" />
+          <p className="text-sm text-slate-700">
+            Esta aba é destinada a unidades guardadas e peças de reposição. Equipamentos instalados ou em uso devem ser cadastrados na página <span className="font-semibold">Equipamentos em operação</span>.
+          </p>
+        </div>
+      )}
+
       <InventoryContent
         activeTab={activeTab}
         loading={loading}
@@ -584,7 +678,11 @@ export default function EstoquePage() {
         <FeedItemModal
           mode={feedModal}
           form={feedForm}
-          locations={storageLocations.filter((location) => location.category === feedForm.itemCategory)}
+          locations={storageLocations.filter(
+            (location) =>
+              location.category === feedForm.itemCategory &&
+              (location.status === "active" || location.id === feedForm.locationId),
+          )}
           saving={saving}
           onChange={setFeedForm}
           onClose={() => setFeedModal(null)}
@@ -615,7 +713,19 @@ export default function EstoquePage() {
           onChange={setLowStockThreshold}
           onClose={() => setThresholdModalOpen(false)}
           onSave={() => {
-            window.localStorage.setItem("inventoryLowStockThreshold", lowStockThreshold);
+            if (!farm) return;
+
+            const parsedThreshold = parseInventoryLowStockThreshold(lowStockThreshold);
+            if (parsedThreshold === null) {
+              setErrorMessage("Informe um percentual entre 0 e 100.");
+              return;
+            }
+
+            window.localStorage.setItem(
+              getInventoryLowStockThresholdStorageKey(farm.id),
+              String(parsedThreshold),
+            );
+            setLowStockThreshold(String(parsedThreshold));
             setThresholdModalOpen(false);
           }}
         />
@@ -797,8 +907,17 @@ function FeedTab({
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {items.map((item) => {
-        const stockPercent = getFeedStockPercent(item);
+        const stockPercent = calculateInventoryStockPercent(Number(item.quantity), Number(item.minimum_quantity));
+        const effectiveStatus = resolveInventoryStockStatus(
+          item.status,
+          Number(item.quantity),
+          Number(item.minimum_quantity),
+          lowStockThreshold,
+          item.arrival_date,
+        );
         const isLow = stockPercent <= lowStockThreshold;
+        const expirationDays = daysUntil(item.expiration_date);
+        const hasExpirationAlert = item.expiration_date !== null && expirationDays <= 30;
         const Icon = getItemIcon(item);
         const iconClassName = getItemIconClassName(item);
         return (
@@ -833,10 +952,18 @@ function FeedTab({
             </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
-              <Badge tone={isLow ? "warning" : "ok"}>{isLow ? `Estoque baixo (${stockPercent}%)` : feedStatusLabels[item.status]}</Badge>
+              <Badge tone={isLow || effectiveStatus === "alerta" ? "warning" : "ok"}>
+                {isLow ? `Estoque baixo (${stockPercent}%)` : feedStatusLabels[effectiveStatus]}
+              </Badge>
               <Badge tone="muted">{item.category}</Badge>
               {item.type && <Badge tone="muted">{item.type}</Badge>}
-              {item.expiration_date && <Badge tone="muted">Vence {new Date(`${item.expiration_date}T00:00:00`).toLocaleDateString("pt-BR")}</Badge>}
+              {item.expiration_date && (
+                <Badge tone={hasExpirationAlert ? "warning" : "muted"}>
+                  {hasExpirationAlert
+                    ? formatInventoryExpirationAlert(expirationDays)
+                    : `Vence ${new Date(`${item.expiration_date}T00:00:00`).toLocaleDateString("pt-BR")}`}
+                </Badge>
+              )}
             </div>
 
           </div>
@@ -958,10 +1085,20 @@ function StorageLocationModal({
         </div>
         <label className="flex items-center gap-2 rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm font-medium text-gray-700">
           <input type="checkbox" checked={form.isDefault} onChange={(event) => onChange({ ...form, isDefault: event.target.checked })} className="h-4 w-4 rounded border-gray-300 text-brand-600" />
-          Local padrao desta categoria
+          Local padrão desta categoria
         </label>
+        {form.isDefault && (
+          <p className="text-xs text-gray-500">
+            Ao salvar, este local substituirá o padrão atual desta categoria.
+          </p>
+        )}
       </div>
-      <ModalActions saving={saving} onClose={onClose} onSave={onSave} />
+      <ModalActions
+        saving={saving}
+        onClose={onClose}
+        onSave={onSave}
+        saveDisabled={parseInventoryCapacity(form.capacityQuantity) === null}
+      />
     </ModalShell>
   );
 }
@@ -1019,7 +1156,7 @@ function FeedItemModal({
             options={[
               ["feed", "Racao"],
               ["medicine", "Medicamentos"],
-              ["equipment", "Equipamentos"],
+              ["equipment", "Equipamentos em estoque"],
               ["packaging", "Embalagens"],
             ]}
           />
@@ -1044,8 +1181,20 @@ function FeedItemModal({
             />
           )}
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {form.itemCategory === "equipment" && (
+          <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            Use esta categoria somente para unidades armazenadas ou de reposição. Equipamentos instalados devem ser cadastrados em Equipamentos em operação.
+          </p>
+        )}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <TextField label="Quantidade" type="number" value={form.quantity} onChange={(quantity) => onChange({ ...form, quantity })} placeholder="0" />
+          <TextField
+            label="Estoque mínimo"
+            type="number"
+            value={form.minimumQuantity}
+            onChange={(minimumQuantity) => onChange({ ...form, minimumQuantity })}
+            placeholder="0"
+          />
           <SelectField
             label="Unidade"
             value={form.unit}
@@ -1092,6 +1241,8 @@ function FeedItemModal({
           !form.name.trim() ||
           !form.feedType.trim() ||
           !form.quantity ||
+          !form.minimumQuantity ||
+          Number(form.minimumQuantity) <= 0 ||
           !form.unit ||
           (!form.unitCost && !form.totalCost) ||
           (form.itemCategory === "medicine" && !form.expirationDate)
@@ -1126,6 +1277,8 @@ function LowStockThresholdModal({
           value={value}
           onChange={onChange}
           placeholder="25"
+          min={0}
+          max={100}
         />
       </div>
       <ModalActions saving={saving} onClose={onClose} onSave={onSave} />
@@ -1144,22 +1297,63 @@ function DeleteModal({
   onClose: () => void;
   onDelete: () => void;
 }) {
+  const [confirmed, setConfirmed] = useState(false);
+  const isStorageLocation = target.type === "storage";
+  const deletedRecords = isStorageLocation
+    ? ["O local de armazenamento"]
+    : [
+        "O item de estoque",
+        "A despesa gerada pela compra",
+        ...(target.inventoryTable === "feed" ? ["Todos os consumos de ração vinculados"] : []),
+        "Todos os registros de perda vinculados",
+      ];
+
   return (
-    <ModalShell title="Confirmar exclusao" onClose={onClose} size="sm">
-      <div className="space-y-4 text-center">
+    <ModalShell title="Confirmar exclusão" onClose={onClose} size="sm">
+      <div className="space-y-4">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
           <Trash2 className="h-5 w-5 text-red-500" />
         </div>
-        <p className="text-sm text-gray-500">
+        <p className="text-center text-sm text-gray-500">
           Tem certeza que deseja excluir <span className="font-semibold text-gray-800">{target.name}</span>?
         </p>
+        <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-900">
+          <p className="font-semibold">Registros que serão excluídos:</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {deletedRecords.map((record) => (
+              <li key={record}>{record}</li>
+            ))}
+          </ul>
+        </div>
+        {isStorageLocation ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            Os itens e registros de perda deste local serão movidos para <span className="font-semibold">Sem local definido</span>. Despesas e consumos permanecerão vinculados aos itens.
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600">
+            Os históricos e indicadores serão recalculados sem esses registros. Essa ação não pode ser desfeita.
+          </p>
+        )}
+        <label className="flex items-start gap-2 rounded-xl border border-gray-200 px-3.5 py-3 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={confirmed}
+            onChange={(event) => setConfirmed(event.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600"
+          />
+          <span>
+            {isStorageLocation
+              ? "Entendo que os itens deste local serão movidos para Sem local definido."
+              : "Entendo que o item e os registros listados acima serão excluídos permanentemente."}
+          </span>
+        </label>
       </div>
       <div className="flex items-center justify-center gap-2 pt-2">
         <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100">
           Cancelar
         </button>
-        <button type="button" onClick={onDelete} disabled={saving} className="rounded-xl bg-red-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-600 disabled:opacity-60">
-          Excluir
+        <button type="button" onClick={onDelete} disabled={saving || !confirmed} className="rounded-xl bg-red-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60">
+          Excluir permanentemente
         </button>
       </div>
     </ModalShell>
@@ -1229,12 +1423,16 @@ function TextField({
   onChange,
   placeholder,
   type = "text",
+  min,
+  max,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   type?: "text" | "number" | "date";
+  min?: number;
+  max?: number;
 }) {
   return (
     <label className="block">
@@ -1244,7 +1442,8 @@ function TextField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        min={type === "number" ? "0" : undefined}
+        min={type === "number" ? min ?? 0 : undefined}
+        max={type === "number" ? max : undefined}
         step={type === "number" ? "0.01" : undefined}
         className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20"
       />
