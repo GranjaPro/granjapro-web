@@ -55,6 +55,7 @@ import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { AssistantLockedPreview } from "@/components/dashboard/assistant-card";
 import { useDateFilter, CalendarFilter } from "@/components/date-filter";
 import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
+import { isValidMortalityQuantity } from "@/lib/domain/mortality-validation";
 import type { Tables } from "@/lib/database.types";
 
 interface RegistroMortalidade {
@@ -135,8 +136,18 @@ export default function MortalidadePage() {
   const [form, setForm] = useState({ data: new Date().toISOString().split('T')[0], quantidade: "1", causa: "", tipo: "natural" as "natural" | "culling", loteId: "", galpaoId: "", observacao: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   const { dateRange } = useDateFilter();
+  const hasValidQuantity = isValidMortalityQuantity(form.quantidade);
+  const canSave = Boolean(
+    form.data.trim()
+      && form.causa.trim()
+      && form.loteId.trim()
+      && hasValidQuantity
+      && !saving
+  );
 
   useEffect(() => {
     if (searchParams.get("register") === "true") setModal("add");
@@ -384,16 +395,18 @@ export default function MortalidadePage() {
   }
 
   async function save() {
-    if (!form.data.trim() || !form.causa.trim() || !form.loteId.trim()) return;
+    if (!canSave || savingRef.current) return;
     const currentFarm = farmRef.current;
     if (!currentFarm) return;
 
+    savingRef.current = true;
+    setSaving(true);
     const record = {
       farm_id: currentFarm.id,
       barn_id: form.galpaoId || null,
       flock_id: form.loteId,
       date: form.data,
-      dead_birds: Number(form.quantidade) || 1,
+      dead_birds: Number(form.quantidade),
       cause: form.causa,
       mortality_type: getMortalityType(form.causa),
       notes: form.observacao
@@ -410,6 +423,9 @@ export default function MortalidadePage() {
       fetchData();
     } catch (e) {
       console.error(e);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   }
 
@@ -927,10 +943,21 @@ export default function MortalidadePage() {
                   <input
                     type="number"
                     min="1"
+                    step="1"
                     value={form.quantidade}
                     onChange={(e) => setForm({ ...form, quantidade: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
+                    aria-invalid={!hasValidQuantity}
+                    aria-describedby={!hasValidQuantity ? "mortality-quantity-error" : undefined}
+                    className={cn(
+                      "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all",
+                      !hasValidQuantity && "border-red-300 focus:border-red-400"
+                    )}
                   />
+                  {!hasValidQuantity && (
+                    <p id="mortality-quantity-error" role="alert" className="mt-1.5 text-xs font-medium text-red-600">
+                      A quantidade deve ser um número inteiro maior ou igual a 1.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -979,15 +1006,16 @@ export default function MortalidadePage() {
               <button onClick={() => setModal(null)} className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
               <button
                 onClick={save}
-                disabled={!form.data || !form.causa || !form.loteId}
+                disabled={!canSave}
                 className={cn(
                   "inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold rounded-xl transition-colors cursor-pointer shadow-sm",
-                  form.data && form.causa && form.loteId
+                  canSave
                     ? "text-white bg-red-500 hover:bg-red-600"
                     : "text-gray-400 bg-gray-200 cursor-not-allowed"
                 )}
               >
-                <Check className="w-4 h-4" />{modal === "add" ? "Registrar" : "Salvar"}
+                <Check className="w-4 h-4" />
+                {saving ? "Salvando..." : modal === "add" ? "Registrar" : "Salvar"}
               </button>
             </div>
           </div>

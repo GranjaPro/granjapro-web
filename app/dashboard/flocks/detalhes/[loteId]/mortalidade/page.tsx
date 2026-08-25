@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import ModalPortal from "@/components/ui/modal-portal";
@@ -48,6 +48,7 @@ import {
 } from "@/lib/services/mortality";
 import { usePlan } from "@/components/plan/plan-provider";
 import { hasMinimumPlan } from "@/lib/plans";
+import { isValidMortalityQuantity } from "@/lib/domain/mortality-validation";
 import { cn } from "@/lib/utils";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 
@@ -247,6 +248,7 @@ export default function MortalidadeLotePage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [form, setForm] = useState({
     data: toIsoDate(new Date()),
     quantidade: "1",
@@ -254,6 +256,13 @@ export default function MortalidadeLotePage() {
     galpaoId: "",
     observacao: "",
   });
+  const hasValidQuantity = isValidMortalityQuantity(form.quantidade);
+  const canSave = Boolean(
+    form.data.trim()
+      && form.causa.trim()
+      && hasValidQuantity
+      && !saving
+  );
 
   const fetchData = useCallback(async () => {
     if (authLoading) return;
@@ -506,9 +515,10 @@ export default function MortalidadeLotePage() {
   }
 
   async function save() {
-    if (!farm || !flock || !form.data || !form.causa || saving) return;
+    if (!farm || !flock || !canSave || savingRef.current) return;
 
-    const deadBirds = Math.max(1, Number(form.quantidade) || 1);
+    savingRef.current = true;
+    const deadBirds = Number(form.quantidade);
     const recordRate = getMortalityRate(deadBirds, birdCount, totalMortesHistorico);
     const payload: TablesInsert<"mortality"> = {
       farm_id: farm.id,
@@ -544,6 +554,7 @@ export default function MortalidadeLotePage() {
     } catch (error) {
       console.error("Error saving mortality record:", error);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -1012,10 +1023,21 @@ export default function MortalidadeLotePage() {
                     <input
                       type="number"
                       min="1"
+                      step="1"
                       value={form.quantidade}
                       onChange={(event) => setForm((current) => ({ ...current, quantidade: event.target.value }))}
-                      className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-800 outline-none transition-all focus:border-red-300 focus:ring-2 focus:ring-red-500/20"
+                      aria-invalid={!hasValidQuantity}
+                      aria-describedby={!hasValidQuantity ? "flock-mortality-quantity-error" : undefined}
+                      className={cn(
+                        "w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-800 outline-none transition-all focus:border-red-300 focus:ring-2 focus:ring-red-500/20",
+                        !hasValidQuantity && "border-red-300 focus:border-red-400"
+                      )}
                     />
+                    {!hasValidQuantity && (
+                      <p id="flock-mortality-quantity-error" role="alert" className="mt-1.5 text-xs font-medium text-red-600">
+                        A quantidade deve ser um número inteiro maior ou igual a 1.
+                      </p>
+                    )}
                   </label>
                 </div>
 
@@ -1071,10 +1093,10 @@ export default function MortalidadeLotePage() {
                 <button
                   type="button"
                   onClick={save}
-                  disabled={!form.data || !form.causa || saving}
+                  disabled={!canSave}
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-semibold shadow-sm transition-colors",
-                    form.data && form.causa && !saving
+                    canSave
                       ? "bg-red-500 text-white hover:bg-red-600"
                       : "cursor-not-allowed bg-gray-200 text-gray-400"
                   )}

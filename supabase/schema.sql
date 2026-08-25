@@ -1415,3 +1415,164 @@ create index if not exists idx_packaging_inventory_farm_entry_date on public.pac
 create index if not exists idx_inventory_losses_farm_date on public.inventory_losses(farm_id, loss_date);
 create index if not exists idx_inventory_losses_location on public.inventory_losses(location_id);
 
+-- ============================================
+-- Migration 00041: Single Default Storage Location
+-- ============================================
+
+-- Preserve the most recently updated default in each farm/category
+-- and demote existing duplicates without deleting any location.
+with ranked_defaults as (
+  select
+    id,
+    row_number() over (
+      partition by farm_id, category
+      order by updated_at desc, created_at desc, id desc
+    ) as default_rank
+  from public.storage_locations
+  where is_default = true
+)
+update public.storage_locations
+set
+  is_default = false,
+  updated_at = now()
+where id in (
+  select id
+  from ranked_defaults
+  where default_rank > 1
+);
+
+create or replace function public.enforce_single_default_storage_location()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.is_default then
+    update public.storage_locations
+       set is_default = false,
+           updated_at = now()
+     where farm_id = new.farm_id
+       and category = new.category
+       and id <> new.id
+       and is_default = true;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists enforce_single_default_storage_location
+  on public.storage_locations;
+
+create trigger enforce_single_default_storage_location
+  before insert or update of farm_id, category, is_default
+  on public.storage_locations
+  for each row
+  execute procedure public.enforce_single_default_storage_location();
+
+create unique index if not exists
+  idx_storage_locations_single_default_per_category
+  on public.storage_locations (farm_id, category)
+  where is_default = true;
+
+-- ============================================
+-- Migration 00042: Inventory Deletion Integrity
+-- ============================================
+
+alter table public.feed_consumption
+  drop constraint if exists feed_consumption_feed_inventory_id_fkey;
+
+alter table public.feed_consumption
+  add constraint feed_consumption_feed_inventory_id_fkey
+  foreign key (feed_inventory_id)
+  references public.feed_inventory(id)
+  on delete cascade;
+
+alter table public.financial_transactions
+  drop constraint if exists financial_transactions_feed_inventory_id_fkey,
+  drop constraint if exists financial_transactions_medicine_inventory_id_fkey,
+  drop constraint if exists financial_transactions_packaging_inventory_id_fkey,
+  drop constraint if exists financial_transactions_equipment_inventory_id_fkey;
+
+alter table public.financial_transactions
+  add constraint financial_transactions_feed_inventory_id_fkey
+    foreign key (feed_inventory_id) references public.feed_inventory(id) on delete cascade,
+  add constraint financial_transactions_medicine_inventory_id_fkey
+    foreign key (medicine_inventory_id) references public.medicine_inventory(id) on delete cascade,
+  add constraint financial_transactions_packaging_inventory_id_fkey
+    foreign key (packaging_inventory_id) references public.packaging_inventory(id) on delete cascade,
+  add constraint financial_transactions_equipment_inventory_id_fkey
+    foreign key (equipment_inventory_id) references public.equipment_inventory(id) on delete cascade;
+
+alter table public.inventory_losses
+  drop constraint if exists inventory_losses_feed_inventory_id_fkey,
+  drop constraint if exists inventory_losses_vaccine_inventory_id_fkey,
+  drop constraint if exists inventory_losses_medicine_inventory_id_fkey,
+  drop constraint if exists inventory_losses_packaging_inventory_id_fkey,
+  drop constraint if exists inventory_losses_equipment_inventory_id_fkey;
+
+alter table public.inventory_losses
+  add constraint inventory_losses_feed_inventory_id_fkey
+    foreign key (feed_inventory_id) references public.feed_inventory(id) on delete cascade,
+  add constraint inventory_losses_medicine_inventory_id_fkey
+    foreign key (medicine_inventory_id) references public.medicine_inventory(id) on delete cascade,
+  add constraint inventory_losses_packaging_inventory_id_fkey
+    foreign key (packaging_inventory_id) references public.packaging_inventory(id) on delete cascade,
+  add constraint inventory_losses_equipment_inventory_id_fkey
+    foreign key (equipment_inventory_id) references public.equipment_inventory(id) on delete cascade;
+
+create or replace function public.safe_delete_storage_location()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  default_location_id uuid;
+begin
+  if old.is_default then
+    raise exception using
+      errcode = 'P0001',
+      message = 'O local padrão não pode ser excluído.';
+  end if;
+
+  select id
+    into default_location_id
+    from public.storage_locations
+   where farm_id = old.farm_id
+     and category = old.category
+     and is_default = true
+     and id <> old.id
+   limit 1;
+
+  if default_location_id is null then
+    raise exception using
+      errcode = 'P0001',
+      message = 'O local padrão "Sem local definido" não foi encontrado para esta categoria.';
+  end if;
+
+  if old.category = 'feed' then
+    update public.feed_inventory
+       set location_id = default_location_id
+     where location_id = old.id;
+  elsif old.category = 'medicine' then
+    update public.medicine_inventory
+       set location_id = default_location_id
+     where location_id = old.id;
+  elsif old.category = 'packaging' then
+    update public.packaging_inventory
+       set location_id = default_location_id
+     where location_id = old.id;
+  elsif old.category = 'equipment' then
+    update public.equipment_inventory
+       set location_id = default_location_id
+     where location_id = old.id;
+  end if;
+
+  update public.inventory_losses
+     set location_id = default_location_id
+   where location_id = old.id;
+
+  return old;
+end;
+$$;
+
