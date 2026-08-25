@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import ModalPortal from "@/components/ui/modal-portal";
+import { useState, useEffect, useCallback } from "react";
+import { AccessibleDialog } from "@/components/ui/accessible-dialog";
 import {
   Wrench,
   Plus,
@@ -25,10 +25,22 @@ import {
   ArrowUpRight,
   Activity,
   DollarSign,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
-import { createClient } from "@/lib/supabase/client";
+import {
+  createEquipment,
+  deleteEquipment,
+  getEquipmentByFarm,
+  updateEquipment,
+  type EquipmentInsert,
+} from "@/lib/services/equipment";
+import {
+  calculateLifeUsagePercent,
+  summarizeUniqueEquipmentRisk,
+  validateEquipmentForm,
+} from "@/lib/domain/equipment";
 
 type TipoEquipamento = "alimentacao" | "climatizacao" | "iluminacao" | "hidraulico" | "geral";
 type StatusEquipamento = "operacional" | "manutencao" | "inativo";
@@ -110,8 +122,6 @@ const emptyForm = {
 
 export default function EquipamentosPage() {
   const { farm } = useAuth();
-  const farmRef = useRef(farm);
-  farmRef.current = farm;
 
   const [search, setSearch] = useState("");
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
@@ -121,25 +131,20 @@ export default function EquipamentosPage() {
   const [form, setForm] = useState({ ...emptyForm });
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [filterTipo, setFilterTipo] = useState<TipoEquipamento | "todos">("todos");
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const fetchData = useCallback(async () => {
-    const currentFarm = farmRef.current;
-    if (!currentFarm) return;
+    if (!farm?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    setError(null);
 
-    const supabase = createClient();
     try {
-      const { data, error } = await supabase
-        .from("equipment")
-        .select("*")
-        .eq("farm_id", currentFarm.id);
-
-      if (error) {
-        setEquipamentos([]);
-        return;
-      }
-
-      const mapped: Equipamento[] = (data || []).map((i: any) => ({
+      const data = await getEquipmentByFarm(farm.id);
+      const mapped: Equipamento[] = data.map((i) => ({
         id: i.id,
         nome: i.name || "",
         localizacao: i.location || "",
@@ -150,20 +155,20 @@ export default function EquipamentosPage() {
         dataInstalacao: i.installation_date || "",
         proximaManutencao: i.next_maintenance_date || "",
         observacoes: i.notes || "",
-        valorEquipamento: i.equipment_value || 0,
-        horasUso: i.usage_hours || 0,
-        vidaUtilHoras: i.lifespan_hours || 0,
+        valorEquipamento: Number(i.equipment_value ?? 0),
+        horasUso: Number(i.usage_hours ?? 0),
+        vidaUtilHoras: Number(i.lifespan_hours ?? 0),
         empresaInstalacao: i.installation_company || "",
         contatoEmpresa: i.support_contact || "",
       }));
 
       setEquipamentos(mapped);
-    } catch (e) {
-      console.error(e);
+    } catch (loadError: unknown) {
+      setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar os equipamentos.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [farm?.id]);
 
   useEffect(() => {
     fetchData();
@@ -172,6 +177,7 @@ export default function EquipamentosPage() {
   function openAdd() {
     setForm({ ...emptyForm });
     setEditing(null);
+    setError(null);
     setModal("add");
   }
 
@@ -193,17 +199,29 @@ export default function EquipamentosPage() {
       contatoEmpresa: item.contatoEmpresa,
     });
     setEditing(item);
+    setError(null);
     setModal("edit");
   }
 
   async function save() {
-    if (!form.nome.trim()) return;
-    const currentFarm = farmRef.current;
-    if (!currentFarm) return;
+    if (!farm?.id || isSaving) return;
 
-    const record = {
-      farm_id: currentFarm.id,
+    const validation = validateEquipmentForm({
       name: form.nome,
+      equipmentValue: form.valorEquipamento,
+      usageHours: form.horasUso,
+      lifespanHours: form.vidaUtilHoras,
+      installationDate: form.dataInstalacao,
+      nextMaintenanceDate: form.proximaManutencao,
+    });
+    if (!validation.valid) {
+      setError(validation.message);
+      return;
+    }
+
+    const record: EquipmentInsert = {
+      farm_id: farm.id,
+      name: validation.values.name,
       location: form.localizacao,
       type: form.tipo,
       status: form.status,
@@ -212,35 +230,42 @@ export default function EquipamentosPage() {
       installation_date: form.dataInstalacao || null,
       next_maintenance_date: form.proximaManutencao || null,
       notes: form.observacoes,
-      equipment_value: Number(form.valorEquipamento) || 0,
-      usage_hours: Number(form.horasUso) || 0,
-      lifespan_hours: Number(form.vidaUtilHoras) || 0,
+      equipment_value: validation.values.equipmentValue,
+      usage_hours: validation.values.usageHours,
+      lifespan_hours: validation.values.lifespanHours,
       installation_company: form.empresaInstalacao,
       support_contact: form.contatoEmpresa,
     };
 
-    const supabase = createClient();
+    setError(null);
+    setIsSaving(true);
     try {
       if (modal === "add") {
-        await supabase.from("equipment").insert(record);
+        await createEquipment(record);
       } else if (editing) {
-        await supabase.from("equipment").update(record).eq("id", editing.id);
+        await updateEquipment(editing.id, record);
       }
       setModal(null);
-      fetchData();
-    } catch (e) {
-      console.error(e);
+      await fetchData();
+    } catch (saveError: unknown) {
+      setError(saveError instanceof Error ? saveError.message : "Não foi possível salvar o equipamento.");
+    } finally {
+      setIsSaving(false);
     }
   }
 
   async function deleteItem(id: string) {
-    const supabase = createClient();
+    if (isSaving) return;
+    setError(null);
+    setIsSaving(true);
     try {
-      await supabase.from("equipment").delete().eq("id", id);
+      await deleteEquipment(id);
       setDeleteConfirm(null);
-      fetchData();
-    } catch (e) {
-      console.error(e);
+      await fetchData();
+    } catch (deleteError: unknown) {
+      setError(deleteError instanceof Error ? deleteError.message : "Não foi possível excluir o equipamento.");
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -257,8 +282,7 @@ export default function EquipamentosPage() {
     return Math.ceil((new Date(d + "T00:00:00").getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   }
   function vidaUtilPercent(item: Equipamento) {
-    if (item.vidaUtilHoras <= 0) return 0;
-    return Math.min(100, Math.round((item.horasUso / item.vidaUtilHoras) * 100));
+    return calculateLifeUsagePercent(item.horasUso, item.vidaUtilHoras);
   }
 
   const totalOperacional = equipamentos.filter((i) => i.status === "operacional").length;
@@ -271,9 +295,26 @@ export default function EquipamentosPage() {
   const manutencaoProxima = comManutencao.filter((i) => i.diasManut <= 30 && i.diasManut >= 0);
   const manutencaoAtrasada = comManutencao.filter((i) => i.diasManut < 0);
   const vidaUtilCritica = equipamentos.filter((i) => vidaUtilPercent(i) >= 80);
-  const custoManutencaoRisco = [...manutencaoProxima, ...manutencaoAtrasada].reduce((s, i) => s + i.valorEquipamento, 0);
-  const custoVidaUtilRisco = vidaUtilCritica.reduce((s, i) => s + i.valorEquipamento, 0);
-  const totalAlertas = manutencaoProxima.length + manutencaoAtrasada.length + vidaUtilCritica.length + totalInativo;
+  const maintenanceRisk = summarizeUniqueEquipmentRisk([
+    manutencaoProxima.map((item) => ({ id: item.id, equipmentValue: item.valorEquipamento })),
+    manutencaoAtrasada.map((item) => ({ id: item.id, equipmentValue: item.valorEquipamento })),
+  ]);
+  const criticalRisk = summarizeUniqueEquipmentRisk([
+    manutencaoProxima.map((item) => ({ id: item.id, equipmentValue: item.valorEquipamento })),
+    manutencaoAtrasada.map((item) => ({ id: item.id, equipmentValue: item.valorEquipamento })),
+    vidaUtilCritica.map((item) => ({ id: item.id, equipmentValue: item.valorEquipamento })),
+  ]);
+  const alertSummary = summarizeUniqueEquipmentRisk([
+    manutencaoProxima.map((item) => ({ id: item.id, equipmentValue: item.valorEquipamento })),
+    manutencaoAtrasada.map((item) => ({ id: item.id, equipmentValue: item.valorEquipamento })),
+    vidaUtilCritica.map((item) => ({ id: item.id, equipmentValue: item.valorEquipamento })),
+    equipamentos
+      .filter((item) => item.status === "inativo")
+      .map((item) => ({ id: item.id, equipmentValue: item.valorEquipamento })),
+  ]);
+  const custoManutencaoRisco = maintenanceRisk.totalValue;
+  const custoTotalRisco = criticalRisk.totalValue;
+  const totalAlertas = alertSummary.count;
 
   if (loading) {
     return (
@@ -295,15 +336,29 @@ export default function EquipamentosPage() {
             <Wrench className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Equipamentos</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Gerencie os equipamentos da sua granja</p>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Equipamentos em operação</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Acompanhe instalação, manutenção, disponibilidade e vida útil</p>
           </div>
         </div>
         <button onClick={openAdd} className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-5 py-2.5 transition-colors cursor-pointer shadow-sm shadow-brand-600/20">
           <Plus className="w-4 h-4" />
-          Novo Equipamento
+          Novo equipamento em operação
         </button>
       </div>
+
+      <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+        <Package className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600" />
+        <p className="text-sm text-blue-800">
+          Cadastre aqui equipamentos instalados ou em uso. Unidades guardadas e peças de reposição devem ser registradas em <span className="font-semibold">Estoque › Equipamentos em estoque</span>.
+        </p>
+      </div>
+
+      {error && (
+        <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
@@ -397,7 +452,7 @@ export default function EquipamentosPage() {
           </div>
           <p className={cn("text-2xl font-bold tracking-tight leading-none", totalAlertas > 0 ? "text-amber-700" : "text-emerald-700")}>{totalAlertas}</p>
           <div className="mt-2 space-y-0.5">
-            {(custoManutencaoRisco + custoVidaUtilRisco) > 0 && <p className="text-[10px] text-red-600 font-bold">{formatCurrency(custoManutencaoRisco + custoVidaUtilRisco)} em risco</p>}
+            {custoTotalRisco > 0 && <p className="text-[10px] text-red-600 font-bold">{formatCurrency(custoTotalRisco)} em risco</p>}
             {manutencaoAtrasada.length > 0 && <p className="text-[10px] text-red-500 font-medium">{manutencaoAtrasada.length} manut. atrasada{manutencaoAtrasada.length > 1 ? "s" : ""}</p>}
             {manutencaoProxima.length > 0 && <p className="text-[10px] text-amber-600 font-medium">{manutencaoProxima.length} manut. em 30d</p>}
             {vidaUtilCritica.length > 0 && <p className="text-[10px] text-orange-600 font-medium">{vidaUtilCritica.length} vida útil &gt;80%</p>}
@@ -474,7 +529,8 @@ export default function EquipamentosPage() {
 
       {/* Filters + Search */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+        <div className="overflow-x-auto rounded-xl">
+          <div className="flex min-w-max items-center gap-1 bg-gray-100 rounded-xl p-1">
           {([
             { key: "todos" as const, label: "Todos" },
             { key: "alimentacao" as const, label: "Alimentação" },
@@ -485,7 +541,9 @@ export default function EquipamentosPage() {
           ]).map((t) => (
             <button
               key={t.key}
+              type="button"
               onClick={() => setFilterTipo(t.key)}
+              aria-pressed={filterTipo === t.key}
               className={cn(
                 "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer",
                 filterTipo === t.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
@@ -494,11 +552,12 @@ export default function EquipamentosPage() {
               {t.label}
             </button>
           ))}
+          </div>
         </div>
 
         <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3.5 py-2 w-full sm:w-72 sm:ml-auto focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-300 transition-all">
           <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          <input type="text" placeholder="Buscar equipamento..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none w-full" />
+          <input type="search" aria-label="Buscar equipamento" placeholder="Buscar equipamento..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none w-full" />
         </div>
       </div>
 
@@ -524,11 +583,11 @@ export default function EquipamentosPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer">
-                    <Pencil className="w-3.5 h-3.5" />
+                  <button type="button" aria-label={`Editar ${item.nome}`} onClick={() => openEdit(item)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer">
+                    <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
-                  <button onClick={() => setDeleteConfirm(item.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer">
-                    <Trash2 className="w-3.5 h-3.5" />
+                  <button type="button" aria-label={`Excluir ${item.nome}`} onClick={() => { setError(null); setDeleteConfirm(item.id); }} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer">
+                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -549,7 +608,7 @@ export default function EquipamentosPage() {
               <div className="mt-3 space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-500">Vida útil</span>
-                  <span className="font-semibold text-gray-700">{pctVida}% <span className="text-[10px] text-gray-400 font-normal">({item.horasUso.toLocaleString("pt-BR")}h)</span></span>
+                  <span className="font-semibold text-gray-700">{pctVida}% <span className="text-[10px] text-gray-400 font-normal">({item.horasUso.toLocaleString("pt-BR")}h{pctVida > 100 ? " — excedida" : ""})</span></span>
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-gray-100">
                   <div
@@ -557,13 +616,13 @@ export default function EquipamentosPage() {
                       "h-1.5 rounded-full transition-all",
                       pctVida >= 90 ? "bg-red-400" : pctVida >= 70 ? "bg-amber-400" : "bg-brand-500"
                     )}
-                    style={{ width: pctVida + "%" }}
+                    style={{ width: Math.min(100, pctVida) + "%" }}
                   />
                 </div>
               </div>
 
               {/* Maintenance + Installation dates */}
-              <div className="mt-3 flex items-center gap-2">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 {item.proximaManutencao && (
                   <div className={cn("flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg", diasManut < 0 ? "text-red-600 bg-red-50" : diasManut <= 15 ? "text-amber-600 bg-amber-50" : "text-gray-500 bg-gray-50")}>
                     <Clock className="w-3 h-3" />
@@ -612,43 +671,50 @@ export default function EquipamentosPage() {
           );
         })}
         {filtered.length === 0 && (
-          <div className="col-span-full text-center py-16 text-gray-400 text-sm">Nenhum equipamento encontrado.</div>
+          <div className="col-span-full text-center py-16 text-gray-400 text-sm">
+            {equipamentos.length === 0 ? "Nenhum equipamento cadastrado." : "Nenhum equipamento encontrado para os filtros atuais."}
+          </div>
         )}
       </div>
 
       {/* Modal */}
       {modal && (
-        <ModalPortal>
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setModal(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <AccessibleDialog
+          titleId="equipment-modal-title"
+          onClose={() => setModal(null)}
+          preventClose={isSaving}
+          className="max-w-lg p-6"
+        >
+          <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); void save(); }}>
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900">
-                {modal === "add" ? "Novo Equipamento" : "Editar Equipamento"}
+              <h2 id="equipment-modal-title" className="text-lg font-bold text-gray-900">
+                {modal === "add" ? "Novo equipamento em operação" : "Editar equipamento em operação"}
               </h2>
-              <button onClick={() => setModal(null)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
-                <X className="w-5 h-5" />
+              <button type="button" aria-label="Fechar formulário de equipamento" disabled={isSaving} onClick={() => setModal(null)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
+            {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nome</label>
-                <input type="text" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Ex: Comedouro Automático" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                <label htmlFor="equipment-name" className="block text-xs font-semibold text-gray-600 mb-1.5">Nome</label>
+                <input id="equipment-name" data-autofocus type="text" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Ex: Comedouro Automático" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Localização</label>
-                <input type="text" value={form.localizacao} onChange={(e) => setForm({ ...form, localizacao: e.target.value })} placeholder="Ex: Galpão Vale Verde" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                <label htmlFor="equipment-location" className="block text-xs font-semibold text-gray-600 mb-1.5">Localização</label>
+                <input id="equipment-location" type="text" value={form.localizacao} onChange={(e) => setForm({ ...form, localizacao: e.target.value })} placeholder="Ex: Galpão Vale Verde" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tipo</label>
-                  <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoEquipamento })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
+                  <label htmlFor="equipment-type" className="block text-xs font-semibold text-gray-600 mb-1.5">Tipo</label>
+                  <select id="equipment-type" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoEquipamento })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
                     {tipoOptions.map((t) => <option key={t} value={t}>{tipoLabel[t]}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Status</label>
-                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as StatusEquipamento })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
+                  <label htmlFor="equipment-status" className="block text-xs font-semibold text-gray-600 mb-1.5">Status</label>
+                  <select id="equipment-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as StatusEquipamento })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all bg-white cursor-pointer">
                     <option value="operacional">Operacional</option>
                     <option value="manutencao">Manutenção</option>
                     <option value="inativo">Inativo</option>
@@ -656,92 +722,99 @@ export default function EquipamentosPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Marca</label>
-                  <input type="text" value={form.marca} onChange={(e) => setForm({ ...form, marca: e.target.value })} placeholder="Ex: AviTech" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  <label htmlFor="equipment-brand" className="block text-xs font-semibold text-gray-600 mb-1.5">Marca</label>
+                  <input id="equipment-brand" type="text" value={form.marca} onChange={(e) => setForm({ ...form, marca: e.target.value })} placeholder="Ex: AviTech" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Modelo</label>
-                  <input type="text" value={form.modelo} onChange={(e) => setForm({ ...form, modelo: e.target.value })} placeholder="Ex: CA-500" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Data de Instalação</label>
-                  <input type="date" value={form.dataInstalacao} onChange={(e) => setForm({ ...form, dataInstalacao: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Próxima Manutenção</label>
-                  <input type="date" value={form.proximaManutencao} onChange={(e) => setForm({ ...form, proximaManutencao: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  <label htmlFor="equipment-model" className="block text-xs font-semibold text-gray-600 mb-1.5">Modelo</label>
+                  <input id="equipment-model" type="text" value={form.modelo} onChange={(e) => setForm({ ...form, modelo: e.target.value })} placeholder="Ex: CA-500" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Valor (R$)</label>
-                  <input type="number" min="0" step="0.01" value={form.valorEquipamento} onChange={(e) => setForm({ ...form, valorEquipamento: e.target.value })} placeholder="18500" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  <label htmlFor="equipment-installation-date" className="block text-xs font-semibold text-gray-600 mb-1.5">Data de Instalação</label>
+                  <input id="equipment-installation-date" type="date" value={form.dataInstalacao} onChange={(e) => setForm({ ...form, dataInstalacao: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Horas de Uso</label>
-                  <input type="number" min="0" value={form.horasUso} onChange={(e) => setForm({ ...form, horasUso: e.target.value })} placeholder="14200" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  <label htmlFor="equipment-maintenance-date" className="block text-xs font-semibold text-gray-600 mb-1.5">Próxima Manutenção</label>
+                  <input id="equipment-maintenance-date" type="date" value={form.proximaManutencao} onChange={(e) => setForm({ ...form, proximaManutencao: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div>
+                  <label htmlFor="equipment-value" className="block text-xs font-semibold text-gray-600 mb-1.5">Valor (R$)</label>
+                  <input id="equipment-value" type="number" min="0" step="0.01" value={form.valorEquipamento} onChange={(e) => setForm({ ...form, valorEquipamento: e.target.value })} placeholder="18500" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Vida Útil (h)</label>
-                  <input type="number" min="0" value={form.vidaUtilHoras} onChange={(e) => setForm({ ...form, vidaUtilHoras: e.target.value })} placeholder="25000" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                  <label htmlFor="equipment-usage-hours" className="block text-xs font-semibold text-gray-600 mb-1.5">Horas de Uso</label>
+                  <input id="equipment-usage-hours" type="number" min="0" value={form.horasUso} onChange={(e) => setForm({ ...form, horasUso: e.target.value })} placeholder="14200" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                </div>
+                <div>
+                  <label htmlFor="equipment-lifespan-hours" className="block text-xs font-semibold text-gray-600 mb-1.5">Vida Útil (h)</label>
+                  <input id="equipment-lifespan-hours" type="number" min="0" value={form.vidaUtilHoras} onChange={(e) => setForm({ ...form, vidaUtilHoras: e.target.value })} placeholder="25000" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                 </div>
               </div>
 
               {/* Suporte */}
               <div className="border-t border-dashed border-gray-200 pt-4">
                 <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Suporte</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Empresa de Suporte</label>
-                    <input type="text" value={form.empresaInstalacao} onChange={(e) => setForm({ ...form, empresaInstalacao: e.target.value })} placeholder="Ex: AviTech Soluções" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    <label htmlFor="equipment-support-company" className="block text-xs font-semibold text-gray-600 mb-1.5">Empresa de Suporte</label>
+                    <input id="equipment-support-company" type="text" value={form.empresaInstalacao} onChange={(e) => setForm({ ...form, empresaInstalacao: e.target.value })} placeholder="Ex: AviTech Soluções" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Contato do Suporte</label>
-                    <input type="text" value={form.contatoEmpresa} onChange={(e) => setForm({ ...form, contatoEmpresa: e.target.value })} placeholder="(11) 98765-4321" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
+                    <label htmlFor="equipment-support-contact" className="block text-xs font-semibold text-gray-600 mb-1.5">Contato do Suporte</label>
+                    <input id="equipment-support-contact" type="text" value={form.contatoEmpresa} onChange={(e) => setForm({ ...form, contatoEmpresa: e.target.value })} placeholder="(11) 98765-4321" className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all" />
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Observações</label>
-                <textarea value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} placeholder="Notas sobre o equipamento..." rows={2} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all resize-none" />
+                <label htmlFor="equipment-notes" className="block text-xs font-semibold text-gray-600 mb-1.5">Observações</label>
+                <textarea id="equipment-notes" value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} placeholder="Notas sobre o equipamento..." rows={2} className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 transition-all resize-none" />
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 pt-2">
-              <button onClick={() => setModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
-              <button onClick={save} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition-colors cursor-pointer shadow-sm">
-                <Check className="w-4 h-4" />
-                Salvar
+              <button type="button" disabled={isSaving} onClick={() => setModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">Cancelar</button>
+              <button type="submit" disabled={isSaving} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition-colors cursor-pointer shadow-sm disabled:cursor-not-allowed disabled:bg-gray-300">
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Check className="w-4 h-4" aria-hidden="true" />}
+                {isSaving ? "Salvando..." : "Salvar"}
               </button>
             </div>
-          </div>
-        </div>
-        </ModalPortal>
+          </form>
+        </AccessibleDialog>
       )}
 
       {/* Delete Confirmation */}
       {deleteConfirm !== null && (
-        <ModalPortal>
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setDeleteConfirm(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4" onClick={(e) => e.stopPropagation()}>
+        <AccessibleDialog
+          titleId="equipment-delete-title"
+          descriptionId="equipment-delete-description"
+          onClose={() => setDeleteConfirm(null)}
+          preventClose={isSaving}
+          className="max-w-sm p-6 text-center"
+        >
+          <div className="space-y-4">
             <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto">
-              <Trash2 className="w-5 h-5 text-red-500" />
+              <Trash2 className="w-5 h-5 text-red-500" aria-hidden="true" />
             </div>
-            <h3 className="text-base font-bold text-gray-900">Confirmar exclusão</h3>
-            <p className="text-sm text-gray-500">Tem certeza que deseja excluir este equipamento? Esta ação não pode ser desfeita.</p>
+            <h3 id="equipment-delete-title" className="text-base font-bold text-gray-900">Confirmar exclusão</h3>
+            <p id="equipment-delete-description" className="text-sm text-gray-500">Tem certeza que deseja excluir este equipamento? Esta ação não pode ser desfeita.</p>
+            {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
             <div className="flex items-center justify-center gap-2 pt-1">
-              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">Cancelar</button>
-              <button onClick={() => deleteItem(deleteConfirm)} className="px-5 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors cursor-pointer shadow-sm">Excluir</button>
+              <button type="button" disabled={isSaving} onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">Cancelar</button>
+              <button type="button" disabled={isSaving} onClick={() => void deleteItem(deleteConfirm)} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors cursor-pointer shadow-sm disabled:cursor-not-allowed disabled:bg-gray-300">
+                {isSaving && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
+                {isSaving ? "Excluindo..." : "Excluir"}
+              </button>
             </div>
           </div>
-        </div>
-        </ModalPortal>
+        </AccessibleDialog>
       )}
     </div>
   );

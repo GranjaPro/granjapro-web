@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/supabase/client";
+import type { Database } from "@/lib/database.types";
 
-export async function getEquipmentByFarm(farmId: string) {
+export type EquipmentRow = Database["public"]["Tables"]["equipment"]["Row"];
+export type EquipmentInsert = Database["public"]["Tables"]["equipment"]["Insert"];
+export type EquipmentUpdate = Database["public"]["Tables"]["equipment"]["Update"];
+
+export async function getEquipmentByFarm(farmId: string): Promise<EquipmentRow[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("equipment")
@@ -11,7 +16,7 @@ export async function getEquipmentByFarm(farmId: string) {
   return data;
 }
 
-export async function createEquipment(record: Record<string, any>) {
+export async function createEquipment(record: EquipmentInsert): Promise<EquipmentRow> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("equipment")
@@ -22,7 +27,7 @@ export async function createEquipment(record: Record<string, any>) {
   return data;
 }
 
-export async function updateEquipment(id: string, updates: Record<string, any>) {
+export async function updateEquipment(id: string, updates: EquipmentUpdate): Promise<EquipmentRow> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("equipment")
@@ -34,7 +39,7 @@ export async function updateEquipment(id: string, updates: Record<string, any>) 
   return data;
 }
 
-export async function deleteEquipment(id: string) {
+export async function deleteEquipment(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase
     .from("equipment")
