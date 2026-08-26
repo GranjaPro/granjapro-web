@@ -68,11 +68,10 @@ import { calculateKpiVariation, getComparisonPeriod, type KpiVariation } from "@
 import type { FlockMortality, ProductiveFlock } from "@/lib/domain/egg-production-metrics";
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
-  getInventoryLowStockThresholdStorageKey,
   isInventoryStockOld,
-  parseInventoryLowStockThreshold,
   resolveInventoryStockStatus,
 } from "@/lib/domain/inventory-stock-status";
+import { getNotificationSettings } from "@/lib/services/alerts";
 
 /* ── Types ── */
 type TipoRacao = "milho" | "soja" | "comercial" | "custom";
@@ -608,13 +607,18 @@ export default function RacaoPage() {
 
   useEffect(() => {
     if (!farmId) return;
-
-    const savedThreshold = window.localStorage.getItem(
-      getInventoryLowStockThresholdStorageKey(farmId),
-    );
-    setLowStockThreshold(
-      parseInventoryLowStockThreshold(savedThreshold) ?? DEFAULT_LOW_STOCK_THRESHOLD,
-    );
+    let active = true;
+    getNotificationSettings(farmId)
+      .then((settings) => {
+        if (active) setLowStockThreshold(settings.lowStockThresholdPercent);
+      })
+      .catch((loadError: unknown) => {
+        console.error(loadError);
+        if (active) setError("Não foi possível carregar o limite de estoque da fazenda.");
+      });
+    return () => {
+      active = false;
+    };
   }, [farmId]);
 
   const getEffectiveStockStatus = useCallback((item: ItemEstoque) => resolveInventoryStockStatus(

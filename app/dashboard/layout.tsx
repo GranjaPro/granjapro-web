@@ -14,6 +14,7 @@ import {
 } from "@/lib/plans";
 import { useAuth } from "@/components/auth/auth-provider";
 import ProfileSettings from "@/components/dashboard/profile-settings";
+import { NotificationInbox } from "@/components/dashboard/notification-inbox";
 import { DateFilterProvider } from "@/components/date-filter";
 import { PlanProvider, usePlan } from "@/components/plan/plan-provider";
 import { ActivePlanBadge, RequiredPlanBadge } from "@/components/plan/plan-badge";
@@ -36,7 +37,6 @@ import {
   Bot,
   FileText,
   MessageSquare,
-  Bell,
   Menu,
   X,
   PanelLeftClose,
@@ -543,10 +543,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="flex items-center gap-2">
-              <button className="relative flex items-center justify-center w-9 h-9 rounded-xl bg-gray-100/80 text-gray-500 hover:bg-gray-100 dark:bg-white/8 dark:text-slate-300 dark:hover:bg-white/12 transition-colors cursor-pointer">
-                <Bell className="w-[18px] h-[18px]" />
-                <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-red-500 dark:bg-red-400 ring-[1.5px] ring-white dark:ring-slate-950" />
-              </button>
+              {user && farm && <NotificationInbox userId={user.id} farmId={farm.id} />}
               <div className="hidden sm:block w-px h-7 bg-gray-200/80 dark:bg-white/10 mx-1" />
               <button
                 onClick={() => setProfileOpen(true)}

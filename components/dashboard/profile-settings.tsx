@@ -6,6 +6,12 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import ModalPortal from "@/components/ui/modal-portal";
 import {
+  getNotificationPreferences,
+  saveNotificationPreferences,
+  type NotificationPreference,
+} from "@/lib/services/alerts";
+import type { NotificationCategory } from "@/lib/domain/notification-rules";
+import {
   X,
   User,
   Building2,
@@ -31,6 +37,13 @@ import {
 type Tab = "profile" | "farm" | "plan" | "preferences" | "users" | "security";
 type DashboardTheme = "light" | "dark";
 const DASHBOARD_THEME_KEY = "granjapro-dashboard-theme";
+const notificationCategoryLabels: Record<NotificationCategory, { title: string; description: string }> = {
+  low_inventory: { title: "Estoque baixo", description: "Itens abaixo do limite configurado" },
+  vaccination: { title: "Vacinação", description: "Vacinas próximas ou vencidas" },
+  low_laying_rate: { title: "Postura baixa", description: "Produção abaixo da meta por idade" },
+  high_mortality: { title: "Mortalidade alta", description: "Mortalidade acima do limite semanal" },
+  delinquent_customer: { title: "Clientes inadimplentes", description: "Pagamentos vencidos há 30 dias" },
+};
 
 interface ProfileSettingsProps {
   open: boolean;
@@ -74,8 +87,9 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
 
   // Preferences
   const [theme, setTheme] = useState<DashboardTheme>("light");
-  const [notifications, setNotifications] = useState(true);
-  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreference[]>([]);
+  const [preferencesLoading, setPreferencesLoading] = useState(false);
+  const [preferenceError, setPreferenceError] = useState<string | null>(null);
 
   // Security
   const [currentPassword, setCurrentPassword] = useState("");
@@ -97,6 +111,54 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
     const storedTheme = window.localStorage.getItem(DASHBOARD_THEME_KEY);
     setTheme(storedTheme === "dark" ? "dark" : "light");
   }, []);
+
+  useEffect(() => {
+    if (!open || !user || !farm) return;
+    let active = true;
+    setPreferencesLoading(true);
+    getNotificationPreferences(user.id, farm.id)
+      .then((preferences) => {
+        if (active) {
+          setNotificationPreferences(preferences);
+          setPreferenceError(null);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error(error);
+        if (active) setPreferenceError("Não foi possível carregar as preferências.");
+      })
+      .finally(() => {
+        if (active) setPreferencesLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [farm, open, user]);
+
+  const handleNotificationPreferenceChange = async (
+    category: NotificationCategory,
+    field: "inAppEnabled" | "emailEnabled",
+  ) => {
+    const previous = notificationPreferences;
+    const updated = previous.map((preference) => preference.category === category
+      ? { ...preference, [field]: !preference[field] }
+      : preference);
+    setNotificationPreferences(updated);
+    setPreferenceError(null);
+    setSaving(true);
+    try {
+      const changedPreference = updated.find((preference) => preference.category === category);
+      if (changedPreference) await saveNotificationPreferences([changedPreference]);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (error: unknown) {
+      console.error(error);
+      setNotificationPreferences(previous);
+      setPreferenceError("Não foi possível salvar a preferência.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleThemeChange = (nextTheme: DashboardTheme) => {
     setTheme(nextTheme);
@@ -545,52 +607,51 @@ export default function ProfileSettings({ open, onClose }: ProfileSettingsProps)
               {/* Preferences Tab */}
               {activeTab === "preferences" && (
                 <div className="space-y-6">
-                  {/* Notifications */}
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Notificações</h3>
-                    <div className="space-y-3">
-                      <label className="flex items-center justify-between p-3 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <Bell className="w-4 h-4 text-gray-400" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-700">Notificações push</p>
-                            <p className="text-[11px] text-gray-400">Alertas no navegador</p>
+                    <div className="mb-3 flex items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-200">Notificações operacionais</h3>
+                        <p className="mt-0.5 text-[11px] text-gray-400">Escolha os canais para cada tipo de alerta.</p>
+                      </div>
+                      {preferencesLoading && <Loader2 className="h-4 w-4 animate-spin text-brand-500" />}
+                    </div>
+                    {preferenceError && <p role="alert" className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{preferenceError}</p>}
+                    <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-white/10">
+                      <div className="grid grid-cols-[1fr_72px_72px] items-center gap-2 bg-gray-50 px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:bg-white/5">
+                        <span className="text-left">Categoria</span><span>Aplicativo</span><span>E-mail</span>
+                      </div>
+                      {notificationPreferences.map((preference) => {
+                        const label = notificationCategoryLabels[preference.category];
+                        return (
+                          <div key={preference.category} className="grid grid-cols-[1fr_72px_72px] items-center gap-2 border-t border-gray-100 px-3 py-3 dark:border-white/10">
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              <Bell className="h-4 w-4 shrink-0 text-gray-400" />
+                              <div className="min-w-0">
+                                <p className="text-xs font-medium text-gray-700 dark:text-slate-200">{label.title}</p>
+                                <p className="truncate text-[10px] text-gray-400">{label.description}</p>
+                              </div>
+                            </div>
+                            {(["inAppEnabled", "emailEnabled"] as const).map((field) => {
+                              const enabled = preference[field];
+                              const channel = field === "inAppEnabled" ? "no aplicativo" : "por e-mail";
+                              return (
+                                <button
+                                  key={field}
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={enabled}
+                                  aria-label={`${label.title} ${channel}`}
+                                  disabled={saving || preferencesLoading}
+                                  onClick={() => void handleNotificationPreferenceChange(preference.category, field)}
+                                  className={`relative mx-auto h-5.5 w-10 cursor-pointer rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${enabled ? "bg-brand-500" : "bg-gray-300"}`}
+                                >
+                                  <span className={`absolute left-0.5 top-0.5 h-4.5 w-4.5 rounded-full bg-white shadow-sm transition-transform ${enabled ? "translate-x-5" : "translate-x-0"}`} />
+                                </button>
+                              );
+                            })}
                           </div>
-                        </div>
-                        <div
-                          onClick={() => setNotifications(!notifications)}
-                          className={`w-10 h-5.5 rounded-full transition-colors relative cursor-pointer ${
-                            notifications ? "bg-brand-500" : "bg-gray-300"
-                          }`}
-                        >
-                          <div
-                            className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow-sm transition-transform ${
-                              notifications ? "translate-x-5" : "translate-x-0.5"
-                            }`}
-                          />
-                        </div>
-                      </label>
-                      <label className="flex items-center justify-between p-3 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <Mail className="w-4 h-4 text-gray-400" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-700">Notificações por e-mail</p>
-                            <p className="text-[11px] text-gray-400">Resumos e alertas importantes</p>
-                          </div>
-                        </div>
-                        <div
-                          onClick={() => setEmailNotifications(!emailNotifications)}
-                          className={`w-10 h-5.5 rounded-full transition-colors relative cursor-pointer ${
-                            emailNotifications ? "bg-brand-500" : "bg-gray-300"
-                          }`}
-                        >
-                          <div
-                            className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow-sm transition-transform ${
-                              emailNotifications ? "translate-x-5" : "translate-x-0.5"
-                            }`}
-                          />
-                        </div>
-                      </label>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

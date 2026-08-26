@@ -48,6 +48,7 @@ import {
   type InventoryCategory,
   type StorageLocationRow,
 } from "@/lib/services/inventory";
+import { getNotificationSettings, saveLowStockThreshold } from "@/lib/services/alerts";
 
 type ActiveTab = "all" | "feed" | "medicine" | "equipment" | "packaging";
 type StorageModalMode = "add" | "edit" | null;
@@ -225,7 +226,7 @@ function isDefaultStorageLocation(location: StorageLocationRow) {
 }
 
 export default function EstoquePage() {
-  const { farm } = useAuth();
+  const { farm, user } = useAuth();
   const farmRef = useRef(farm);
   farmRef.current = farm;
 
@@ -277,13 +278,29 @@ export default function EstoquePage() {
 
   useEffect(() => {
     if (!farm) return;
+    let active = true;
+    const storageKey = getInventoryLowStockThresholdStorageKey(farm.id);
+    const legacyThreshold = parseInventoryLowStockThreshold(window.localStorage.getItem(storageKey));
 
-    const savedThreshold = window.localStorage.getItem(
-      getInventoryLowStockThresholdStorageKey(farm.id),
-    );
-    const parsedThreshold = parseInventoryLowStockThreshold(savedThreshold);
-    setLowStockThreshold(String(parsedThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD));
-  }, [farm]);
+    getNotificationSettings(farm.id)
+      .then(async (settings) => {
+        let threshold = settings.lowStockThresholdPercent;
+        if (legacyThreshold !== null && farm.owner_id === user?.id) {
+          await saveLowStockThreshold(farm.id, legacyThreshold);
+          window.localStorage.removeItem(storageKey);
+          threshold = legacyThreshold;
+        }
+        if (active) setLowStockThreshold(String(threshold));
+      })
+      .catch((error: unknown) => {
+        console.error(error);
+        if (active) setErrorMessage("Não foi possível carregar o limite de estoque da fazenda.");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [farm, user?.id]);
 
   const visibleStorageLocations = storageLocations.filter((location) => {
     if (activeTab === "feed") return location.category === "feed";
@@ -712,7 +729,7 @@ export default function EstoquePage() {
           saving={saving}
           onChange={setLowStockThreshold}
           onClose={() => setThresholdModalOpen(false)}
-          onSave={() => {
+          onSave={async () => {
             if (!farm) return;
 
             const parsedThreshold = parseInventoryLowStockThreshold(lowStockThreshold);
@@ -721,12 +738,18 @@ export default function EstoquePage() {
               return;
             }
 
-            window.localStorage.setItem(
-              getInventoryLowStockThresholdStorageKey(farm.id),
-              String(parsedThreshold),
-            );
-            setLowStockThreshold(String(parsedThreshold));
-            setThresholdModalOpen(false);
+            setSaving(true);
+            try {
+              await saveLowStockThreshold(farm.id, parsedThreshold);
+              window.localStorage.removeItem(getInventoryLowStockThresholdStorageKey(farm.id));
+              setLowStockThreshold(String(parsedThreshold));
+              setThresholdModalOpen(false);
+            } catch (error: unknown) {
+              console.error(error);
+              setErrorMessage("Não foi possível salvar o limite de estoque.");
+            } finally {
+              setSaving(false);
+            }
           }}
         />
       )}
