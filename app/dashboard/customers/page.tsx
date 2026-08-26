@@ -1066,53 +1066,6 @@ export default function ClientesPage() {
                 <p className="text-sm text-gray-500">Sem dados suficientes para insights.</p>
               </div>
             )}
-            {plan !== "premium" ? (
-              <>
-                <LockedOverlay message="Desbloqueie o Assistente de Granja" targetPlan="premium">
-                  <div className="p-3.5 rounded-xl border-l-[3px] bg-emerald-50/50 border-l-emerald-500">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100">
-                        <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />
-                      </div>
-                      <span className="text-sm font-semibold text-gray-800">Previsão de receita para o próximo mês</span>
-                    </div>
-                    <p className="text-xs font-medium ml-7 text-emerald-600">&rarr; Baseada no histórico dos últimos 3 meses</p>
-                  </div>
-                </LockedOverlay>
-                <LockedOverlay message="Desbloqueie o Assistente de Granja" targetPlan="premium">
-                  <div className="p-3.5 rounded-xl border-l-[3px] bg-violet-50/50 border-l-violet-500">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-violet-100">
-                        <Lightbulb className="w-2.5 h-2.5 text-violet-600" />
-                      </div>
-                      <span className="text-sm font-semibold text-gray-800">Clientes com maior potencial de crescimento</span>
-                    </div>
-                    <p className="text-xs font-medium ml-7 text-violet-600">&rarr; Análise de volume e frequência de compra</p>
-                  </div>
-                </LockedOverlay>
-              </>
-            ) : (
-              <>
-                <div className="p-3.5 rounded-xl border-l-[3px] bg-emerald-50/50 border-l-emerald-500">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100">
-                      <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />
-                    </div>
-                    <span className="text-sm font-semibold text-gray-800">Previsão de receita para o próximo mês</span>
-                  </div>
-                  <p className="text-xs font-medium ml-7 text-emerald-600">&rarr; Baseada no histórico dos últimos 3 meses</p>
-                </div>
-                <div className="p-3.5 rounded-xl border-l-[3px] bg-violet-50/50 border-l-violet-500">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-violet-100">
-                      <Lightbulb className="w-2.5 h-2.5 text-violet-600" />
-                    </div>
-                    <span className="text-sm font-semibold text-gray-800">Clientes com maior potencial de crescimento</span>
-                  </div>
-                  <p className="text-xs font-medium ml-7 text-violet-600">&rarr; Análise de volume e frequência de compra</p>
-                </div>
-              </>
-            )}
           </div>
           )}
         </div>

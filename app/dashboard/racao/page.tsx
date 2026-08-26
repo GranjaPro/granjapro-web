@@ -831,9 +831,6 @@ export default function RacaoPage() {
       arr.push({ type: "success", title: "Custo médio dentro do esperado", action: "Manter fornecedores e fórmula atual" });
     }
 
-    arr.push({ type: "info", title: "Consumo estável nos últimos 7 dias", action: "Ritmo consistente — manter práticas atuais de alimentação" });
-    arr.push({ type: "info", title: "Considere ajustar fórmula para o período de calor", action: "Reduzir ração energética e aumentar suplementação hídrica" });
-
     return arr;
   }, [registros, estoque, getEffectiveStockStatus]);
   const feedHealth = useMemo(() => {

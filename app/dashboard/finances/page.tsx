@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { insightHref } from "@/lib/insight-links";
 import {
   DollarSign,
   ArrowUpRight,
@@ -19,7 +18,6 @@ import {
   Pill,
   MoreHorizontal,
   AlertTriangle,
-  CheckCircle2,
   Scale,
   CircleDollarSign,
 } from "lucide-react";
@@ -28,6 +26,8 @@ import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
 import { FarmHealthBanner, type FarmHealthInsight } from "@/components/dashboard/farm-health-banner";
+import { AssistantCard } from "@/components/dashboard/assistant-card";
+import { AssistantInsightList } from "@/components/dashboard/assistant-insight-list";
 import { FinancesPageSkeleton } from "@/components/dashboard/page-loading-skeletons";
 import { TransactionModal, type TransactionFormState, type InventoryOption } from "@/components/finances/transaction-modal";
 import { TransactionTable, type FinancialTransactionRow } from "@/components/finances/transaction-table";
@@ -43,6 +43,7 @@ import { inventoryLinkFromSelection, inventorySelectionKey, parseInventorySelect
 import { calculateSalesFinancialMetrics, getSixMonthDateRange, groupMonthlySalesMetrics } from "@/lib/domain/financial-kpi-metrics";
 import { calculateCommercialFinancialMetrics } from "@/lib/domain/commercial-financial";
 import { calculateKpiVariation, getComparisonPeriod } from "@/lib/domain/kpi-comparison";
+import { generateFinanceInsights } from "@/lib/domain/finance-assistant";
 import type { Tables } from "@/lib/database.types";
 import {
   AreaChart,
@@ -302,28 +303,56 @@ export default function FinancasPage() {
     return Math.min(score, 100);
   }, [margem, varReceita, varDespesa, lucroPorAve]);
 
-  const actionItems = useMemo(() => {
-    const items: { icon: typeof AlertTriangle; text: string; type: "warning" | "success" | "info" }[] = [];
-    if (margem < 10) items.push({ icon: AlertTriangle, text: "Margem abaixo de 10% — revise custos com ração", type: "warning" });
-    if (varDespesa.dir === "up") items.push({ icon: AlertTriangle, text: `Despesas subiram ${varDespesa.pct} — investigue ração e energia`, type: "warning" });
-    if (lucroLiquido > 0 && varLucro.dir === "up") items.push({ icon: CheckCircle2, text: `Lucro cresceu ${varLucro.pct} — tendência positiva`, type: "success" });
-    if (varReceita.dir === "up") items.push({ icon: CheckCircle2, text: `Receita subiu ${varReceita.pct} — bom ritmo de vendas`, type: "success" });
-    return items;
-  }, [margem, varDespesa, lucroLiquido, varLucro, varReceita]);
+  const topCustomer = receitaPorCliente[0] && receitaPeriodo > 0
+    ? { name: receitaPorCliente[0].nome, share: (receitaPorCliente[0].valor / receitaPeriodo) * 100 }
+    : null;
+  const topExpense = despesasFiltradas[0]
+    ? { label: despesasFiltradas[0].categoria, share: despesasFiltradas[0].porcentagem }
+    : null;
+  const financeInsights = useMemo(
+    () => generateFinanceInsights({
+      status: loadError ? "error" : loading ? "loading" : "ready",
+      periodLabel: periodoLabel,
+      hasData: transactions.length > 0 || sales.length > 0 || receitaPeriodo !== 0 || despesaPeriodo !== 0,
+      revenue: receitaPeriodo,
+      expenses: despesaPeriodo,
+      profit: lucroLiquido,
+      margin: margem,
+      profitPerBird: lucroPorAve,
+      revenueVariation,
+      expenseVariation,
+      profitVariation,
+      topExpense,
+      topCustomer,
+    }),
+    [
+      despesaPeriodo,
+      expenseVariation,
+      loadError,
+      loading,
+      lucroLiquido,
+      lucroPorAve,
+      margem,
+      periodoLabel,
+      profitVariation,
+      receitaPeriodo,
+      revenueVariation,
+      sales.length,
+      topCustomer,
+      topExpense,
+      transactions.length,
+    ],
+  );
   const farmHealthInsights = useMemo<FarmHealthInsight[]>(
     () =>
-      actionItems.map((item) => {
-        const link = insightHref(item.text);
-
-        return {
-          level: item.type,
-          title: item.text,
-          action: "Abrir indicador relacionado",
-          href: link.href,
-          hrefLabel: link.label,
-        };
-      }),
-    [actionItems]
+      financeInsights.slice(0, 3).map((insight) => ({
+        level: insight.level,
+        title: insight.title,
+        action: insight.action,
+        href: insight.href,
+        hrefLabel: insight.hrefLabel,
+      })),
+    [financeInsights]
   );
   const farmHealthSummary = `Margem: ${margem.toFixed(1)}% | Resultado: ${formatCurrency(lucroLiquido)}`;
 
@@ -483,6 +512,16 @@ export default function FinancasPage() {
           emptyMessage={loading ? "Carregando indicadores..." : "Sem alertas no momento."}
         />
       )}
+
+      <AssistantCard
+        subtitle={`Análise financeira — ${periodoLabel}`}
+        requiredPlan="premium"
+        lockedMessage="Desbloqueie o Assistente Financeiro"
+        className="p-5"
+        contentClassName="flex-1"
+      >
+        <AssistantInsightList insights={financeInsights} className="max-h-[320px]" />
+      </AssistantCard>
 
       {/* Main KPI Row */}
       <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-4", showFinancesProFeatures ? "lg:grid-cols-4" : "lg:grid-cols-3")}>

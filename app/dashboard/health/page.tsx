@@ -623,7 +623,6 @@ export default function SaudePage() {
     else if (taxaMortalidade > 0) arr.push({ type: "warning", title: "Taxa de mortalidade acima do ideal", action: "Investigar causas e reforçar biossegurança" });
     if (coberturaVacinal >= 90) arr.push({ type: "success", title: `Cobertura vacinal em ${coberturaVacinal}%`, action: "Excelente — continuar com o calendário" });
     if (registros.length === 0 && agenda.length === 0) arr.push({ type: "info", title: "Nenhum registro de saúde encontrado", action: "Adicione registros para monitorar a saúde do plantel" });
-    else arr.push({ type: "info", title: "Período de calor aumenta risco de estresse térmico", action: "Reforçar ventilação e monitorar consumo de água" });
     return arr;
   }, [vacinasPendentes, tratamentosAtivos, taxaMortalidade, coberturaVacinal, agenda, registros]);
   const farmHealthInsights = useMemo<FarmHealthInsight[]>(

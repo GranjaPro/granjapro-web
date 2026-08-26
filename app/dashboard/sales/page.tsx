@@ -1109,12 +1109,7 @@ export default function VendasPage() {
             />
           ) : (
           <div className="space-y-2 overflow-y-auto pr-1 flex-1" style={{ scrollbarWidth: "thin", scrollbarColor: "#e5e7eb transparent" }}>
-            {[
-              ...insights,
-              { type: "info" as const, title: "Sazonalidade detectada em ovos Caipira", action: "Aumente o estoque 20% nos meses de pico para maximizar receita" },
-              { type: "success" as const, title: "Mix de clientes está bem distribuído", action: "Mantenha a diversificação atual para reduzir risco de concentração" },
-              { type: "warning" as const, title: "Previsão: queda de 12% na receita no próximo mês", action: "Antecipe negociações com clientes recorrentes para garantir volume" },
-            ].map((ins, i) => {
+            {insights.map((ins, i) => {
               const link = insightHref(`${ins.title} ${ins.action}`);
               const card = (
                 <div className={cn("p-3.5 rounded-xl border-l-[3px]", ins.type === "success" && "bg-emerald-50/50 border-l-emerald-500", ins.type === "warning" && "bg-amber-50/50 border-l-amber-500", ins.type === "info" && "bg-blue-50/50 border-l-blue-500")}>

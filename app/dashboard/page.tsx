@@ -74,6 +74,9 @@ import { usePlan } from "@/components/plan/plan-provider";
 import { LockedOverlay } from "@/components/plan/locked-overlay";
 import { UpgradePopup } from "@/components/plan/upgrade-popup";
 import { RequiredPlanBadge } from "@/components/plan/plan-badge";
+import { AssistantCard } from "@/components/dashboard/assistant-card";
+import { AssistantInsightList } from "@/components/dashboard/assistant-insight-list";
+import { generateDashboardInsights } from "@/lib/domain/dashboard-assistant";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   X, Pencil, Trash2, Droplets, Eye, ShieldCheck, Thermometer, Bug, Scissors,
@@ -325,6 +328,7 @@ export default function DashboardPage() {
   const [flockStatusData, setFlockStatusData] = useState<DashboardFlockStatus[]>([]);
   const [dbTasks, setDbTasks] = useState<DashboardTask[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [dashboardLoadError, setDashboardLoadError] = useState<string | null>(null);
 
   // Chart production data
   const [chartProductionData, setChartProductionData] = useState<WeeklyDataPoint[]>([]);
@@ -384,6 +388,7 @@ export default function DashboardPage() {
     const { startDate, endDate } = dateRange;
 
     async function fetchDashboardData() {
+      setDashboardLoadError(null);
       try {
         const comparisonPeriod = getComparisonPeriod({
           mode: filterMode,
@@ -404,6 +409,17 @@ export default function DashboardPage() {
           getFinancialSummaryInRange(farmId, comparisonPeriod.previousStartDate, comparisonPeriod.previousEndDate),
           getFarmBirdCount(farmId),
         ]);
+
+        const queryError = [
+          prodRes.error,
+          previousProdRes.error,
+          feedRes.error,
+          previousFeedRes.error,
+          barnsRes.error,
+          flocksRes.error,
+          flockMortalityRes.error,
+        ].find((error) => error !== null);
+        if (queryError) throw queryError;
 
         if (flocksRes.data) setAvailableFlocks(flocksRes.data);
 
@@ -590,8 +606,9 @@ export default function DashboardPage() {
         });
 
         setDataLoaded(true);
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("Error fetching dashboard data:", err);
+        setDashboardLoadError(err instanceof Error ? err.message : "Não foi possível carregar os indicadores do painel.");
         setDataLoaded(true);
       }
     }
@@ -761,6 +778,57 @@ export default function DashboardPage() {
   const profitMargin = financialData.revenue > 0
     ? ((financialData.profit / financialData.revenue) * 100).toFixed(1)
     : "0.0";
+  const dashboardAssistantSubtitle = filterMode === "dia"
+    ? "Baseado no dia selecionado"
+    : filterMode === "intervalo"
+      ? "Baseado no período selecionado"
+      : "Baseado no mês selecionado";
+  const dashboardInsights = useMemo(
+    () => generateDashboardInsights({
+      status: dashboardLoadError ? "error" : dataLoaded ? "ready" : "loading",
+      periodLabel: dashboardAssistantSubtitle.replace("Baseado no ", "").replace("Baseado na ", ""),
+      hasData:
+        productionData.eggsProduced > 0 ||
+        feedData.quantity > 0 ||
+        financialData.revenue > 0 ||
+        financialData.expenses > 0,
+      production: {
+        total: productionData.eggsProduced,
+        goal: productionGoals.eggs,
+        variation: kpiVariations.eggs,
+      },
+      layingRate: {
+        current: productionData.layingRate,
+        goal: productionGoals.layingRate,
+      },
+      costPerEgg: {
+        current: feedData.costPerEgg,
+        variation: kpiVariations.costPerEgg,
+      },
+      finances: {
+        profit: financialData.profit,
+        margin: Number(profitMargin),
+        profitVariation: financialSummaryVariations.profit,
+      },
+      underperformingFlocks: flockStatusData
+        .filter((flock) => flock.recordedDays > 0 && flock.layingRate < flock.layingRateGoal)
+        .map((flock) => flock.code),
+    }),
+    [
+      dashboardAssistantSubtitle,
+      dashboardLoadError,
+      dataLoaded,
+      feedData,
+      financialData,
+      financialSummaryVariations.profit,
+      flockStatusData,
+      kpiVariations.costPerEgg,
+      kpiVariations.eggs,
+      productionData,
+      productionGoals,
+      profitMargin,
+    ],
+  );
   const [taskStatuses, setTaskStatuses] = useState<Record<string, DashboardTaskStatus>>(
     Object.fromEntries(dbTasks.map((t) => [t.id, t.status]))
   );
@@ -1778,152 +1846,16 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* AI Performance Insights */}
+        {/* Data-driven farm assistant */}
         {showDashboardAssistant && (
-        <div className="order-2 xl:col-span-3 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm">
-                <Zap className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900">Assistente de Granja</h3>
-                <p className="text-[11px] text-gray-400 font-medium">Baseado nos últimos 7 dias</p>
-              </div>
-            </div>
-            <RequiredPlanBadge requiredPlan="premium" className="flex-shrink-0" />
-          </div>
-
-          {plan !== "premium" ? (
-            <LockedOverlay message="Desbloqueie o Assistente de Granja" targetPlan="premium">
-          <div className="space-y-3 flex-1">
-            {[
-              {
-                type: "warning" as const,
-                icon: TrendingDown,
-                title: "ProduÃ§Ã£o caiu 2.2% esta semana",
-                detail: "Seg-Ter tiveram queda acentuada. GalpÃ£o 2 Ã© o principal responsÃ¡vel.",
-              },
-              {
-                type: "success" as const,
-                icon: TrendingUp,
-                title: "Lucro aumentou 8.5% no mÃªs",
-                detail: "Receita cresceu mais que despesas. Margem atual: " + profitMargin + "%.",
-              },
-              {
-                type: "danger" as const,
-                icon: AlertTriangle,
-                title: "Custo de raÃ§Ã£o subiu 5.3%",
-                detail: "Estoque para apenas 3 dias. Considere negociar com fornecedor.",
-              },
-            ].map((insight, i) => (
-              <div
-                key={i}
-                className={cn(
-                  "rounded-xl px-4 py-3 border-l-[3px]",
-                  insight.type === "warning" && "bg-amber-50/60 border-l-amber-500",
-                  insight.type === "success" && "bg-emerald-50/60 border-l-emerald-500",
-                  insight.type === "danger" && "bg-red-50/60 border-l-red-500"
-                )}
-              >
-                <div className="flex items-start gap-2.5">
-                  <insight.icon className="w-4 h-4 flex-shrink-0 mt-0.5 text-gray-400" />
-                  <div>
-                    <p className="text-[13px] font-semibold text-gray-600">{insight.title}</p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">{insight.detail}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-            </LockedOverlay>
-          ) : (
-          <div className="space-y-3 flex-1">
-            {/* Insight items */}
-            {[
-              {
-                type: "warning" as const,
-                icon: TrendingDown,
-                title: "Produção caiu 2.2% esta semana",
-                detail: "Seg-Ter tiveram queda acentuada. Galpão 2 é o principal responsável.",
-              },
-              {
-                type: "success" as const,
-                icon: TrendingUp,
-                title: "Lucro aumentou 8.5% no mês",
-                detail: "Receita cresceu mais que despesas. Margem atual: " + profitMargin + "%.",
-              },
-              {
-                type: "danger" as const,
-                icon: AlertTriangle,
-                title: "Custo de ração subiu 5.3%",
-                detail: "Estoque para apenas 3 dias. Considere negociar com fornecedor.",
-              },
-              {
-                type: "info" as const,
-                icon: Target,
-                title: "Meta semanal: 92% atingida",
-                detail: "Faltam 2.100 ovos para bater a meta de 94.500 na semana.",
-              },
-              {
-                type: "success" as const,
-                icon: Activity,
-                title: "Mortalidade sob controle",
-                detail: "Taxa de 0.02% — bem abaixo do limite aceitável de 0.05%.",
-              },
-            ].map((insight, i) => {
-              const isLockedInsight = plan !== "premium" && i >= 2;
-              if (isLockedInsight) {
-                return (
-                  <LockedOverlay key={i} message="Desbloqueie o Assistente de Granja completo" targetPlan="premium">
-                    <div className={cn(
-                      "rounded-xl px-4 py-3 border-l-[3px]",
-                      insight.type === "warning" && "bg-amber-50/60 border-l-amber-500",
-                      insight.type === "success" && "bg-emerald-50/60 border-l-emerald-500",
-                      insight.type === "danger" && "bg-red-50/60 border-l-red-500",
-                      insight.type === "info" && "bg-blue-50/60 border-l-blue-500"
-                    )}>
-                      <div className="flex items-start gap-2.5">
-                        <insight.icon className="w-4 h-4 flex-shrink-0 mt-0.5 text-gray-400" />
-                        <div>
-                          <p className="text-[13px] font-semibold text-gray-600">{insight.title}</p>
-                          <p className="text-[11px] text-gray-400 mt-0.5">{insight.detail}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </LockedOverlay>
-                );
-              }
-              return (
-                <div
-                  key={i}
-                  className={cn(
-                    "rounded-xl px-4 py-3 border-l-[3px] cursor-pointer transition-colors",
-                    insight.type === "warning" && "bg-amber-50/60 border-l-amber-500 hover:bg-amber-50",
-                    insight.type === "success" && "bg-emerald-50/60 border-l-emerald-500 hover:bg-emerald-50",
-                    insight.type === "danger" && "bg-red-50/60 border-l-red-500 hover:bg-red-50",
-                    insight.type === "info" && "bg-blue-50/60 border-l-blue-500 hover:bg-blue-50"
-                  )}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <insight.icon className={cn(
-                      "w-4 h-4 flex-shrink-0 mt-0.5",
-                      insight.type === "warning" && "text-amber-600",
-                      insight.type === "success" && "text-emerald-600",
-                      insight.type === "danger" && "text-red-600",
-                      insight.type === "info" && "text-blue-600"
-                    )} />
-                    <div>
-                      <p className="text-[13px] font-semibold text-gray-900 leading-snug">{insight.title}</p>
-                      <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{insight.detail}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          )}
-        </div>
+          <AssistantCard
+            subtitle={dashboardAssistantSubtitle}
+            lockedMessage="Desbloqueie o Assistente de Granja"
+            className="order-2 xl:col-span-3"
+            contentClassName="flex-1"
+          >
+            <AssistantInsightList insights={dashboardInsights} className="max-h-[320px]" />
+          </AssistantCard>
         )}
       </div>
 
