@@ -19,7 +19,21 @@ export {
   toggleTask,
   deleteTask,
 } from "./tasks";
-export { getAlerts, getUnreadAlertCount, createAlert, markAlertAsRead, markAllAlertsAsRead, resolveAlert } from "./alerts";
+export {
+  getNotifications,
+  getUnreadNotificationCount,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  dismissNotification,
+  getNotificationPreferences,
+  saveNotificationPreferences,
+  getNotificationSettings,
+  saveLowStockThreshold,
+  type NotificationInboxItem,
+  type NotificationPreference,
+  type NotificationPreferenceInput,
+  type NotificationSettings,
+} from "./alerts";
 export { createFeedback, type FeedbackInsert } from "./feedback";
 export { getEquipmentByFarm, createEquipment, updateEquipment, deleteEquipment } from "./equipment";
 export { getWorkers, createWorker, updateWorker, deleteWorker } from "./workers";

@@ -1220,6 +1220,235 @@ export interface Database {
           resolved?: boolean;
         };
       };
+      notification_settings: {
+        Row: {
+          farm_id: string;
+          low_stock_threshold_percent: number;
+          upcoming_vaccination_days: number;
+          low_laying_window_days: number;
+          low_laying_gap_percent: number;
+          high_mortality_window_days: number;
+          high_mortality_percent: number;
+          delinquency_days: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          farm_id: string;
+          low_stock_threshold_percent?: number;
+          upcoming_vaccination_days?: number;
+          low_laying_window_days?: number;
+          low_laying_gap_percent?: number;
+          high_mortality_window_days?: number;
+          high_mortality_percent?: number;
+          delinquency_days?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          farm_id?: string;
+          low_stock_threshold_percent?: number;
+          upcoming_vaccination_days?: number;
+          low_laying_window_days?: number;
+          low_laying_gap_percent?: number;
+          high_mortality_window_days?: number;
+          high_mortality_percent?: number;
+          delinquency_days?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      notifications: {
+        Row: {
+          id: string;
+          farm_id: string;
+          category: "low_inventory" | "vaccination" | "low_laying_rate" | "high_mortality" | "delinquent_customer";
+          severity: "info" | "warning" | "critical";
+          title: string;
+          body: string;
+          entity_type: string;
+          entity_id: string;
+          action_path: string;
+          dedup_key: string;
+          status: "active" | "resolved";
+          occurrence_version: number;
+          occurrence_count: number;
+          first_detected_at: string;
+          last_detected_at: string;
+          resolved_at: string | null;
+          data: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          farm_id: string;
+          category: "low_inventory" | "vaccination" | "low_laying_rate" | "high_mortality" | "delinquent_customer";
+          severity: "info" | "warning" | "critical";
+          title: string;
+          body: string;
+          entity_type: string;
+          entity_id: string;
+          action_path: string;
+          dedup_key: string;
+          status?: "active" | "resolved";
+          occurrence_version?: number;
+          occurrence_count?: number;
+          first_detected_at?: string;
+          last_detected_at?: string;
+          resolved_at?: string | null;
+          data?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          farm_id?: string;
+          category?: "low_inventory" | "vaccination" | "low_laying_rate" | "high_mortality" | "delinquent_customer";
+          severity?: "info" | "warning" | "critical";
+          title?: string;
+          body?: string;
+          entity_type?: string;
+          entity_id?: string;
+          action_path?: string;
+          dedup_key?: string;
+          status?: "active" | "resolved";
+          occurrence_version?: number;
+          occurrence_count?: number;
+          first_detected_at?: string;
+          last_detected_at?: string;
+          resolved_at?: string | null;
+          data?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      notification_preferences: {
+        Row: {
+          farm_id: string;
+          user_id: string;
+          category: "low_inventory" | "vaccination" | "low_laying_rate" | "high_mortality" | "delinquent_customer";
+          in_app_enabled: boolean;
+          email_enabled: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          farm_id: string;
+          user_id: string;
+          category: "low_inventory" | "vaccination" | "low_laying_rate" | "high_mortality" | "delinquent_customer";
+          in_app_enabled?: boolean;
+          email_enabled?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          farm_id?: string;
+          user_id?: string;
+          category?: "low_inventory" | "vaccination" | "low_laying_rate" | "high_mortality" | "delinquent_customer";
+          in_app_enabled?: boolean;
+          email_enabled?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      notification_recipients: {
+        Row: {
+          id: string;
+          notification_id: string;
+          farm_id: string;
+          user_id: string;
+          occurrence_version: number;
+          read_at: string | null;
+          dismissed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          notification_id: string;
+          farm_id: string;
+          user_id: string;
+          occurrence_version: number;
+          read_at?: string | null;
+          dismissed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          notification_id?: string;
+          farm_id?: string;
+          user_id?: string;
+          occurrence_version?: number;
+          read_at?: string | null;
+          dismissed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      notification_email_deliveries: {
+        Row: {
+          id: string;
+          notification_id: string;
+          farm_id: string;
+          user_id: string;
+          occurrence_version: number;
+          recipient_email: string;
+          status: "pending" | "processing" | "retry" | "sent" | "failed";
+          attempt_count: number;
+          next_attempt_at: string;
+          locked_at: string | null;
+          provider_id: string | null;
+          idempotency_key: string;
+          last_http_status: number | null;
+          last_error_code: string | null;
+          last_error_detail: string | null;
+          sent_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          notification_id: string;
+          farm_id: string;
+          user_id: string;
+          occurrence_version: number;
+          recipient_email: string;
+          status?: "pending" | "processing" | "retry" | "sent" | "failed";
+          attempt_count?: number;
+          next_attempt_at?: string;
+          locked_at?: string | null;
+          provider_id?: string | null;
+          idempotency_key: string;
+          last_http_status?: number | null;
+          last_error_code?: string | null;
+          last_error_detail?: string | null;
+          sent_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          notification_id?: string;
+          farm_id?: string;
+          user_id?: string;
+          occurrence_version?: number;
+          recipient_email?: string;
+          status?: "pending" | "processing" | "retry" | "sent" | "failed";
+          attempt_count?: number;
+          next_attempt_at?: string;
+          locked_at?: string | null;
+          provider_id?: string | null;
+          idempotency_key?: string;
+          last_http_status?: number | null;
+          last_error_code?: string | null;
+          last_error_detail?: string | null;
+          sent_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       feedbacks: {
         Row: {
           id: string;
@@ -1367,6 +1596,44 @@ export interface Database {
       };
       delete_feed_consumption_with_stock: {
         Args: { p_record_id: string };
+        Returns: undefined;
+      };
+      upsert_notification_condition: {
+        Args: {
+          p_farm_id: string;
+          p_category: string;
+          p_severity: string;
+          p_title: string;
+          p_body: string;
+          p_entity_type: string;
+          p_entity_id: string;
+          p_action_path: string;
+          p_dedup_key: string;
+          p_data?: Json;
+        };
+        Returns: Database["public"]["Tables"]["notifications"]["Row"];
+      };
+      resolve_notification_condition: {
+        Args: { p_farm_id: string; p_dedup_key: string };
+        Returns: Database["public"]["Tables"]["notifications"]["Row"];
+      };
+      claim_notification_email_deliveries: {
+        Args: { p_limit?: number };
+        Returns: Database["public"]["Tables"]["notification_email_deliveries"]["Row"][];
+      };
+      complete_notification_email_delivery: {
+        Args: { p_delivery_id: string; p_provider_id: string };
+        Returns: undefined;
+      };
+      fail_notification_email_delivery: {
+        Args: {
+          p_delivery_id: string;
+          p_terminal: boolean;
+          p_next_attempt_at: string;
+          p_http_status: number | null;
+          p_error_code: string | null;
+          p_error_detail: string | null;
+        };
         Returns: undefined;
       };
     };
