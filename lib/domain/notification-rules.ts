@@ -59,7 +59,9 @@ export function classifyNotificationEmailFailure(
     return { retryable: true, delaySeconds: retryAfterSeconds };
   }
 
-  if (httpStatus === 409 && errorCode === "concurrent_idempotent_requests") {
+  if (httpStatus === 409 && (
+    errorCode === "concurrent_idempotent_requests" || errorCode === "resource_locked"
+  )) {
     return { retryable: true, delaySeconds: retryAfterSeconds };
   }
 
